@@ -44,8 +44,11 @@ H       = getoptions(options, 'heuristic', []);
 values  = getoptions(options, 'values', []);
 dmax    = getoptions(options, 'dmax', 1e9);
 
-I = find(L==-Inf); L(I)=-1e9;
-I = find(L==Inf); L(I)=1e9;
+% I = find(L==-Inf); L(I)=-1e9;
+% I = find(L==Inf); L(I)=1e9;
+
+L(L==-Inf)=-1e9;
+L(L==Inf)=1e9;
 
 nb_iter_max = min(nb_iter_max, 1.2*max(size(W)));
 
@@ -55,8 +58,8 @@ end
 if size(faces,1)>size(faces,2)
     faces = faces';
 end
-start_points = start_points(:);
-end_points = end_points(:);
+start_points = start_points(:)  ;
+end_points = end_points(:) ;
 
 % use fast C-coded version if possible
 if exist('perform_front_propagation_2d')~=0
@@ -67,5 +70,4 @@ else
 end
 
 % replace C 'Inf' value (1e9) by Matlab Inf value.
-I = find( D>1e8 );
-D(I) = Inf;
+D(D>1e8) = Inf;

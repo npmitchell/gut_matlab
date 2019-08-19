@@ -1,14 +1,18 @@
 % test for data interpolation using geodesic distances
 
+addpath('./data/')
+addpath('./tests/')
+addpath('./toolbox/')
+
 rep  = 'data/';
 rep  = '';
 
 name = 'mm';
-name = 'cavern';
 name = 'disk';
 name = 'toto';
 name = 'boat';
 name = 'cartoon';
+name = 'cavern';
 
 clear options;
 options.null = 0;

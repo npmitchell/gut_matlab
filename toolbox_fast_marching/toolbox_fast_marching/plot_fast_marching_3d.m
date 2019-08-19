@@ -1,4 +1,4 @@
-function plot_fast_marching_3d(W,S,path,start_points,end_points, options)
+function plot_fast_marching_3d(W, S, path, start_points, end_points, options)
 
 % plot_fast_marching_3d - plot the result of the fast marching.
 %

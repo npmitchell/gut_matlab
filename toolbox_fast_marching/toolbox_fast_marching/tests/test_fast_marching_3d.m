@@ -4,7 +4,8 @@
 
 n = 40;
 
-% gaussian weight (path will avoid center of the cube)
+% gaussian weight (path will avoid center of the cube), meaning that LOW
+% values will be avoided!
 x = -1:2/(n-1):1;
 [X,Y,Z] = meshgrid(x,x,x);
 sigma = 0.4;

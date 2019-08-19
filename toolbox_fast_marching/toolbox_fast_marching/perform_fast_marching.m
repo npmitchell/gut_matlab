@@ -77,15 +77,15 @@ if (d==4 && size(W,3)==2 && size(W,4)==2) || (d==4 && size(W,4)==6) || (d==5 && 
     W = cat(2, W(:,1,:,:), W, W(:,end,:,:));
     W = cat(3, W(:,:,1,:), W, W(:,:,end,:));
     
-%    if isempty(L)
+    % if isempty(L)
         L = ones(size(W,1), size(W,2), size(W,3));
- %   end
+    % end
  
     if dmax==Inf
         dmax = 1e15;
     end
     
-%    start_points = start_points-1;
+    % start_points = start_points-1;
     alpha = 0;
     [D,Q] = perform_front_propagation_anisotropic(W, L, alpha, start_points,dmax);
 

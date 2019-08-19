@@ -3,28 +3,28 @@
 %   Copyright (c) 2007 Gabriel Peyre
 
 path(path, 'toolbox/');
-path(path, '../toolbox_graph_data/');
-path(path, '../toolbox_graph_data/off/');
+% path(path, '../toolbox_graph_data/');
+% path(path, '../toolbox_graph_data/off/');
 
-
-rep = ['results/geodesic-mesh/'];
-if not(exist(rep))
+rep = ['results/geodesic-mesh/'] ;
+if not(exist(rep, 'dir'))
     mkdir(rep);
 end
-
 
 disp('Loading mesh.');
 if not(exist('name'))
     name = 'bunny';
-    name = 'elephant-50kv';
     name = 'david50kf';
     name = 'david_head';
     name = 'hand';
+    name = 'elephant-50kv';
 end
+name = 'elephant-50kv';
+
 options.name = name;
 [vertex,faces] = read_mesh(name);
 clf;
-plot_mesh(vertex, faces,options);
+plot_mesh(vertex, faces, options);
 saveas(gcf, [rep name '-mesh.png'], 'png');
 
 nverts = max(size(vertex));
@@ -48,6 +48,7 @@ switch name
     case 'hand'
         start_points(1) = 29719;
 end
+start_points(1) = 24575;
 
 disp('Performing propagation.');
 [D,S,Q] = perform_fast_marching_mesh(vertex, faces, start_points, options);

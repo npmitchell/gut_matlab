@@ -1,10 +1,12 @@
 % test for skeleton and distance transform
-
+addpath('./tests/')
+addpath('./toolbox')
 
 rep  = 'data/';
+name = 'toto';
 name = 'mm';
 name = 'cavern';
-name = 'toto';
+
 
 %% compute a binary shape
 n = 200;
@@ -27,7 +29,7 @@ nsk = length(sk);
 clf;
 for i=1:nsk
     %% compute euclidean distance to skeleton
-    [Dsk1,Qsk] = eucdist2(logical(sk{i}));
+    [Dsk1, Qsk] = eucdist2(logical(sk{i}));
     %% compute the geodesic distance, should not be exactly the same
     % positions along the skeleton
     [x,y] = ind2sub(size(mask),find(sk{i}));

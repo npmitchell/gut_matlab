@@ -26,8 +26,8 @@ name = 'map';
 name = 'mountain';
 name = 'cavern';
 name = 'constant';
-name = 'gaussian';
 name = 'road2';
+name = 'gaussian';
 
 [M,W] = load_potential_map(name, n);
     
@@ -39,7 +39,6 @@ disp('Computing heuristic.');
 disp('Computing reference distance');
 [D,S] = perform_fast_marching(W, start_points);
 
-
 weight_list = 0:0.1:1.1;
 
 err = [];
@@ -47,10 +46,11 @@ i = 0;
 clf;
 for w = weight_list
     i = i+1;
-    disp( sprintf('Propagation with weigth %.2f.', w) );
+    fprintf('Propagation with weight %.2f.\n', w) ;
     options.null = 0;
-    [D1,S] = perform_fast_marching(W, start_points, options, w*H);
-    err = [err; norme(D-D1) ];
+    options.heuristic = w* H ;
+    [D1,S] = perform_fast_marching(W, start_points, options);
+    err = [err; norm(D-D1) ];
     subplot(3,3,min(i,9));
     imagesc(D-D1);
 end
