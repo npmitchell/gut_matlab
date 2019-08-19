@@ -30,15 +30,14 @@ res = 1 ;
 buffer = 1 ;
 ssfactor = 4; 
 weight = 0.05;
-normal_step = 2 ; 
+normal_step = 0.5 ; 
 preview = false ;
 eps = 0.01 ;
 
 % Find all meshes to consider
-meshdir = odir ;
+meshdir = pwd ;
 cd ../
 rootdir = pwd ;
-cd(odir) ;
 % rootpath = '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/' ;
 % rootpath = [rootpath 'Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/'] ;
 % if ~exist(rootpath, 'dir')
@@ -54,6 +53,10 @@ exponent = 1;
 outdir = [fullfile(fns(ii).folder, 'centerline') filesep ];
 if ~exist(outdir, 'dir')
     mkdir(outdir) ;
+end
+figoutdir = [outdir 'images' filesep];
+if ~exist(figoutdir, 'dir')
+    mkdir(figoutdir) ;
 end
 
 % Find the xy limits
@@ -82,6 +85,8 @@ ymin = ymin / ssfactor - buffer ;
 xmax = xmax / ssfactor + buffer ;
 ymax = ymax / ssfactor + buffer ;
 
+ii = 1 ;
+
 %% Iterate through each mesh
 for ii=1:length(fns)
     %% Name the output centerline
@@ -89,36 +94,33 @@ for ii=1:length(fns)
     name = name_split{1} ; 
     expstr = strrep(num2str(exponent, '%0.1f'), '.', 'p') ;
     outname = [fullfile(outdir, name) '_centerline_exp' expstr] ;
+    figoutname = [fullfile(figoutdir, name) '_centerline_exp' expstr] ;
+    tmp = strsplit(name, '_') ;
+    timestr = tmp{length(tmp)} ;
     
     %% Read the mesh
     mesh = ply_read(fullfile(fns(ii).folder, fns(ii).name));
     tri = cell2mat(mesh.face.vertex_indices) ;
     xs = mesh.vertex.x / ssfactor ;
     ys = mesh.vertex.y / ssfactor ;
-    zs = mesh.vertex.z / ssfactor ;
-
-    % fv = struct('faces', tri + 1, 'vertices', ...
-    %     [mesh.vertex.x, mesh.vertex.y, mesh.vertex.z]) ;    
+    zs = mesh.vertex.z / ssfactor ; 
     fv = struct('faces', tri + 1, 'vertices', [xs, ys, zs]) ;
 
     % Must either downsample mesh, compute xyzgrid using ssfactor and
     % pass to options struct.
     % Here, downsampled mesh
-    % mesh_ds = mesh ;
-    % mesh_ds.vertex.x = xs ;
-    % mesh_ds.vertex.y = ys ;
-    % mesh_ds.vertex.z = zs ;
-    mesh.vertex.x = xs ;
-    mesh.vertex.y = ys ;
-    mesh.vertex.z = zs ;
+    vertices = [xs, ys, zs] ;
+    % mesh.vertex.x = xs ;
+    % mesh.vertex.y = ys ;
+    % mesh.vertex.z = zs ;
 
     %% Load the AP axis determination
     thres = 0.5 ;
     options.check = false ;
-    apfn = [rootpath 'Time_000110_c1_stab_Probabilities_apcenterline.h5' ];
+    apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
     apdat = h5read(apfn, '/exported_data');
-    [aind, acom] = match_training_to_vertex(squeeze(apdat(1,:,:,:)), thres, mesh, options) ;
-    [pind, pcom] = match_training_to_vertex(squeeze(apdat(2,:,:,:)), thres, mesh, options) ;
+    [aind, acom] = match_training_to_vertex(squeeze(apdat(1,:,:,:)), thres, vertices, options) ;
+    [pind, pcom] = match_training_to_vertex(squeeze(apdat(2,:,:,:)), thres, vertices, options) ;
     % acom = acom_ds * ssfactor ;
     % pcom = pcom_ds * ssfactor ;
 
@@ -131,7 +133,7 @@ for ii=1:length(fns)
         startpt = acom' ;
     else
         % move along the inward normal of the mesh from the matched vertex
-        vtx = [mesh.vertex.x(aind), mesh.vertex.y(aind), mesh.vertex.z(aind)]' ;
+        vtx = [vertices(aind, 1), vertices(aind, 2), vertices(aind, 3)]' ;
         normal = [mesh.vertex.nx(aind), ...
                     mesh.vertex.nx(aind), ...
                     mesh.vertex.nx(aind)]' ;
@@ -152,14 +154,14 @@ for ii=1:length(fns)
         endpt = pcom' ;
     else
         % move along the inward normal of the mesh from the matched vertex
-        vtx = [mesh.vertex.x(pind), mesh.vertex.y(pind), mesh.vertex.z(pind)]' ;
+        vtx = [vertices(pind, 1), vertices(pind, 2), vertices(pind, 3)]' ;
         normal = [mesh.vertex.nx(pind), ...
                     mesh.vertex.nx(pind), ...
                     mesh.vertex.nx(pind)]' ;
         endpt = vtx + normal * normal_step;
         if ~inpolyhedron(fv, endpt(1), endpt(2), endpt(3)) 
             % this didn't work, check point in reverse direction
-            endpt = vtx - normal ;
+            endpt = vtx - normal * normal_step ;
             if ~inpolyhedron(fv, endpt(1), endpt(2), endpt(3))
                 % Can't seem to jitter into the mesh, so use vertex
                 disp("Can't seem to jitter into the mesh, so using vertex for endpt")
@@ -190,7 +192,7 @@ for ii=1:length(fns)
         xx = 0:res:ceil(max(xs) + buffer) ;
         yy = 0:res:ceil(max(ys) + buffer) ;
         zz = 0:res:ceil(max(zs) + buffer) ;
-        [X, Y, Z] = meshgrid(xx, yy, zz) ;
+        % [X, Y, Z] = meshgrid(xx, yy, zz) ;
     end
     disp('Identifying points inside mesh...')
     tic 
@@ -264,7 +266,7 @@ for ii=1:length(fns)
     disp('found skel')        
     if preview
         % Preview D2
-        clf
+        clf ;
         for kk=1:10:size(D2,3)
             imshow(squeeze(D2(kk,:,:)))
             title(['D2 for plane z=' num2str(kk)])
@@ -307,6 +309,7 @@ for ii=1:length(fns)
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Display the skeleton
+    disp('Saving figure ...')
     close all
     fig = figure ;
     iso = isosurface(inside, 0.5) ;
@@ -328,7 +331,7 @@ for ii=1:length(fns)
     view(2)
     xlim([xmin xmax])
     ylim([ymin ymax])
-    saveas(fig, [outname '.png'])
+    saveas(fig, [figoutname '.png'])
     close all
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
@@ -336,4 +339,12 @@ for ii=1:length(fns)
     disp(['Saving centerline to txt: ', outname, '.txt'])
     dlmwrite([outname '.txt'], skel)
 
+    %% Associate each vertex with a point on the curve
+    % dist2 = (xs - skel(:,1)).^2 + (xs - skel(:,2)).^2 + (xs - skel(:,3)).^2 ;
+    [kmatch, dist] = dsearchn(skel, vertices) ;
+    
+    
+    % Compute radius R(s)
+    
+    
 end

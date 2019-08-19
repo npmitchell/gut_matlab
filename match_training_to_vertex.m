@@ -9,7 +9,7 @@ function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_
     % thres : float
     %   Threshold probability used to segment the probability cloud into
     %   connected regions
-    % mesh_vertices : struct
+    % mesh_vertices : N x 3 float array
     %   Positions of the mesh vertices, as N x 3 array
     % varargin: struct
     %   Options struct, with fields xyzgrid and check
