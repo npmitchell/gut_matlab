@@ -15,8 +15,9 @@ if ~exist(codepath, 'dir')
 end
 addpath(codepath)
 addpath([codepath 'addpath_recurse' filesep]) ;
-addpath([codepath, 'mesh_handling' filesep]);
-addpath([codepath, 'inpolyhedron' filesep]);
+addpath([codepath 'mesh_handling' filesep]);
+addpath([codepath 'inpolyhedron' filesep]);
+addpath([codepath 'savgol' filesep])
 addpath_recurse('/mnt/data/code/gptoolbox/')
 % addpath_recurse([codepath 'gptoolbox' filesep])
 
@@ -28,6 +29,7 @@ addpath(dtpath)
 cd(odir)
 
 %% Parameters
+save_figs = false ;
 res = 1 ;
 resolution = 0.2619 ;
 buffer = 5 ;
@@ -58,6 +60,7 @@ cd(meshdir)
 fns = dir(fullfile(meshdir, 'mesh_apical_stab_0*.ply')) ;
 rotname = fullfile(meshdir, 'rotation_APDV') ;
 transname = fullfile(meshdir, 'translation_APDV') ;
+xyzlimname = fullfile(meshdir, 'xyzlim_APDV') ;
 
 % Name output directory
 outdir = [fullfile(fns(1).folder, 'centerline') filesep ];
@@ -102,9 +105,11 @@ for ii=1:length(fns)
     expstr = strrep(num2str(exponent, '%0.1f'), '.', 'p') ;
     outname = [fullfile(outdir, name) '_centerline_exp' expstr] ;
     polaroutfn = [fullfile(outdir, name) '_polarcoords'] ;
+    skel_rs_outfn = [fullfile(outdir, name) '_centerline_scaled_exp' expstr ] ;
     fig1outname = [fullfile(fig1outdir, name) '_centerline_exp' expstr '_xy'] ;
     fig2outname = [fullfile(fig2outdir, name) '_centerline_exp' expstr '_xz'] ;
     fig3outname = [fullfile(fig3outdir, name) '_centerline_exp' expstr '_yz'] ;
+    figsmoutname = [fullfile(fig3outdir, name) '_centerline_smoothed_exp' expstr] ;
     tmp = strsplit(name, '_') ;
     timestr = tmp{length(tmp)} ;
     
@@ -413,6 +418,10 @@ for ii=1:length(fns)
         xmax = max(xyzr(:, 1)) + plot_buffer + trans(1) ;
         ymax = max(xyzr(:, 2)) + plot_buffer + trans(2) ;
         zmax = max(xyzr(:, 3)) + plot_buffer + trans(3) ;
+        
+        % Save xyzlimits 
+        disp('Saving xyzlimits for plotting')
+        dlmwrite([xyzlimname '.txt'], [xmin, xmax; ymin, ymax; zmin, zmax])
     end
     
     %% Rotate and translate vertices and endpoints
@@ -424,51 +433,53 @@ for ii=1:length(fns)
     
     %% Plot and save
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    disp('Saving rotated & translated figure ...')    
-    close all
-    fig = figure ;
-    set(gcf, 'Visible', 'Off')
-    tmp = trisurf(tri + 1, xyzr(:, 1), xyzr(:,2), xyzr(:, 3), ...
-        xyzr(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
-    hold on;
-    % plot the skeleton
-    for i=1:length(skelr)
-        plot3(skelr(:,1), skelr(:,2), skelr(:,3),'-','Color',[0,0,0], 'LineWidth', 3);
+    if save_figs
+        disp('Saving rotated & translated figure ...')    
+        close all
+        fig = figure ;
+        set(gcf, 'Visible', 'Off')
+        tmp = trisurf(tri + 1, xyzr(:, 1), xyzr(:,2), xyzr(:, 3), ...
+            xyzr(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+        hold on;
+        % plot the skeleton
+        for i=1:length(skelr)
+            plot3(skelr(:,1), skelr(:,2), skelr(:,3),'-','Color',[0,0,0], 'LineWidth', 3);
+        end
+        plot3(sptr(1), sptr(2), sptr(3), 'ro')
+        plot3(eptr(1), eptr(2), eptr(3), 'bo')
+        plot3(dptr(1), dptr(2), dptr(3), 'go')
+        xlabel('x')
+        ylabel('y')
+        zlabel('z')
+        title(['Centerline using $D^{' num2str(exponent) '}$: ' timestr], ...
+            'Interpreter', 'Latex')
+        axis equal
+        % xy
+        view(2)
+        xlim([xmin xmax])
+        ylim([ymin ymax])
+        zlim([zmin zmax])
+        set(gcf, 'PaperUnits', 'centimeters');
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);
+        saveas(fig, [fig1outname '.png'])
+        % yz
+        view(90, 0)
+        xlim([xmin xmax])
+        ylim([ymin ymax])
+        zlim([zmin zmax])
+        set(gcf, 'PaperUnits', 'centimeters');
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=15cm
+        saveas(fig, [fig2outname '.png'])
+        % xz
+        view(0, 0)    
+        xlim([xmin xmax])
+        ylim([ymin ymax])
+        zlim([zmin zmax])
+        set(gcf, 'PaperUnits', 'centimeters');
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=15cm
+        saveas(fig, [fig3outname '.png'])
+        close all
     end
-    plot3(sptr(1), sptr(2), sptr(3), 'ro')
-    plot3(eptr(1), eptr(2), eptr(3), 'bo')
-    plot3(dptr(1), dptr(2), dptr(3), 'go')
-    xlabel('x')
-    ylabel('y')
-    zlabel('z')
-    title(['Centerline using $D^{' num2str(exponent) '}$: ' timestr], ...
-        'Interpreter', 'Latex')
-    axis equal
-    % xy
-    view(2)
-    xlim([xmin xmax])
-    ylim([ymin ymax])
-    zlim([zmin zmax])
-    set(gcf, 'PaperUnits', 'centimeters');
-    set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);
-    saveas(fig, [fig1outname '.png'])
-    % yz
-    view(90, 0)
-    xlim([xmin xmax])
-    ylim([ymin ymax])
-    zlim([zmin zmax])
-    set(gcf, 'PaperUnits', 'centimeters');
-    set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=15cm
-    saveas(fig, [fig2outname '.png'])
-    % xz
-    view(0, 0)    
-    xlim([xmin xmax])
-    ylim([ymin ymax])
-    zlim([zmin zmax])
-    set(gcf, 'PaperUnits', 'centimeters');
-    set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=15cm
-    saveas(fig, [fig3outname '.png'])
-    close all
     
     % Save centerline as text file
     disp(['Saving centerline to txt: ', outname, '.txt'])
@@ -563,50 +574,59 @@ for ii=1:length(fns)
     
     % Save the radius data as a plot
     % Color by phi_dorsal
-    close all
-    fig = figure;
-    set(gcf, 'Visible', 'Off')
-    scatter(ss(kmatch) * resolution * ssfactor,...
-        radii * resolution * ssfactor, [], ...
-        phi_dorsal / pi, 'filled', ...
-        'MarkerFaceAlpha', 0.05) ;        
-    xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
-    ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
-    cb = colorbar() ;
-    ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
-    cb.Label.Interpreter = 'latex';
-    cb.Label.FontSize = 12 ;
-    title('Midgut radius')
-    xlim([0, 525])
-    set(gcf, 'PaperUnits', 'centimeters');
-    set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-    saveas(fig, fullfile(radius_vs_s_phi_outdir, [name '.png']))
-    
-    % Color by phi_ctrdorsal
-    close all
-    fig = figure;
-    set(gcf, 'Visible', 'Off')
-    scatter(ss(kmatch) * resolution * ssfactor,...
-        radii * resolution * ssfactor, [], ...
-        phi_dorsal / pi, 'filled', ...
-        'MarkerFaceAlpha', 0.05) ;        
-    xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
-    ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
-    cb = colorbar() ;
-    ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
-    cb.Label.Interpreter = 'latex';
-    cb.Label.FontSize = 12 ;
-    title('Midgut radius')
-    xlim([0, 525])
-    set(gcf, 'PaperUnits', 'centimeters');
-    set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-    saveas(fig, fullfile(radius_vs_s_phicd_outdir, [name '.png']))
-    clf
+    if save_figs
+        close all
+        fig = figure;
+        set(gcf, 'Visible', 'Off')
+        scatter(ss(kmatch) * resolution * ssfactor,...
+            radii * resolution * ssfactor, [], ...
+            phi_dorsal / pi, 'filled', ...
+            'MarkerFaceAlpha', 0.05) ;        
+        xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
+        ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
+        cb = colorbar() ;
+        ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
+        cb.Label.Interpreter = 'latex';
+        cb.Label.FontSize = 12 ;
+        title('Midgut radius')
+        xlim([0, 525])
+        set(gcf, 'PaperUnits', 'centimeters');
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
+        saveas(fig, fullfile(radius_vs_s_phi_outdir, [name '.png']))
+
+        % Color by phi_ctrdorsal
+        close all
+        fig = figure;
+        set(gcf, 'Visible', 'Off')
+        scatter(ss(kmatch) * resolution * ssfactor,...
+            radii * resolution * ssfactor, [], ...
+            phi_dorsal / pi, 'filled', ...
+            'MarkerFaceAlpha', 0.05) ;        
+        xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
+        ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
+        cb = colorbar() ;
+        ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
+        cb.Label.Interpreter = 'latex';
+        cb.Label.FontSize = 12 ;
+        title('Midgut radius')
+        xlim([0, 525])
+        set(gcf, 'PaperUnits', 'centimeters');
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
+        saveas(fig, fullfile(radius_vs_s_phicd_outdir, [name '.png']))
+        clf
+    end
     
     % Get azimuthal angle, phi, from dorsal direction and centerline
     % Save cuts in phi as plots 
     % idx = (phi < eps) | (phi > (2*pi - eps)) ;
     % plot(ss(kmatch(idx)), 
+    
+    % Save the rotated, translated, scaled curve
+    ss_s = ss * resolution * ssfactor ;
+    skelr_s = skelr * resolution * ssfactor ;
+    disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])
+    dlmwrite([skel_rs_outfn '.txt'], [ss_s, skelr_s])
+    
     
 end
 
