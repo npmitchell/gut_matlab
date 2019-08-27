@@ -91,7 +91,7 @@ for ii = todo
 end
 
 % Save the data
-save(fullfile(outdir, 'surfacearea_volume.m'), 'aas', 'vvs', 'dt')
+save(fullfile(outdir, 'surfacearea_volume_stab.m'), 'aas', 'vvs', 'dt')
 
 % Save the image
 figh = figure();
@@ -102,5 +102,5 @@ legend('area', 'volume')
 title('Surface area and volume')
 xlabel('Time [min]')
 ylabel('Normalized area or volume')
-saveas(figh, fullfile(outdir, 'area_volume_over_time.pdf'))
-saveas(figh, fullfile(outdir, 'area_volume_over_time.png'))
+saveas(figh, fullfile(outdir, 'area_volume_over_time_stab.pdf'))
+saveas(figh, fullfile(outdir, 'area_volume_over_time_stab.png'))

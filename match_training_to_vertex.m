@@ -24,6 +24,12 @@ function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_
     % com : 3x1 float 
     %   the position of the cernter of mass of the chunk of probability 
     %   cloud above the supplied threshold thres
+    %
+    % EXAMPLE USAGE
+    % probability_grid = zeros(10,10,10) ;
+    % probability_grid(1:5,1:3,1:3) = 1 ; 
+    % vertices =  ;
+    % match_training_to_vertex(probability_grid, 0.5, vertices)
     
     if isfield(varargin{1}, 'check')
         check = varargin{1}.check ;
@@ -50,9 +56,9 @@ function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_
         com = [ comX comY comZ ] ; 
     else 
         props = regionprops(true(size(mass)), mass, 'WeightedCentroid');
-        % MATLAB is evil and flips xy
+        % Check for flip in xy
         com_tmp = props.WeightedCentroid ;
-        com = [ com_tmp(2) com_tmp(1) com_tmp(3) ] ;
+        com = [ com_tmp(1) com_tmp(2) com_tmp(3) ] ;
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -82,6 +88,11 @@ function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_
             disp('figure closed')
         end
         disp(clock)
+        
+        % Show slices
+        % tmp1 = round(com(1)) ;
+        % tmp2 = round(com(2)) ;
+        % imagesc(
 
         % Plot each section of the intensity data with mesh points
         for jj=1:size(mass,1)

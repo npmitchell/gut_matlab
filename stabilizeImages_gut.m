@@ -21,9 +21,9 @@ t_ref= 1;
 % Choose bit depth as typename
 typename = 'uint16' ;
 % Give file names for I/O
-dummyName = 'Time_%06d_c0.tif';
-dummyNameOut = 'Time_%06d_c0_stab.tif';
-previewName = 'Time_%06d_c0_stab.png' ;
+dummyName = 'Time_%06d_c1.tif';
+dummyNameOut = 'Time_%06d_c1_stab.tif';
+previewName = 'Time_%06d_c1_stab.png' ;
 
 name_1  = 'view1/mip_1_%03d_c1.tif';
 name_11 = 'view2/mip_2_%03d_c1.tif';
@@ -33,7 +33,7 @@ name_22 = 'view22/mip_22_%03d_c1.tif';
 im_intensity = 0.01 ;
 imref_intensity = 0.005 ;
 
-times = [1:114];
+times = [0:196];
 num2check = 135 ;
 disp('done defining options')
 

@@ -1,5 +1,8 @@
 % Compare surface area and volume from different channels
 
+clear 
+close all
+
 % Select where figure will go
 outdir = '/mnt/data/analysis/' ;
 markers = {'caax', 'hrfp', 'la'} ;
@@ -23,10 +26,10 @@ tf1_actin = {19, };
 tfa_actin = {55, };
 tfp_actin = {54, };
 tLRb_actin = {67, };
-tf1_nuclei = {20, 54} ; % artificially offset
-tfa_nuclei = {54, 62} ; % artificially offset
-tfp_nuclei = {54, 62} ; % artificially offset
-tLRb_nuclei = {52, 72} ;
+tf1_nuclei = {20, 54, 77-65 } ; % artificially offset
+tfa_nuclei = {54, 62, 106-65} ; % artificially offset
+tfp_nuclei = {54, 62, 104-65} ; % artificially offset
+tLRb_nuclei = {52, 72, 136-65} ;
 
 % Prepare paths to data
 rootdir = '/mnt/crunch/' ;
@@ -38,21 +41,36 @@ caax_paths = {'201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/
 % nuclei_folded2part
 hrfp_root = [rootdir '48Ygal4-UAShistRFP/'] ;
 hrfp_paths = {'201901021550_folded_2part/Time12views_60sec_1.2um_25x_4/data/deconvolved_16bit/msls_output_prnu0_prs0_nu0p10_s1p00_pn4_ps4_l1_l1/', ...
-    '201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1', ...
-    '201903312000_closure_folding_errorduringtwist/Time4views_180sec_1p4um_25x_1p0mW_exp0p35_dorsalclosure/data/', ...
+    '201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/', ...
+    '201903312000_closure_folding_errorduringtwist/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2_folding/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/',...
+    %'201903312000_closure_folding_errorduringtwist/Time4views_180sec_1p4um_25x_1p0mW_exp0p35_dorsalclosure/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/', ...
     } ;
 % actin
 la_root = [rootdir '48YGal4UasLifeActRuby'] ;
-la_paths = {'201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/sixth_pass/', ...
+la_paths = {'201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/', ...
     };
 roots = {caax_root, hrfp_root, la_root} ;
-paths = {caax_paths, hrfp_paths, la_paths};
+paths = {{caax_paths}, {hrfp_paths}, {la_paths}};
+npaths = [length(caax_paths), length(hrfp_paths), length(la_paths)] ;
+
+% % Build labels
+% clear labels
+% for ii=1:length(caax_paths)
+%     labels{ii} = 'membrane' ;
+% end
+% for jj=1:length(hrfp_paths)
+%     labels{ii + jj} =  'nuclei' ;
+% end
+% for kk=1:length(la_paths)
+%     labels{ii + jj + kk} = 'actin' ;
+% end
 
 % Initialize the figure
 originalColorOrder = get(groot, 'defaultAxesColorOrder');
 originalStyleOrder = get(groot, 'defaultAxesLineStyleOrder');
 set(groot,'defaultAxesColorOrder',[0, .4470, .7410; .8500, .3250, .0980],...
       'defaultAxesLineStyleOrder','-|--|:')
+linestyle_list = {'-', '--', ':'} ;
 figh = figure();
 hold on;
 fig2 = figure();
@@ -70,32 +88,45 @@ mark_origin = true ;
 
 % Iterate over each marker
 for mi = 1:length(markers)
+    % Obtain the label for this marker
     label = labels{mi} ;
-    for j=1:length(paths{mi})
-        mpaths = paths{mi} ;
-        matdir = fullfile(roots{mi}, mpaths{j}) ;
+    these_paths = paths{mi} ;
+    these_paths = these_paths{1} ;
+    
+    % Cycle through all datasets of this marker
+    for j=1:length(these_paths)
+        mpath = these_paths{j} ;
+        disp(['path: ' mpath])
+        matdir = fullfile(roots{mi}, mpath) ;
         disp(['seeking data in: ' matdir]) 
-        fn = fullfile(fullfile(roots{mi}, mpaths{j}), 'surfacearea_volume.mat') ;
+        fn = fullfile(fullfile(roots{mi}, mpath), 'surfacearea_volume_stab.mat') ;
         if exist(fn, 'file')
             % Load the surface area and volume from disk
             load(fn)
             
             % get time offset
             if strcmp(label, 'membrane')
+                disp('loading membrane tps')
                 t0 = tf1_membrane{j} ;
                 ta = tfa_membrane{j} ;
                 tp = tfp_membrane{j} ;
+                linestyle = linestyle_list{1} ;
             elseif strcmp(label, 'nuclei')
+                disp('loading nuclei tps')
                 t0 = tf1_nuclei{j} ;
                 ta = tfa_nuclei{j} ;
-                tp = tfp_nuclei{j} ;
+                tp = tfp_nuclei{j} ; 
+                linestyle = linestyle_list{2} ;
             elseif strcmp(label, 'actin')
+                disp('loading actin tps')
                 t0 = tf1_actin{j} ;
                 ta = tfa_actin{j} ;
-                tp = tfp_actin{j} ;
+                tp = tfp_actin{j} ;            
+                % find which linestyle to use
+                linestyle = linestyle_list{3} ;
             end
             
-            % Plot the data
+            % Plot the data for surface area and volume
             times = 1:dt:dt*length(aas) ;
             times = times - t0 ;
             
@@ -129,8 +160,8 @@ for mi = 1:length(markers)
             figure(figh)
             if mark_origin
                 % Plot data
-                ah = plot(times, ass, 'Color', color1) ;
-                vh = plot(times, vss, 'Color', color2); 
+                ah = plot(times, ass, 'Color', color1, 'LineStyle', linestyle) ;
+                vh = plot(times, vss, 'Color', color2, 'LineStyle', linestyle); 
                 % ah = plot(times(sampling), asmooth, 'Color', color1) ;
                 % vh = plot(times(sampling), vsmooth, 'Color', color2); 
                 % ah = plot(times, aMean, 'Color', color1) ;
@@ -145,8 +176,8 @@ for mi = 1:length(markers)
                     'HorizontalAlignment', 'Center', 'Interpreter', 'Latex')
             else
                 % Plot data
-                plot(times, ass, 'Color', color1) ;
-                plot(times, vss, 'Color', color2); 
+                plot(times, ass, 'Color', color1, 'LineStyle', linestyle) ;
+                plot(times, vss, 'Color', color2, 'LineStyle', linestyle); 
             end
 
             % Get indices of anterior and posterior folds
@@ -173,8 +204,8 @@ for mi = 1:length(markers)
                 
             if mark_origin
                 % Plot data
-                a2 = plot(tt, da, 'Color', color1) ;
-                v2 = plot(tt, dv, 'Color', color2); 
+                a2 = plot(tt, da, 'Color', color1, 'Linestyle', linestyle) ;
+                v2 = plot(tt, dv, 'Color', color2, 'Linestyle', linestyle); 
 
                 % Plot time of first/mid fold (t=0)
                 p1 = [0, offy2] ;
@@ -186,8 +217,8 @@ for mi = 1:length(markers)
                 mark_origin = false ;
             else
                 % Plot derivatives
-                plot(tt, da, 'Color', color1) ;
-                plot(tt, dv, 'Color', color2); 
+                plot(tt, da, 'Color', color1, 'Linestyle', linestyle) ;
+                plot(tt, dv, 'Color', color2, 'Linestyle', linestyle); 
             end
             
             % Get indices of anterior and posterior folds
@@ -231,8 +262,8 @@ hold off
 legend (a, [H1 H2 H3], {'membrane', 'nuclei', 'actin'}, 'Location', 'west') ;
 
 % Save the figure
-saveas(figh, fullfile(outdir, 'area_volume_comparison.pdf'))
-saveas(figh, fullfile(outdir, 'area_volume_comparison.png'))
+saveas(figh, fullfile(outdir, 'area_volume_stab_comparison.pdf'))
+saveas(figh, fullfile(outdir, 'area_volume_stab_comparison.png'))
 
 %% Derivatives Figure
 figure(fig2)
@@ -258,11 +289,11 @@ hold off
 legend (a, [H1 H2 H3], {'membrane', 'nuclei', 'actin'}, 'Location', 'west') ;
 
 % Save the figure
-saveas(fig2, fullfile(outdir, 'area_volume_comparison_derivatives.pdf'))
-saveas(fig2, fullfile(outdir, 'area_volume_comparison_derivatives.png'))
+saveas(fig2, fullfile(outdir, 'area_volume_stab_comparison_derivatives.pdf'))
+saveas(fig2, fullfile(outdir, 'area_volume_stab_comparison_derivatives.png'))
 
 % Reset groot
 set(groot, 'defaultAxesColorOrder', originalColorOrder, ...
     'defaultAxesLineStyleOrder', originalStyleOrder)
 
-
+close all
