@@ -36,7 +36,7 @@ plot_buffer = 30;
 ssfactor = 4; 
 weight = 0.1;
 normal_step = 0.5 ; 
-preview = false ;
+preview = true ;
 eps = 0.01 ;
 meshorder = 'zyx' ;
 exponent = 1;
@@ -90,12 +90,72 @@ rot = importdata([rotname '.txt']) ;
 trans = importdata([transname '.txt']) ;
 % Load plotting limits
 xyzlim = importdata([xyzlimname '.txt']) ;
-xmin = xyzlim(1) * resolution * ssfactor ;
-ymin = xyzlim(2) * resolution * ssfactor ;
-zmin = xyzlim(3) * resolution * ssfactor ;
-xmax = xyzlim(4) * resolution * ssfactor ;
-ymax = xyzlim(5) * resolution * ssfactor ;
-zmax = xyzlim(6) * resolution * ssfactor ;
+% xmin = xyzlim(1) * resolution * ssfactor ;
+% ymin = xyzlim(2) * resolution * ssfactor ;
+% zmin = xyzlim(3) * resolution * ssfactor ;
+% xmax = xyzlim(4) * resolution * ssfactor ;
+% ymax = xyzlim(5) * resolution * ssfactor ;
+% zmax = xyzlim(6) * resolution * ssfactor ;
+
+%% Get xyzlimits of the centerline
+xsmin = 0 ;
+ysmin = 0 ;
+zsmin = 0 ;
+xsmax = 0 ;
+ysmax = 0 ;
+zsmax = 0 ;
+smax = 0 ;
+for ii=1:length(fns)
+    %% Name the output centerline
+    name_split = strsplit(fns(ii).name, '.ply') ;
+    name = name_split{1} ; 
+    expstr = strrep(num2str(exponent, '%0.1f'), '.', 'p') ;
+    skel_rs_outfn = [fullfile(outdir, name) '_centerline_scaled_exp' expstr] ;
+    skel_outfn = [fullfile(outdir, name) '_centerline_exp' expstr ] ;
+    tmp = strsplit(name, '_') ;
+    timestr = tmp{length(tmp)} ;
+    
+    % Load centerline 
+    disp(['Loading centerline from txt: ', skel_rs_outfn, '.txt'])
+    try
+        sskelrs = importdata([skel_rs_outfn '.txt']) ;
+        ss = sskelrs(:, 1) ;
+        ds = diff(ss) ; 
+        ds = [ds; ds(length(ds))] ;
+        skelrs = sskelrs(:, 2:4) ;
+    catch
+        % Save the rotated, translated, scaled curve
+        skel = importdata([skel_outfn '.txt']) ;
+        skelr = (rot * skel')' + trans ; 
+        
+        % get distance increment
+        ds = vecnorm(diff(skel), 2, 2) ;
+        % get pathlength at each skeleton point
+        ss = [0; cumsum(ds)] ;
+        
+        % Create rotated and scaled skeleton
+        ss_s = ss * resolution * ssfactor ;
+        skelr_s = skelr * resolution * ssfactor ;
+        disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])
+        dlmwrite([skel_rs_outfn '.txt'], [ss_s, skelr_s])
+        
+        % Recompute ds        
+        sskelrs = importdata([skel_rs_outfn '.txt']) ;
+        ss = sskelrs(:, 1) ;
+        ds = diff(ss) ; 
+        ds = [ds; ds(length(ds))] ;
+        skelrs = sskelrs(:, 2:4) ;
+    end
+    xsmin = min(xsmin, min(skelrs(:, 1))) ;
+    ysmin = min(ysmin, min(skelrs(:, 2))) ;
+    zsmin = min(zsmin, min(skelrs(:, 3))) ;
+    xsmax = max(xsmax, min(skelrs(:, 1))) ;
+    ysmax = max(ysmax, min(skelrs(:, 2))) ;
+    zsmax = max(zsmax, min(skelrs(:, 3))) ;
+    smax = max(max(ss), smax) ;
+
+end
+
 
 %% Iterate through each mesh
 for ii=1:length(fns)
@@ -103,33 +163,26 @@ for ii=1:length(fns)
     name_split = strsplit(fns(ii).name, '.ply') ;
     name = name_split{1} ; 
     expstr = strrep(num2str(exponent, '%0.1f'), '.', 'p') ;
-    centerlinename = [fullfile(outdir, name) '_centerline_scaled_exp' expstr] ;
+    skel_rs_outfn = [fullfile(outdir, name) '_centerline_scaled_exp' expstr] ;
+    skel_outfn = [fullfile(outdir, name) '_centerline_exp' expstr ] ;
     figsmoutname = [fullfile(fig_smoothoutdir, name) '_centerline_smoothed_exp' expstr] ;
     tmp = strsplit(name, '_') ;
     timestr = tmp{length(tmp)} ;
     
     % Load centerline 
-    disp(['Loading centerline from txt: ', centerlinename, '.txt'])
-    try
-        sskelrs = importdata([centerlinename '.txt']) ;
-        ss = sskelrs(:, 1) ;
-        ds = diff(ss) ; 
-        ds = [ds; ds(length(ds))] ;
-        skelrs = sskelrs(:, 2:4) ;
-    except
-        % Save the rotated, translated, scaled curve
-        ss_s = ss * resolution * ssfactor ;
-        skelr_s = skelr * resolution * ssfactor ;
-        disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])
-        dlmwrite([skel_rs_outfn '.txt'], [ss_s, skelr_s])
-    end
+    disp(['Loading centerline from txt: ', skel_rs_outfn, '.txt'])
+    sskelrs = importdata([skel_rs_outfn '.txt']) ;
+    ss = sskelrs(:, 1) ;
+    ds = diff(ss) ; 
+    ds = [ds; ds(length(ds))] ;
+    skelrs = sskelrs(:, 2:4) ;
         
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Compute writhe of the centerline
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Filter the result
     % Smoothing parameters
-    framelen = 37 ;  % must be odd
+    framelen = 17 ;  % must be odd
     polyorder = 2 ;
     xskel = skelrs(:, 1) ;
     yskel = skelrs(:, 2) ;
@@ -141,22 +194,31 @@ for ii=1:length(fns)
     scz = savgol(zskel, polyorder, framelen)' ;
     sc = [scx, scy, scz] ;
     
+    % Fit the smoothed curve
+    xcoeffs = polyfit(ss, scx, 7) ;
+    ycoeffs = polyfit(ss, scy, 7) ;
+    zcoeffs = polyfit(ss, scz, 7) ;
+    ssx = linspace(min(ss), max(ss), 100) ;
+    dsx = gradient(ssx) ;
+    xp = polyval(xcoeffs, ssx);
+    yp = polyval(ycoeffs, ssx);
+    zp = polyval(zcoeffs, ssx);
+    
     %% Check the smoothing
     if preview
         close all
         fig = figure;
         set(gcf, 'Visible', 'Off')
-        tmp = trisurf(tri + 1, xyzr(:, 1), xyzr(:,2), xyzr(:, 3), ...
-            xyzr(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
         hold on
         plot3(xskel, yskel, zskel, '-.')
         hold on 
         plot3(scx, scy, scz, 's')
         title('Smoothing')
         % save the figure
-        xlim([xmin xmax])
-        ylim([ymin ymax])
-        zlim([zmin zmax])
+        xlim([xsmin xsmax])
+        ylim([ysmin ysmax])
+        zlim([zsmin zsmax])
+        axis equal
         set(gcf, 'PaperUnits', 'centimeters');
         set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);
         saveas(fig, [figsmoutname '.png'])
@@ -164,7 +226,10 @@ for ii=1:length(fns)
             set(gcf, 'Visible', 'On')
         end
         
+        % Save the difference
         close all
+        fig = figure;
+        set(fig, 'Visible', 'Off')
         plot(ss, scx - xskel)
         hold on
         plot(ss, scy - yskel)
@@ -172,40 +237,42 @@ for ii=1:length(fns)
         title('\Delta = smoothing - original curve')
         ylabel(['\Delta [\mu' 'm]'])
         xlabel(['s [\mu' 'm]'])
-        set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);
+        set(fig, 'PaperUnits', 'centimeters');
+        set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
         saveas(fig, [figsmoutname '_diff.png'])
+        
+        % Save the polynomial fit
+        close all
+        fig = figure;
+        set(fig, 'Visible', 'Off')
+        plot3(xskel, yskel, zskel, '-.')
+        hold on 
+        plot3(xp, yp, zp, 's')
+        title('Polynomial fit to the centerline')
+        xlabel('x')
+        ylabel('y')
+        % save the figure
+        xlim([xsmin xsmax])
+        ylim([ysmin ysmax])
+        zlim([zsmin zsmax])
+        axis equal
+        set(fig, 'PaperUnits', 'centimeters');
+        set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
+        saveas(fig, [figsmoutname '_fit.png'])
     end
     
     %% Get rate of change of curve along curve
-    gradc_raw = [gradient(sc(:, 1)), gradient(sc(:, 2)), gradient(sc(:, 3))] ; 
-    gradc = bsxfun(@rdivide, gradc_raw, ds(:)) ;
+    gradc_raw = [gradient(xp'), gradient(yp'), gradient(zp')] ; 
+    gradc = bsxfun(@rdivide, gradc_raw, dsx(:)) ;
     gradc_ds = vecnorm(gradc, 2, 2) ;
     % Compute the tangent to the curve
     tangent = bsxfun(@rdivide, gradc, gradc_ds(:)) ;
-    
-%     % Fit the result
-%     xcoeffs = polyfit(ss, scx, 7) ;
-%     ycoeffs = polyfit(ss, scy, 7) ;
-%     zcoeffs = polyfit(ss, scz, 7) ;
-%     xp = poly1d(xcoeffs) ;
-%     yp = poly1d(ycoeffs) ;
-%     zp = poly1d(zcoeffs) ;
-% 
-%     % Re-parametrize the curve with equidistant ss
-%     ss = linspace(min(ss), max(ss), 100)
-%     sc = [xp(ss), yp(ss), zp(ss)]
-%     % Re-compute rate of change of curve along curve
-%     gradc = grad_curve(sc)
-%     ds = sqrt(sum(gradc ^ 2, 2))
-%     % Compute the tangent to the curve
-%     tangent = bsxfun(@rdivide, gradc, gradc_ds(:)) ;
 
     % Compute normal 
     normal_raw = [gradient(tangent(:, 1)), ...
         gradient(tangent(:, 2)), ...
         gradient(tangent(:, 3))] ; 
-    normalc = bsxfun(@rdivide, normal_raw, ds(:)) ;
+    normalc = bsxfun(@rdivide, normal_raw, dsx(:)) ;
     normalc_ds = vecnorm(normalc, 2, 2) ;
     normal = bsxfun(@rdivide, normalc, normalc_ds(:)) ;
     
@@ -220,7 +287,7 @@ for ii=1:length(fns)
     dphi = acos(sum(v1 .* v2, 2)) ;
     signphi = sign(sum(tangent(1:end-1, :) .* cross(v1, v2), 2)) ;
     dphi = dphi .* signphi ;
-    chirality = dphi ./ ss(1:end-1) ;
+    chirality = dphi ./ ssx(1:end-1)' ;
 
     % Clean up measurement
     % chirs = savgol_filter(chirality, window_length=351, polyorder=polyorder)
@@ -238,24 +305,27 @@ for ii=1:length(fns)
 
     % Check the angle change along AP axis
     if preview
-        plt.plot(np.arange(len(dphi)), dphi)
-        plt.plot(np.arange(len(ds)), ds)
-        plt.ylabel('$d\phi$, $ds$', 'Interpreter', 'Latex')
-        plt.xlabel('index')
-        plt.show()
+        close all
+        fig = figure ;
+        set(fig, 'Visible', 'Off')
+        plot(ssx(1:end-1), dphi)
+        title('$d\phi/ds$', 'Interpreter', 'Latex')
+        ylabel('$d\phi/ds$', 'Interpreter', 'Latex')
+        xlabel('$s$ [$\mu$m]', 'Interpreter', 'Latex')
+        saveas(fig, [figsmoutname '_dphids.png'])
     end
         
     % Save the image of chirality
     close all
     fig = figure;
     set(gcf, 'Visible', 'Off')
-    plot(ss(1:end-1), chirality)
+    plot(ssx(1:end-1)', chirality)
     % plot(sss, chirs, '-')
     title('chirality of centerline')
     ylabel('$d \phi / d s$', 'Interpreter', 'Latex')
     xlabel('path length, $s$', 'Interpreter', 'Latex')
-    xlim([xmin, xmax])
-    ylim([ymin, ymax])
+    xlim([0, smax])
+    ylim([-0.06, 0.06])
     set(gcf, 'PaperUnits', 'centimeters');
     set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
     saveas(fig, fullfile(figoutdir, [name '_chirality.png']))
@@ -268,7 +338,17 @@ for ii=1:length(fns)
     fid = fopen(datfn, 'wt');
     fprintf(fid, header); 
     fclose(fid);
-    dlmwrite(datfn, [ss(1:end-1) chirality])
+    dlmwrite(datfn, [ssx(1:end-1)' chirality])
+    
+    % Compute the writhe
+    % Wr = 1/4pi \int \int T(s) xx T(s') \cdot [R(s) - R(s') / |R(s) - R(s')|^3]
+    % first compute vec from each point to every other point
+    for jj=1:length(ssx)
+        
+    end
+    
+    
+    
     
 end
 

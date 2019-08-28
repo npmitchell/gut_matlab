@@ -525,8 +525,7 @@ for ii=1:length(fns)
     % A dsearchn() returns closest Euclidean 3D matches. CHeck that the
     % association linesegment between the vertex and the centerline does
     % not leave the mesh
-    
-    
+        
     % get distance increment
     ds = vecnorm(diff(skel), 2, 2) ;
     % get pathlength at each skeleton point
