@@ -1,7 +1,7 @@
-function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_vertices, varargin)
-    % [vtxind, com] = MATCH_TRAINING_TO_VERTEX(probability_grid, thres, gridxyz)
-    % Given a probability cloud, find the vertex that matches the center of
-    % mass of the largest connected region of the probability cloud above
+function com = com_region(probability_grid, thres, varargin)
+    % com = TRAINING_COM(probability_grid, thres, gridxyz)
+    % Given a probability cloud, find the center of mass of the largest 
+    % connected region of the probability cloud above
     % some threshold, with "mass" proportional to probability
     %
     % INPUTS
@@ -13,14 +13,12 @@ function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_
     %   Positions of the mesh vertices, as N x 3 array
     % varargin: struct
     %   Options struct, with fields xyzgrid and check
-    %   options.xyzgrid: 3d float or int array
+    %   options.xyzgrid: 3d float or int array 
+    %       xyzgrid positional values matching the probability_grid
     %   options.check: boolean
     %       whether to display
-    %   xyzgrid positional values matching the probability_grid
     %
     % OUTPUTS
-    % vtxind : int
-    %   the vertex index for the match
     % com : 3x1 float 
     %   the position of the cernter of mass of the chunk of probability 
     %   cloud above the supplied threshold thres
@@ -30,10 +28,7 @@ function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_
     % probability_grid(1:5,1:3,1:3) = 1 ; 
     % vertices =  ;
     % match_training_to_vertex(probability_grid, 0.5, vertices)
-    %
-    % SEE ALSO
-    % com_region()
-    %
+    
     if isfield(varargin{1}, 'check')
         check = varargin{1}.check ;
     else
@@ -68,10 +63,10 @@ function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_
     % Check the com
     if check
         % Show relative to the mesh
-        x = mesh_vertices(:, 1) ;
-        y = mesh_vertices(:, 2) ;
-        z = mesh_vertices(:, 3) ;
-        scatter3(x, y, z) 
+        iso = isosurface(probability_grid, 0.5) ;
+        patch(iso,'facecolor',[1 0 0],'facealpha',0.1,'edgecolor','none');
+        view(3)
+        camlight
         hold on
         scatter3(com(1), com(2), com(3))
         axis equal
@@ -97,7 +92,7 @@ function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_
         % tmp2 = round(com(2)) ;
         % imagesc(
 
-        % Plot each section of the intensity data with mesh points
+        % Plot each section of the intensity data 
         for jj=1:size(mass,1)
             imshow(squeeze(mass(jj,:,:)))
             title(['mass slice ' num2str(jj)])
@@ -110,11 +105,5 @@ function [vtxind, com] = match_training_to_vertex(probability_grid, thres, mesh_
         end
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        
-    % Point match
-    %compute Euclidean distances:
-    dist2 = sum((mesh_vertices - com) .^ 2, 2);
-    %find the smallest distance and use that as an index into B:
-    vtxind = find(dist2 == min(dist2)) ;
     
 return

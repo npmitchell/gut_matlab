@@ -2,7 +2,15 @@
 % Noah Mitchell 2019
 % This version relies on Gabriel Peyre's toolbox called
 % toolbox_fast_marching/
+%
 % Run from the msls_output directory
+% Run this code only after training on anterior (A), posterior (P), and 
+% dorsal anterior (D) points in different iLastik channels.
+% anteriorChannel, posteriorChannel, and dorsalChannel specify the iLastik
+% training channel that is used for each specification.
+% Name the h5 file output from iLastik as ..._Probabilities_apcenterline.h5
+% Train for anterior dorsal (D) only at the first time point, because
+% that's the only one that's used.
 clear ;
 
 %% First, compile required c code
@@ -41,6 +49,9 @@ preview = false ;
 eps = 0.01 ;
 meshorder = 'zyx' ;
 exponent = 1;
+anteriorChannel = 1;
+posteriorChannel = 2; 
+dorsalChannel = 4 ;
 % figure parameters
 xwidth = 16 ; % cm
 ywidth = 10 ; % cm
@@ -98,6 +109,7 @@ end
 ii = 1 ;
 
 %% Iterate through each mesh
+outapdvname = fullfile(outdir, 'apdv_coms_from_training.h5') ;
 for ii=1:length(fns)
     %% Name the output centerline
     name_split = strsplit(fns(ii).name, '.ply') ;
@@ -143,8 +155,8 @@ for ii=1:length(fns)
     
     rawfn = fullfile(rootdir, ['Time_' timestr '_c1_stab.h5' ]);
     rawdat = h5read(rawfn, '/inputData');
-    adat = squeeze(apdat(1,:,:,:)) ;
-    pdat = squeeze(apdat(2,:,:,:)) ;
+    adat = squeeze(apdat(anteriorChannel,:,:,:)) ;
+    pdat = squeeze(apdat(posteriorChannel,:,:,:)) ;
     % testing
     % adat = 0 * adat ;
     % adat(1:20,1:20,1:20) = 1 ;
@@ -166,7 +178,7 @@ for ii=1:length(fns)
     % Grab dorsal direction if this is the first timepoint
     if ii == 1    
         dorsal_thres = 0.9 ;
-        ddat = permute(squeeze(apdat(4,:,:,:)), axorder) ;
+        ddat = permute(squeeze(apdat(dorsalChannel,:,:,:)), axorder) ;
         [dind, dcom] = match_training_to_vertex(ddat,...
             dorsal_thres, vertices, options) ;
         %%%%%%%%%%%%%%%%%%%%%%
@@ -484,7 +496,7 @@ for ii=1:length(fns)
     % Save centerline as text file
     disp(['Saving centerline to txt: ', outname, '.txt'])
     dlmwrite([outname '.txt'], skel)
-    
+        
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Display the skeleton
@@ -626,6 +638,28 @@ for ii=1:length(fns)
     disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])
     dlmwrite([skel_rs_outfn '.txt'], [ss_s, skelr_s])
     
+    % Save acom, pcom and their aligned counterparts as attributes in an
+    % hdf5 file
+    acom_rs = (rot * acom' + trans) * resolution * ssfactor ;
+    pcom_rs = (rot * pcom' + trans) * resolution * ssfactor ; 
+    dcom_rs = (rot * dcom' + trans) * resolution * ssfactor ; 
+    if ~exist(outapdvname, 'file')
+        fid = H5F.create(outapdvname) ;
+    end
+    fileattrib(outapdvname,'+w');
+    h5create(outapdvname, ['/' name '/acom'], size(acom)) ;
+    h5write(outapdvname, ['/' name '/acom'], acom) ;
+    h5create(outapdvname, ['/' name '/pcom'], size(pcom)) ;
+    h5write(outapdvname, ['/' name '/pcom'], pcom) ;
+    h5create(outapdvname, ['/' name '/dcom'], size(dcom)) ;
+    h5write(outapdvname, ['/' name '/dcom'], dcom) ;
+    h5create(outapdvname, ['/' name '/acom_rs'], size(acom_rs)) ;
+    h5write(outapdvname, ['/' name '/acom_rs'], acom_rs) ;
+    h5create(outapdvname, ['/' name '/pcom_rs'], size(pcom_rs)) ;
+    h5write(outapdvname, ['/' name '/pcom_rs'], pcom_rs) ;
+    h5create(outapdvname, ['/' name '/dcom_rs'], size(dcom_rs)) ;
+    h5write(outapdvname, ['/' name '/dcom_rs'], dcom_rs) ;
+    h5disp(outapdvname, ['/' name]);
     
 end
 

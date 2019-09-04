@@ -17,7 +17,7 @@ addpath('/mnt/data/code/gut_matlab/mesh_handling/')
 % path = '/mnt/crunch/48Ygal4-UAShistRFP/201901021550_folded_2part/Time12views_60sec_1.2um_25x_4/data/deconvolved_16bit/msls_output_nu0p10_s1_pn4_ps4_l1_l1/';
 % path = '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/';
 path = './' ;
-meshes = dir(fullfile(path, 'mesh_apical_ms_0*.ply'))  ; 
+meshes = dir(fullfile(path, 'mesh_apical_ms_stab_0*.ply'))  ; 
 %%%%%%%%%%%%%%%%%%%%%
 
 thres_fracda = 1.0 ;
@@ -43,7 +43,7 @@ vvs = zeros(length(todo), 1) ;
 aas = zeros(length(todo), 1) ;
 dmyk = 1;
 
-%% Compute surface area and volume for each mesh
+ %% Compute surface area and volume for each mesh
 for ii = todo
 %     try
         % Load the mesh
