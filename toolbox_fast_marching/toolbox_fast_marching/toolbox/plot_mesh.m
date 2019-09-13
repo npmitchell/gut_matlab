@@ -13,7 +13,7 @@ function h = plot_mesh(vertex,face,options)
 %
 %   See also: mesh_previewer.
 %
-%   Copyright (c) 2004 Gabriel PeyrŽ
+%   Copyright (c) 2004 Gabriel Peyrï¿½
 
 
 if nargin<2
@@ -59,16 +59,18 @@ face_vertex_color = options.face_vertex_color;
 
 
 if isempty(face_vertex_color)
-    h = patch('vertices',vertex,'faces',face,'facecolor',[face_color face_color face_color],'edgecolor',[edge_color edge_color edge_color]);
+    h = patch('vertices',vertex,'faces',face, ...
+        'facecolor',[face_color face_color face_color], ...
+        'edgecolor',[edge_color edge_color edge_color]);
 else
-    nverts = size(vertex,1);
-    % vertex_color = rand(nverts,1);
     if size(face_vertex_color,1)==size(vertex,1)
         shading_type = 'interp';
     else
         shading_type = 'flat';
     end
-    h = patch('vertices',vertex,'faces',face,'FaceVertexCData',face_vertex_color, 'FaceColor',shading_type);
+    % h = patch('vertices',vertex,'faces',face,'FaceVertexCData',face_vertex_color, 'FaceColor',shading_type);
+    h = trimesh(face, vertex(:, 1), vertex(:, 2), vertex(:, 3), ...
+        face_vertex_color, 'FaceColor', shading_type, 'edgecolor', 'none') ;
 end
 colormap gray(256);
 lighting phong;

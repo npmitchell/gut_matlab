@@ -1,5 +1,6 @@
-%% Extract the centerlines from a series of meshes (PLY files)
+%% Extract the centerlines from a series of meshes (PLY files) 
 % Noah Mitchell 2019
+% Also saves scaled meshes with AP along x and DV along y, centered at A=0.
 % This version relies on Gabriel Peyre's toolbox called
 % toolbox_fast_marching/
 %
@@ -11,6 +12,21 @@
 % Name the h5 file output from iLastik as ..._Probabilities_apcenterline.h5
 % Train for anterior dorsal (D) only at the first time point, because
 % that's the only one that's used.
+%
+% Performs centerline extraction in subsampled units, where ssfactor is the
+% same as used for iLastik training to get A, P, and D.
+% trans has units of mesh coordinates.
+% phi is the angle in the xy plane
+% vertices are in units of pixels (at full resolution)
+% skel, spt, and ept are all in units of mesh coordinates (at full res)
+% startpt, endpt are in subsampled units
+% radii are in microns
+% To take mesh to rotated + translated mesh in physical units, apply:
+%         xs = mesh.vertex.z ;
+%         ys = mesh.vertex.y ;
+%         zs = mesh.vertex.x ;
+%         vtx_rs = (rot * vtx' + trans)' * resolution
+%         
 clear ;
 
 %% First, compile required c code
@@ -23,7 +39,7 @@ if ~exist(codepath, 'dir')
 end
 addpath(codepath)
 addpath([codepath 'addpath_recurse' filesep]) ;
-addpath([codepath 'mesh_handling' filesep]);
+addpath_recurse([codepath 'mesh_handling' filesep]);
 addpath([codepath 'inpolyhedron' filesep]);
 addpath([codepath 'savgol' filesep])
 addpath_recurse('/mnt/data/code/gptoolbox/')
@@ -36,26 +52,32 @@ addpath(dtpath)
 % compile_c_files
 cd(odir)
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parameters
-save_figs = false ;
-res = 1 ;
-resolution = 0.2619 ;
-buffer = 5 ;
-plot_buffer = 30;
-ssfactor = 4; 
-weight = 0.1;
-normal_step = 0.5 ; 
-preview = false ;
-eps = 0.01 ;
-meshorder = 'zyx' ;
-exponent = 1;
-anteriorChannel = 1;
-posteriorChannel = 2; 
-dorsalChannel = 4 ;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+overwrite = false ;  % recompute centerline
+save_figs = true ;  % save images of cntrline, etc, along the way
+preview = false ;  % display intermediate results
+res = 1 ;  % pixels per gridspacing of DT for cntrline extraction
+resolution = 0.2619 ;  % um per pixel for full resolution (not subsampled)
+dorsal_thres = 0.9 ;  % threshold for extracting Dorsal probability cloud 
+buffer = 5 ;  % extra space in meshgrid of centerline extraction, to ensure mesh contained in volume
+plot_buffer = 30; 
+ssfactor = 4;  % subsampling factor for the h5s used to train for mesh/acom/pcom/dcom
+weight = 0.1;  % for speedup of centerline extraction. Larger is less precise
+normal_step = 0.5 ;  % how far to move normally from ptmatched vtx if a/pcom is not inside mesh
+eps = 0.01 ;  % value for DT outside of mesh in centerline extraction
+meshorder = 'zyx' ;  % ordering of axes in loaded mesh wrt iLastik output
+exponent = 1;  % exponent of DT used for velocity. Good values are ~1-2
+anteriorChannel = 1;  % which channel of APD training is anterior
+posteriorChannel = 2;  % which channel of APD training is posterior 
+dorsalChannel = 4 ;  % which channel of APD training is dorsal
+axorder = [2, 1, 3] ;  % axis order for APD training output
 % figure parameters
 xwidth = 16 ; % cm
 ywidth = 10 ; % cm
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Find all meshes to consider
 meshdir = pwd ;
 cd ../
@@ -68,16 +90,18 @@ cd(meshdir)
 %     rootpath = [rootpath 'data/48Ygal4UasCAAXmCherry/201902072000_excellent/'] ;
 % end
 % meshdir = [rootpath 'msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/'];
+% Name output directory
+outdir = [fullfile(meshdir, 'centerline') filesep ];
+if ~exist(outdir, 'dir')
+    mkdir(outdir) ;
+end
 fns = dir(fullfile(meshdir, 'mesh_apical_stab_0*.ply')) ;
 rotname = fullfile(meshdir, 'rotation_APDV') ;
 transname = fullfile(meshdir, 'translation_APDV') ;
 xyzlimname = fullfile(meshdir, 'xyzlim_APDV') ;
+outapdvname = fullfile(outdir, 'apdv_coms_rs.h5') ;
 
-% Name output directory
-outdir = [fullfile(fns(1).folder, 'centerline') filesep ];
-if ~exist(outdir, 'dir')
-    mkdir(outdir) ;
-end
+% Name the directory for outputting figures
 figoutdir = [outdir 'images' filesep];
 if ~exist(figoutdir, 'dir')
     mkdir(figoutdir) ;
@@ -97,90 +121,260 @@ fig3outdir = [figoutdir 'centerline_yz' filesep];
 if ~exist(fig3outdir, 'dir')
     mkdir(fig3outdir) ;
 end
+% Figures for phi_dorsal and phi_cntrdorsal
+phi_def_outdir = [figoutdir 'phid_definition' filesep];
+if ~exist(phi_def_outdir, 'dir')
+    mkdir(phi_def_outdir) ;
+end
 radius_vs_s_phi_outdir = [figoutdir 'radius_vs_s_phid' filesep];
 if ~exist(radius_vs_s_phi_outdir, 'dir')
     mkdir(radius_vs_s_phi_outdir) ;
+end
+
+phicd_def_outdir = [figoutdir 'phicd_definition' filesep];
+if ~exist(phicd_def_outdir, 'dir')
+    mkdir(phicd_def_outdir) ;
 end
 radius_vs_s_phicd_outdir = [figoutdir 'radius_vs_s_phicd' filesep];
 if ~exist(radius_vs_s_phicd_outdir, 'dir')
     mkdir(radius_vs_s_phicd_outdir) ;
 end
-
+alignedmeshdir = fullfile(meshdir, ['aligned_meshes' filesep]) ;
+if ~exist(alignedmeshdir, 'dir')
+    mkdir(alignedmeshdir) ;
+end
 ii = 1 ;
 
-%% Iterate through each mesh
-outapdvname = fullfile(outdir, 'apdv_coms_from_training.h5') ;
+%% Iterate through each mesh to compute acom(t) and pcom(t). Prepare file.
+acoms = zeros(length(fns), 3) ;
+pcoms = zeros(length(fns), 3) ;
+timepts = zeros(length(fns)) ;
+rawapdvname = fullfile(outdir, 'apdv_coms_from_training.h5') ;
+load_from_disk = false ;
+if exist(rawapdvname, 'file')
+    load_from_disk = true ;
+    try
+        h5create(rawapdvname, ['/' name '/acom_sm'], size(pcom)) ;
+        load_from_disk = false ;
+    catch
+        try
+            acom_sm = h5read(rawapdvname, '/acom_sm') ;
+            disp('acom_sm already exists')
+        catch
+            load_from_disk = false;
+        end
+    end
+    try
+        h5create(rawapdvname, ['/' name '/pcom_sm'], size(pcom)) ;
+        load_from_disk = false ;
+    catch
+        try
+            pcom_sm = h5read(rawapdvname, '/pcom_sm') ;
+            disp('pcom_sm already exists')
+        catch
+            load_from_disk = false;
+        end
+    end
+end
+if ~load_from_disk
+    disp('acom and pcom not already saved on disk. Compute them')
+end
+
+%% Compute acom and pcom if not loaded from disk
+if ~load_from_disk
+    for ii=1:length(fns)
+        %% Name the output centerline
+        name_split = strsplit(fns(ii).name, '.ply') ;
+        name = name_split{1} ; 
+        tmp = strsplit(name, '_') ;
+        timestr = tmp{length(tmp)} ;
+
+        %% Load the AP axis determination
+        if ii == 1
+            fbar = waitbar(ii / length(fns), ['Computing acom, pcom for ' timestr ]) ;
+        end
+        waitbar(ii / length(fns), fbar, ['Computing acom, pcom for ' timestr ])
+        thres = 0.5 ;
+        options.check = false ;
+        apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
+        apdat = h5read(apfn, '/exported_data');
+
+        % rawfn = fullfile(rootdir, ['Time_' timestr '_c1_stab.h5' ]);
+        % rawdat = h5read(rawfn, '/inputData');
+        adat = squeeze(apdat(anteriorChannel,:,:,:)) ;
+        pdat = squeeze(apdat(posteriorChannel,:,:,:)) ;
+        
+        % define axis order: 
+        % if 1, 2, 3: axes will be yxz
+        % if 1, 3, 2: axes will be yzx
+        % if 2, 1, 3: axes will be xyz (ie first second third axes, ie --> 
+        % so that bright spot at im(1,2,3) gives com=[1,2,3]
+        adat = permute(adat, axorder) ;
+        pdat = permute(pdat, axorder) ;
+        acom = com_region(adat, thres, options) ;
+        pcom = com_region(pdat, thres, options) ;
+        % [~, acom] = match_training_to_vertex(adat, thres, vertices, options) ;
+        % [~, pcom] = match_training_to_vertex(pdat, thres, vertices, options) ;
+        acoms(ii, :) = acom ;
+        pcoms(ii, :) = pcom ; 
+        timepts(ii) = str2double(timestr) ;
+    end
+    close(fbar)
+    disp('done determining acoms, pcoms')
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Smooth the acom and pcom data
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    disp('Smoothing acom and pcom...')
+    timepts = linspace(0, length(fns) - 1, length(fns)) ;
+    acom_sm = 0 * acoms ;
+    pcom_sm = 0 * acoms ;
+    smfrac = 30 / length(timepts) ;  % fraction of data for smoothing window
+    acom_sm(:, 1) = smooth(timepts, acoms(:, 1), smfrac, 'rloess');
+    pcom_sm(:, 1) = smooth(timepts, pcoms(:, 1), smfrac, 'rloess');
+    acom_sm(:, 2) = smooth(timepts, acoms(:, 2), smfrac, 'rloess');
+    pcom_sm(:, 2) = smooth(timepts, pcoms(:, 2), smfrac, 'rloess');
+    acom_sm(:, 3) = smooth(timepts, acoms(:, 3), smfrac, 'rloess');
+    pcom_sm(:, 3) = smooth(timepts, pcoms(:, 3), smfrac, 'rloess');
+    
+    if preview
+        plot(timepts, acoms - mean(acoms,1), '.')
+        hold on
+        plot(timepts, acom_sm - mean(acoms, 1), '-')
+        title('Smoothed COMs for AP')
+    end
+    clear acom pcom
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Save acom_sm, pcom_sm
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%
+    try
+        h5create(rawapdvname, '/acom', size(acoms)) ;
+    catch
+        disp('acom already exists')
+    end
+    try
+        h5create(rawapdvname, '/pcom', size(pcoms)) ;
+    catch
+        disp('pcom already exists')
+    end
+    try
+        h5create(rawapdvname, '/acom_sm', size(acom_sm)) ;
+    catch
+        disp('acom_sm already exists')
+    end
+    try
+        h5create(rawapdvname, '/pcom_sm', size(pcom_sm)) ;
+    catch
+        disp('pcom_sm already exists')
+    end
+    h5write(rawapdvname, '/acom', acoms) ;
+    h5write(rawapdvname, '/pcom', pcoms) ;
+    h5write(rawapdvname, '/acom_sm', acom_sm) ;
+    h5write(rawapdvname, '/pcom_sm', pcom_sm) ;
+    clear acoms pcoms
+else
+    disp('Skipping, since already loaded acom_sm and pcom_sm')
+end
+
+%% With acom and pcom in hand, we compute dorsal and centerlines
 for ii=1:length(fns)
+    % Pick out the acom and pcom in SUBSAMPLED UNITS
+    acom = acom_sm(ii, :) ;
+    pcom = pcom_sm(ii, :) ; 
+    
     %% Name the output centerline
     name_split = strsplit(fns(ii).name, '.ply') ;
     name = name_split{1} ; 
     expstr = strrep(num2str(exponent, '%0.1f'), '.', 'p') ;
-    outname = [fullfile(outdir, name) '_centerline_exp' expstr] ;
-    polaroutfn = [fullfile(outdir, name) '_polarcoords'] ;
-    skel_rs_outfn = [fullfile(outdir, name) '_centerline_scaled_exp' expstr ] ;
-    fig1outname = [fullfile(fig1outdir, name) '_centerline_exp' expstr '_xy'] ;
-    fig2outname = [fullfile(fig2outdir, name) '_centerline_exp' expstr '_xz'] ;
-    fig3outname = [fullfile(fig3outdir, name) '_centerline_exp' expstr '_yz'] ;
-    figsmoutname = [fullfile(fig3outdir, name) '_centerline_smoothed_exp' expstr] ;
+    resstr = strrep(num2str(res, '%0.1f'), '.', 'p') ;
+    extenstr = ['_exp' expstr '_res' resstr] ;
+    outname = [fullfile(outdir, name) '_centerline' extenstr] ;
+    polaroutfn = [fullfile(outdir, name) '_polarcoords' extenstr] ;
+    skel_rs_outfn = [fullfile(outdir, name) '_centerline_scaled' extenstr ] ;
+    fig1outname = [fullfile(fig1outdir, name) '_centerline' extenstr '_xy'] ;
+    fig2outname = [fullfile(fig2outdir, name) '_centerline' extenstr '_xz'] ;
+    fig3outname = [fullfile(fig3outdir, name) '_centerline' extenstr '_yz'] ;
+    figsmoutname = [fullfile(fig3outdir, name) '_centerline_smoothed' extenstr] ;
     tmp = strsplit(name, '_') ;
     timestr = tmp{length(tmp)} ;
     
-    %% Read the mesh
-    mesh = ply_read(fullfile(fns(ii).folder, fns(ii).name));
-    tri = cell2mat(mesh.face.vertex_indices) ;
+    %% Read the mesh  
+    msg = strrep(['Loading mesh ' fns(ii).name], '_', '\_') ;
+    if ii == 1
+        fbar = waitbar(ii/length(fns), msg) ;
+    else
+        waitbar(ii/length(fns), fbar, msg)
+    end
     
+    mesh = ply_read(fullfile(fns(ii).folder, fns(ii).name));
+    tri = cell2mat(mesh.face.vertex_indices) + 1;
     if strcmp(meshorder, 'zyx')
         xs = mesh.vertex.z / ssfactor ;
         ys = mesh.vertex.y / ssfactor ;
         zs = mesh.vertex.x / ssfactor ; 
+        vn = [mesh.vertex.nz, mesh.vertex.ny, mesh.vertex.nx] ;
     else
         error('Did not code for this order yet')
     end
     
-    vertices = [xs, ys, zs] ;
-    fv = struct('faces', tri + 1, 'vertices', vertices) ;
-
+    vtx_sub = [xs, ys, zs] ;
+    fv = struct('faces', tri, 'vertices', vtx_sub, 'normals', vn) ;
+    
+    % Check normals
+    % close all
+    % plot3(vtx_sub(1:10:end, 1), vtx_sub(1:10:end, 2), vtx_sub(1:10:end, 3), '.')
+    % hold on
+    % plot3(vtx_sub(1:10:end, 1) + 10 * vn(1:10:end, 1),...
+    %     vtx_sub(1:10:end, 2) + 10 * vn(1:10:end, 2), ...
+    %     vtx_sub(1:10:end, 3) + 10 * vn(1:10:end, 3), 'o')
+    
+    % View the normals a different way
+    % close all
+    % plot3(vtx_sub(1:10:end, 1), vtx_sub(1:10:end, 2), vtx_sub(1:10:end, 3), '.')
+    % for i=1:10:length(vtx_sub)
+    %     hold on
+    %     plot3([vtx_sub(i, 1), vtx_sub(i, 1) + 10*vn(i, 1)], ... 
+    %     [vtx_sub(i, 2), vtx_sub(i, 2) + 10*vn(i, 2)], ...
+    %     [vtx_sub(i, 3), vtx_sub(i, 3) + 10*vn(i, 3)], 'r-') 
+    % end
+    % axis equal
+    
     % Must either downsample mesh, compute xyzgrid using ssfactor and
     % pass to options struct.
     % Here, downsampled mesh
     % mesh.vertex.x = xs ;
     % mesh.vertex.y = ys ;
     % mesh.vertex.z = zs ;
-
-    %% Load the AP axis determination
-    thres = 0.5 ;
-    options.check = false ;
-    apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
-    apdat = h5read(apfn, '/exported_data');
     
-    rawfn = fullfile(rootdir, ['Time_' timestr '_c1_stab.h5' ]);
-    rawdat = h5read(rawfn, '/inputData');
-    adat = squeeze(apdat(anteriorChannel,:,:,:)) ;
-    pdat = squeeze(apdat(posteriorChannel,:,:,:)) ;
-    % testing
-    % adat = 0 * adat ;
-    % adat(1:20,1:20,1:20) = 1 ;
-    % pdat = 0 * adat ;
-    % pdat(1:20,1:60,1:20) = 1 ;
-    % ddat = 0 * adat ;
-    % ddat(1:20,1:20,1:300) = 1 ;
-    % define axis order: 
-    % if 1, 2, 3: axes will be yxz
-    % if 1, 3, 2: axes will be yzx
-    % if 2, 1, 3: axes will be xyz (ie first second third axes, ie --> 
-    % so that bright spot at im(1,2,3) gives com=[1,2,3]
-    axorder = [2, 1, 3] ;
-    adat = permute(adat, axorder) ;
-    pdat = permute(pdat, axorder) ;
-    [aind, acom] = match_training_to_vertex(adat, thres, vertices, options) ;
-    [pind, pcom] = match_training_to_vertex(pdat, thres, vertices, options) ;
+    % Point match for aind and pind
+    msg = strrep(['Point matching mesh ' fns(ii).name], '_', '\_') ;
+    waitbar(ii/length(fns), fbar, msg)
+    adist2 = sum((vtx_sub - acom) .^ 2, 2);
+    %find the smallest distance and use that as an index 
+    aind = find(adist2 == min(adist2)) ;
+    % Next point match the posterior
+    pdist2 = sum((vtx_sub - pcom) .^ 2, 2);
+    %find the smallest distance and use that as an index
+    pind = find(pdist2 == min(pdist2)) ;
     
-    % Grab dorsal direction if this is the first timepoint
+    % Check it
+    if preview
+        trimesh(tri, vtx_sub(:, 1), vtx_sub(:, 2), vtx_sub(:, 3), vtx_sub(:, 1))
+        hold on;
+        plot3(vtx_sub(aind, 1), vtx_sub(aind, 2), vtx_sub(aind, 3), 'ko')
+        plot3(vtx_sub(pind, 1), vtx_sub(pind, 2), vtx_sub(pind, 3), 'ro')
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Grab dorsal direction if this is the first timepoint
     if ii == 1    
-        dorsal_thres = 0.9 ;
-        ddat = permute(squeeze(apdat(dorsalChannel,:,:,:)), axorder) ;
-        [dind, dcom] = match_training_to_vertex(ddat,...
-            dorsal_thres, vertices, options) ;
+        apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
+        apdat = h5read(apfn, '/exported_data');
+        ddat = permute(squeeze(apdat(dorsalChannel, :, :, :)), axorder) ;
+        
+        options.check = false ;
+        dcom = com_region(ddat, dorsal_thres, options) ;
         %%%%%%%%%%%%%%%%%%%%%%
         if preview
             % % disp('Showing dorsal segmentation...')
@@ -205,15 +399,15 @@ for ii=1:length(fns)
             % camlight
             % hold on;
             tmp = trimesh(fv.faces, ...
-                vertices(:, 1), vertices(:,2), vertices(:, 3), ...
-                vertices(:, 1)) % , 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+                vtx_sub(:, 1), vtx_sub(:,2), vtx_sub(:, 3), ...
+                vtx_sub(:, 1)) % , 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
             hold on;
             plot3(acom(1), acom(2), acom(3), 'ro')
             plot3(pcom(1), pcom(2), pcom(3), 'bo')
             plot3(dcom(1), dcom(2), dcom(3), 'ko')
-            xlabel('x')
-            ylabel('y')
-            zlabel('z')
+            xlabel('x [subsampled pixels]')
+            ylabel('y [subsampled pixels]')
+            zlabel('z [subsampled pixels]')
             axis equal
             %%%%%%%%%%%%%%%%%%%%%%
         end
@@ -222,7 +416,7 @@ for ii=1:length(fns)
         apaxis = pcom - acom ;
         aphat = apaxis / norm(apaxis) ;
         
-        % compute rotation matrix using this algorithm: 
+        % compute rotation matrix using this procedure: 
         % https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
         xhat = [1, 0, 0] ;
         zhat = [0, 0, 1] ;
@@ -244,22 +438,18 @@ for ii=1:length(fns)
         dlmwrite([rotname '.txt'], rot)
         
     end
-    % acom = acom_ds * ssfactor ;
-    % pcom = pcom_ds * ssfactor ;
-
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Define start point
     % Check if acom is inside mesh. If so, use that as starting point.
     ainside = inpolyhedron(fv, acom(1), acom(2), acom(3)) ;
     pinside = inpolyhedron(fv, pcom(1), pcom(2), pcom(3)) ;
-
-    %% Define start point
+    
     if ainside
         startpt = acom' ;
     else
         % move along the inward normal of the mesh from the matched vertex
-        vtx = [vertices(aind, 1), vertices(aind, 2), vertices(aind, 3)]' ;
-        normal = [mesh.vertex.nx(aind), ...
-                    mesh.vertex.nx(aind), ...
-                    mesh.vertex.nx(aind)]' ;
+        vtx = [vtx_sub(aind, 1), vtx_sub(aind, 2), vtx_sub(aind, 3)]' ;
+        normal = fv.normals(aind, :) ;
         startpt = vtx + normal;
         if ~inpolyhedron(fv, startpt(1), startpt(2), startpt(3)) 
             % this didn't work, check point in reverse direction
@@ -271,16 +461,15 @@ for ii=1:length(fns)
             end
         end
     end 
+    % Note: Keep startpt in subsampled units
 
     % Define end point
     if pinside
         endpt = pcom' ;
     else
         % move along the inward normal of the mesh from the matched vertex
-        vtx = [vertices(pind, 1), vertices(pind, 2), vertices(pind, 3)]' ;
-        normal = [mesh.vertex.nx(pind), ...
-                    mesh.vertex.nx(pind), ...
-                    mesh.vertex.nx(pind)]' ;
+        vtx = [vtx_sub(pind, 1), vtx_sub(pind, 2), vtx_sub(pind, 3)]' ;
+        normal = fv.normals(pind, :) ;
         endpt = vtx + normal * normal_step;
         if ~inpolyhedron(fv, endpt(1), endpt(2), endpt(3)) 
             % this didn't work, check point in reverse direction
@@ -292,6 +481,7 @@ for ii=1:length(fns)
             end
         end
     end 
+    % Note: Keep endpt in subsampled units
 
     % Check out the mesh
     if preview
@@ -300,122 +490,129 @@ for ii=1:length(fns)
         % plot3(xs, ys, zs, 'ko')
         scatter3(startpt(1), startpt(2), startpt(3), 'ro')
         scatter3(endpt(1), endpt(2), endpt(3), 'ko')
-        xlabel('x')
-        ylabel('y')
-        zlabel('z')
+        xlabel('x [ssampled pixels]')
+        ylabel('y [ssampled pixels]')
+        zlabel('z [ssampled pixels]')
         hold off
         axis equal
     end
 
-    % permute xy since MATLAB is evil
-    % startpt = [startpt(1) startpt(2) startpt(3)]' ;
-    % endpt = [endpt(1) endpt(2) endpt(3)]' ;
+    %% Compute centerline if has not been saved 
+    if overwrite || ~exist([outname '.txt'], 'file')
+        %% Get xyz grid for distance transform
+        if ~exist('xx', 'var') || ~exist('yy', 'var') || ~exist('zz', 'var')
+            xx = 0:res:ceil(max(xs) + buffer) ;
+            yy = 0:res:ceil(max(ys) + buffer) ;
+            zz = 0:res:ceil(max(zs) + buffer) ;
+        end
+        msg = strrep(['Identifying pts in mesh ' fns(ii).name], '_', '\_') ;
+        waitbar(ii/length(fns), fbar, msg)
+        tic 
+        fv.faces = reorient_facets( fv.vertices, fv.faces );
+        inside = inpolyhedron(fv, xx, yy, zz) ;
+        outside = 1 - inside ;
+        toc ; 
 
-    %% Get xyz grid for distance transform
-    if ii == 1
-        xx = 0:res:ceil(max(xs) + buffer) ;
-        yy = 0:res:ceil(max(ys) + buffer) ;
-        zz = 0:res:ceil(max(zs) + buffer) ;
-    end
-    disp('Identifying points inside mesh...')
-    tic 
-    fv.faces = reorient_facets( fv.vertices, fv.faces );
-    inside = inpolyhedron(fv, xx, yy, zz) ;
-    outside = 1 - inside ;
-    toc ; 
+        % use the distanceTransform from Yuriy Mishchenko
+        msg = strrep(['Computing DT for ' fns(ii).name], '_', '\_') ;
+        waitbar(ii/length(fns), fbar, msg)
+        tic
+        Dbw = bwdistsc(outside) ;
+        % DD = max(DD(:)) - DD ;
+        DD = (Dbw + eps) ./ (max(Dbw(:)) + eps) ;
+        % DD = 1 - DD ;
+        DD = DD.^(exponent) ; 
+        DD(logical(outside)) = eps ;
+        toc ; 
 
-    % use the distanceTransform from Yuriy Mishchenko
-    disp('Computing distance transform...')
-    tic
-    Dbw = bwdistsc(outside) ;
-    % DD = max(DD(:)) - DD ;
-    DD = (Dbw + eps) ./ (max(Dbw(:)) + eps) ;
-    % DD = 1 - DD ;
-    DD = DD.^(exponent) ; 
-    DD(logical(outside)) = eps ;
-    toc ; 
+        if preview
+            % Preview DD
+            close all ;
+            disp('Previewing the distance transform')
+            for ll=1:3
+                for kk=1:10:size(DD,1)
+                    imagesc(squeeze(DD(kk,:,:)))
+                    title(['DT: z=' num2str(kk)])
+                    colorbar
+                    pause(0.001)
+                end
+            end
 
-    if preview
-        % Preview DD
-        clf ;
-        disp('Previewing the distance transform')
-        for ll=1:3
-            for kk=1:10:size(DD,1)
-                imagesc(squeeze(DD(kk,:,:)))
-                title(['DT: z=' num2str(kk)])
-                colorbar
+            % A better way to plot it
+            clf
+            p = patch(isosurface(xx,yy,zz,inside,0.5));
+            % isonormals(x,y,z,v,p)
+            p.FaceColor = 'red';
+            p.EdgeColor = 'none';
+            daspect([1 1 1])
+            view(3); 
+            axis tight
+            camlight 
+            % lighting gouraud
+        end
+
+        % Check points with subsampling
+        % ssample = 10 ;
+        % xp = X(:); yp=Y(:); zp=Z(:) ; dp=D(:);
+        % scatter3(xp(1:ssample:end), yp(1:ssample:end), ...
+        %          zp(1:ssample:end), 30, dp(1:ssample:end), 'filled') ;
+
+        %% use Peyre's fast marcher
+        msg = strrep(['Computing centerline for ' fns(ii).name], '_', '\_') ;
+        waitbar(ii/length(fns), fbar, msg)
+        tic
+
+        % From example (DD is W, with low values being avoided)
+        options.heuristic = weight * DD ;
+        % Convert here to the gridspacing of xx,yy,zz
+        startpt_transposed = [startpt(2), startpt(1), startpt(3)]' / res ;
+        endpt_transposed = [endpt(2), endpt(1), endpt(3)]' / res ;
+        [D2,S] = perform_fast_marching(DD, startpt_transposed, options);
+        path = compute_geodesic(D2, endpt_transposed);
+        % plot_fast_marching_3d(D2, S, path, startpt, endpt);
+
+        % Show the intermediate result
+        disp('found skel')        
+        if preview
+            % Preview D2
+            clf ;
+            for kk=1:10:size(D2,3)
+                imshow(squeeze(D2(kk,:,:)))
+                title(['D2 for plane z=' num2str(kk)])
+                pause(0.001)
+            end
+
+            % Preview S
+            for kk=1:10:size(S,1)
+                imshow(squeeze(S(kk,:,:)))
+                title(['S for plane z=' num2str(kk)])
                 pause(0.001)
             end
         end
 
-        % A better way to plot it
-        clf
-        p = patch(isosurface(xx,yy,zz,inside,0.5));
-        % % isonormals(x,y,z,v,p)
-        p.FaceColor = 'red';
-        p.EdgeColor = 'none';
-        daspect([1 1 1])
-        view(3); 
-        axis tight
-        camlight 
-        % lighting gouraud
+        % Convert skeleton's rows to columns and flip start/end
+        skel_tmp = fliplr(path)' ;
+        % Transpose x<->y back to original and scale to mesh units
+        skel = [ skel_tmp(:,2), skel_tmp(:,1), skel_tmp(:,3) ] * res * ssfactor;
+        
+        % Save centerline as text file
+        fid = fopen([outname '.txt'], 'wt');
+        % make header
+        fprintf(fid, 'centerline xyz in units of pixels (full resolution, same as mesh)');  
+        fclose(fid);
+        disp(['Saving centerline to txt: ', outname, '.txt'])
+        dlmwrite([outname '.txt'], skel)
+    else     
+        skel = importdata([outname '.txt']) ;
     end
-
-    % Check points with subsampling
-    % ssample = 10 ;
-    % xp = X(:); yp=Y(:); zp=Z(:) ; dp=D(:);
-    % scatter3(xp(1:ssample:end), yp(1:ssample:end), ...
-    %          zp(1:ssample:end), 30, dp(1:ssample:end), 'filled') ;
-
-    %% use Peyre's fast marcher
-    disp('Computing centerline from fast marching...')
-    tic
-
-    % From example (DD is W, with low values being avoided)
-    options.heuristic = weight * DD ;
-    startpt_trans = [startpt(2), startpt(1), startpt(3)]' ;
-    endpt_trans = [endpt(2), endpt(1), endpt(3)]' ;
-    [D2,S] = perform_fast_marching(DD, startpt_trans, options);
-    path = compute_geodesic(D2, endpt_trans);
-    % plot_fast_marching_3d(D2, S, path, startpt, endpt);
-
-    % Show the intermediate result
-    disp('found skel')        
-    if preview
-        % Preview D2
-        clf ;
-        for kk=1:10:size(D2,3)
-            imshow(squeeze(D2(kk,:,:)))
-            title(['D2 for plane z=' num2str(kk)])
-            pause(0.001)
-        end
-
-        % Preview S
-        for kk=1:10:size(S,1)
-            imshow(squeeze(S(kk,:,:)))
-            title(['S for plane z=' num2str(kk)])
-            pause(0.001)
-        end
-    end
-
-    % options.weight = weight ;
-    % [D2,S] = perform_fmstar_3d(DD, endpt, startpt) ;
-    % toc ;
-    % % Display the skeleton voxels
-    % ind = find(skel);
-    % [xs, ys, zs] = ind2sub(size(skel), ind);
-    % plot3(ys, xs, zs, '.')
-
-    % Convert skeleton's rows to columns and flip start/end
-    skel_tmp = fliplr(path)' ;
-    % Transpose x<->y back to original
-    skel = [ skel_tmp(:,2), skel_tmp(:,1), skel_tmp(:,3) ];
-    spt = [startpt(1), startpt(2), startpt(3)] ;
-    ept = [endpt(1), endpt(2), endpt(3)] ;
+    
+    %% Rescale start point and end point to full resolution
+    spt = [startpt(1), startpt(2), startpt(3)] * ssfactor;
+    ept = [endpt(1), endpt(2), endpt(3)] * ssfactor;
     
     %% Compute the translation to put anterior to origin
     if ii == 1
-        % Save translation 
+        % Save translation in units of mesh coordinates
         trans = -(rot * spt')' ;
         disp(['Saving translation vector (post rotation) to txt: ', transname, '.txt'])
         dlmwrite([transname '.txt'], trans)
@@ -423,81 +620,99 @@ for ii=1:length(fns)
     
     %% Get axis limits if this is first TP
     if ii == 1
-        xyzr = (rot * vertices')' ;
-        xmin = min(xyzr(:, 1)) - plot_buffer + trans(1) ;
-        ymin = min(xyzr(:, 2)) - plot_buffer + trans(2) ;
-        zmin = min(xyzr(:, 3)) - plot_buffer + trans(3) ;
-        xmax = max(xyzr(:, 1)) + plot_buffer + trans(1) ;
-        ymax = max(xyzr(:, 2)) + plot_buffer + trans(2) ;
-        zmax = max(xyzr(:, 3)) + plot_buffer + trans(3) ;
+        xyzr = (rot * vtx_sub')' * ssfactor + trans ;
+        xmin = min(xyzr(:, 1)) - plot_buffer ;
+        ymin = min(xyzr(:, 2)) - plot_buffer ;
+        zmin = min(xyzr(:, 3)) - plot_buffer ;
+        xmax = max(xyzr(:, 1)) + plot_buffer ;
+        ymax = max(xyzr(:, 2)) + plot_buffer ;
+        zmax = max(xyzr(:, 3)) + plot_buffer ;
         
         % Save xyzlimits 
         disp('Saving xyzlimits for plotting')
-        dlmwrite([xyzlimname '.txt'], [xmin, xmax; ymin, ymax; zmin, zmax])
+        fn = [xyzlimname '.txt'] ;
+        fid = fopen(fn, 'wt');
+        % make header
+        fprintf(fid, 'xyzlimits in units of full resolution pixels');  
+        fclose(fid);
+        dlmwrite(fn, [xmin, xmax; ymin, ymax; zmin, zmax])
     end
     
     %% Rotate and translate vertices and endpoints
-    xyzr = (rot * vertices')' + trans ;
+    % Note: all in original mesh units (not subsampled)
+    xyzr = (rot * vtx_sub')' * ssfactor + trans ;
     skelr = (rot * skel')' + trans ; 
     sptr = (rot * spt')' + trans ; 
     eptr = (rot * ept')' + trans ;
     dptr = (rot * dcom')' + trans ; 
     
-    %% Plot and save
+    % Scale to actual resolution
+    xyzrs = xyzr * resolution ;
+    % get distance increment
+    ds = vecnorm(diff(skel), 2, 2) ;
+    % get pathlength at each skeleton point
+    ss = [0; cumsum(ds)] ;
+    sss = ss * resolution ;
+    skelrs = skelr * resolution ;
+    sptrs = sptr * resolution ;
+    eptrs = eptr * resolution ; 
+    dptrs = dptr * resolution ;
+    
+    % Save the rotated, translated, scaled curve
+    disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])
+    fid = fopen(fn, 'wt');
+    % make header
+    fprintf(fid, 'Aligned & scaled skeleton: sss [um], skelrs [um]');  
+    fclose(fid);
+    dlmwrite([skel_rs_outfn '.txt'], [sss, skelrs])
+    
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    if save_figs
+    %% Plot and save
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+    % Save plot
+    if save_figs && (overwrite || ~exist([fig2outname '.png'], 'file'))
         disp('Saving rotated & translated figure ...')    
         close all
         fig = figure ;
         set(gcf, 'Visible', 'Off')
-        tmp = trisurf(tri + 1, xyzr(:, 1), xyzr(:,2), xyzr(:, 3), ...
-            xyzr(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+        tmp = trisurf(tri, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
+            xyzrs(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
         hold on;
         % plot the skeleton
-        for i=1:length(skelr)
-            plot3(skelr(:,1), skelr(:,2), skelr(:,3),'-','Color',[0,0,0], 'LineWidth', 3);
+        for i=1:length(skelrs)
+            plot3(skelrs(:,1), skelrs(:,2), skelrs(:,3),'-','Color',[0,0,0], 'LineWidth', 3);
         end
-        plot3(sptr(1), sptr(2), sptr(3), 'ro')
-        plot3(eptr(1), eptr(2), eptr(3), 'bo')
-        plot3(dptr(1), dptr(2), dptr(3), 'go')
-        xlabel('x')
-        ylabel('y')
-        zlabel('z')
+        plot3(sptrs(1), sptrs(2), sptrs(3), 'ro')
+        plot3(eptrs(1), eptrs(2), eptrs(3), 'bo')
+        plot3(dptrs(1), dptrs(2), dptrs(3), 'go')
+        xlabel('x [$\mu$m]', 'Interpreter', 'Latex'); 
+        ylabel('y [$\mu$m]', 'Interpreter', 'Latex');
+        zlabel('z [$\mu$m]', 'Interpreter', 'Latex');
         title(['Centerline using $D^{' num2str(exponent) '}$: ' timestr], ...
             'Interpreter', 'Latex')
         axis equal
         % xy
         view(2)
-        xlim([xmin xmax])
-        ylim([ymin ymax])
-        zlim([zmin zmax])
+        xlim([xmin xmax]); ylim([ymin ymax]); zlim([zmin zmax])
         set(gcf, 'PaperUnits', 'centimeters');
         set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);
         saveas(fig, [fig1outname '.png'])
         % yz
-        view(90, 0)
-        xlim([xmin xmax])
-        ylim([ymin ymax])
-        zlim([zmin zmax])
+        view(90, 0);
+        xlim([xmin xmax]); ylim([ymin ymax]); zlim([zmin zmax])
         set(gcf, 'PaperUnits', 'centimeters');
         set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=15cm
         saveas(fig, [fig2outname '.png'])
         % xz
         view(0, 0)    
-        xlim([xmin xmax])
-        ylim([ymin ymax])
-        zlim([zmin zmax])
+        xlim([xmin xmax]); ylim([ymin ymax]); zlim([zmin zmax])
         set(gcf, 'PaperUnits', 'centimeters');
         set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=15cm
         saveas(fig, [fig3outname '.png'])
         close all
     end
-    
-    % Save centerline as text file
-    disp(['Saving centerline to txt: ', outname, '.txt'])
-    dlmwrite([outname '.txt'], skel)
-        
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Display the skeleton
     % disp('Saving figure ...')
@@ -514,47 +729,38 @@ for ii=1:length(fns)
     % end
     % plot3(spt(1), spt(2), spt(3), 'ro')
     % plot3(ept(1), ept(2), ept(3), 'bo')
-    % xlabel('x')
-    % ylabel('y')
-    % zlabel('z')
-    % axis equal
+    % xlabel('x'); ylabel('y'); zlabel('z'); axis equal
     % title(['$D^{' num2str(exponent) '}$'], 'Interpreter', 'Latex')
     % view(2)
-    % xlim([xmin xmax])
-    % ylim([ymin ymax])
-    % zlim([zmin zmax])
+    % xlim([xmin xmax]); ylim([ymin ymax]); zlim([zmin zmax])
     % saveas(fig, [fig1outname '.png'])
     % view(10)
     % stopping 
     % saveas(fig, [fig2outname '.png'])
     % saveas(fig, [fig3outname '.png'])
     % close all
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     %% Associate each vertex with a point on the curve
     % dist2 = (xs - skel(:,1)).^2 + (xs - skel(:,2)).^2 + (xs - skel(:,3)).^2 ;
-    [kmatch, dist] = dsearchn(skel, vertices) ;
-    
-    % A dsearchn() returns closest Euclidean 3D matches. CHeck that the
+    [kmatch, dist] = dsearchn(skel / ssfactor, vtx_sub) ;
+    % A dsearchn() returns closest Euclidean 3D matches. Check that the
     % association linesegment between the vertex and the centerline does
     % not leave the mesh
         
-    % get distance increment
-    ds = vecnorm(diff(skel), 2, 2) ;
-    % get pathlength at each skeleton point
-    ss = [0; cumsum(ds)] ;
-    
     % Check the associations
     if preview
         clf ; hold on
-        for ijk = 1:500:length(vertices)
-            plot3([vertices(ijk, 1) skel(kmatch(ijk), 1)], ...
-                [vertices(ijk, 2) skel(kmatch(ijk), 2)], ...
-                [vertices(ijk, 3) skel(kmatch(ijk), 3)])
+        for ijk = 1:500:length(vtx_sub)
+            plot3([vtx_sub(ijk, 1) skel(kmatch(ijk), 1)], ...
+                [vtx_sub(ijk, 2) skel(kmatch(ijk), 2)], ...
+                [vtx_sub(ijk, 3) skel(kmatch(ijk), 3)])
         end
+        close all
     end
     
-    % Compute radius R(s)
-    radii = vecnorm(vertices - skel(kmatch), 2, 2) ;
+    % Compute radius R(s) in microns
+    radii = vecnorm(vtx_sub * ssfactor - skel(kmatch), 2, 2) * resolution ;
     
     % Compute phi(s), which is just the polar angle in the yz plane - pi/2
     % taken wrt the centerline
@@ -562,35 +768,76 @@ for ii=1:length(fns)
     phi_ctrdorsal = mod(atan2(xyzr(:, 3) - skelr(kmatch, 3), ...
                         xyzr(:, 2) - skelr(kmatch, 2)) - pi * 0.5, 2*pi);
 
-    % Check phi_dorsal
-    if preview
-        % view global dorsal angle
-        fig = figure ;
-        set(gcf, 'Visible', 'On')
-        tmp = trisurf(tri + 1, xyzr(:, 1), xyzr(:,2), xyzr(:, 3), ...
-            phi_dorsal, 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
-        hold on;
-        
-        % view dorsal angle from centerline
-        fig = figure ;
-        set(gcf, 'Visible', 'On')
-        tmp = trisurf(tri + 1, xyzr(:, 1), xyzr(:,2), xyzr(:, 3), ...
-            phi_ctrdorsal, 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
-        hold on;
-    end
-
     % Save radii and angle wrt dorsal as text file
     disp(['Saving radii to txt: ', polaroutfn, '.txt'])
-    dlmwrite([polaroutfn '.txt'], [kmatch, radii, phi_dorsal, phi_ctrdorsal])
+    fn = [polaroutfn '.txt'] ;
+    fid = fopen(fn, 'wt');
+    % make header
+    fprintf(fid, 'kmatch, radii [microns], phi_dorsal, phi_ctrdorsal');  
+    fclose(fid);
+    dlmwrite(fn, [kmatch, radii, phi_dorsal, phi_ctrdorsal])
+        
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Check phi_dorsal
+    fexist1 = exist(fullfile(phi_def_outdir, [name '.png']), 'file') ;
+    fexist2 = exist(fullfile(phicd_def_outdir, [name '.png']), 'file') ;
+    figs_exist = fexist1 && fexist2 ;
+    if save_figs && (overwrite || ~figs_exist)
+        % view global dorsal angle
+        fig = figure('Visible', 'Off');
+        tmp = trisurf(tri, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
+            phi_dorsal / pi, 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+        xlabel('x [$\mu$m]', 'Interpreter', 'Latex')
+        ylabel('y [$\mu$m]', 'Interpreter', 'Latex')
+        zlabel('z [$\mu$m]', 'Interpreter', 'Latex')
+        xlim([xmin xmax])
+        ylim([ymin ymax])
+        zlim([zmin zmax])
+        axis equal
+        cb = colorbar() ;
+        ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
+        cb.Label.Interpreter = 'latex';
+        cb.Label.FontSize = 12 ;
+        title('$\phi_{\textrm{dorsal}}$', 'Interpreter', 'Latex')
+        set(gcf, 'PaperUnits', 'centimeters');
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
+        saveas(fig, fullfile(phi_def_outdir, [name '.png']))
+        close all
+        
+        % view dorsal angle from centerline
+        fig = figure('Visible', 'Off');
+        tmp = trisurf(tri, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
+            phi_ctrdorsal, 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+        xlabel('x [$\mu$m]', 'Interpreter', 'Latex')
+        ylabel('y [$\mu$m]', 'Interpreter', 'Latex')
+        zlabel('z [$\mu$m]', 'Interpreter', 'Latex')
+        xlim([xmin xmax])
+        ylim([ymin ymax])
+        zlim([zmin zmax])
+        axis equal
+        cb = colorbar() ;
+        ylabel(cb, 'angle w.r.t. dorsal from centerline, $\phi / \pi$')
+        cb.Label.Interpreter = 'latex';
+        cb.Label.FontSize = 12 ;
+        title('$\phi_{\textrm{dorsal}}^c$', 'Interpreter', 'Latex')
+        set(gcf, 'PaperUnits', 'centimeters');
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
+        saveas(fig, fullfile(phicd_def_outdir, [name '.png']))
+        close all
+    end
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Save the radius data as a plot
-    % Color by phi_dorsal
-    if save_figs
+    fexist1 = exist(fullfile(radius_vs_s_phi_outdir, [name '.png']), 'file') ;
+    fexist2 = exist(fullfile(radius_vs_s_phicd_outdir, [name '.png']), 'file') ;
+    figs_exist = fexist1 && fexist2 ;
+    if save_figs && (overwrite || figs_exist) 
+        % Color by phi_dorsal
         close all
         fig = figure;
         set(gcf, 'Visible', 'Off')
-        scatter(ss(kmatch) * resolution * ssfactor,...
-            radii * resolution * ssfactor, [], ...
+        scatter(sss(kmatch), radii, [], ...
             phi_dorsal / pi, 'filled', ...
             'MarkerFaceAlpha', 0.05) ;        
         xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
@@ -599,7 +846,7 @@ for ii=1:length(fns)
         ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
         cb.Label.Interpreter = 'latex';
         cb.Label.FontSize = 12 ;
-        title('Midgut radius')
+        title('$\phi_{\textrm{dorsal}}$', 'Interpreter', 'Latex')
         xlim([0, 525])
         set(gcf, 'PaperUnits', 'centimeters');
         set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
@@ -609,8 +856,7 @@ for ii=1:length(fns)
         close all
         fig = figure;
         set(gcf, 'Visible', 'Off')
-        scatter(ss(kmatch) * resolution * ssfactor,...
-            radii * resolution * ssfactor, [], ...
+        scatter(ss(kmatch), radii, [], ...
             phi_dorsal / pi, 'filled', ...
             'MarkerFaceAlpha', 0.05) ;        
         xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
@@ -626,41 +872,71 @@ for ii=1:length(fns)
         saveas(fig, fullfile(radius_vs_s_phicd_outdir, [name '.png']))
         clf
     end
-    
-    % Get azimuthal angle, phi, from dorsal direction and centerline
-    % Save cuts in phi as plots 
-    % idx = (phi < eps) | (phi > (2*pi - eps)) ;
-    % plot(ss(kmatch(idx)), 
-    
-    % Save the rotated, translated, scaled curve
-    ss_s = ss * resolution * ssfactor ;
-    skelr_s = skelr * resolution * ssfactor ;
-    disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])
-    dlmwrite([skel_rs_outfn '.txt'], [ss_s, skelr_s])
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Save the rotated, translated, scaled to microns mesh
+    vtx_rs = (rot * (vtx_sub * ssfactor)' + trans')' * resolution ;
+    vn_rs = (rot * fv.normals')' ;
+    outfaces = [fv.faces(:, 2), fv.faces(:, 1), fv.faces(:, 3)] ;
+    plywrite_with_normals(fullfile(alignedmeshdir, [name '_APDV_um.ply']), ...
+        outfaces, vtx_rs, vn_rs)
+       
+    % Check the normals 
+    if preview 
+        close all
+        plot3(vtx_rs(1:10:end, 1), vtx_rs(1:10:end, 2), vtx_rs(1:10:end, 3), '.')
+        for i=1:10:length(vtx_rs)
+            hold on
+            plot3([vtx_rs(i, 1), vtx_rs(i, 1) + 10*vn_rs(i, 1)], ... 
+            [vtx_rs(i, 2), vtx_rs(i, 2) + 10*vn_rs(i, 2)], ...
+            [vtx_rs(i, 3), vtx_rs(i, 3) + 10*vn_rs(i, 3)], 'r-') 
+        end
+        axis equal
+    end    
     
     % Save acom, pcom and their aligned counterparts as attributes in an
     % hdf5 file
-    acom_rs = (rot * acom' + trans) * resolution * ssfactor ;
-    pcom_rs = (rot * pcom' + trans) * resolution * ssfactor ; 
-    dcom_rs = (rot * dcom' + trans) * resolution * ssfactor ; 
-    if ~exist(outapdvname, 'file')
-        fid = H5F.create(outapdvname) ;
+    acom_rs = ((rot * acom' * ssfactor + trans') * resolution)' ;
+    pcom_rs = ((rot * pcom' * ssfactor + trans') * resolution)' ; 
+    dcom_rs = ((rot * dcom' * ssfactor + trans') * resolution)' ; 
+    try
+        h5create(outapdvname, ['/' name '/acom'], size(acom)) ;
+    catch
+        disp('acom already exists')
     end
-    fileattrib(outapdvname,'+w');
-    h5create(outapdvname, ['/' name '/acom'], size(acom)) ;
+    try
+        h5create(outapdvname, ['/' name '/pcom'], size(pcom)) ;
+    catch
+        disp('pcom already exists')
+    end
+    try 
+        h5create(outapdvname, ['/' name '/dcom'], size(dcom)) ;
+    catch
+        disp('dcom already exists')
+    end
+    try
+        h5create(outapdvname, ['/' name '/acom_rs'], size(acom_rs)) ;
+    catch
+        disp('acom_rs already exists')
+    end
+    try
+        h5create(outapdvname, ['/' name '/pcom_rs'], size(pcom_rs)) ;
+    catch
+        disp('pcom_rs already exists')
+    end
+    try 
+        h5create(outapdvname, ['/' name '/dcom_rs'], size(dcom_rs)) ;
+    catch
+        disp('dcom_rs already exists')
+    end
+    
     h5write(outapdvname, ['/' name '/acom'], acom) ;
-    h5create(outapdvname, ['/' name '/pcom'], size(pcom)) ;
     h5write(outapdvname, ['/' name '/pcom'], pcom) ;
-    h5create(outapdvname, ['/' name '/dcom'], size(dcom)) ;
     h5write(outapdvname, ['/' name '/dcom'], dcom) ;
-    h5create(outapdvname, ['/' name '/acom_rs'], size(acom_rs)) ;
     h5write(outapdvname, ['/' name '/acom_rs'], acom_rs) ;
-    h5create(outapdvname, ['/' name '/pcom_rs'], size(pcom_rs)) ;
     h5write(outapdvname, ['/' name '/pcom_rs'], pcom_rs) ;
-    h5create(outapdvname, ['/' name '/dcom_rs'], size(dcom_rs)) ;
     h5write(outapdvname, ['/' name '/dcom_rs'], dcom_rs) ;
-    h5disp(outapdvname, ['/' name]);
+    % h5disp(outapdvname, ['/' name]);
     
 end
-
+close(fbar)
 disp('done')

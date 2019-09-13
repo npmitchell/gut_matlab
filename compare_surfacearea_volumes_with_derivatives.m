@@ -6,7 +6,7 @@ close all
 % Select where figure will go
 outdir = '/mnt/data/analysis/' ;
 markers = {'caax', 'hrfp', 'la'} ;
-labels = {'membrane', 'nuclei', 'actin'}; 
+labels = {'Membrane', 'Nuclei', 'Actin'}; 
 
 % Before running, run compute_mesh_surfacearea_volume.m
 % Notes about folding times and LR asymmetry 
@@ -26,10 +26,10 @@ tf1_actin = {19, };
 tfa_actin = {55, };
 tfp_actin = {54, };
 tLRb_actin = {67, };
-tf1_nuclei = {20, 54, 77-65 } ; % artificially offset
-tfa_nuclei = {54, 62, 106-65} ; % artificially offset
-tfp_nuclei = {54, 62, 104-65} ; % artificially offset
-tLRb_nuclei = {52, 72, 136-65} ;
+tf1_nuclei = {7, 52, 77-65 } ; % artificially offset
+tfa_nuclei = {40, 82, 106-65} ; % artificially offset
+tfp_nuclei = {40, 90, 104-65} ; % artificially offset
+tLRb_nuclei = {57, 101, 136-65} ;
 
 % Prepare paths to data
 rootdir = '/mnt/crunch/' ;
@@ -105,19 +105,19 @@ for mi = 1:length(markers)
             load(fn)
             
             % get time offset
-            if strcmp(label, 'membrane')
+            if strcmp(label, 'Membrane')
                 disp('loading membrane tps')
                 t0 = tf1_membrane{j} ;
                 ta = tfa_membrane{j} ;
                 tp = tfp_membrane{j} ;
                 linestyle = linestyle_list{1} ;
-            elseif strcmp(label, 'nuclei')
+            elseif strcmp(label, 'Nuclei')
                 disp('loading nuclei tps')
                 t0 = tf1_nuclei{j} ;
                 ta = tfa_nuclei{j} ;
                 tp = tfp_nuclei{j} ; 
                 linestyle = linestyle_list{2} ;
-            elseif strcmp(label, 'actin')
+            elseif strcmp(label, 'Actin')
                 disp('loading actin tps')
                 t0 = tf1_actin{j} ;
                 ta = tfa_actin{j} ;
@@ -133,16 +133,20 @@ for mi = 1:length(markers)
             % grab time of first/mid fold (t=0)
             [~, ind] = min(abs(times)) ;
             
+            % aas is the area array (over time)
+            % ass is the normed area array (over time)
             ass = aas / aas(ind) ;
             vss = vvs / vvs(ind) ;
             
             % Filter the data
-            windowSize = 5; 
-            sampling = 1:2:length(times) ;
+            windowSize = 7; 
+            sampling = 1:length(times) ;
             b = (1/windowSize)*ones(1,windowSize);
             a = 1;
             asmooth = filter(b, a, ass(sampling)) ;
             vsmooth = filter(b, a, vss(sampling)) ;
+            asmooth2 = smoothdata(ass, 'rlowess', 5) ;
+            vsmooth2 = smoothdata(vss, 'rlowess', 11);
             
             da = gradient(asmooth) ;
             dv = gradient(vsmooth) ;
@@ -160,8 +164,8 @@ for mi = 1:length(markers)
             figure(figh)
             if mark_origin
                 % Plot data
-                ah = plot(times, ass, 'Color', color1, 'LineStyle', linestyle) ;
-                vh = plot(times, vss, 'Color', color2, 'LineStyle', linestyle); 
+                ah = plot(times, asmooth2, 'Color', color1, 'LineStyle', linestyle) ;
+                vh = plot(times, vsmooth2, 'Color', color2, 'LineStyle', linestyle); 
                 % ah = plot(times(sampling), asmooth, 'Color', color1) ;
                 % vh = plot(times(sampling), vsmooth, 'Color', color2); 
                 % ah = plot(times, aMean, 'Color', color1) ;
@@ -172,12 +176,12 @@ for mi = 1:length(markers)
                 p2 = [times(ind), ass(ind)] ;
                 dp = p2 - p1 ;
                 quiver(p1(1), p1(2), dp(1), dp(2), 'k-')
-                text(p1(1), p1(2) + texty, 'fold', ...
+                text(p1(1), p1(2) + texty, 'fold', 'FontSize' , 20, ...
                     'HorizontalAlignment', 'Center', 'Interpreter', 'Latex')
             else
                 % Plot data
-                plot(times, ass, 'Color', color1, 'LineStyle', linestyle) ;
-                plot(times, vss, 'Color', color2, 'LineStyle', linestyle); 
+                plot(times, asmooth2, 'Color', color1, 'LineStyle', linestyle) ;
+                plot(times, vsmooth2, 'Color', color2, 'LineStyle', linestyle); 
             end
 
             % Get indices of anterior and posterior folds
@@ -227,11 +231,11 @@ for mi = 1:length(markers)
 
             % grab time of anterior fold
             p1 = [tt(ia), da(ia)] ;
-            plot(p1(1), p1(2), 'o', 'MarkerSize', 10, 'Color', 'k')
+            af = plot(p1(1), p1(2), 'o', 'MarkerSize', 10, 'Color', 'k')
 
             % grab time of posterior fold
             p1 = [tt(ip), da(ip)] ;
-            plot(p1(1), p1(2), 's', 'MarkerSize', 10, 'Color', 'k')
+            pf = plot(p1(1), p1(2), 's', 'MarkerSize', 10, 'Color', 'k')
                 
         else
             disp(['Could not find ' fn])
@@ -242,13 +246,13 @@ end
 %% Data Figure
 figure(figh)
 % Label and save figure
-title('Surface area and volume')
-xlabel('Time [min]')
-ylabel('Normalized area or volume')
+title('Surface Area and Volume of the Midgut', 'FontSize' , 20)
+xlabel('Time [min]', 'FontSize' , 20)
+ylabel('Normalized Area or Volume', 'FontSize' , 20)
 
 % axes for the second plot (secondaxes) and the two helping Lines H1 and H2
 hold on 
-savlegend = legend(gca, [ah, vh], {'area', 'volume'}, 'Location','northwest') ;
+savlegend = legend(gca, [ah, vh], {'Surface Area', 'Volume'}, 'Location','northwest', 'FontSize' , 20) ;
 % set(secondax, 'Color', 'none', 'XTick', [], 'YTick', [], 'Box', 'Off') 
 a=axes('position',get(gca,'position'),'visible','off');
 delete( get(a, 'Children'))
@@ -259,7 +263,7 @@ H1 = plot(kx, ky, '-', 'Color', [0 0 0]);
 H2 = plot(kx, ky, '--', 'Color', [0 0 0]);
 H3 = plot(kx, ky, ':', 'Color', [0 0 0]);
 hold off
-legend (a, [H1 H2 H3], {'membrane', 'nuclei', 'actin'}, 'Location', 'west') ;
+legend (a, [H1 H2 H3 af pf], {'Membrane', 'Nuclei', 'Actin', 'Anterior Fold', 'Posterior Fold'}, 'Location', 'west', 'FontSize' , 20) ;
 
 % Save the figure
 saveas(figh, fullfile(outdir, 'area_volume_stab_comparison.pdf'))
@@ -268,14 +272,14 @@ saveas(figh, fullfile(outdir, 'area_volume_stab_comparison.png'))
 %% Derivatives Figure
 figure(fig2)
 % Label and save figure
-title('Area and volume rate of change')
-xlabel('Time [min]')
+title('Surface Area and Volume Rate of Change', 'FontSize' , 20)
+xlabel('Time [min]', 'FontSize' , 20)
 ylabel('Percent change, $\partial A / \partial t$, $\partial V / \partial t$ [min$^{-1}$]', ...
-    'Interpreter', 'Latex')
+    'Interpreter', 'Latex', 'FontSize' , 20)
 
 % axes for the second plot (secondaxes) and the two helping Lines H1 and H2
 hold on 
-savlegend = legend(gca, [a2, v2], {'area', 'volume'}, 'Location','northwest') ;
+savlegend = legend(gca, [a2, v2], {'Surface Area', 'Volume'}, 'Location','northwest', 'FontSize' , 20) ;
 % set(secondax, 'Color', 'none', 'XTick', [], 'YTick', [], 'Box', 'Off') 
 a=axes('position',get(gca,'position'),'visible','off');
 delete( get(a, 'Children'))
@@ -286,7 +290,7 @@ H1 = plot(kx, ky, '-', 'Color', [0 0 0]);
 H2 = plot(kx, ky, '--', 'Color', [0 0 0]);
 H3 = plot(kx, ky, ':', 'Color', [0 0 0]);
 hold off
-legend (a, [H1 H2 H3], {'membrane', 'nuclei', 'actin'}, 'Location', 'west') ;
+legend (a, [H1 H2 H3 af pf], {'Membrane', 'Nuclei', 'Actin', 'Anterior Fold', 'Posterior Fold'}, 'Location', 'west', 'FontSize' , 20) ;
 
 % Save the figure
 saveas(fig2, fullfile(outdir, 'area_volume_stab_comparison_derivatives.pdf'))
@@ -296,4 +300,3 @@ saveas(fig2, fullfile(outdir, 'area_volume_stab_comparison_derivatives.png'))
 set(groot, 'defaultAxesColorOrder', originalColorOrder, ...
     'defaultAxesLineStyleOrder', originalStyleOrder)
 
-close all

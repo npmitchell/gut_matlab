@@ -16,6 +16,7 @@ function plot_fast_marching_mesh(vertex,faces, D, paths, options)
 %   options.start_points is a set of start points (in red), for instance the center of geodesic cells.
 %
 %   Copyright (c) 2007 Gabriel Peyre
+%   Modified 2019 NPMitchell
 
 options.null = 0;
 if not(iscell(paths))
@@ -40,6 +41,7 @@ if strcmp(colorfx, 'equalize')
     col = perform_histogram_equalization(col, linspace(0,1,length(col)));
 end
 
+% Plot paths
 options.face_vertex_color = col;
 clf;
 hold on;
@@ -74,5 +76,5 @@ for i=1:size(ve,2)
     set(h, 'LineWidth', lw);
 end
 hold off;
-colormap jet(256);
+% colormap jet(256);
 camlight;

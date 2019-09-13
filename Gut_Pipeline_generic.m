@@ -211,12 +211,13 @@ end
 disp('Open with ilastik if not already done')
 
 %% pre processing: Make subsampled h5 files for ilastik if not already done
+open_fbar = true ;
 if xp.expMeta.dynamicSurface == 1
     disp('preprocessing for ilastik...')
     for t = 1:length(xp.fileMeta.timePoints)  
         time = xp.fileMeta.timePoints(t) ;
         % load the data
-        if ~exist(sprintf('Time_%06d_c1_Probabilities.h5', time), 'file')        
+        if ~exist(sprintf([fn '.h5'], time), 'file') 
             disp(['preprocessing for ilastik: t=', num2str(time)])
             xp.loadTime(xp.fileMeta.timePoints(t));
             xp.rescaleStackToUnitAspect();
@@ -225,9 +226,23 @@ if xp.expMeta.dynamicSurface == 1
                 xp.setDetectOptions(detectOptions);  
                 xp.detector.prepareIlastik(xp.stack);
             end
+        else
+            if open_fbar 
+                tmp = sprintf([fn '.h5'], time) ;
+                msg = strrep(['Already prepared ' tmp], '_', '\_') ;
+                fbar = waitbar(t/length(xp.fileMeta.timePoints), msg) ;
+                open_fbar = false ;
+            else
+                tmp = sprintf([fn '.h5'], time) ;
+                msg = strrep(['Already prepared ' tmp], '_', '\_') ;
+                waitbar(t / length(xp.fileMeta.timePoints), fbar, msg) 
+            end
         end
     end
+    close(fbar)
+    disp('done')
 end
+
 %% TRAIN DATA IN ILASTIK TO IDENTIFY APICAL/YOLK ==========================
 % open ilastik, train until probabilities and uncertainty are satisfactory
 
