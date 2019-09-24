@@ -5,7 +5,13 @@
 %
 % Prerequisites
 % -------------
+% Gut_Pipeline.m
 % extract_centerline.m (after training on APD)
+% 
+% Postrequisites (codes to run after)
+% -----------------------------------
+% extract_chirality_writhe.m
+% Generate_Axisymmetric_Pullbacks.m (script)
 %
 % Run from the msls_output directory
 % First run extract_centerline.m before running this code
@@ -155,7 +161,7 @@ for ii=1:length(fns)
         % Make sure that we are removing a connected component
         % form a mesh from the piece(s) to be removed
         allpts = linspace(1, length(vtx), length(vtx)) ;
-        all_but_acut = setdiff(allpts, pts_to_remove) ;
+        all_but_acut = uint16(setdiff(allpts', pts_to_remove)) ;
         [ acutfaces, acutvtx, ~] = remove_vertex_from_mesh( fv.f, fv.v, all_but_acut ) ;
         [ acutface, acutvtx, connected_indices, npieces ] = remove_isolated_mesh_components( acutfaces, acutvtx ) ;
         if npieces > 1
@@ -183,7 +189,7 @@ for ii=1:length(fns)
         % Make sure that we are removing a connected component
         % form a mesh from the piece(s) to be removed
         allpts = linspace(1, length(vtx), length(vtx)) ;
-        all_but_pcut = setdiff(allpts, pts_to_remove) ;
+        all_but_pcut = uint16(setdiff(allpts, pts_to_remove)) ;
         [ pcutfaces, pcutvtx, ~] = remove_vertex_from_mesh( faces, vtx, all_but_pcut ) ;
         [ pcutface, pcutvtx, connected_indices, npieces ] = remove_isolated_mesh_components( pcutfaces, pcutvtx ) ;
         if npieces > 1
@@ -239,7 +245,7 @@ for ii=1:length(fns)
 
     %% Load phi
     fn = [polaroutfn '.txt'] ;
-    dat = importdata(fn) ;
+    dat = dlmread(fn, ' ', 1, 0) ;
     phicd = dat(:, 4) ;
     phicd_kept = phicd(keep) ;
         

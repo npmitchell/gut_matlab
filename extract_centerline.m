@@ -27,6 +27,14 @@
 %         zs = mesh.vertex.x ;
 %         vtx_rs = (rot * vtx' + trans)' * resolution
 %         
+% See also
+% --------
+% To run first:
+%    Gut_Pipeline.m
+% To run after:
+%    slice_mesh_endcaps.m
+%    extract_chirality_writhe.m
+%    
 clear ;
 
 %% First, compile required c code
@@ -55,7 +63,7 @@ cd(odir)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parameters
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-overwrite = false ;  % recompute centerline
+overwrite = true ;  % recompute centerline
 save_figs = true ;  % save images of cntrline, etc, along the way
 preview = false ;  % display intermediate results
 res = 1 ;  % pixels per gridspacing of DT for cntrline extraction
@@ -660,11 +668,12 @@ for ii=1:length(fns)
     
     % Save the rotated, translated, scaled curve
     disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])
+    fn = [skel_rs_outfn '.txt'] ;
     fid = fopen(fn, 'wt');
     % make header
     fprintf(fid, 'Aligned & scaled skeleton: sss [um], skelrs [um]');  
     fclose(fid);
-    dlmwrite([skel_rs_outfn '.txt'], [sss, skelrs])
+    dlmwrite(fn, [sss, skelrs])
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Plot and save

@@ -1,6 +1,15 @@
-% Compute the surface area and volume of a time series of meshes
+%% Compute the surface area and volume of a time series of meshes
 % NPMitchell 2019
-
+%
+% Prerequsites
+% ------------
+% Gut_Pipeline.m <- specific to each experiment
+% 
+%
+% To run after
+% ------------
+% extract_centerline.m
+%%
 clear; close all; clc;
 addpath('/mnt/data/code/gut_matlab/plotting/')
 addpath('/mnt/data/code/gut_matlab/mesh_handling/')
@@ -38,7 +47,7 @@ end
 % Prepare for iteration
 % chisums is the integral chirality
 dt = 1;
-todo = 1:dt:min(length(meshes), 111) ;
+todo = 1:dt:min(length(meshes), 1000) ;
 vvs = zeros(length(todo), 1) ;
 aas = zeros(length(todo), 1) ;
 dmyk = 1;
@@ -90,15 +99,33 @@ for ii = todo
 %     end
 end
 
-% Save the data
-save(fullfile(outdir, 'surfacearea_volume_stab.m'), 'aas', 'vvs', 'dt')
+%% Take derivatives
 
-% Save the image
+% load(fullfile(outdir, 'surfacearea_volume_stab.mat'))
+% Filter the data
+windowSize = 7; 
+b = (1/windowSize)*ones(1,windowSize);
+a = 1;
+vsm = smoothdata(vvs, 'rlowess', 5) ;
+vsmooth = filter(b, a, vsm) ;
+asm = smoothdata(aas, 'rlowess', 5) ;
+asmooth = filter(b, a, aas) ;
+% optional other smoothing
+% asmooth2 = smoothdata(ass, 'rlowess', 5) ;
+% vsmooth2 = smoothdata(vss, 'rlowess', 11);
+
+da = gradient(asmooth) ;
+dv = gradient(vsmooth) ;
+
+%% Save the data
+save(fullfile(outdir, 'surfacearea_volume_stab.mat'), 'aas', 'vvs', 'dt', 'da', 'dv')
+
+%% Save the image
 figh = figure();
 hold on;
 ah = plot(1:dt:dt*length(aas), aas / aas(1)) ;
-vh = plot(1:dt:dt*length(aas), vvs / vvs(1)); 
-legend('area', 'volume')
+vh = plot(1:dt:dt*length(aas), vvs / vvs(1)) ; 
+legend({'area', 'volume'}, 'location', 'northwest')
 title('Surface area and volume')
 xlabel('Time [min]')
 ylabel('Normalized area or volume')
