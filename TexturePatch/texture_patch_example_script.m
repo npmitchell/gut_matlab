@@ -54,7 +54,6 @@ load('testdata_3d.mat');
 % vertex texture coordinates by indexing into the image volume.  Notice
 % that TV is given in (row,column,page) format:
 % i.e., TV = [ VV(:,2) VV(:,1) VV(:,3) ].
-
 CDataIDx = sub2ind( size(IV), ...
     round(TV(:,1)), round(TV(:,2)), round(TV(:,3)) );
 CData = IV( CDataIDx );
@@ -69,7 +68,7 @@ clear CData CDataIDx
 %% Texture-Mapped 3D Patch ------------------------------------------------
 
 % Reduce the size of the face image patch.  See documentation for details
-Options.PSize = 16;
+Options.PSize = 6;
 Options.EdgeColor = 'none';
 tic
 texture_patch_3d( FF, VV, TF, TV, IV, Options );
