@@ -54,16 +54,16 @@ xp = project.Experiment(projectDir, dataDir);
 % * 'swapZT'            , set=1 if time is 3rd dimension and z is 4th
 
 % A filename base template - to be used throughout this script
-fn = 'Time_%06d_c1';
+fn = 'Time_%06d_c1_stab';
 % Define subsampling factor here
 ssfactor = 2 ; 
-fn_output = ['Time_%06d' sprintf('_c1_sub%02d', ssfactor)] ;
+fn_output = ['Time_%06d' sprintf('_c1_stab_sub%02d', ssfactor)] ;
 
 fileMeta                    = struct();
 fileMeta.dataDir            = dataDir;
 fileMeta.filenameFormat     = [fn, '.tif'];
 fileMeta.nChannels          = 1;
-fileMeta.timePoints         = 1:2 ;
+fileMeta.timePoints         = 1:1 ;
 fileMeta.stackResolution    = [.2619 .2619 .2619];
 fileMeta.swapZT             = 1;
 
