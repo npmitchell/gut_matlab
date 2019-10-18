@@ -1,4 +1,5 @@
-%% Extract the centerlines from a series of meshes (PLY files)
+%% Create cut meshes with endcaps removed 
+% Note that a later step involves cutMesh, which slices along AP.
 % Noah Mitchell 2019
 % This version relies on Gabriel Peyre's toolbox called
 % toolbox_fast_marching/
@@ -6,12 +7,13 @@
 % Prerequisites
 % -------------
 % Gut_Pipeline.m
+% align_meshes.m (after training on APD)
 % extract_centerline.m (after training on APD)
 % 
 % Postrequisites (codes to run after)
 % -----------------------------------
 % extract_chirality_writhe.m
-% Generate_Axisymmetric_Pullbacks.m (script)
+% Generate_Axisymmetric_Pullbacks_Orbifold.m (script)
 %
 % Run from the msls_output directory
 % First run extract_centerline.m before running this code
@@ -22,12 +24,11 @@
 % Name the h5 file output from iLastik as ..._Probabilities_apcenterline.h5
 % Train for anterior dorsal (D) only at the first time point, because
 % that's the only one that's used.
-clear ;
+clear ; close all
 % cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/
 
 %% First, compile required c code
 % mex ./FastMarching_version3b/shortestpath/rk4
-close all ;
 odir = pwd ;
 codepath = '/mnt/data/code/gut_matlab/' ;
 if ~exist(codepath, 'dir')
@@ -51,7 +52,7 @@ res = 1 ;  % pixels per gridspacing of DT for cntrline extraction
 resolution = 0.2619 ;  % um per pixel for full resolution (not subsampled)
 dorsal_thres = 0.9 ;  % threshold for extracting Dorsal probability cloud 
 buffer = 5 ;  % extra space in meshgrid of centerline extraction, to ensure mesh contained in volume
-plot_buffer = 30; 
+plot_buffer = 15 ;  % extra space around mesh bounding box in 3D plots
 ssfactor = 4;  % subsampling factor for the h5s used to train for mesh/acom/pcom/dcom
 weight = 0.1;  % for speedup of centerline extraction. Larger is less precise
 normal_step = 0.5 ;  % how far to move normally from ptmatched vtx if a/pcom is not inside mesh
@@ -81,7 +82,7 @@ end
 fns = dir(fullfile(meshdir, 'mesh_apical_stab_0*.ply')) ;
 rotname = fullfile(meshdir, 'rotation_APDV') ;
 transname = fullfile(meshdir, 'translation_APDV') ;
-xyzlimname = fullfile(meshdir, 'xyzlim_APDV') ;
+xyzlimname = fullfile(meshdir, 'xyzlim_APDV_um') ;
 apdvfn = fullfile(meshdir, ['centerline' filesep 'apdv_coms_from_training.h5']) ;
 cntrlinedir = fullfile(meshdir, 'centerline') ;
 outapd_boundaryfn = fullfile(outdir, 'ap_boundary_dorsalpts.h5') ;
@@ -97,18 +98,19 @@ rot = importdata([rotname '.txt']) ;
 % Load the translation to put anterior to origin
 trans = importdata([transname '.txt']) ;
 % Load plotting limits
-xyzlim = importdata([xyzlimname '.txt']) ;
-xmin = xyzlim(1) * resolution - plot_buffer;
-ymin = xyzlim(2) * resolution - plot_buffer;
-zmin = xyzlim(3) * resolution - plot_buffer;
-xmax = xyzlim(4) * resolution + plot_buffer;
-ymax = xyzlim(5) * resolution + plot_buffer;
-zmax = xyzlim(6) * resolution + plot_buffer;
+xyzlim = dlmread([xyzlimname '.txt'], ',', 1, 0) ;
+xmin = xyzlim(1) - plot_buffer;
+ymin = xyzlim(2) - plot_buffer;
+zmin = xyzlim(3) - plot_buffer;
+xmax = xyzlim(4) + plot_buffer;
+ymax = xyzlim(5) + plot_buffer;
+zmax = xyzlim(6) + plot_buffer;
 
 %% Load AP coms
 acom_sm = h5read(apdvfn, '/acom') ;
 pcom_sm = h5read(apdvfn, '/pcom') ;
 
+fbar = waitbar(0, 'Initializing...') ;
 %% Iterate through each mesh
 for ii=1:length(fns)  
     acom = acom_sm(ii, :) ;
@@ -129,14 +131,19 @@ for ii=1:length(fns)
     
     %% Read the mesh
     msg = strrep(['Loading mesh ' fns(ii).name], '_', '\_') ;
-    if ii == 1
-        fbar = waitbar(ii/length(fns), msg) ;
-    else
-        waitbar(ii/length(fns), fbar, msg)
-    end
+    waitbar(ii/length(fns), fbar, msg) ;
+    % if exist('fbar', 'var')
+    %     if isvalid(fbar)    
+    %         waitbar(ii/length(fns), fbar, msg)
+    %     else
+    %         fbar = waitbar(ii/length(fns), msg) ;
+    %     end
+    % else
+    %     fbar = waitbar(ii / length(fns), msg) ;
+    % end
     
     % Compute the endcaps if not already saved
-    if overwrite || ~exist(outfn, 'file')
+    if overwrite || ~exist(outfn, 'file') || ~exist(keepfn, 'file')
         mesh = read_ply_mod(fullfile(fns(ii).folder, fns(ii).name));
         tri = mesh.f ;
         if strcmp(meshorder, 'zyx')
@@ -172,11 +179,14 @@ for ii=1:length(fns)
         % Remove it
         [faces, vtx, keep_acut] = remove_vertex_from_mesh(fv.f, fv.v, pts_to_remove ) ;
         vn = fv.vn(keep_acut, :) ;
-
+        disp(['Removed ' num2str(length(pts_to_remove)) ' vertices with acut'])
+        
         % Inspect
         if preview
+            fig = figure;
             trimesh(faces, vtx(:, 1), vtx(:, 2), vtx(:, 3))
             view(30,145)
+            waitfor(fig)
         end
 
         %% Remove the posterior part as well
@@ -184,32 +194,63 @@ for ii=1:length(fns)
         pdist2 = sum((vtx - pcom) .^ 2, 2);
 
         % STRATEGY 1: within distance of pcom
-        pts_to_remove = find(pdist2 < pdist_thres^2) ;
+        pdist_thres_ii = pdist_thres ;
+        pcut_done = false ;
+        while ~pcut_done
+            pts_to_remove = find(pdist2 < pdist_thres^2) ;
 
-        % Make sure that we are removing a connected component
-        % form a mesh from the piece(s) to be removed
-        allpts = linspace(1, length(vtx), length(vtx)) ;
-        all_but_pcut = uint16(setdiff(allpts, pts_to_remove)) ;
-        [ pcutfaces, pcutvtx, ~] = remove_vertex_from_mesh( faces, vtx, all_but_pcut ) ;
-        [ pcutface, pcutvtx, connected_indices, npieces ] = remove_isolated_mesh_components( pcutfaces, pcutvtx ) ;
-        if npieces > 1
-            pts_to_remove = pts_to_remove(connected_indices) ;
+            % Make sure that we are removing a connected component
+            % form a mesh from the piece(s) to be removed
+            allpts = linspace(1, length(vtx), length(vtx)) ;
+            all_but_pcut = uint16(setdiff(allpts, pts_to_remove)) ;
+            [ pcutfaces, pcutvtx, ~] = remove_vertex_from_mesh( faces, vtx, all_but_pcut ) ;
+            [ pcutface, pcutvtx, connected_indices, npieces ] = remove_isolated_mesh_components( pcutfaces, pcutvtx ) ;
+            % If there were more than one piece selected, remove the bigger one only
+            if npieces > 1
+                pts_to_remove = pts_to_remove(connected_indices) ;
+            end
+
+            % check it
+            if preview
+                fig = figure ;
+                scatter3(vtx(:, 1), vtx(:, 2), vtx(:, 3))
+                hold on;
+                scatter3(vtx(pts_to_remove, 1), vtx(pts_to_remove, 2), vtx(pts_to_remove, 3),  'filled')
+                plot3(pcom(1), pcom(2), pcom(3), 's')
+                waitfor(fig)
+            end
+
+            % Remove the posterior cap
+            [faces_postpcut, vtx_postpcut, keep_pcut] = remove_vertex_from_mesh(faces, vtx, pts_to_remove ) ;
+
+            disp(['Removed ' num2str(length(pts_to_remove)) ' vertices with pcut'])
+            nremain = length(keep_pcut) ;
+            nbefore = length(keep_acut) ;
+            assert(nbefore - nremain == length(pts_to_remove))
+            
+            % Repeat if no vertices are removed
+            if length(pts_to_remove) > 0
+                pcut_done = true ;
+            else
+                pdist_thres_ii = pdist_thres * 1.1 ;
+            end
         end
-
-        % check it
-        if preview
-            scatter3(vtx(:, 1), vtx(:, 2), vtx(:, 3))
-            hold on;
-            scatter3(vtx(pts_to_remove, 1), vtx(pts_to_remove, 2), vtx(pts_to_remove, 3),  'filled')
-            plot3(pcom(1), pcom(2), pcom(3), 's')
-        end
-
-        % Remove the posterior cap
-        [faces, vtx, keep_pcut] = remove_vertex_from_mesh(faces, vtx, pts_to_remove ) ;
+        faces = faces_postpcut ;
+        vtx = vtx_postpcut ;           
         vn = vn(keep_pcut, :) ;
-
         %% figure out which indices were kept
         keep = keep_acut(keep_pcut) ;
+        
+        %% Check that the remainder is a single connected component
+        % currently have faces, vtx. 
+        [ faces, vtx, keep_final_pass, npieces ] = remove_isolated_mesh_components( faces, vtx ) ;
+        if any(npieces > 1)
+            keep = keep(keep_final_pass) ;
+            vn = vn(keep_final_pass, :) ;
+        end
+        nremain = length(keep_final_pass) ;
+        nbefore = length(keep) ;
+        disp(['Removed ' num2str(nbefore - nremain) ' vertices with final pass'])
 
         %% Save the data in units of pixels (same as original mesh)
         faces = [faces(:, 2), faces(:, 1), faces(:, 3) ];
@@ -245,7 +286,7 @@ for ii=1:length(fns)
 
     %% Load phi
     fn = [polaroutfn '.txt'] ;
-    dat = dlmread(fn, ' ', 1, 0) ;
+    dat = dlmread(fn, ',') ;
     phicd = dat(:, 4) ;
     phicd_kept = phicd(keep) ;
         
@@ -279,10 +320,21 @@ for ii=1:length(fns)
     % plot3(vtx(bb, 1), vtx(bb, 2), vtx(bb, 3), '-')
 
     % figure out if boundary is anterior or posterior
+    % Note that this assumes an elongated structure
     adist = sum((vtx(bb, :) - acom) .^ 2, 2) ;
     pdist = sum((vtx(bb, :) - pcom) .^ 2, 2) ;
     ab = bb(adist < pdist) ;
     pb = bb(adist > pdist) ;
+    % check them
+    if preview
+        fig = figure;
+        trisurf(faces, vtx(:, 1), vtx(:, 2), vtx(:, 3), 'edgecolor', 'none')
+        hold on;
+        plot3(vtx(bb, 1), vtx(bb, 2), vtx(bb, 3), 'b.-')
+        plot3(acom(1), acom(2), acom(3), 'o')
+        plot3(pcom(1), pcom(2), pcom(3), 'o')
+        waitfor(fig)
+    end
     
     % Save the anterior and posterior boundary indices (after endcap cut)
     try
@@ -301,18 +353,28 @@ for ii=1:length(fns)
     h5write(boundaryfn, ['/' name '/posterior_boundary_indices'], pb)
     
     % choose anterior Dorsal as point with smallest phi
-    % (closest to zero or 2pi)
+    % (closest to zero or 2pi) if this is first TP. Otherwise, match prev.
     aphicd = phicd_kept(ab) ;
     pphicd = phicd_kept(pb) ;
-    a_phipi = aphicd ;
-    p_phipi = pphicd ;
-    a_phipi(a_phipi > pi) = a_phipi(a_phipi > pi) - 2 * pi ;
-    p_phipi(p_phipi > pi) = p_phipi(p_phipi > pi) - 2 * pi ;
-    [~, adb_tmp] = min(abs(a_phipi)) ;
-    [~, pdb_tmp] = min(abs(p_phipi)) ;
-    adb = ab(adb_tmp) ;
-    pdb = pb(pdb_tmp) ;
-    
+    if ii == 1
+        a_phipi = aphicd ;
+        p_phipi = pphicd ;
+        a_phipi(a_phipi > pi) = a_phipi(a_phipi > pi) - 2 * pi ;
+        p_phipi(p_phipi > pi) = p_phipi(p_phipi > pi) - 2 * pi ;
+        [~, adb_tmp] = min(abs(a_phipi)) ;
+        [~, pdb_tmp] = min(abs(p_phipi)) ;
+        % anterior/posterior dorsal boundary
+        adb = ab(adb_tmp) ;
+        pdb = pb(pdb_tmp) ;
+    else
+        % Match previous timepoint
+        ka = dsearchn(vtx(ab, :), previous_avtx) ;
+        kp = dsearchn(vtx(pb, :), previous_pvtx) ;
+        adb = ab(ka) ;
+        pdb = pb(kp) ;
+    end
+    previous_avtx = vtx(adb, :) ;
+    previous_pvtx = vtx(pdb, :) ;
     % check 
     % hold on
     % scatter3(vtx(boundary, 1), vtx(boundary, 2), vtx(boundary, 3), [], phicd_kept(boundary), 'filled')
@@ -352,8 +414,9 @@ for ii=1:length(fns)
     h5write(outapd_boundaryfn, ['/' name '/pdorsal'], pdb) ;
     
     %% Plot the result
-    if preview || (save_figs && ~exist([name '.png'], 'file'))
-        close all
+    figfn = fullfile(figoutdir, [name '.png']) ;
+    if preview || (save_figs && ~exist(figfn, 'file'))
+        disp(['Saving figure for frame ' num2str(ii)])
         fig = figure('Visible', 'Off');
         vtxrs = (rot * vtx' * ssfactor + trans')' * resolution ;
         % trimesh(faces, vtxr(:, 1), vtxr(:, 2), vtxr(:, 3)) ;
@@ -374,14 +437,16 @@ for ii=1:length(fns)
         %view(50, 145)
         set(gcf, 'PaperUnits', 'centimeters');
         set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-        saveas(fig, fullfile(figoutdir, [name '.png']))
+        saveas(fig, figfn)
+
+        if preview
+            set(fig, 'Visible', 'On') ;
+            waitfor(fig) ;
+        else
+            close(fig)
+        end
     end
     
-    if preview
-        set(fig, 'Visible', 'On') ;
-    else
-        close all
-    end
     
 end
 

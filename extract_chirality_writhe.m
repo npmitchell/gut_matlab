@@ -13,6 +13,7 @@
 
 %% Run from the msls_output directory
 clear ;
+compute_chirality = false ;
 % cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1_20190908
 
 
@@ -122,13 +123,14 @@ xyzlim = importdata([xyzlimname '.txt']) ;
 % zmax = xyzlim(6) * resolution * ssfactor ;
 
 %% Get xyzlimits of the centerline
-xsmin = 0 ;
-ysmin = 0 ;
-zsmin = 0 ;
-xsmax = 0 ;
-ysmax = 0 ;
-zsmax = 0 ;
-smax = 0 ;
+xyzlim_skel = dlmread([xyzlimname_skel '.txt']) ;
+xsmin = xyzlim_skel(1) ;
+ysmin = xyzlim_skel(2) ;
+zsmin = xyzlim_skel(3) ;
+xsmax = xyzlim_skel(5) ;
+ysmax = xyzlim_skel(6) ;
+zsmax = xyzlim_skel(7) ;
+smax = xyzlim_skel(8) ;
 
 % Load xyzlim_skel from file
 try
@@ -207,263 +209,279 @@ catch
 end
 ii = 1;
 
-%% Iterate through each mesh
-Wr = zeros(length(fns), 1) ;
-wr_densities = cell(length(fns), 1);
-chirality_densities = cell(length(fns), 1); 
-Chirality = zeros(length(fns), 1) ;
-times = zeros(length(fns), 1) ;
+%% Check if the results have been saved already
+cde = exists(fullfile(meshdir, 'chirality_densities.mat'), 'file') ;
+che = exists(fullfile(choutdir, 'chirality.txt'), 'file');
+wre = exists(fullfile(wroutdir, 'writhe.txt'), 'file');
+wde = exists(fullfile(meshdir, 'writhe_densities.mat'), 'file') ;
+lne = exists(fullfile(meshdir, 'lengths_over_time.mat'), 'file') ;
+saved = cde && che && wre && wde && lne ;
 
-for ii=1:length(fns)
-    %% Name the output centerline
-    name_split = strsplit(fns(ii).name, '.ply') ;
-    name = name_split{1} ; 
-    expstr = ['exp' strrep(num2str(exponent, '%0.1f'), '.', 'p') ] ;
-    resstr = ['res' strrep(num2str(res, '%0.1f'), '.', 'p') ] ;
-    exten = [ '_' expstr '_' resstr] ;
-    skel_rs_outfn = [fullfile(outdir, name) '_centerline_scaled' exten] ;
-    skel_outfn = [fullfile(outdir, name) '_centerline' exten ] ;
-    figsmoutname = [fullfile(fig_smoothoutdir, name) '_centerline_smoothed' exten] ;
-    tmp = strsplit(name, '_') ;
-    timestr = tmp{length(tmp)} ;
-    times(ii) = str2double(timestr) ;
-    
-    % Load centerline 
-    disp(['Loading centerline from txt: ', skel_rs_outfn, '.txt'])
-    sskelrs = importdata([skel_rs_outfn '.txt']) ;
-    ss = sskelrs(:, 1) ;
-    ds = diff(ss) ; 
-    ds = [ds; ds(length(ds))] ;
-    skelrs = sskelrs(:, 2:4) ;
-        
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% Compute writhe of the centerline
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Filter the result
-    % Smoothing parameters
-    framelen = 17 ;  % must be odd
-    polyorder = 2 ;
-    xskel = skelrs(:, 1) ;
-    yskel = skelrs(:, 2) ;
-    zskel = skelrs(:, 3) ;
-    
-    % Note we ignore the variations in ds to do this fit
-    scx = savgol(xskel, polyorder, framelen)' ;
-    scy = savgol(yskel, polyorder, framelen)' ;
-    scz = savgol(zskel, polyorder, framelen)' ;
-    sc = [scx, scy, scz] ;
-    
-    % Fit the smoothed curve
-    xcoeffs = polyfit(ss, scx, 7) ;
-    ycoeffs = polyfit(ss, scy, 7) ;
-    zcoeffs = polyfit(ss, scz, 7) ;
-    ssx = linspace(min(ss), max(ss), 100) ;
-    dsx = gradient(ssx) ;
-    xp = polyval(xcoeffs, ssx);
-    yp = polyval(ycoeffs, ssx);
-    zp = polyval(zcoeffs, ssx);
-    
-    %% Check the smoothing
-    if preview
+if saved && ~overwrite
+    % Load the results
+    load(fullfile(meshdir, 'chirality_densities.mat')) ;
+    % note that the ssx in chirality.txt is missing one value
+    [ssxm1, chirality] = dlmread(fullfile(choutdir, 'chirality.txt'));
+    [times, Wr, dwr] = dlmread(fullfile(wroutdir, 'writhe.txt'));
+    load(fullfile(meshdir, 'writhe_densities.mat')) ;
+    load(fullfile(meshdir, 'lengths_over_time.mat')) ;
+else
+    %% Iterate through each mesh
+    Wr = zeros(length(fns), 1) ;
+    wr_densities = cell(length(fns), 1);
+    chirality_densities = cell(length(fns), 1); 
+    Chirality = zeros(length(fns), 1) ;
+    times = zeros(length(fns), 1) ;
+
+    for ii=1:length(fns)
+        %% Name the output centerline
+        name_split = strsplit(fns(ii).name, '.ply') ;
+        name = name_split{1} ; 
+        expstr = ['exp' strrep(num2str(exponent, '%0.1f'), '.', 'p') ] ;
+        resstr = ['res' strrep(num2str(res, '%0.1f'), '.', 'p') ] ;
+        exten = [ '_' expstr '_' resstr] ;
+        skel_rs_outfn = [fullfile(outdir, name) '_centerline_scaled' exten] ;
+        skel_outfn = [fullfile(outdir, name) '_centerline' exten ] ;
+        figsmoutname = [fullfile(fig_smoothoutdir, name) '_centerline_smoothed' exten] ;
+        tmp = strsplit(name, '_') ;
+        timestr = tmp{length(tmp)} ;
+        times(ii) = str2double(timestr) ;
+
+        % Load centerline 
+        disp(['Loading centerline from txt: ', skel_rs_outfn, '.txt'])
+        sskelrs = importdata([skel_rs_outfn '.txt']) ;
+        ss = sskelrs(:, 1) ;
+        ds = diff(ss) ; 
+        ds = [ds; ds(length(ds))] ;
+        skelrs = sskelrs(:, 2:4) ;
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% Compute writhe of the centerline
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Filter the result
+        % Smoothing parameters
+        framelen = 17 ;  % must be odd
+        polyorder = 2 ;
+        xskel = skelrs(:, 1) ;
+        yskel = skelrs(:, 2) ;
+        zskel = skelrs(:, 3) ;
+
+        % Note we ignore the variations in ds to do this fit
+        scx = savgol(xskel, polyorder, framelen)' ;
+        scy = savgol(yskel, polyorder, framelen)' ;
+        scz = savgol(zskel, polyorder, framelen)' ;
+        sc = [scx, scy, scz] ;
+
+        % Fit the smoothed curve
+        xcoeffs = polyfit(ss, scx, 7) ;
+        ycoeffs = polyfit(ss, scy, 7) ;
+        zcoeffs = polyfit(ss, scz, 7) ;
+        ssx = linspace(min(ss), max(ss), 100) ;
+        dsx = gradient(ssx) ;
+        xp = polyval(xcoeffs, ssx);
+        yp = polyval(ycoeffs, ssx);
+        zp = polyval(zcoeffs, ssx);
+
+        %% Check the smoothing
+        if preview
+            close all
+            fig = figure;
+            set(gcf, 'Visible', 'Off')
+            hold on
+            plot3(xskel, yskel, zskel, '-.')
+            hold on 
+            plot3(scx, scy, scz, 's')
+            title('Smoothing')
+            % save the figure
+            xlim([xsmin xsmax])
+            ylim([ysmin ysmax])
+            zlim([zsmin zsmax])
+            axis equal
+            set(gcf, 'PaperUnits', 'centimeters');
+            set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);
+            saveas(fig, [figsmoutname '.png'])
+            if preview
+                set(gcf, 'Visible', 'On')
+            end
+
+            % Save the difference
+            close all
+            fig = figure;
+            set(fig, 'Visible', 'Off')
+            plot(ss, scx - xskel)
+            hold on
+            plot(ss, scy - yskel)
+            plot(ss, scz - zskel)
+            title('\Delta = smoothing - original curve')
+            ylabel(['\Delta [\mu' 'm]'])
+            xlabel(['s [\mu' 'm]'])
+            set(fig, 'PaperUnits', 'centimeters');
+            set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
+            saveas(fig, [figsmoutname '_diff.png'])
+
+            % Save the polynomial fit
+            close all
+            fig = figure;
+            set(fig, 'Visible', 'Off')
+            plot3(xskel, yskel, zskel, '-.')
+            hold on 
+            plot3(xp, yp, zp, 's')
+            title('Polynomial fit to the centerline')
+            xlabel('x')
+            ylabel('y')
+            % save the figure
+            xlim([xsmin xsmax])
+            ylim([ysmin ysmax])
+            zlim([zsmin zsmax])
+            axis equal
+            set(fig, 'PaperUnits', 'centimeters');
+            set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
+            saveas(fig, [figsmoutname '_fit.png'])
+        end
+
+        %% Get rate of change of curve along curve
+        gradc_raw = [gradient(xp'), gradient(yp'), gradient(zp')] ; 
+        gradc = bsxfun(@rdivide, gradc_raw, dsx(:)) ;
+        gradc_ds = vecnorm(gradc, 2, 2) ;
+        % Compute the tangent to the curve
+        tangent = bsxfun(@rdivide, gradc, gradc_ds(:)) ;
+
+        % Compute normal 
+        normal_raw = [gradient(tangent(:, 1)), ...
+            gradient(tangent(:, 2)), ...
+            gradient(tangent(:, 3))] ; 
+        normalc = bsxfun(@rdivide, normal_raw, dsx(:)) ;
+        normalc_ds = vecnorm(normalc, 2, 2) ;
+        normal = bsxfun(@rdivide, normalc, normalc_ds(:)) ;
+
+        % Compute binormal from cross product
+        binormalc = cross(tangent, normal) ;
+        binormalc_ds = vecnorm(binormalc, 2, 2) ;
+        binormal = bsxfun(@rdivide, binormalc, binormalc_ds(:)) ;
+
+        % Now compute how the normal changes along the AP axis    
+        v1 = normal(1:end-1, :) ;
+        v2 = normal(2:end, :) ;
+        dphi = acos(sum(v1 .* v2, 2)) ;
+        signphi = sign(sum(tangent(1:end-1, :) .* cross(v1, v2), 2)) ;
+        dphi = dphi .* signphi ;
+        chirality = dphi ./ dsx(1:end-1)' ;
+
+        % Clean up measurement
+        % chirs = savgol_filter(chirality, window_length=351, polyorder=polyorder)
+        % try:
+        %     chirs = moving_average(chirs, n=avg_window)
+        %     sss = ss[int(np.floor(avg_window * 0.5)):]
+        %     sss = sss[:-int(np.floor(avg_window * 0.5))]
+        % except ValueError:
+        %     sss = ss
+
+        % coeffs = np.polyfit(ss, chirality, 5)
+        % polynomial = np.poly1d(coeffs)
+        % sss = np.linspace(min(ss), max(ss), 100)
+        % chirs = polynomial(sss)
+
+        % Check the angle change along AP axis
+        if preview
+            close all
+            fig = figure ;
+            set(fig, 'Visible', 'Off')
+            plot(ssx(1:end-1), dphi)
+            title('$d\phi/ds$', 'Interpreter', 'Latex')
+            ylabel('$d\phi/ds$', 'Interpreter', 'Latex')
+            xlabel('$s$ [$\mu$m]', 'Interpreter', 'Latex')
+            saveas(fig, [figsmoutname '_dphids.png'])
+        end
+
+        % Save the image of chirality
         close all
         fig = figure;
         set(gcf, 'Visible', 'Off')
-        hold on
-        plot3(xskel, yskel, zskel, '-.')
-        hold on 
-        plot3(scx, scy, scz, 's')
-        title('Smoothing')
-        % save the figure
-        xlim([xsmin xsmax])
-        ylim([ysmin ysmax])
-        zlim([zsmin zsmax])
-        axis equal
-        set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);
-        saveas(fig, [figsmoutname '.png'])
-        if preview
-            set(gcf, 'Visible', 'On')
-        end
-        
-        % Save the difference
-        close all
-        fig = figure;
-        set(fig, 'Visible', 'Off')
-        plot(ss, scx - xskel)
-        hold on
-        plot(ss, scy - yskel)
-        plot(ss, scz - zskel)
-        title('\Delta = smoothing - original curve')
-        ylabel(['\Delta [\mu' 'm]'])
-        xlabel(['s [\mu' 'm]'])
-        set(fig, 'PaperUnits', 'centimeters');
-        set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
-        saveas(fig, [figsmoutname '_diff.png'])
-        
-        % Save the polynomial fit
-        close all
-        fig = figure;
-        set(fig, 'Visible', 'Off')
-        plot3(xskel, yskel, zskel, '-.')
-        hold on 
-        plot3(xp, yp, zp, 's')
-        title('Polynomial fit to the centerline')
-        xlabel('x')
-        ylabel('y')
-        % save the figure
-        xlim([xsmin xsmax])
-        ylim([ysmin ysmax])
-        zlim([zsmin zsmax])
-        axis equal
-        set(fig, 'PaperUnits', 'centimeters');
-        set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
-        saveas(fig, [figsmoutname '_fit.png'])
-    end
-    
-    %% Get rate of change of curve along curve
-    gradc_raw = [gradient(xp'), gradient(yp'), gradient(zp')] ; 
-    gradc = bsxfun(@rdivide, gradc_raw, dsx(:)) ;
-    gradc_ds = vecnorm(gradc, 2, 2) ;
-    % Compute the tangent to the curve
-    tangent = bsxfun(@rdivide, gradc, gradc_ds(:)) ;
-
-    % Compute normal 
-    normal_raw = [gradient(tangent(:, 1)), ...
-        gradient(tangent(:, 2)), ...
-        gradient(tangent(:, 3))] ; 
-    normalc = bsxfun(@rdivide, normal_raw, dsx(:)) ;
-    normalc_ds = vecnorm(normalc, 2, 2) ;
-    normal = bsxfun(@rdivide, normalc, normalc_ds(:)) ;
-    
-    % Compute binormal from cross product
-    binormalc = cross(tangent, normal) ;
-    binormalc_ds = vecnorm(binormalc, 2, 2) ;
-    binormal = bsxfun(@rdivide, binormalc, binormalc_ds(:)) ;
-    
-    % Now compute how the normal changes along the AP axis    
-    v1 = normal(1:end-1, :) ;
-    v2 = normal(2:end, :) ;
-    dphi = acos(sum(v1 .* v2, 2)) ;
-    signphi = sign(sum(tangent(1:end-1, :) .* cross(v1, v2), 2)) ;
-    dphi = dphi .* signphi ;
-    chirality = dphi ./ ssx(1:end-1)' ;
-
-    % Clean up measurement
-    % chirs = savgol_filter(chirality, window_length=351, polyorder=polyorder)
-    % try:
-    %     chirs = moving_average(chirs, n=avg_window)
-    %     sss = ss[int(np.floor(avg_window * 0.5)):]
-    %     sss = sss[:-int(np.floor(avg_window * 0.5))]
-    % except ValueError:
-    %     sss = ss
-    
-    % coeffs = np.polyfit(ss, chirality, 5)
-    % polynomial = np.poly1d(coeffs)
-    % sss = np.linspace(min(ss), max(ss), 100)
-    % chirs = polynomial(sss)
-
-    % Check the angle change along AP axis
-    if preview
-        close all
-        fig = figure ;
-        set(fig, 'Visible', 'Off')
-        plot(ssx(1:end-1), dphi)
-        title('$d\phi/ds$', 'Interpreter', 'Latex')
-        ylabel('$d\phi/ds$', 'Interpreter', 'Latex')
-        xlabel('$s$ [$\mu$m]', 'Interpreter', 'Latex')
-        saveas(fig, [figsmoutname '_dphids.png'])
-    end
-        
-    % Save the image of chirality
-    close all
-    fig = figure;
-    set(gcf, 'Visible', 'Off')
-    plot(ssx(1:end-1)', chirality)
-    % plot(sss, chirs, '-')
-    title('chirality of centerline')
-    ylabel('$d \phi / d s$', 'Interpreter', 'Latex')
-    xlabel('path length, $s$', 'Interpreter', 'Latex')
-    xlim([0, smax])
-    ylim([-0.06, 0.06])
-    set(gcf, 'PaperUnits', 'centimeters');
-    set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-    saveas(fig, fullfile(figoutdir, [name '_chirality.png']))
-    close all
-
-    % Save the data
-    datfn = fullfile(choutdir, [name '_chirality.txt' ]);
-    header = 'Chirality of centerline for timepoint ' ;
-    header = [header name ': s, dphi/ds'] ;
-    fid = fopen(datfn, 'wt');
-    fprintf(fid, header); 
-    fclose(fid);
-    dlmwrite(datfn, [ssx(1:end-1)' chirality])
-    chirality_densities{ii} = chirality ;
-    Chirality(ii) = sum(chirality(isfinite(chirality))) ;
-    
-    %% Compute the writhe
-    % Wr = 1/4pi \int \int T(s) xx T(s') \cdot [R(s) - R(s') / |R(s) - R(s')|^3]
-    % Here use the polynomial fit to the curve to compute
-    % xp, yp, zp
-    % first compute vec from each point to every other point
-    xyzp = [xp', yp', zp'] ;
-    wr = zeros(length(ssx), 1) ;
-    for jj=1:length(ssx)
-        oind = setdiff(1:length(ssx), jj) ;
-        rmr = xyzp(jj, :) - xyzp(oind, :) ;
-        rmrmag = vecnorm(rmr')' ;
-        txt = cross(tangent(jj,:) .* ones(length(oind), 3), tangent(oind, :));
-        % Take row-wise inner product
-        integrand = sum(sum(txt .* rmr, 2) ./ (rmrmag.^3 .* ones(size(txt))), 2) ;
-        % Writhe per unit length is wr
-        wr(jj) = sum(integrand) ;
-    end
-    Wr(ii) = sum(wr(isfinite(wr))) ;
-    wr_densities{ii} = wr ;
-    lengths(ii) = max(ss) ;
-    
-    if preview
-        % Plot the writhe 
-        fig = figure('Visible', 'Off');
-        plot(ssx, wr)
+        plot(ssx(1:end-1)', chirality)
+        % plot(sss, chirs, '-')
+        title('chirality of centerline')
+        ylabel('$d \phi / d s$', 'Interpreter', 'Latex')
+        xlabel('path length, $s$', 'Interpreter', 'Latex')
         xlim([0, smax])
-        ylim([-0.05, 0.05])
-        title('Writhe density')
-        xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex') ;
-        ylabel('writhe density, $wr$ [$\mu$m$^{-1}$]', 'Interpreter', 'Latex') ;
+        ylim([-0.06, 0.06])
         set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);        
-        saveas(fig, fullfile(figwrdir, [name '_writhe.png']))
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
+        saveas(fig, fullfile(figoutdir, [name '_chirality.png']))
         close all
+
+        % Save the data
+        datfn = fullfile(choutdir, [name '_chirality.txt' ]);
+        header = 'Chirality of centerline for timepoint ' ;
+        header = [header name ': s, dphi/ds'] ;
+        fid = fopen(datfn, 'wt');
+        fprintf(fid, header); 
+        fclose(fid);
+        dlmwrite(datfn, [ssx(1:end-1)' chirality])
+        chirality_densities{ii} = chirality ;
+        Chirality(ii) = sum(chirality(isfinite(chirality))) ;
+
+        %% Compute the writhe
+        % Wr = 1/4pi \int \int T(s) xx T(s') \cdot [R(s) - R(s') / |R(s) - R(s')|^3]
+        % Here use the polynomial fit to the curve to compute
+        % xp, yp, zp
+        % first compute vec from each point to every other point
+        xyzp = [xp', yp', zp'] ;
+        wr = zeros(length(ssx), 1) ;
+        for jj=1:length(ssx)
+            oind = setdiff(1:length(ssx), jj) ;
+            rmr = xyzp(jj, :) - xyzp(oind, :) ;
+            rmrmag = vecnorm(rmr')' ;
+            txt = cross(tangent(jj,:) .* ones(length(oind), 3), tangent(oind, :));
+            % Take row-wise inner product
+            integrand = sum(sum(txt .* rmr, 2) ./ (rmrmag.^3 .* ones(size(txt))), 2) ;
+            % Writhe per unit length is wr
+            wr(jj) = sum(integrand) ;
+        end
+        Wr(ii) = sum(wr(isfinite(wr))) ;
+        wr_densities{ii} = wr ;
+        lengths(ii) = max(ss) ;
+
+        if preview
+            % Plot the writhe 
+            fig = figure('Visible', 'Off');
+            plot(ssx, wr)
+            xlim([0, smax])
+            ylim([-0.05, 0.05])
+            title('Writhe density')
+            xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex') ;
+            ylabel('writhe density, $wr$ [$\mu$m$^{-1}$]', 'Interpreter', 'Latex') ;
+            close all
+        end
     end
+
+    %% Save Wr(t) and Ch(t)
+    % Save the chirality
+    dlmwrite(fullfile(choutdir, 'chirality.txt'), [times, Chirality]);
+    save(fullfile(meshdir, 'chirality_densities.mat'), 'chirality_densities') ;
+
+    % Save the writhe
+    windowSize = 7; 
+    b = (1/windowSize)*ones(1,windowSize);
+    a = 1;
+    Wrsm = smoothdata(Wr, 'rlowess', 5) ;
+    wsmooth = filter(b, a, Wrsm) ;
+    dwr = gradient(wsmooth) ;
+    write_txt_with_header(fullfile(wroutdir, 'writhe.txt'),...
+        [times, Wr, dwr], 'timestamp, Writhe, d(Wr)/dt');
+    save(fullfile(meshdir, 'writhe_densities.mat'), 'wr_densities') ;
+
+    % Save length vs time and dlength 
+    % Filter the data for derivative
+    windowSize = 7; 
+    b = (1/windowSize)*ones(1,windowSize);
+    a = 1;
+    lsm = smoothdata(lengths, 'rlowess', 5) ;
+    lsmooth = filter(b, a, lsm) ;
+    dl = gradient(lsmooth) ;
+    save(fullfile(meshdir, 'lengths_over_time.mat'), 'lengths', 'dl') ;
 end
 
-%% Save Wr(t) and Ch(t)
-% Save the chirality
-dlmwrite(fullfile(choutdir, 'chirality.txt'), [times, Chirality]);
-save(fullfile(meshdir, 'chirality_densities.mat'), 'chirality_densities') ;
-
-% Save the writhe
-windowSize = 7; 
-b = (1/windowSize)*ones(1,windowSize);
-a = 1;
-Wrsm = smoothdata(Wr, 'rlowess', 5) ;
-wsmooth = filter(b, a, Wrsm) ;
-dwr = gradient(wsmooth) ;
-write_txt_with_header(fullfile(wroutdir, 'writhe.txt'),...
-    [times, Wr, dwr], 'timestamp, Writhe, d(Wr)/dt');
-save(fullfile(meshdir, 'writhe_densities.mat'), 'wr_densities') ;
-
-% Save length vs time and dlength 
-% Filter the data for derivative
-windowSize = 7; 
-b = (1/windowSize)*ones(1,windowSize);
-a = 1;
-lsm = smoothdata(lengths, 'rlowess', 5) ;
-lsmooth = filter(b, a, lsm) ;
-dl = gradient(lsmooth) ;
-save(fullfile(meshdir, 'lengths_over_time.mat'), 'lengths', 'dl') ;
-
+%% Save simple figures
 % Save chirality as a figure
 close all
 fig = figure('Visible', 'Off') ;
@@ -590,6 +608,23 @@ set(gcf, 'PaperUnits', 'centimeters');
 set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);        
 saveas(fig, fullfile(meshdir, 'writhe_dynamics2.pdf'))
 saveas(fig, fullfile(meshdir, 'writhe_dynamics2.png'))
+
+%% Save figures of writhe density
+fig = figure('Visible', 'Off') ;
+for ii=1:length(wr_densities)
+    timestr = sprintf('%06d', times(ii));
+    scatter3(xp, yp, zp, 10, wr)
+    xlim([xsmin, xsmax])
+    xlim([ysmin, ysmax])
+    xlim([zsmin, zsmax])
+    title('Writhe density')
+    xlabel('x [\mum]') ;
+    ylabel('y [\mum]') ;
+    zlabel('z [\mum]') ;
+    set(gcf, 'PaperUnits', 'centimeters');
+    set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);        
+    saveas(fig, fullfile(figwrdir, ['writhe_densities_' timestr '.png']))
+end
 
 
 disp('done')

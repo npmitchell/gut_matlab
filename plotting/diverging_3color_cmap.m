@@ -1,4 +1,4 @@
-function[map] = diverging_cmap(s,rgb1,rgb2)
+function[map] = diverging_3color_cmap(s,rgb1,rgb2)
 %This function is based on Kenneth Moreland's code for greating Diverging
 % Colormaps.  Created by Andy Stein, improved Noah P Mitchell 2019.
 % template accessed from: https://www.kennethmoreland.com/color-maps/
@@ -52,7 +52,7 @@ end
 
 % Interpolate a diverging color map.
     function[result] = diverging_map_1val(s, rgb1, rgb2)
-    %s1 is a number between 0 and 1
+    % s1 is a number between 0 and 1
 
         lab1 = RGBToLab(rgb1);
         lab2 = RGBToLab(rgb2);

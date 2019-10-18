@@ -1,8 +1,6 @@
 %% Extract the centerlines from a series of meshes (PLY files) 
 % Noah Mitchell 2019
-% Also saves scaled meshes with AP along x and DV along y, centered at A=0.
-% This version relies on Gabriel Peyre's toolbox called
-% toolbox_fast_marching/
+% Saves scaled meshes with AP along x and DV along y, centered at A=0.
 %
 % Run from the msls_output directory
 % Run this code only after training on anterior (A), posterior (P), and 
@@ -36,14 +34,9 @@
 % apdv_coms_rs.h5
 %   Centers of mass for A, P, and D in microns in rotated APDV coord system
 % 
-% Performs centerline extraction in subsampled units, where ssfactor is the
-% same as used for iLastik training to get A, P, and D.
-% trans has units of mesh coordinates.
-% phi is the angle in the xy plane
+% Notes
+% -----
 % vertices are in units of pixels (at full resolution)
-% skel, spt, and ept are all in units of mesh coordinates (at full res)
-% startpt, endpt are in subsampled units
-% radii are in microns
 % To take mesh to rotated + translated mesh in physical units, apply:
 %         xs = mesh.vertex.z ;
 %         ys = mesh.vertex.y ;
@@ -55,10 +48,13 @@
 % To run first:
 %    Gut_Pipeline.m
 % To run after:
+%    extract_centerline.m
 %    slice_mesh_endcaps.m
 %    extract_chirality_writhe.m
 %    Generate_Axisymmetric_Pullbacks_Orbifold.m
 %    
+% NPMitchell 2019
+%
 clear ;
 
 %% First, compile required c code
@@ -92,7 +88,6 @@ overwrite_apdvcoms = false ;  % recompute APDV coms from training
 save_figs = true ;  % save images of cntrline, etc, along the way
 overwrite_ims = true ;  % overwrite images even if centerlines are not overwritten
 preview = false ;  % display intermediate results, for debugging
-res = 1 ;  % pixels per gridspacing of DT for cntrline extraction
 resolution = 0.2619 ;  % um per pixel for full resolution (not subsampled)
 dorsal_thres = 0.9 ;  % threshold for extracting Dorsal probability cloud 
 buffer = 5 ;  % extra space in meshgrid of centerline extraction, to ensure mesh contained in volume
@@ -102,7 +97,6 @@ weight = 0.1;  % for speedup of centerline extraction. Larger is less precise
 normal_step = 0.5 ;  % how far to move normally from ptmatched vtx if a/pcom is not inside mesh
 eps = 0.01 ;  % value for DT outside of mesh in centerline extraction
 meshorder = 'zyx' ;  % ordering of axes in loaded mesh wrt iLastik output
-exponent = 1;  % exponent of DT used for velocity. Good values are ~1-2
 anteriorChannel = 1;  % which channel of APD training is anterior
 posteriorChannel = 2;  % which channel of APD training is posterior 
 dorsalChannel = 4 ;  % which channel of APD training is dorsal
@@ -124,15 +118,41 @@ cd(meshdir)
 %     rootpath = [rootpath 'data/48Ygal4UasCAAXmCherry/201902072000_excellent/'] ;
 % end
 % meshdir = [rootpath 'msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/'];
-% Name output directory
+% Name output directory for apdv info
 outdir = [fullfile(meshdir, 'centerline') filesep ];
 if ~exist(outdir, 'dir')
     mkdir(outdir) ;
+end
+% Name the directory for outputting aligned_meshes
+alignedmeshdir = fullfile(meshdir, ['aligned_meshes' filesep]) ;
+if ~exist(alignedmeshdir, 'dir')
+    mkdir(alignedmeshdir) ;
 end
 fns = dir(fullfile(meshdir, 'mesh_apical_stab_0*.ply')) ;
 % Ensure that PLY files exist
 if isempty(fns)
     error('Found no matching PLY files in ' + meshdir)
+end
+
+% Name the directory for outputting figures
+figoutdir = [alignedmeshdir 'images' filesep];
+if ~exist(figoutdir, 'dir')
+    mkdir(figoutdir) ;
+end
+% figure 1
+fig1outdir = [figoutdir 'aligned_mesh_xy' filesep];
+if ~exist(fig1outdir, 'dir')
+    mkdir(fig1outdir) ;
+end
+% figure 2
+fig2outdir = [figoutdir 'aligned_mesh_xz' filesep];
+if ~exist(fig2outdir, 'dir')
+    mkdir(fig2outdir) ;
+end
+% figure 3
+fig3outdir = [figoutdir 'aligned_mesh_yz' filesep];
+if ~exist(fig3outdir, 'dir')
+    mkdir(fig3outdir) ;
 end
 
 rotname = fullfile(meshdir, 'rotation_APDV') ;
@@ -142,48 +162,6 @@ xyzlimname = fullfile(meshdir, 'xyzlim_APDV') ;
 xyzlimname_um = fullfile(meshdir, 'xyzlim_APDV_um') ;
 outapdvname = fullfile(outdir, 'apdv_coms_rs.h5') ;
 
-% Name the directory for outputting figures
-figoutdir = [outdir 'images' filesep];
-if ~exist(figoutdir, 'dir')
-    mkdir(figoutdir) ;
-end
-% figure 1
-fig1outdir = [figoutdir 'centerline_xy' filesep];
-if ~exist(fig1outdir, 'dir')
-    mkdir(fig1outdir) ;
-end
-% figure 2
-fig2outdir = [figoutdir 'centerline_xz' filesep];
-if ~exist(fig2outdir, 'dir')
-    mkdir(fig2outdir) ;
-end
-% figure 3
-fig3outdir = [figoutdir 'centerline_yz' filesep];
-if ~exist(fig3outdir, 'dir')
-    mkdir(fig3outdir) ;
-end
-% Figures for phi_dorsal and phi_cntrdorsal
-phi_def_outdir = [figoutdir 'phid_definition' filesep];
-if ~exist(phi_def_outdir, 'dir')
-    mkdir(phi_def_outdir) ;
-end
-radius_vs_s_phi_outdir = [figoutdir 'radius_vs_s_phid' filesep];
-if ~exist(radius_vs_s_phi_outdir, 'dir')
-    mkdir(radius_vs_s_phi_outdir) ;
-end
-
-phicd_def_outdir = [figoutdir 'phicd_definition' filesep];
-if ~exist(phicd_def_outdir, 'dir')
-    mkdir(phicd_def_outdir) ;
-end
-radius_vs_s_phicd_outdir = [figoutdir 'radius_vs_s_phicd' filesep];
-if ~exist(radius_vs_s_phicd_outdir, 'dir')
-    mkdir(radius_vs_s_phicd_outdir) ;
-end
-alignedmeshdir = fullfile(meshdir, ['aligned_meshes' filesep]) ;
-if ~exist(alignedmeshdir, 'dir')
-    mkdir(alignedmeshdir) ;
-end
 ii = 1 ;
 
 %% Iterate through each mesh to compute acom(t) and pcom(t). Prepare file.
@@ -230,7 +208,7 @@ if ~load_from_disk || overwrite_apdvcoms
         name = name_split{1} ; 
         tmp = strsplit(name, '_') ;
         timestr = tmp{length(tmp)} ;
-
+        
         %% Load the AP axis determination
         if ~exist('fbar', 'var')
             fbar = waitbar(ii / length(fns), ['Computing acom, pcom for ' timestr ]) ;
@@ -386,18 +364,13 @@ for ii=1:length(fns)
     %% Name the output centerline
     name_split = strsplit(fns(ii).name, '.ply') ;
     name = name_split{1} ; 
-    expstr = strrep(num2str(exponent, '%0.1f'), '.', 'p') ;
-    resstr = strrep(num2str(res, '%0.1f'), '.', 'p') ;
-    extenstr = ['_exp' expstr '_res' resstr] ;
-    outname = [fullfile(outdir, name) '_centerline' extenstr] ;
-    polaroutfn = [fullfile(outdir, name) '_polarcoords' extenstr] ;
-    skel_rs_outfn = [fullfile(outdir, name) '_centerline_scaled' extenstr ] ;
-    fig1outname = [fullfile(fig1outdir, name) '_centerline' extenstr '_xy'] ;
-    fig2outname = [fullfile(fig2outdir, name) '_centerline' extenstr '_xz'] ;
-    fig3outname = [fullfile(fig3outdir, name) '_centerline' extenstr '_yz'] ;
-    figsmoutname = [fullfile(fig3outdir, name) '_centerline_smoothed' extenstr] ;
     tmp = strsplit(name, '_') ;
     timestr = tmp{length(tmp)} ;
+    
+    fig1outname = [fullfile(fig1outdir, name) '_xy'] ;
+    fig2outname = [fullfile(fig2outdir, name) '_xz'] ;
+    fig3outname = [fullfile(fig3outdir, name) '_yz'] ;
+
     
     %% Read the mesh  
     msg = strrep(['Loading mesh ' fns(ii).name], '_', '\_') ;
@@ -544,184 +517,72 @@ for ii=1:length(fns)
         dlmwrite([rotname '.txt'], rot)
         
     end
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% Define start point
-    % Check if acom is inside mesh. If so, use that as starting point.
-    ainside = inpolyhedron(fv, acom(1), acom(2), acom(3)) ;
-    pinside = inpolyhedron(fv, pcom(1), pcom(2), pcom(3)) ;
     
-    if ainside
-        startpt = acom' ;
-    else
-        % move along the inward normal of the mesh from the matched vertex
-        vtx = [vtx_sub(aind, 1), vtx_sub(aind, 2), vtx_sub(aind, 3)]' ;
-        normal = fv.normals(aind, :) ;
-        startpt = vtx + normal;
-        if ~inpolyhedron(fv, startpt(1), startpt(2), startpt(3)) 
-            % this didn't work, check point in reverse direction
-            startpt = vtx - normal * normal_step ;
-            if ~inpolyhedron(fv, startpt(1), startpt(2), startpt(3))
-                % Can't seem to jitter into the mesh, so use vertex
-                disp("Can't seem to jitter into the mesh, so using vertex for startpt")
-                startpt = vtx ;
-            end
-        end
-    end 
-    % Note: Keep startpt in subsampled units
+    if ii == 1
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% Define start point
+        % Check if acom is inside mesh. If so, use that as starting point.
+        ainside = inpolyhedron(fv, acom(1), acom(2), acom(3)) ;
+        pinside = inpolyhedron(fv, pcom(1), pcom(2), pcom(3)) ;
 
-    % Define end point
-    if pinside
-        endpt = pcom' ;
-    else
-        % move along the inward normal of the mesh from the matched vertex
-        vtx = [vtx_sub(pind, 1), vtx_sub(pind, 2), vtx_sub(pind, 3)]' ;
-        normal = fv.normals(pind, :) ;
-        endpt = vtx + normal * normal_step;
-        if ~inpolyhedron(fv, endpt(1), endpt(2), endpt(3)) 
-            % this didn't work, check point in reverse direction
-            endpt = vtx - normal * normal_step ;
-            if ~inpolyhedron(fv, endpt(1), endpt(2), endpt(3))
-                % Can't seem to jitter into the mesh, so use vertex
-                disp("Can't seem to jitter into the mesh, so using vertex for endpt")
-                endpt = vtx ;
-            end
-        end
-    end 
-    % Note: Keep endpt in subsampled units
-
-    % Check out the mesh
-    if preview
-        hold on
-        trimesh(fv.faces, xs, ys, zs)
-        % plot3(xs, ys, zs, 'ko')
-        scatter3(startpt(1), startpt(2), startpt(3), 'ro')
-        scatter3(endpt(1), endpt(2), endpt(3), 'ko')
-        xlabel('x [ssampled pixels]')
-        ylabel('y [ssampled pixels]')
-        zlabel('z [ssampled pixels]')
-        hold off
-        axis equal
-    end
-
-    %% Compute centerline if has not been saved 
-    if overwrite || ~exist([outname '.txt'], 'file')
-        % Declare in command output
-        if exist([outname '.txt'], 'file')
-            disp(['OVERWRITING: ' outname '.txt'])
+        if ainside
+            startpt = acom' ;
         else
-            disp(['Computing for ' outname '.txt'])
-        end
-        
-        %% Get xyz grid for distance transform
-        if ~exist('xx', 'var') || ~exist('yy', 'var') || ~exist('zz', 'var')
-            xx = 0:res:ceil(max(xs) + buffer) ;
-            yy = 0:res:ceil(max(ys) + buffer) ;
-            zz = 0:res:ceil(max(zs) + buffer) ;
-        end
-        msg = strrep(['Identifying pts in mesh ' fns(ii).name], '_', '\_') ;
-        waitbar(ii/length(fns), fbar, msg)
-        tic 
-        fv.faces = reorient_facets( fv.vertices, fv.faces );
-        inside = inpolyhedron(fv, xx, yy, zz) ;
-        outside = 1 - inside ;
-        toc ; 
-
-        % use the distanceTransform from Yuriy Mishchenko
-        msg = strrep(['Computing DT for ' fns(ii).name], '_', '\_') ;
-        waitbar(ii/length(fns), fbar, msg)
-        tic
-        Dbw = bwdistsc(outside) ;
-        % DD = max(DD(:)) - DD ;
-        DD = (Dbw + eps) ./ (max(Dbw(:)) + eps) ;
-        % DD = 1 - DD ;
-        DD = DD.^(exponent) ; 
-        DD(logical(outside)) = eps ;
-        toc ; 
-
-        if preview
-            % Preview DD
-            close all ;
-            disp('Previewing the distance transform')
-            for ll=1:3
-                for kk=1:10:size(DD,1)
-                    imagesc(squeeze(DD(kk,:,:)))
-                    title(['DT: z=' num2str(kk)])
-                    colorbar
-                    pause(0.001)
+            % move along the inward normal of the mesh from the matched vertex
+            vtx = [vtx_sub(aind, 1), vtx_sub(aind, 2), vtx_sub(aind, 3)]' ;
+            normal = fv.normals(aind, :) ;
+            startpt = vtx + normal;
+            if ~inpolyhedron(fv, startpt(1), startpt(2), startpt(3)) 
+                % this didn't work, check point in reverse direction
+                startpt = vtx - normal * normal_step ;
+                if ~inpolyhedron(fv, startpt(1), startpt(2), startpt(3))
+                    % Can't seem to jitter into the mesh, so use vertex
+                    disp("Can't seem to jitter into the mesh, so using vertex for startpt")
+                    startpt = vtx ;
                 end
             end
+        end 
+        % Note: Keep startpt in subsampled units
 
-            % A better way to plot it
-            clf
-            p = patch(isosurface(xx,yy,zz,inside,0.5));
-            % isonormals(x,y,z,v,p)
-            p.FaceColor = 'red';
-            p.EdgeColor = 'none';
-            daspect([1 1 1])
-            view(3); 
-            axis tight
-            camlight 
-            % lighting gouraud
-        end
+        % Define end point
+        if pinside
+            endpt = pcom' ;
+        else
+            % move along the inward normal of the mesh from the matched vertex
+            vtx = [vtx_sub(pind, 1), vtx_sub(pind, 2), vtx_sub(pind, 3)]' ;
+            normal = fv.normals(pind, :) ;
+            endpt = vtx + normal * normal_step;
+            if ~inpolyhedron(fv, endpt(1), endpt(2), endpt(3)) 
+                % this didn't work, check point in reverse direction
+                endpt = vtx - normal * normal_step ;
+                if ~inpolyhedron(fv, endpt(1), endpt(2), endpt(3))
+                    % Can't seem to jitter into the mesh, so use vertex
+                    disp("Can't seem to jitter into the mesh, so using vertex for endpt")
+                    endpt = vtx ;
+                end
+            end
+        end 
+        % Note: Keep endpt in subsampled units
 
-        % Check points with subsampling
-        % ssample = 10 ;
-        % xp = X(:); yp=Y(:); zp=Z(:) ; dp=D(:);
-        % scatter3(xp(1:ssample:end), yp(1:ssample:end), ...
-        %          zp(1:ssample:end), 30, dp(1:ssample:end), 'filled') ;
-
-        %% use Peyre's fast marcher
-        msg = strrep(['Computing centerline for ' fns(ii).name], '_', '\_') ;
-        waitbar(ii/length(fns), fbar, msg)
-        tic
-
-        % From example (DD is W, with low values being avoided)
-        options.heuristic = weight * DD ;
-        % Convert here to the gridspacing of xx,yy,zz
-        startpt_transposed = [startpt(2), startpt(1), startpt(3)]' / res ;
-        endpt_transposed = [endpt(2), endpt(1), endpt(3)]' / res ;
-        [D2,S] = perform_fast_marching(DD, startpt_transposed, options);
-        path = compute_geodesic(D2, endpt_transposed);
-        % plot_fast_marching_3d(D2, S, path, startpt, endpt);
-
-        % Show the intermediate result
-        disp('found skel')        
+        % Check out the mesh
         if preview
-            % Preview D2
-            clf ;
-            for kk=1:10:size(D2,3)
-                imshow(squeeze(D2(kk,:,:)))
-                title(['D2 for plane z=' num2str(kk)])
-                pause(0.001)
-            end
-
-            % Preview S
-            for kk=1:10:size(S,1)
-                imshow(squeeze(S(kk,:,:)))
-                title(['S for plane z=' num2str(kk)])
-                pause(0.001)
-            end
+            hold on
+            trimesh(fv.faces, xs, ys, zs)
+            % plot3(xs, ys, zs, 'ko')
+            scatter3(startpt(1), startpt(2), startpt(3), 'ro')
+            scatter3(endpt(1), endpt(2), endpt(3), 'ko')
+            xlabel('x [ssampled pixels]')
+            ylabel('y [ssampled pixels]')
+            zlabel('z [ssampled pixels]')
+            hold off
+            axis equal
         end
-
-        % Convert skeleton's rows to columns and flip start/end
-        skel_tmp = fliplr(path)' ;
-        % Transpose x<->y back to original and scale to mesh units
-        skel = [ skel_tmp(:,2), skel_tmp(:,1), skel_tmp(:,3) ] * res * ssfactor;
         
-        % Save centerline as text file
-        fid = fopen([outname '.txt'], 'wt');
-        % make header
-        fprintf(fid, 'centerline xyz in units of pixels (full resolution, same as mesh)');  
-        fclose(fid);
-        disp(['Saving centerline to txt: ', outname, '.txt'])
-        dlmwrite([outname '.txt'], skel)
-    else     
-        skel = importdata([outname '.txt']) ;
+        %% Rescale start point and end point to full resolution
+        spt = [startpt(1), startpt(2), startpt(3)] * ssfactor;
+        ept = [endpt(1), endpt(2), endpt(3)] * ssfactor;
     end
     
-    %% Rescale start point and end point to full resolution
-    spt = [startpt(1), startpt(2), startpt(3)] * ssfactor;
-    ept = [endpt(1), endpt(2), endpt(3)] * ssfactor;
     
     %% Compute the translation to put anterior to origin
     if ii == 1
@@ -734,31 +595,15 @@ for ii=1:length(fns)
     %% Rotate and translate vertices and endpoints
     % Note: all in original mesh units (not subsampled)
     xyzr = (rot * vtx_sub')' * ssfactor + trans ;
-    skelr = (rot * skel')' + trans ; 
     sptr = (rot * spt')' + trans ; 
     eptr = (rot * ept')' + trans ;
     dptr = (rot * (dcom' * ssfactor))' + trans ; 
     
     % Scale to actual resolution
     xyzrs = xyzr * resolution ;
-    % get distance increment
-    ds = vecnorm(diff(skel), 2, 2) ;
-    % get pathlength at each skeleton point
-    ss = [0; cumsum(ds)] ;
-    sss = ss * resolution ;
-    skelrs = skelr * resolution ;
     sptrs = sptr * resolution ;
     eptrs = eptr * resolution ; 
     dptrs = dptr * resolution ;
-    
-    % Save the rotated, translated, scaled curve
-    disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])
-    fn = [skel_rs_outfn '.txt'] ;
-    fid = fopen(fn, 'wt');
-    % make header
-    fprintf(fid, 'Aligned & scaled skeleton: sss [um], skelrs [um]');  
-    fclose(fid);
-    dlmwrite(fn, [sss, skelrs])
     
     %% Update our estimate for the true xyzlims
     xminrs = min(xminrs, min(xyzrs(:, 1))) ;
@@ -768,7 +613,7 @@ for ii=1:length(fns)
     ymaxrs = max(ymaxrs, max(xyzrs(:, 2))) ;
     zmaxrs = max(zmaxrs, max(xyzrs(:, 3))) ;
     
-    %% Get axis limits if this is first TP
+    %% Get a guess for the axis limits if this is first TP
     if ii == 1
         % Check if already saved. If so, load it. Otherwise, guess.
         fntmp = [xyzlimname_um '.txt'] ;
@@ -849,19 +694,15 @@ for ii=1:length(fns)
         tmp = trisurf(tri, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
             xyzrs(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
         hold on;
-        % plot the skeleton
-        for i=1:length(skelrs)
-            plot3(skelrs(:,1), skelrs(:,2), skelrs(:,3),'-','Color',[0,0,0], 'LineWidth', 3);
-        end
         plot3(sptrs(1), sptrs(2), sptrs(3), 'ro')
         plot3(eptrs(1), eptrs(2), eptrs(3), 'bo')
         plot3(dptrs(1), dptrs(2), dptrs(3), 'go')
         xlabel('x [$\mu$m]', 'Interpreter', 'Latex'); 
         ylabel('y [$\mu$m]', 'Interpreter', 'Latex');
         zlabel('z [$\mu$m]', 'Interpreter', 'Latex');
-        title(['Centerline using $D^{' num2str(exponent) '}$: ' timestr], ...
-            'Interpreter', 'Latex')
+        title(['Aligned mesh: ' timestr], 'Interpreter', 'Latex')
         axis equal
+        
         % xy
         view(2)
         xlim([xminrs_plot xmaxrs_plot]); 
@@ -878,7 +719,7 @@ for ii=1:length(fns)
         ylim([yminrs_plot ymaxrs_plot]); 
         zlim([zminrs_plot zmaxrs_plot]) ;
         set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=15cm
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);  % x_width=10cm y_width=15cm
         saveas(fig, [fig2outname '.png'])
         % xz
         disp('Saving rotated & translated figure (xz)...')  
@@ -887,170 +728,9 @@ for ii=1:length(fns)
         ylim([yminrs_plot ymaxrs_plot]); 
         zlim([zminrs_plot zmaxrs_plot]) ;
         set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=15cm
+        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);  % x_width=10cm y_width=15cm
         saveas(fig, [fig3outname '.png'])
         close all
-    end
-            
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Display the skeleton
-    % disp('Saving figure ...')
-    % close all
-    % fig = figure ;
-    % iso = isosurface(inside, 0.5) ;
-    % patch(iso,'facecolor',[1 0 0],'facealpha',0.1,'edgecolor','none');
-    % view(3)
-    % camlight
-    % hold on;
-    % % plot the skeleton
-    % for i=1:length(skel)
-    %     plot3(skel(:,1), skel(:,2), skel(:,3),'-','Color',[0,0,0], 'LineWidth', 10);
-    % end
-    % plot3(spt(1), spt(2), spt(3), 'ro')
-    % plot3(ept(1), ept(2), ept(3), 'bo')
-    % xlabel('x'); ylabel('y'); zlabel('z'); axis equal
-    % title(['$D^{' num2str(exponent) '}$'], 'Interpreter', 'Latex')
-    % view(2)
-    % xlim([xmin xmax]); ylim([ymin ymax]); zlim([zmin zmax])
-    % saveas(fig, [fig1outname '.png'])
-    % view(10)
-    % stopping 
-    % saveas(fig, [fig2outname '.png'])
-    % saveas(fig, [fig3outname '.png'])
-    % close all
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
-    %% Associate each vertex with a point on the curve
-    % dist2 = (xs - skel(:,1)).^2 + (xs - skel(:,2)).^2 + (xs - skel(:,3)).^2 ;
-    [kmatch, dist] = dsearchn(skel / ssfactor, vtx_sub) ;
-    % A dsearchn() returns closest Euclidean 3D matches. Check that the
-    % association linesegment between the vertex and the centerline does
-    % not leave the mesh
-        
-    % Check the associations
-    if preview
-        clf ; hold on
-        for ijk = 1:500:length(vtx_sub)
-            plot3([vtx_sub(ijk, 1) skel(kmatch(ijk), 1)], ...
-                [vtx_sub(ijk, 2) skel(kmatch(ijk), 2)], ...
-                [vtx_sub(ijk, 3) skel(kmatch(ijk), 3)])
-        end
-        close all
-    end
-    
-    % Compute radius R(s) in microns
-    radii = vecnorm(vtx_sub * ssfactor - skel(kmatch), 2, 2) * resolution ;
-    
-    % Compute phi(s), which is just the polar angle in the yz plane - pi/2
-    % taken wrt the centerline
-    phi_dorsal = mod(atan2(xyzr(:, 3) - sptr(3), xyzr(:, 2) - sptr(2)) - pi * 0.5, 2*pi);
-    phi_ctrdorsal = mod(atan2(xyzr(:, 3) - skelr(kmatch, 3), ...
-                        xyzr(:, 2) - skelr(kmatch, 2)) - pi * 0.5, 2*pi);
-
-    % Save radii and angle wrt dorsal as text file
-    disp(['Saving radii to txt: ', polaroutfn, '.txt'])
-    fn = [polaroutfn '.txt'] ;
-    fid = fopen(fn, 'wt');
-    % make header
-    fprintf(fid, 'kmatch, radii [microns], phi_dorsal, phi_ctrdorsal');  
-    fclose(fid);
-    dlmwrite(fn, [kmatch, radii, phi_dorsal, phi_ctrdorsal])
-        
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Check phi_dorsal
-    fexist1 = exist(fullfile(phi_def_outdir, [name '.png']), 'file') ;
-    fexist2 = exist(fullfile(phicd_def_outdir, [name '.png']), 'file') ;
-    figs_exist = fexist1 && fexist2 ;
-    if save_figs && (overwrite || ~figs_exist)
-        % view global dorsal angle
-        fig = figure('Visible', 'Off');
-        tmp = trisurf(tri, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
-            phi_dorsal / pi, 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
-        xlabel('x [$\mu$m]', 'Interpreter', 'Latex')
-        ylabel('y [$\mu$m]', 'Interpreter', 'Latex')
-        zlabel('z [$\mu$m]', 'Interpreter', 'Latex')
-        xlim([xminrs_plot xmaxrs_plot])
-        ylim([yminrs_plot ymaxrs_plot])
-        zlim([zminrs_plot zmaxrs_plot])
-        axis equal
-        cb = colorbar() ;
-        ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
-        cb.Label.Interpreter = 'latex';
-        cb.Label.FontSize = 12 ;
-        title('$\phi_{\textrm{dorsal}}$', 'Interpreter', 'Latex')
-        set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-        saveas(fig, fullfile(phi_def_outdir, [name '.png']))
-        close all
-        
-        % view dorsal angle from centerline
-        fig = figure('Visible', 'Off');
-        tmp = trisurf(tri, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
-            phi_ctrdorsal, 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
-        xlabel('x [$\mu$m]', 'Interpreter', 'Latex')
-        ylabel('y [$\mu$m]', 'Interpreter', 'Latex')
-        zlabel('z [$\mu$m]', 'Interpreter', 'Latex')
-        xlim([xminrs_plot xmaxrs_plot])
-        ylim([yminrs_plot ymaxrs_plot])
-        zlim([zminrs_plot zmaxrs_plot])
-        axis equal
-        cb = colorbar() ;
-        ylabel(cb, 'angle w.r.t. dorsal from centerline, $\phi / \pi$')
-        cb.Label.Interpreter = 'latex';
-        cb.Label.FontSize = 12 ;
-        title('$\phi_{\textrm{dorsal}}^c$', 'Interpreter', 'Latex')
-        set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-        saveas(fig, fullfile(phicd_def_outdir, [name '.png']))
-        close all
-    end
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Save the radius data as a plot
-    fexist1 = exist(fullfile(radius_vs_s_phi_outdir, [name '.png']), 'file') ;
-    fexist2 = exist(fullfile(radius_vs_s_phicd_outdir, [name '.png']), 'file') ;
-    figs_exist = fexist1 && fexist2 ;
-    if save_figs && (overwrite || figs_exist) 
-        % Color by phi_dorsal
-        close all
-        fig = figure;
-        set(gcf, 'Visible', 'Off')
-        scatter(sss(kmatch), radii, [], ...
-            phi_dorsal / pi, 'filled', ...
-            'MarkerFaceAlpha', 0.05) ;        
-        xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
-        ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
-        cb = colorbar() ;
-        ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
-        cb.Label.Interpreter = 'latex';
-        cb.Label.FontSize = 12 ;
-        title('$\phi_{\textrm{dorsal}}$', 'Interpreter', 'Latex')
-        xlim([0, 525])
-        set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-        saveas(fig, fullfile(radius_vs_s_phi_outdir, [name '.png']))
-
-        % Color by phi_ctrdorsal
-        close all
-        fig = figure;
-        set(gcf, 'Visible', 'Off')
-        scatter(ss(kmatch), radii, [], ...
-            phi_dorsal / pi, 'filled', ...
-            'MarkerFaceAlpha', 0.05) ;        
-        xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
-        ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
-        cb = colorbar() ;
-        ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
-        cb.Label.Interpreter = 'latex';
-        cb.Label.FontSize = 12 ;
-        title('Midgut radius')
-        xlim([0, 525])
-        set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-        saveas(fig, fullfile(radius_vs_s_phicd_outdir, [name '.png']))
-        clf
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
