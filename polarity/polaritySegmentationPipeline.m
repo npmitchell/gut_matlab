@@ -1,15 +1,21 @@
 % Simple version of computing local tensor from segmentation of pullbacks
 % NPM 2019 
-% Run from soiDir (directory where the pullbacks reside
+% Run from meshDir, NOT soiDir directory where the pullbacks reside
 % This code is different from polarity_from_images_simple.m in that it
 % assumes the pullbacks are output as individual files, not as a single
 % tiff stack.
 % Requires all pullbacks to be the same size.
 %
-% Possible Prerequisites
+% Prerequisites
 % ----------------------
-% adjust_canvas_size.m
-clear; close all
+% adjust_canvas_size.m (to make all images same size, if necessary)
+% iLastik training on membrane 
+%    output in same folder, with 1-1 correspondence between images & h5's
+% 
+
+clear; close all; clc;
+seriestype = 're_adjusted' ;
+stepstr = '' ;
 
 %% Run ilastik on images and save as H5 files in soiDir (pwd)
 
@@ -21,16 +27,32 @@ clear; close all
 % filenameFormat = [soiDir 'fields/data_MIP/cylinder1_index/cylinder1/cmp_1_1_T%04d.tif' ] ;
 % soiDir = [datadir 'msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/PullbackImages_010step_extended_shifted/'] ;
 
-soiDir = './' ;
-filenameFormat = fullfile(soiDir, 'Time_%06d_c1_stab_adjust.tif' ) ;
+meshDir = cd ;
+
+if strcmp(seriestype, 're_adjusted')
+    soiDir = fullfile(meshDir, ['PullbackImages' stepstr '_relaxed_extended_adjusted' filesep]) ;
+elseif strcmp(seriestype, 'es')
+    soiDir = fullfile(meshDir, ['PullbackImages' stepstr '_extended_shifted' filesep]) ;
+end
+filenameFormat = fullfile(soiDir, 'Time_*_c1_stab_adjust.tif' ) ;
 ilastiksegFolder = soiDir ;
+polDir = fullfile(meshDir, ['polarity' filesep 'segmentation' filesep]) ;
+polDir_spec = fullfile(polDir, ['membrane' stepstr '_' seriestype filesep]) ;
+polOutDir = fullfile(polDir_spec, 'membrane_polarity') ;
+if ~exist(polOutDir, 'dir')
+    mkdir(polOutDir)
+end
 
 %% Options
 step = 50 ;  % how far apart boxes for local averaging
 eps = 1e-5 ;  % small number
 % cutoff in bond length in units of median bond length
-length_cutoff = 30 ; 
-outdir = [soiDir 'membrane_anisotropy_step' sprintf('%03d', step) '/' ];
+length_cutoff = 100 ; 
+colorwheel_position = [.8 .01 .15 .15] ;
+preview = false ;
+
+% Prepare output directory
+outdir = fullfile(polDir_spec, [ 'membrane_anisotropy_step' sprintf('%03d', step) filesep ]);
 if ~exist(outdir, 'dir')
     mkdir(outdir)
 end
@@ -40,14 +62,21 @@ end
 addpath('/mnt/data/code/gut_matlab/tissueAnalysisSuite/')
 addpath('/mnt/data/code/gut_matlab/plotting/')
 % todo match opacity to magnitude, change cmap
-cmap = diverging_cmap(0:0.01:1, 1, 2) ;  
+% cmap = diverging_cmap(0:0.01:1, 1, 2) ;  
+[colors, names] = define_colors(3) ;
+yellow = colors(3, :) ;
+cmap = interpolate_3color_cmap(0:0.01:1, 5, yellow, 4, false) ;
+% check the colormap
+% h2 = scatter(1:10, 1:10, 40, 1:10, 'filled') ;
+% colormap(gcf, cmap);
 
-% Create a label matrix
-segmentation_fn = fullfile(soiDir, 'segmentation.m') ;
+%% Create a label matrix
+segmentation_fn = fullfile(soiDir, 'segmentation.mat') ;
 if exist(segmentation_fn, 'file')
+    disp('Loading segmentation...')
     load(segmentation_fn)
 else
-    very_far = 150 ;  % distance between points that can't be a cell, in pixels
+    very_far = 450 ;  % distance between points that can't be a cell, in pixels
     mode = 0;  % Toggle for ilastik version control
     disp('loading h5 data in ilastik segmentation folder...')
     mem = load.ilastikh5( ilastiksegFolder, mode ) ; 
@@ -79,8 +108,17 @@ disp('done with segmentation')
 % pre-allocate 
 aniso_medians = zeros(size(L, 3), 1) ;
 aniso_unc = zeros(size(L, 3), 1) ;
+fns = dir(fullfile(soiDir, filenameFormat)) ;
 for t=1:size(L, 3)
+    fn = fns(t).name ;
+    fullfn = fullfile(fns(t).folder, fns(t).name) ;
     disp(['Considering timepoint: ', num2str(t)])
+    disp([' associated with fn: ', fn])
+    fnsplit = split(fns(t).name, '.tif') ;
+    fnout = [fnsplit{1} '_membrane_anisotropy.mat'] ;
+    fullfnout = fullfile(polOutDir, fnout) ;
+    disp([' to output as ' fnout])
+    
     % Collate the vertices into array
     vdat = Struct(t).Vdat ;
     xv = zeros(length(vdat), 1) ;
@@ -89,7 +127,6 @@ for t=1:size(L, 3)
         xv(i) = vdat(i).vertxcoord ;
         yv(i) = vdat(i).vertycoord ;
     end
-    xy = [xv, yv] ;
 
     % Collate the lines into linesegments to get orientation
     disp('collating into linesegments...')
@@ -109,18 +146,24 @@ for t=1:size(L, 3)
         vectors(bondi, :) = xyxy(bondi, 3:4) - xyxy(bondi, 1:2) ;
         bondxy(bondi, :) = [0.5 * (x1 + x2), 0.5 * (y1 + y2)] ;
     end
+    
     % get orientation of each vector
     disp('obtaining orientation of each bond...')
     thetas = atan2(vectors(:, 2), vectors(:, 1)) ;
-    order = cos(2 * thetas) ;
     lengths = sum(vectors .^ 2, 2) ;
     lengths = lengths / median(lengths) ;
     lengths(lengths > length_cutoff) = 0 ;
-    ordersc = order .* lengths ;
+    xv = cos(2 * thetas) .* lengths ;
+    yv = sin(2 * thetas) .* lengths ;
     
     % Check: plot the bonds by their angle
-    % scatter(bondxy(:, 1), bondxy(:, 2), 1, ordersc, 'clim', -1, 1)
-    % caxis([-1 1])
+    if preview
+        fig = figure ;
+        p1 = imagesc(mem(:, :, t)) ;
+        hold on;
+        quiver(bondxy(:, 1), bondxy(:, 2), vectors(:, 1), vectors(:, 2))
+        caxis([-1 1])
+    end
     
     % Make a grid over the field, average in each grid bin
     disp('gridding...')
@@ -135,70 +178,121 @@ for t=1:size(L, 3)
     [~, idx] = histc(bondxy(:, 1), XX) ;
     [~, idy] = histc(bondxy(:, 2), YY) ;
     compartmentID = idy + (idx - 1) * nrows;
-    % In case there are linesegs out of bounds, map them to 1
+    
+    % In case there are linesegs out of bounds, map them to 1 
+    % todo: check that 1 is blank?
     compartmentID(compartmentID < 1) = 1 ;
     compartmentID(compartmentID > nrows * ncols) = 1 ;
-    aniso = accumarray( compartmentID, ordersc, [], @mean);
-    % Pad with zeros if the data does not fill the whole image
-    if length(aniso) < nrows * ncols
-        aniso(nrows * ncols) = 0 ;
-    end
-    % Make a rectangular grid of the data
-    aniso = reshape(aniso, [nrows, ncols]) ;
-    aniso_medians(t) = nanmedian(aniso(aniso ~= 0)) ;
-    tmp = nanstd(aniso(aniso ~= 0)) ;
-    aniso_unc(t) = tmp / sqrt(length(aniso(aniso ~= 0))) ;
+    xvmean = accumarray( compartmentID, xv, [], @mean);
+    yvmean = accumarray( compartmentID, yv, [], @mean);
+    meanlengths = accumarray( compartmentID, lengths, [], @mean);
     
-    % New figure
-    hf=figure;
-    set(hf, 'Visible', 'off');
-    % Background image
-    h1 = axes;
-    p1 = imagesc(mem(:, :, t)); 
-    colormap(h1,'gray');
-    set(h1,'ydir','normal');
-    % Foreground image
-    h2=axes;
-    % Could use pcolor
-    % s = pcolor(xx, yy, aniso) ;   
-    % s.FaceColor = 'interp' ;
-    % s.EdgeColor = 'none' ;
-    % set(s,'facealpha',0.3)
-    % Instead use imagesc
+    % anisotropy is measured via its magnitude and cosine of its angle
+    vectormeans = [xvmean, yvmean] ;
+    mags = vecnorm(vectormeans')' ;
+    lcos2t = xvmean ;
+    lsin2t = yvmean ;
+    
+    % Pad with zeros if the data does not fill the whole image (this
+    % finishes the last row or column of the grid with zeros)
+    if length(mags) < nrows * ncols
+        mags(nrows * ncols) = 0 ;
+        lcos2t(nrows * ncols) = 0 ;
+        lsin2t(nrows * ncols) = 0 ;
+        meanlengths(nrows * ncols) = 0 ;
+    end
+    
+    % Make a rectangular grid of the data
+    meanlengths(meanlengths == 0) = Inf ;
+    % normalize magnitudes by the length to get scale free measure
+    mags_n = reshape(mags ./ meanlengths, [nrows, ncols]) ;
+    lcos2t = reshape(lcos2t, [nrows, ncols]) ;
+    lsin2t = reshape(lsin2t, [nrows, ncols]) ;
     xcenters = XX(1:end-1) + 0.5 * (XX(2) - XX(1)) ;
     ycenters = YY(1:end-1) + 0.5 * (YY(2) - YY(1)) ; 
-    s = imagesc(xcenters, ycenters, aniso) ;
-    alpha(h2, alphaVal)
-    caxis([-1, 1]) ;
-    set(h2,'color','none','visible','off');
-    colormap(h2, cmap);
-    set(h2,'ydir','normal');
-    linkaxes([h1 h2])
-    axis equal
-    % Make both axes invisible
-    axis off
-    set(h1, 'Visible', 'off')
-    % Get the current axis size in case things get disrupted
-    originalPos_h1 = get(h1, 'Position') ;
-    originalPos_h2 = get(h2, 'Position') ;
-    title(['t=' num2str(t) ' min'],...
-        'FontWeight','Normal')
-    set(h2, 'Position', originalPos_h2);
     
-    % Colorwheel
-    ax3 = axes('Position',[.7 .3 .2 .2]) ;
-    tt = 0:0.001:2*pi ;
-    sc = scatter(cos(tt), sin(tt), 1, cos(2 * tt)) ;
-    axis equal
-    alpha(sc, alphaVal)
-    colormap(ax3, cmap)
-    axis off
-    title({'Cell membrane', 'anisotropy'}, 'Fontweight', 'normal')
     
-    % Save the image
+    % Save the results
+    save(fullfnout, 'xcenters', 'ycenters', 'mags_n', 'lcos2t', 'lsin2t', 'meanlengths')
+    
+    % Save a plot
     fn = sprintf([outdir 'memaniso_%06d.png'], t) ;
-    disp(['Saving figure ' ])
-    saveas(hf, fn)
+    if overwrite || ~exist(fn, 'file')
+        % New figure
+        hf=figure;
+        set(hf, 'Visible', 'off');
+        % Background image
+        h1 = axes;
+        p1 = imagesc(mem(:, :, t)); 
+        colormap(h1,'gray');
+        set(h1,'ydir','normal');
+        % Foreground image
+        h2=axes;
+        % Could use pcolor
+        % s = pcolor(xx, yy, aniso) ;   
+        % s.FaceColor = 'interp' ;
+        % s.EdgeColor = 'none' ;
+        % set(s,'facealpha',0.3)
+        % Instead use imagesc
+        opacity = min(1, mags_n * alphaVal) ;
+        % check it
+        % imshow(opacity) 
+        % error('break')
+        s = imagesc(xcenters, ycenters, lcos2t, 'AlphaDataMapping','scaled',...
+                'AlphaData', opacity) ;
+        % alpha(h2, alphaVal)
+        caxis([-1, 1]) ;
+        set(h2,'color','none','visible','off');
+        colormap(h2, cmap);
+        set(h2,'ydir','normal');
+        linkaxes([h1 h2])
+        axis equal
+        % Make both axes invisible
+        axis off
+        set(h1, 'Visible', 'off')
+        % Get the current axis size in case things get disrupted
+        originalPos_h1 = get(h1, 'Position') ;
+        originalPos_h2 = get(h2, 'Position') ;
+        title(['t=' num2str(t) ' min'],...
+            'FontWeight','Normal')
+        set(h2, 'Position', originalPos_h2);
+
+        % Colorwheel as grid
+        ax3 = axes('Position', colorwheel_position) ;
+        [xx, yy] = meshgrid(-1:0.01:1, -1:0.01:1) ;
+        color = cos(2 * atan2(yy, xx)) * 0.5  + 0.5 ;
+        radius = vecnorm([xx(:), yy(:)]') ;
+        alpha = reshape(radius, size(xx)) ;
+        alpha(radius > 1) = 0 ;
+        h = imagesc(xx(:), yy(:), color) ;
+        set(h, 'AlphaData', alpha) ;
+        colormap(gca, cmap)
+        axis equal
+        axis off
+        title({'Cell membrane', 'anisotropy'}, 'Fontweight', 'normal')
+
+        % Save the image
+        disp(['Saving figure ' fn])
+        saveas(hf, fn)
+    end
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    % Here just take simple medians 
+    cos2tbin_medians(t) = nanmedian(lcos2t(lcos2t ~= 0)) ;
+    tmp = nanstd(lcos2t(lcos2t ~= 0)) ;
+    cos2tbin_unc(t) = tmp / sqrt(length(lcos2t(lcos2t ~= 0))) ;
+    
+    sin2tbin_medians(t) = nanmedian(lsin2t(lsin2t ~= 0)) ;
+    tmp = nanstd(lsin2t(lsin2t ~= 0)) ;
+    sin2tbin_unc(t) = tmp / sqrt(length(lsin2t(lsin2t ~= 0))) ;
+    
+    % Weight the anisotropy by the scale of the mesh at that point and sum
+    % todo: write this
+    % cos2t_raw = cos(2 * thetas) ;
+    % lodil is the length divided by the dilation from the metric
+    % lodil = lengths / lineseg_dilation ;
+    % aniso_medians(t) = nanmedian(xv) ;
+    
     
     % % Linear colorbar
     % c = colorbar();
@@ -245,25 +339,43 @@ end
 % errorbar(aniso_medians, aniso_std)
 close all
 xx = 0:size(L, 3) - 1 ;
-lower = aniso_medians - aniso_unc ;
-upper = aniso_medians + aniso_unc ;
-lightblue = [149 / 255, 208 / 255, 252 / 255] ;
-fill([xx, fliplr(xx)], [lower', fliplr(upper')], lightblue,...
-    'LineStyle', 'none') ;
-hold on ;
-plot(xx, aniso_medians)
+clower = cos2tbin_medians - cos2tbin_unc ;
+cupper = cos2tbin_medians + cos2tbin_unc ;
+% sin(2t) * l
+slower = sin2tbin_medians - sin2tbin_unc ;
+supper = sin2tbin_medians + sin2tbin_unc ;
+
+colors = define_colors();
+blue = colors(1, :)  ;
+red = uint8(colors(2, :) * 255) ;
+% lightblue = [149 / 255, 208 / 255, 252 / 255] ;
+cf = fill([xx, fliplr(xx)], [clower, fliplr(cupper)], blue, 'LineStyle', 'none') ;
+set(cf, 'facealpha', .1)
+hold on;
+sf = fill([xx, fliplr(xx)], [slower, fliplr(supper)], red, 'LineStyle', 'none') ;
+set(sf, 'facealpha', .1)
+
+ch = plot(xx, cos2tbin_medians, 'Color', blue) ;
+sh = plot(xx, sin2tbin_medians, 'Color', red) ;
 xlabel('time [min]')
-ylabel('$\langle \ell \cos(2\theta) \rangle$', 'interpreter', 'latex')
+ylabel('$\langle \ell \cos(2\theta) \rangle$, $\langle \ell \sin(2\theta) \rangle$', 'interpreter', 'latex')
 title('membrane anisotropy')
 xlim([0, size(L, 3)]) ;
+legend([ch, sh], {'$\langle \ell \cos(2\theta) \rangle$', ...
+    '$\langle \ell \sin(2\theta) \rangle$'}, 'location', 'best', 'Interpreter', 'Latex')
 % ylim([min(aniso_medians - aniso_unc), max(aniso_medians + aniso_unc)])
-plot([0, size(L, 3)], [0, 0], 'k--')
+zeroh = plot([0, size(L, 3)], [0, 0], 'k--') ;
+set(get(get(zeroh,'Annotation'),'LegendInformation'),...
+    'IconDisplayStyle','off'); % Exclude line from legend
+
+% save it
 outfn_time = [soiDir, 'membrane_anisotropy.png'] ;
 disp(['saving to ', outfn_time]) 
 saveas(gcf, outfn_time)
 
 % Save data
-save([soiDir 'membrane_anisotropy_timeseq.m'], 'aniso_medians', 'aniso_unc')
+save([soiDir 'membrane_anisotropy_timeseq.mat'], ...
+    'cos2tbin_medians', 'cos2tbin_unc', 'sin2tbin_medians', 'sin2tbin_unc')
 
 clear tmp
 

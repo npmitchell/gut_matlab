@@ -9,8 +9,17 @@
 option = 2; % 1 == select timepoints, 2 == adjust all name matches in dir
 save_stack = false ; % true for stack output, false for individual images
 % outdir = '../PullbackImages_010step_extended_shifted_adjusted/' ;
-outdir = '../PullbackImages_010step_relaxed_extended_adjusted/' ;
+% outdir = '../PullbackImages_010step_relaxed_extended_adjusted/' ;
+outdir = fullfile(cd, 'adjusted') ;
 bitdepth = 'uint16' ;
+
+%% Naming structure
+% For option 1
+chan  = 1;
+nameFormat = ['cmp_',num2str(chan),'_1_T%04d.tif']; 
+
+% For option 2
+nameFormat = 'Time_*_c1_stab_corr.png' ;
 
 %% Create outdir
 if ~exist(outdir, 'dir')
@@ -19,9 +28,6 @@ end
 
 %% Option 1: select timepoints
 if option == 1
-    % naming structure
-    chan  = 1;
-    nameFormat = ['cmp_',num2str(chan),'_1_T%04d.tif']; 
     
     % Select timepoints
     tInit = 110 ; 
@@ -62,7 +68,6 @@ end
 
 %%  Option 2: all matching files
 if option == 2
-    nameFormat = 'Time_*_c1_stab.tif' ;
     fns = dir(nameFormat) ;
     % determine the maximum with and height in the image series; 
     w = zeros(1, length(fns));
@@ -87,9 +92,13 @@ if option == 2
         name = fns(i).name ;
         %name = ['Cyl2_p_',num2str(time),'.tif'];
         temp = imread(name);
+        % convert to 2d
+        if length(size(temp)) > 2
+            temp = rgb2gray(temp);
+        end
 
         st = size(temp);
-        stD = floor(([mh,mw]-st)/2)+1;
+        stD = floor(([mh, mw] - [st(1), st(2)]) * 0.5) + 1;
 
         im( stD(1):(stD(1)+st(1)-1), stD(2):(stD(2)+st(2)-1), i) = temp;
     end

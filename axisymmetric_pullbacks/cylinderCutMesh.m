@@ -1,9 +1,10 @@
-function [ cutMesh, cp1Out, cp2Out ] = ...
+function [ cutMesh, cp1Out, cp2Out, P ] = ...
     cylinderCutMesh(faceIn, vertexIn, normalIn, cp1, cp2)
-%CYLINDERCUTMESH creates a cut mesh structure from a an input mesh.  Input
-%mesh should be a topological cylinder.  Output mesh will be a topological
-%disk.  The mesh is cut along an edge-based mesh geodesic between two input
-%points.  Currently this method can only support a single cut path
+%CYLINDERCUTMESH creates a cut mesh structure from a an input mesh.  
+% Input mesh should be a topological cylinder.  
+% Output mesh will be a topological disk.  
+% The mesh is cut along an edge-based mesh geodesic between two input
+% points.  Currently this method can only support a single cut path
 %   INPUT PARAMETERS:
 %       - faceIn:         #Fx3 face connectivity list
 %       - vertexIn:       #VxD vertex coordinate list
@@ -16,6 +17,7 @@ function [ cutMesh, cp1Out, cp2Out ] = ...
 %                       to describe the cut mesh properties
 %       - cp1Out:       Vertex ID of the final cut path origin
 %       - cp2Out:       Vertex ID of the final cut path termination
+%       - P:            shortest path, indices of original vertices
 
 %==========================================================================
 % Calculate the Shortest Path Between Input Points Along Mesh Edges
@@ -55,7 +57,7 @@ A = sparse( [ edgeIn(:,1); edgeIn(:,2) ], ...
 G = graph(A);
 
 % The shortest path
-P = shortestpath( G, cp1, cp2 )';
+P = shortestpath( G, cp1, cp2 )' ;
 
 %--------------------------------------------------------------------------
 % Truncate the path so that it does not include any boundary edges
@@ -241,7 +243,7 @@ end
 
 cutMesh.f = face;
 
-% Check that the cut mesh is a topological disk ---------------------------
+% Check that the cut mesh is a topological disk (Euler characteristic) ----
 
 % The updated edge list
 edge = edges( triangulation( face, vertex ) );

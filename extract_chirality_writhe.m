@@ -1,5 +1,5 @@
 %% Extract the centerlines from a series of meshes (PLY files)
-% NPMitchell 2019
+% Run from meshDir, where msls_output is
 %
 % Prerequisites
 % -------------
@@ -10,10 +10,12 @@
 % ------------
 % extract_crosssections....m
 %
+% NPMitchell 2019
 
 %% Run from the msls_output directory
 clear ;
 compute_chirality = false ;
+overwrite = false ;
 % cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1_20190908
 
 
@@ -207,22 +209,28 @@ catch
     fclose(fid);
     dlmwrite(fn, [xsmin, xsmax; ysmin, ysmax; zsmin, zsmax; 0, smax])
 end
+disp('done loading xyzlimits for centerline')
 ii = 1;
 
 %% Check if the results have been saved already
-cde = exists(fullfile(meshdir, 'chirality_densities.mat'), 'file') ;
-che = exists(fullfile(choutdir, 'chirality.txt'), 'file');
-wre = exists(fullfile(wroutdir, 'writhe.txt'), 'file');
-wde = exists(fullfile(meshdir, 'writhe_densities.mat'), 'file') ;
-lne = exists(fullfile(meshdir, 'lengths_over_time.mat'), 'file') ;
+cde = exist(fullfile(meshdir, 'chirality_densities.mat'), 'file') ;
+che = exist(fullfile(choutdir, 'chirality.txt'), 'file');
+wre = exist(fullfile(wroutdir, 'writhe.txt'), 'file');
+wde = exist(fullfile(meshdir, 'writhe_densities.mat'), 'file') ;
+lne = exist(fullfile(meshdir, 'lengths_over_time.mat'), 'file') ;
 saved = cde && che && wre && wde && lne ;
 
 if saved && ~overwrite
     % Load the results
     load(fullfile(meshdir, 'chirality_densities.mat')) ;
     % note that the ssx in chirality.txt is missing one value
-    [ssxm1, chirality] = dlmread(fullfile(choutdir, 'chirality.txt'));
-    [times, Wr, dwr] = dlmread(fullfile(wroutdir, 'writhe.txt'));
+    cdat = dlmread(fullfile(choutdir, 'chirality.txt'), ',');
+    ssxm1 = cdat(:, 1) ; 
+    chirality = cdat(:, 2) ;
+    wdat = dlmread(fullfile(wroutdir, 'writhe.txt'), ',', 1, 0);
+    times = wdat(:, 1) ;
+    Wr = wdat(:, 2) ; 
+    dwr = wdat(:, 3) ;
     load(fullfile(meshdir, 'writhe_densities.mat')) ;
     load(fullfile(meshdir, 'lengths_over_time.mat')) ;
 else
@@ -480,6 +488,7 @@ else
     dl = gradient(lsmooth) ;
     save(fullfile(meshdir, 'lengths_over_time.mat'), 'lengths', 'dl') ;
 end
+disp('Done loading/computing chirality/writhe')
 
 %% Save simple figures
 % Save chirality as a figure
@@ -578,10 +587,135 @@ set(gcf, 'PaperPosition', [0 0 xwidth 2*ywidth]);
 saveas(fig, fullfile(meshdir, 'writhe_dynamics.pdf'))
 saveas(fig, fullfile(meshdir, 'writhe_dynamics.png'))
 
+%% Do it again in stages --> the last build isn't finished right now
+% load 'aas', 'vvs', 'dt'
+load('surfacearea_volume_stab.mat')
+% load the folding times
+fold_times = dlmread('fold_times.txt') ;
+t0 = fold_times(1) ;
+ind = find(times == t0) ;
+okinds = 1:148 ;
+addpath('/mnt/data/code/gut_matlab/plotting')
+[colors, colornames] = define_colors ;
+color1 = colors(1, :) ;
+color2 = colors(2, :) ;
+color3 = colors(3, :) ;
+for ii = 1:5
+    disp(['ii = ' num2str(ii)])
+    close all
+    fig = figure('units', 'centimeters', ...
+            'outerposition', [0 0 30 30], 'Visible', 'Off') ;
+    axis square
+    pbaspect([1.5 1 1])
+    yyaxis left
+    
+    % fill in boxes
+    if ii == 5
+        % To make fills, get xlimits from a handle that we clear
+        vh = plot(times(okinds) - t0, vvs(okinds) / vvs(ind)) ;
+        xlims = xlim ;
+        cla
+
+        % Get the limits to shade in the background
+        ymax = 3.2 ;
+        twrithe = 40 ;
+        tend = 70 ;
+        xx1 = [xlims(1) 0, 0, xlims(1)] ;
+        xx2 = [0, twrithe, twrithe, 0] ;
+        xx3 = [twrithe, tend, tend, twrithe] ;
+        yfill = [0, ymax, 0, ymax ] ;
+        hf1 = fill(xx1, yfill, color1, 'facealpha', 0.5);
+        hold on;
+        hf2 = fill(xx2, yfill, color2, 'facealpha', 0.5);
+        hf3 = fill(xx3, yfill, color3, 'facealpha', 0.5);
+    end
+    
+    vh = plot(times(okinds) - t0, vvs(okinds) / vvs(ind)) ;
+    ylabel('$V$', 'Interpreter', 'Latex')
+    hold on ;
+    if ii > 1
+        ah = plot(times(okinds) - t0, aas(okinds) / aas(ind)) ;
+        ylabel('$V$, $A$', 'Interpreter', 'Latex')
+    end
+    if ii > 2
+        lh = plot(times(okinds) - t0, lengths(okinds) / lengths(ind)) ;
+        ylabel('$V$, $A$, $L$', 'Interpreter', 'Latex')
+    end
+    
+    if ii == 1
+        % writhe on right
+        h2 = plot([1], [1])
+        h3 = plot([1], [1])
+        legend({'volume', ' ', ' '}, ...
+            'location', 'northwest', 'AutoUpdate', 'off')
+    elseif ii == 2
+        h3 = plot([1], [1])
+        legend({'volume', 'area', ''}, ...
+            'location', 'northwest', 'AutoUpdate', 'off')
+    elseif ii == 3
+        legend({'volume', 'area', 'length'}, ...
+            'location', 'northwest', 'AutoUpdate', 'off')
+    elseif ii > 3
+        % writhe on right
+        yyaxis right
+        wh = plot(times(okinds) - t0, Wr(okinds) ) ;
+        xlims = get(gca, 'xlim') ;
+        ylabel('Writhe, $Wr$', 'Interpreter', 'Latex')
+        legend({'volume', 'area', 'length'}, ...
+            'location', 'northwest', 'AutoUpdate', 'off')
+    end
+    % title('Gut dynamics', 'Interpreter', 'Latex')
+    % Plot folding events
+    if ii > 3
+        plot(fold_times(2) - t0, Wr(fold_times(2)-t0+ind), 'ks') ;
+        plot(fold_times(3) - t0, Wr(fold_times(3)-t0+ind), 'k^') ;
+        plot(0, Wr(ind), 'ko') ;
+    end
+    
+    yyaxis left
+    plot(fold_times(2) - t0, vvs(fold_times(2)-t0+ind)/vvs(ind), 'ks') ;
+    plot(fold_times(3) - t0, vvs(fold_times(3)-t0+ind)/vvs(ind), 'k^') ;
+    plot(0, 1, 'ko') ;
+    if ii > 1
+        plot(fold_times(2) - t0, aas(fold_times(2)-t0+ind)/aas(ind), 'ks') ;
+        plot(fold_times(3) - t0, aas(fold_times(3)-t0+ind)/aas(ind), 'k^') ;
+        plot(0, 1, 'ko') ;
+    end
+    if ii > 2
+        plot(fold_times(2) - t0, lengths(fold_times(2)-t0+ind)/lengths(ind), 'ks') ;
+        plot(fold_times(3) - t0, lengths(fold_times(3)-t0+ind)/lengths(ind), 'k^') ;
+        plot(0, 1, 'ko') ;
+    end
+    
+    if ii < 4
+        yyaxis right
+        yticks([])
+    end
+    
+    yyaxis left
+    ylimits = ylim ;
+    if ii < 3
+        ymax = 1.8 ;
+    else
+        ymax = 3.2 ;
+    end
+    if ylimits(2) < ymax
+        ylimits(2) = ymax ;
+    end
+    ylim([0 ylimits(2)])
+    
+    % Set limits
+    xlabel('time [min]', 'Interpreter', 'Latex')
+    set(gcf, 'PaperUnits', 'centimeters');
+    set(gcf, 'PaperPosition', [0 0 xwidth 2*ywidth]);    
+    fn = fullfile(meshdir, ['writhe_dynamics_build' num2str(ii) '.png']) ;
+    disp(['Saving figure ' fn])
+    saveas(fig, fn)
+end
 %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% similar figure - 1 panel %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% similar figure  but one panel for everything %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 close all
 fig = figure('Visible', 'Off') ;
 hold on;
