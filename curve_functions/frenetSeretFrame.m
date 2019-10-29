@@ -2,7 +2,6 @@ function [tangent, normal, binormal] = frenetSeretFrame(ss, xp, yp, zp)
 %frenetSeretFrame Compute Frenet-Seret frame for a 1d curve in 3d
 %   Detailed explanation goes here
 
-
 dsx = gradient(ss) ;
 
 % First calc rate of change of curve along curve
