@@ -434,6 +434,56 @@ axis equal
 saveas(gcf, fullfile(outdir, 'mask.png'))
 close all
 
-%% 
+%% Use example data
+im = imread('./demo_exampledata/Time_000110_c1_stab.tif') ;
+step = 100 ;
+w = 40 ;
 
+% disp('TRANSPOSING IMAGE for debug')
+% im = im' ;
+% disp('Rotatin gimage for debug')
+% im = imrotate(im, 90) ;
 
+% Get scale of image
+[xsc0, ysc0] = size(im) ;
+
+% Chop up the image into little chunks
+xx = w:step:(xsc0 - w) ;
+yy = w:step:(ysc0 - w) ;
+
+% Preallocate
+angles = zeros(length(xx), length(yy)) ;
+magnitudes = zeros(length(xx), length(yy)) ;
+
+% Compute radon transform for each little chunk
+for j = 1:length(xx)
+    disp(['j = ' num2str(j) ' / ' num2str(length(xx))])
+    for k = 1:length(yy)
+        xi = xx(j);
+        yi = yy(k) ;
+        xmin = max(1, xi - w) ;
+        xmax = min(xsc0, xi + w) ;
+        ymin = max(1, yi - w) ;
+        ymax = min(ysc0, yi + w) ;
+        chunk = im(xmin:xmax, ymin:ymax) ;
+        [xsz, ysz] = size(chunk) ;
+        xcenter = xsz * 0.5 ;
+        ycenter = ysz * 0.5 ;
+
+        % Mask out a circle from the patch
+        % create a xygrid
+        [xc, yc] = meshgrid(1:xsz, 1:ysz) ;
+        dist = (xc - xcenter) .^2 + (yc - ycenter) .^2 ;
+        mask = dist' < w^2 ;
+        chunk = chunk .* uint8(mask) ;
+        % imagesc(chunk)
+
+        % Compute radon as a function of angle
+        options.res = 1;
+        [angle, magnitude, results] = extractRadonNematic(chunk, options) ;
+
+        % Store angle and magnitude of this patch in array
+        angles(j, k) = angle ;
+        magnitudes(j, k) = magnitude ;
+    end        
+end
