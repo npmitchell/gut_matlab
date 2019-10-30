@@ -41,6 +41,7 @@ function [angle, magnitude, results] = extractRadonNematic(im, options)
 %       xp : 
 %       
 %% Find peaks in the transform
+addpath('../PeakFinding/')
 if isfield(options, 'thres')
     thres = options.thres ;
 else

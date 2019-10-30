@@ -304,7 +304,7 @@ for ii=1:length(fns)
     
     % Load radon for this timept or compute it
     % Use two different methods for comparison
-    for res = 1:2
+    for res = 2
         disp(['Computing/loading polarity using algorithm ' sprintf('%01d', res)])
         options.res = res ;
         fn = ['polarity_' seriestype '_w' sprintf('%04d', w) ...
@@ -487,19 +487,25 @@ for ii=1:length(fns)
         if ~exist(outimfn, 'file') || overwrite
             figure('units', 'normalized', ...
                 'outerposition', [0 0 1 1], 'visible', 'off')
+            
             imshow(im * washout2d + image_max * (1-washout2d))
             xlims = xlim ;
             ylims = ylim ;
             hold on
-            [x0, y0] = meshgrid(xx, yy) ;
-            xv = nemsz * mag_smooth .* cos(angles_smooth) ;
-            yv = nemsz * mag_smooth .* sin(angles_smooth) ;
-            x0q = x0 - 0.5 * xv;
-            y0q = y0 - 0.5 * yv ;
-            quiver(x0q(:), y0q(:), xv(:), yv(:), 0, 'ShowArrowHead', 'off') ;
+            % Transpose everything
+            xv = nemsz * magnitudes .* cos(angles) ;
+            yv = nemsz * magnitudes .* sin(angles) ;
+            xvt = xv';
+            yvt = yv';
+            x0q = x0 - 0.5 * xvt ;
+            y0q = y0 - 0.5 * yvt ;
+            % quiver(x0q(:), y0q(:), xv(:), yv(:), 0, 'ShowArrowHead', 'off') ;
+            scatter(y0(:), x0(:), 'r.')
+            quiver(y0q(:), x0q(:), yvt(:), xvt(:), 0, 'ShowArrowHead', 'off') ;
             axis equal
             xlim(xlims) ;
             ylim(ylims) ;
+            
             % Extract image from figure axes
             patchIm = getframe(gca);
             % print('-dpng','-r300', outimfn)
@@ -537,7 +543,7 @@ for ii=1:length(fns)
             end
         end
         
-        % Save colorplots        
+        %% Save colorplots (heatmap)    
         outimfn = fullfile(poldir2d_res_color, [fileName '.png']) ;
         % colors for colorplots
         [colors, ~] = define_colors(3) ;
@@ -607,7 +613,7 @@ for ii=1:length(fns)
             colormap(gca, cmap)
             axis equal
             axis off
-            title({'Cell membrane', 'anisotropy'}, 'Fontweight', 'normal')
+            title({'Radon-based anisotropy'}, 'Fontweight', 'normal')
 
             % Save the image
             disp(['Saving figure ' fn])

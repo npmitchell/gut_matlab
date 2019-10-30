@@ -434,11 +434,38 @@ axis equal
 saveas(gcf, fullfile(outdir, 'mask.png'))
 close all
 
-%% Use example data
-im = imread('./demo_exampledata/Time_000110_c1_stab.tif') ;
-step = 100 ;
-w = 40 ;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Use example data (lattice, phi picture)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+addpath('/mnt/data/code/gut_matlab/PeakFinding/')
+addpath('/mnt/data/code/gut_matlab/polarity/')
+addpath('/mnt/data/code/gut_matlab/')
+fn = '/mnt/data/code/gut_matlab/polarity/demo_exampledata/Time_000110_c1_stab.tif' ;
+exdir = '/mnt/data/code/gut_matlab/polarity/demo_exampledata/' ;
+fn = fullfile(exdir, 'label_phi.png') ;
+% fn = fullfile(exdir, 'hexagonal_square_delta0p667_phi0p000_000016x000016_crop.png') ;
+% fn = fullfile(exdir, 'hexagonal_square_delta0p667_phi0p000_000016x000016_crop.png') ;
+% fn = fullfile(exdir, 'hexagonal_square_delta1p000_phi0p000_000013x000013_crop_smudge.png') ;
+outimfn = './example_lattice.png' ;
+im = imread(fn) ;
+step = 30 ;
+w = 10 ;
+nemsz = 10 ;
+nemsz_chunk = 1e-3 ;
+preview = false ;
 
+% Flip & crop
+% im = max(im) - im ;
+% im = im(1:150, 1:300, 1) ;
+im = im(:, :, 1) ;
+% im = max(im) - im ;
+im = abs(gradient(double(im))) ;
+im = uint8(im) ;
+
+fig = figure();
+imshow(im) 
+waitfor(fig) 
+%% 
 % disp('TRANSPOSING IMAGE for debug')
 % im = im' ;
 % disp('Rotatin gimage for debug')
@@ -475,15 +502,214 @@ for j = 1:length(xx)
         [xc, yc] = meshgrid(1:xsz, 1:ysz) ;
         dist = (xc - xcenter) .^2 + (yc - ycenter) .^2 ;
         mask = dist' < w^2 ;
+        
         chunk = chunk .* uint8(mask) ;
         % imagesc(chunk)
 
         % Compute radon as a function of angle
-        options.res = 1;
-        [angle, magnitude, results] = extractRadonNematic(chunk, options) ;
-
-        % Store angle and magnitude of this patch in array
-        angles(j, k) = angle ;
-        magnitudes(j, k) = magnitude ;
-    end        
+        options.res = 2;
+        if any(chunk(:)) 
+            [angle, magnitude, results] = extractRadonNematic(chunk, options) ;
+            % Store angle and magnitude of this patch in array
+            angles(j, k) = angle ;
+            magnitudes(j, k) = magnitude ;
+        else
+            angle = 0 ; magnitude = 0; 
+            angles(j, k) = 0;
+            magnitudes(j, k) = 0 ;
+        end
+        if preview 
+            imshow(chunk); hold on;
+            [xszch, yszch] = size(chunk) ;
+            xl = nemsz_chunk * magnitude * cos(angle) ;
+            yl = nemsz_chunk * magnitude * sin(angle) ;
+            xline = xszch * 0.5 + [-xl, xl] ;
+            yline = yszch * 0.5 + [-yl, yl] ;
+            plot(yline, xline, 'r-')
+            pause(0.5) 
+            clf
+        end
+    end  
 end
+
+% Normalize magnitudes  
+magnitudes = magnitudes / median(magnitudes(:)) ;
+
+disp('done')
+
+%% Save an image overlay
+washout2d = 0.5 ;
+image_max = max(im(:)) ;
+[x0, y0] = meshgrid(xx, yy) ;
+
+% First plot scatter for magnitudes
+imshow(im * washout2d + image_max * (1-washout2d))
+hold on
+% mags = imagesc(x0(1,:)', y0(:,1), magnitudes) ;
+magnitudes(magnitudes == Inf) = 1 ;
+magn = magnitudes' ;
+magf = magn(:) / nanmax(magnitudes(:)) * 255 ;
+mags = scatter(y0(:), x0(:), 20, magf, 'filled') ;
+
+
+colorbar
+close all
+
+fig = figure('visible', 'on') ;
+imshow(255 - im) 
+% imshow(im * washout2d + image_max * (1-washout2d))
+xlims = xlim ;
+ylims = ylim ;
+hold on
+% Transpose everything
+xv = nemsz * magnitudes .* cos(angles) ;
+yv = nemsz * magnitudes .* sin(angles) ;
+xvt = xv';
+yvt = yv';
+x0q = x0 - 0.5 * xvt ;
+y0q = y0 - 0.5 * yvt ;
+% quiver(x0q(:), y0q(:), xv(:), yv(:), 0, 'ShowArrowHead', 'off') ;
+scatter(y0(:), x0(:), 'r.')
+quiver(y0q(:), x0q(:), yvt(:), xvt(:), 0, 'ShowArrowHead', 'off') ;
+axis equal
+% Extract image from figure axes
+title(['w = ' num2str(w) ', step = ' num2str(step)])
+% disp(['Saving image to ' outimfn]) 
+saveas(gcf, outimfn );
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Use example data of cells
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+addpath('/mnt/data/code/gut_matlab/PeakFinding/')
+addpath('/mnt/data/code/gut_matlab/polarity/')
+addpath('/mnt/data/code/gut_matlab/')
+fn = 'Time_000110_c1_stab.tif' ;
+exdir = '/mnt/data/code/gut_matlab/polarity/demo_exampledata/' ;
+fn = fullfile(exdir, fn) ;
+outimfn = './gutpullback.png' ;
+im = imread(fn) ;
+step = 30 ;
+w = 10 ;
+nemsz = 10 ;
+nemsz_chunk = 1e-3 ;
+preview = false ;
+
+% Flip & crop
+% im = max(im) - im ;
+% im = im(1:150, 1:300, 1) ;
+im = im(:, :, 1) ;
+
+fig = figure();
+imshow(im) 
+waitfor(fig) 
+%% 
+% disp('TRANSPOSING IMAGE for debug')
+% im = im' ;
+% disp('Rotatin gimage for debug')
+% im = imrotate(im, 90) ;
+
+% Get scale of image
+[xsc0, ysc0] = size(im) ;
+
+% Chop up the image into little chunks
+xx = w:step:(xsc0 - w) ;
+yy = w:step:(ysc0 - w) ;
+
+% Preallocate
+angles = zeros(length(xx), length(yy)) ;
+magnitudes = zeros(length(xx), length(yy)) ;
+
+% Compute radon transform for each little chunk
+for j = 1:length(xx)
+    disp(['j = ' num2str(j) ' / ' num2str(length(xx))])
+    for k = 1:length(yy)
+        xi = xx(j);
+        yi = yy(k) ;
+        xmin = max(1, xi - w) ;
+        xmax = min(xsc0, xi + w) ;
+        ymin = max(1, yi - w) ;
+        ymax = min(ysc0, yi + w) ;
+        chunk = im(xmin:xmax, ymin:ymax) ;
+        [xsz, ysz] = size(chunk) ;
+        xcenter = xsz * 0.5 ;
+        ycenter = ysz * 0.5 ;
+
+        % Mask out a circle from the patch
+        % create a xygrid
+        [xc, yc] = meshgrid(1:xsz, 1:ysz) ;
+        dist = (xc - xcenter) .^2 + (yc - ycenter) .^2 ;
+        mask = dist' < w^2 ;
+        
+        chunk = chunk .* uint8(mask) ;
+        % imagesc(chunk)
+
+        % Compute radon as a function of angle
+        options.res = 2;
+        if any(chunk(:)) 
+            [angle, magnitude, results] = extractRadonNematic(chunk, options) ;
+            % Store angle and magnitude of this patch in array
+            angles(j, k) = angle ;
+            magnitudes(j, k) = magnitude ;
+        else
+            angle = 0 ; magnitude = 0; 
+            angles(j, k) = 0;
+            magnitudes(j, k) = 0 ;
+        end
+        if preview 
+            imshow(chunk); hold on;
+            [xszch, yszch] = size(chunk) ;
+            xl = nemsz_chunk * magnitude * cos(angle) ;
+            yl = nemsz_chunk * magnitude * sin(angle) ;
+            xline = xszch * 0.5 + [-xl, xl] ;
+            yline = yszch * 0.5 + [-yl, yl] ;
+            plot(yline, xline, 'r-')
+            pause(0.5) 
+            clf
+        end
+    end  
+end
+
+% Normalize magnitudes  
+magnitudes = magnitudes / median(magnitudes(:)) ;
+
+disp('done')
+
+%% Save an image overlay
+washout2d = 0.5 ;
+image_max = max(im(:)) ;
+[x0, y0] = meshgrid(xx, yy) ;
+
+% First plot scatter for magnitudes
+imshow(im * washout2d + image_max * (1-washout2d))
+hold on
+% mags = imagesc(x0(1,:)', y0(:,1), magnitudes) ;
+magnitudes(magnitudes == Inf) = 1 ;
+magn = magnitudes' ;
+magf = magn(:) / nanmax(magnitudes(:)) * 255 ;
+mags = scatter(y0(:), x0(:), 20, magf, 'filled') ;
+
+
+colorbar
+close all
+%% 
+fig = figure('visible', 'on') ;
+% imshow(255 - im) 
+imshow(im * washout2d + image_max * (1-washout2d))
+xlims = xlim ;
+ylims = ylim ;
+hold on
+% Transpose everything
+xv = nemsz * magnitudes .* cos(angles) ;
+yv = nemsz * magnitudes .* sin(angles) ;
+xvt = xv';
+yvt = yv';
+x0q = x0 - 0.5 * xvt ;
+y0q = y0 - 0.5 * yvt ;
+% quiver(x0q(:), y0q(:), xv(:), yv(:), 0, 'ShowArrowHead', 'off') ;
+scatter(y0(:), x0(:), 'r.')
+quiver(y0q(:), x0q(:), yvt(:), xvt(:), 0, 'ShowArrowHead', 'off') ;
+axis equal
+% Extract image from figure axes
+title(['w = ' num2str(w) ', step = ' num2str(step)])
+% disp(['Saving image to ' outimfn]) 
+saveas(gcf, outimfn );

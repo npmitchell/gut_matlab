@@ -13,6 +13,9 @@
 % Train for anterior dorsal (D) only at the first time point, because
 % that's the only one that's used.
 %
+% Note that as of 20191029, the output meshes are mirrored due to the axis
+% permutation from iLastik
+%
 % OUTPUTS
 % -------
 % xyzlim.txt 
