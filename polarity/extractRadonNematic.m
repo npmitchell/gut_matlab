@@ -4,6 +4,8 @@ function [angle, magnitude, results] = extractRadonNematic(im, options)
 %   and average vectors in 2*theta space. Then divide angle by 2 and return
 %   the vector magnitude.
 % 
+% Requires ../PeakFinding to be in current path
+% 
 % Parameters
 % ----------
 % d     The 2D data raw image - assumes a Double\Single-precision
@@ -41,7 +43,7 @@ function [angle, magnitude, results] = extractRadonNematic(im, options)
 %       xp : 
 %       
 %% Find peaks in the transform
-addpath('../PeakFinding/')
+
 if isfield(options, 'thres')
     thres = options.thres ;
 else

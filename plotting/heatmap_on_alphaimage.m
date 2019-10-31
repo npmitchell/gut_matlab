@@ -1,7 +1,9 @@
 function h2 = heatmap_on_alphaimage(im, xfield, yfield, cfield, options)
 % HEATMAP_ON_IMAGE Plot a scalar field as heatmap on image
 % This function has some unresolved bugs 2019-10-06: please fix
-%
+% Note: xfield increases from top to bottom of image, yfield from L to R
+% 
+% 
 % Parameters
 % ----------
 % im : 2d image 
@@ -21,6 +23,7 @@ function h2 = heatmap_on_alphaimage(im, xfield, yfield, cfield, options)
 % ax2 : the heatmap axis
 % 
 % NPMitchell 2019
+
 
 if isfield(options, 'flipy')
     flipy = options.flipy ;
@@ -50,9 +53,10 @@ end
 
 
 % Get x and y linspace for the image
-xx = 1:size(im, 1) ;
-yy = 1:size(im, 2) ;
-[xg, yg] = ndgrid(xx, yy) ;
+pp = 1:size(im, 1) ;  % #rows
+qq = 1:size(im, 2) ;  % #columns
+[xg, yg] = ndgrid(pp, qq) ;
+% error('break')
 
 % Check if the input data is gridded
 if check_for_grid
@@ -68,7 +72,7 @@ end
 % Background image is in imshow then used as alpha
 if scattered
     gF = scatteredInterpolant(xfield, yfield, cfield);
-    vF = gF(xx, yy) ;
+    vF = gF(xg, yg) ;
 else
     if ~all(size(xfield) == size(cfield))
         % Here we assume since the size is not right, we make a grid
@@ -78,12 +82,30 @@ else
     end
     gF = griddedInterpolant(xfield, yfield, cfield);
     vF = gF(xg, yg) ;
+    
+    if any(size(options.alpha) > 1)
+        if all(size(options.alpha) == size(cfield))
+            alphF = griddedInterpolant(xfield, yfield, options.alpha) ;
+            opacityF = alphF(xg, yg) ;
+        else
+            size(options.alpha)
+            size(cfield)
+            error('Have not coded for this alpha shape yet')
+        end
+    else
+        opacityF = 1  ;
+    end
 end
 
 % PLOT IT
 % h1 = imshow(im) ;
-h2 = imagesc(xx, yy, vF) ;
-set(h2, 'AlphaData', im)
+h2 = imagesc(qq, pp, vF) ;
+if any(size(options.alpha) > 1)
+    opacity = double(im) .* opacityF ;
+    set(h2, 'AlphaData', uint8(opacity))
+else
+    set(h2, 'AlphaData', im)
+end
 
 caxis(clims)
 
@@ -94,6 +116,7 @@ end
 if flipy
     set(gca,'ydir','normal');
 end
+
 
 
 end

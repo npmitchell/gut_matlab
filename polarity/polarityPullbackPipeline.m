@@ -10,8 +10,8 @@ clear; close all; clc;
 
 %% Options
 % seriestype defines what pullback we are considering for the Radon transf.
-% es: extended_shifted, rs: relaxed_shifted, 
-seriestype = 'es'; 
+% e: extended, es: extended_shifted, rs: relaxed_shifted, 
+seriestype = 'e'; 
 
 %% Parameters
 overwrite = true ;
@@ -22,6 +22,7 @@ patch_width = 30 ;
 preview = false ;
 washout2d = 0.5 ;
 washout3d = 0.5 ;
+colorwheel_position = [.8 .01 .15 .15] ;
 
 %% Add paths
 % Add some necessary code to the path (ImSAnE should also be setup!) ------
@@ -164,12 +165,14 @@ PDBase = '/mesh_apical_stab_%06d/pdorsal';
 % The folder where the pullback images will be saved
 nshift = strrep(sprintf('%03d', normal_shift), '-', 'n') ;
 imFolder = fullfile(meshDir, ['PullbackImages_' nshift 'step'] ) ;
-imFolder_e = [imFolder '_20191019_extended' filesep] ; % debug
-imFolder_r = [imFolder '_20191019_relaxed' filesep] ; % debug
+imFolder_e = [imFolder '_extended' filesep] ; % debug
+imFolder_r = [imFolder '_relaxed' filesep] ; % debug
 imFolder_re = [imFolder '_relaxed_extended' filesep] ;
 pivDir = fullfile(meshDir, 'piv') ;
 polDir = fullfile(meshDir, ['polarity' filesep 'radon' ]) ;
 imFolder_es = [imFolder '_extended_shifted' filesep] ;
+% The extensile scale factor in x for relaxing the mesh
+arfn = fullfile(imFolder_r, 'ar_scalefactors.h5') ;
 
 tomake = {polDir} ;
 for ii = 1:length(tomake)
@@ -181,7 +184,7 @@ end
 
 %% Load Pullback Mesh Stack ===============================================
 % Check if cutmeshes already saved
-mstckfn = fullfile(meshDir, 'meshStack_orbifold_20191019.mat') ; % debug
+mstckfn = fullfile(meshDir, 'meshStack_orbifold.mat') ; % debug
 if exist(mstckfn, 'file') 
     load(mstckfn)
 else
@@ -209,35 +212,54 @@ end
 disp('done building dt') 
 
 %% PREPARE FOR RADON ======================================================
-shiftyfn = fullfile(pivDir, 'shifty.mat') ;
-if exist(shiftyfn, 'file')
-    load(shiftyfn)
-else
-    disp('Loading pivresults_orbifold_pass0.mat ...')
-    load(fullfile(pivDir, 'pivresults_orbifold_pass0.mat'))
+if contains(seriestype, 's')
+    shiftyfn = fullfile(pivDir, 'shifty.mat') ;
+    if exist(shiftyfn, 'file')
+        load(shiftyfn)
+    else
+        disp('Loading pivresults_orbifold_pass0.mat ...')
+        load(fullfile(pivDir, 'pivresults_orbifold_pass0.mat'))
 
-    %% Subtract off the mean flow in y for each frame ========================= 
-    meanv = zeros(length(v_filtered), 1) ;
-    for ii=1:length(v_filtered)
-        tmp = v_filtered{ii} ;
-        meanv(ii) = mean(tmp(:)) ;
+        %% Subtract off the mean flow in y for each frame ========================= 
+        meanv = zeros(length(v_filtered), 1) ;
+        for ii=1:length(v_filtered)
+            tmp = v_filtered{ii} ;
+            meanv(ii) = mean(tmp(:)) ;
+        end
+        dy = round(meanv) ;
+        shifty = [0; -cumsum(dy)] ;
+        disp('computed shifty')
+        save(shiftyfn, 'shifty')
     end
-    dy = round(meanv) ;
-    shifty = [0; -cumsum(dy)] ;
-    disp('computed shifty')
-    save(shiftyfn, 'shifty')
+    disp('done loading/computing shifty')
+else
+    shifty = zeros(length(fns), 1);
+    disp(['no shifty since seriestype is ' seriestype])
 end
-disp('done loading/computing shifty')
 
 %% Load stretch values (width of mesh.urelax / width of mesh.u)
+% Try to load ar from h5
 ar = zeros(length(meshStack), 1) ;
-for ii = 1:length(meshStack)
-    if isfield(meshStack{ii}, 'urelax')
-        ar(ii) = max(meshStack{ii}.urelax(:, 1)) ;
+for kk = 1:length(time)
+    t = time(kk) ;
+    try
+        ar(t - time(1)) = h5read(arfn, ['/' sprintf('%06d', t)]) ;
+    catch
+        disp(['Could not find time ' num2str(t) ' in arfn'])
     end
 end
-if all(ar == 0)
-    error('Could not load ar (relaxed scalefactors)')
+
+if ~any(ar)
+    disp('Could not load from h5! Loading from meshStack')
+    ar = zeros(length(meshStack), 1) ;
+    for ii = 1:length(meshStack)
+        if isfield(meshStack{ii}, 'urelax')
+            ar(ii) = max(meshStack{ii}.urelax(:, 1)) ;
+        end
+    end
+    if all(ar == 0)
+        error('Could not load ar (relaxed scalefactors)')
+    end
 end
 disp('done loading ar (relaxed scalefactors)')
 
@@ -248,6 +270,8 @@ if strcmp(seriestype, 'es')
     fns = dir(strrep(fullfile([imFolder_es, '/', fileNameBase, '.tif']), '%06d', '*')) ;
 elseif strcmp(seriestype, 're')
     fns = dir(strrep(fullfile([imFolder_re, '/', fileNameBase, '.tif']), '%06d', '*')) ;
+elseif strcmp(seriestype, 'e')
+    fns = dir(strrep(fullfile([imFolder_e, '/', fileNameBase, '.tif']), '%06d', '*')) ;
 end
 % Write the images to disk and get their sizes while being written 
 imsizes = zeros(length(fns), 2) ;
@@ -273,12 +297,15 @@ if strcmp(seriestype, 'es')
 elseif strcmp(seriestype, 're')
     fns = dir(strrep(fullfile([imFolder_re, '/', fileNameBase, '.tif']), '%06d', '*')) ;
     stretch = false ;
+elseif strcmp(seriestype, 'e')
+    fns = dir(strrep(fullfile([imFolder_e, '/', fileNameBase, '.tif']), '%06d', '*')) ;
+    stretch = true ;
 end
 
 % Iterate over all images
-nemsz = 10 ;  % size of nematic bar to draw in images
-w = patch_width ;
-step = 0.5 * w ;
+nemsz = 15 ;  % size of nematic bar to draw in images
+w = 80 ; % patch_width ;
+step = 30 ;
 for ii=1:length(fns)
     tidx = time(ii) ; % timestamp as integer
     timestr = sprintf('%03d', tidx) ;
@@ -307,20 +334,24 @@ for ii=1:length(fns)
     for res = 2
         disp(['Computing/loading polarity using algorithm ' sprintf('%01d', res)])
         options.res = res ;
-        fn = ['polarity_' seriestype '_w' sprintf('%04d', w) ...
-            '_step' sprintf('%04d', step) '_res' sprintf('%01d', res)] ;
+        wstepstr = ['_w' sprintf('%04d', w) '_step' sprintf('%04d', step)] ;
+        fn = ['polarity_' seriestype wstepstr '_res' sprintf('%01d', res)] ;
         radonfn = fullfile(polDir, fn) ;
         
         % Check for the results of this method (res = 1,2)
-        poldir2d_res = fullfile(polDir, ['polarity2d_' seriestype '_res' sprintf('%01d', res) ]) ;
+        poldir2d_res = fullfile(polDir, ['polarity2d_' seriestype '_res' sprintf('%01d', res) wstepstr ]) ;
         if ~exist(poldir2d_res, 'dir')
             mkdir(poldir2d_res)
         end
         if stretch        
-            poldir2d_res_stretch = fullfile(polDir, ['polarity2d_' seriestype '_res' sprintf('%01d', res) '_stretchcorr']) ;
+            poldir2d_res_stretch = fullfile(polDir, ['polarity2d_' seriestype '_res' sprintf('%01d', res) '_stretchcorr' wstepstr]) ;
             if ~exist(poldir2d_res_stretch, 'dir')
                 mkdir(poldir2d_res_stretch)
             end
+        end
+        poldir2d_res_color = [poldir2d_res '_color'] ;
+        if ~exist(poldir2d_res_color, 'dir')
+            mkdir(poldir2d_res_color)
         end
         
         % Figure out if we load the data from disk or compute it
@@ -343,7 +374,6 @@ for ii=1:length(fns)
             xx = h5read(radonfn, ['/' fileName '/xx']) ;
             yy = h5read(radonfn, ['/' fileName '/yy']) ;
         else
-            error('bad')
             disp('Computing radon peaks...')
             % Preallocate
             angles = zeros(length(xx), length(yy)) ;
@@ -497,10 +527,11 @@ for ii=1:length(fns)
             yv = nemsz * magnitudes .* sin(angles) ;
             xvt = xv';
             yvt = yv';
+            [x0, y0] = meshgrid(xx, yy) ;
             x0q = x0 - 0.5 * xvt ;
             y0q = y0 - 0.5 * yvt ;
             % quiver(x0q(:), y0q(:), xv(:), yv(:), 0, 'ShowArrowHead', 'off') ;
-            scatter(y0(:), x0(:), 'r.')
+            % scatter(y0(:), x0(:), 'r.')
             quiver(y0q(:), x0q(:), yvt(:), xvt(:), 0, 'ShowArrowHead', 'off') ;
             axis equal
             xlim(xlims) ;
@@ -529,9 +560,13 @@ for ii=1:length(fns)
                 [x0, y0] = meshgrid(xx, yy) ;
                 xv = nemsz * mag_smooth .* cos(angles_smoothcorr) ;
                 yv = nemsz * mag_smooth .* sin(angles_smoothcorr) ;
-                x0q = x0 - 0.5 * xv;
-                y0q = y0 - 0.5 * yv ;
-                quiver(x0q(:), y0q(:), xv(:), yv(:), 0, 'ShowArrowHead', 'off') ;
+                xvt = xv';
+                yvt = yv';
+                x0q = x0 - 0.5 * xvt ;
+                y0q = y0 - 0.5 * yvt ;
+                % quiver(x0q(:), y0q(:), xv(:), yv(:), 0, 'ShowArrowHead', 'off') ;
+                % scatter(y0(:), x0(:), 'r.')
+                quiver(y0q(:), x0q(:), yvt(:), xvt(:), 0, 'ShowArrowHead', 'off') ;
                 axis equal
                 xlim(xlims) ;
                 ylim(ylims) ;
@@ -540,85 +575,53 @@ for ii=1:length(fns)
                 % print('-dpng','-r300', outimfn)
                 disp(['Saving image to ' outimfn]) 
                 imwrite( patchIm.cdata, outimfn );
+                close all
             end
         end
         
         %% Save colorplots (heatmap)    
+        close all
         outimfn = fullfile(poldir2d_res_color, [fileName '.png']) ;
         % colors for colorplots
         [colors, ~] = define_colors(3) ;
         yellow = colors(3, :) ;
         cmap = interpolate_3color_cmap(0:0.01:1, 5, yellow, 4, false) ;
-        if ~exist(outimfn) || overwrite
-            disp('Saving stretch corrected image')
+        if ~exist(outimfn, 'file') || overwrite
+            disp('Saving colored image')
+            
             figure('units', 'normalized', ...
                 'outerposition', [0 0 1 1], 'visible', 'off')
-            % washout image 
-            % imshow(im * washout2d + image_max * (1-washout2d))
-            imshow(im)
-            xlims = xlim ;
-            ylims = ylim ;
-            hold on
-            [x0, y0] = meshgrid(xx, yy) ;
-
-            %%% OVERLAY FIGURES
-            % New figure
-            hf=figure;
-            set(hf, 'Visible', 'off');
-            % Background image
-            h1 = axes;
-            p1 = imagesc(mem(:, :, t)); 
-            colormap(h1,'gray');
-            set(h1,'ydir','normal');
-            % Foreground image
-            h2=axes;
-            % Could use pcolor
-            % s = pcolor(xx, yy, aniso) ;   
-            % s.FaceColor = 'interp' ;
-            % s.EdgeColor = 'none' ;
-            % set(s,'facealpha',0.3)
-            % Instead use imagesc
-            opacity = min(1, mags_n * alphaVal) ;
-            % check it
-            % imshow(opacity) 
-            % error('break')
-            s = imagesc(xcenters, ycenters, lcos2t, 'AlphaDataMapping','scaled',...
-                    'AlphaData', opacity) ;
-            % alpha(h2, alphaVal)
-            caxis([-1, 1]) ;
-            set(h2,'color','none','visible','off');
-            colormap(h2, cmap);
-            set(h2,'ydir','normal');
-            linkaxes([h1 h2])
+            if stretch
+                cos2t = cos(2 * angles_smoothcorr) ;
+            else
+                cos2t = cos(2 * angles_smooth) ;
+            end
+            options.alpha = magnitudes / max(magnitudes(:)) ;
+            % options.alpha = 1;
+            hh = heatmap_on_alphaimage(im, xx, yy, cos2t, options) ;
+            
             axis equal
-            % Make both axes invisible
-            axis off
-            set(h1, 'Visible', 'off')
-            % Get the current axis size in case things get disrupted
-            originalPos_h1 = get(h1, 'Position') ;
-            originalPos_h2 = get(h2, 'Position') ;
-            title(['t=' num2str(t) ' min'],...
-                'FontWeight','Normal')
-            set(h2, 'Position', originalPos_h2);
-
+            axis off 
+            colormap(gca, cmap)
+            
             % Colorwheel as grid
             ax3 = axes('Position', colorwheel_position) ;
-            [xx, yy] = meshgrid(-1:0.01:1, -1:0.01:1) ;
-            color = cos(2 * atan2(yy, xx)) * 0.5  + 0.5 ;
-            radius = vecnorm([xx(:), yy(:)]') ;
-            alpha = reshape(radius, size(xx)) ;
+            [qq, pp] = meshgrid(-1:0.01:1, -1:0.01:1) ;
+            % Note purposeful transposition here!
+            color = cos(2 * atan2(qq, pp)) * 0.5  + 0.5 ;
+            radius = vecnorm([qq(:), pp(:)]') ;
+            alpha = reshape(radius, size(qq)) ;
             alpha(radius > 1) = 0 ;
-            h = imagesc(xx(:), yy(:), color) ;
+            h = imagesc(qq(:), pp(:), color) ;
             set(h, 'AlphaData', alpha) ;
             colormap(gca, cmap)
             axis equal
             axis off
-            title({'Radon-based anisotropy'}, 'Fontweight', 'normal')
+            title({'Radon-based', 'anisotropy'}, 'Fontweight', 'normal')
 
             % Save the image
-            disp(['Saving figure ' fn])
-            saveas(hf, fn)
-
+            disp(['Saving figure ' outimfn])
+            saveas(gcf, outimfn)
         end
         
     end

@@ -205,6 +205,7 @@ end
 % Check if cutmeshes already saved
 mstckfn = fullfile(meshDir, 'meshStack_orbifold.mat') ;
 outcutfn = fullfile(cutFolder, 'cutPaths.h5') ;
+outarfn = fullfile(imFolder_r, 'ar_scalefactors.h5') ;
 outadIDxfn = fullfile(cylCutMeshOutDir, 'adIDx.h5') ;
 outpdIDxfn = fullfile(cylCutMeshOutDir, 'pdIDx.h5') ;
 if exist(mstckfn, 'file') && ~overwrite
@@ -351,17 +352,20 @@ else
             fprintf('Done with generating CutMesh\n');
 
             % Save the cut in h5 file
-            try
-                h5create(outcutfn, ['/' sprintf('%06d', t) ], size(cutP)) ;
-            catch
-                disp(['cut for t=' num2str(t) ' already exists'])
-            end
-            h5write(outcutfn, ['/' sprintf('%06d', t)], cutP) ;
-            
-            % Save cutMesh
-            save(cutMeshfn, 'cutMesh', 'adIDx', 'pdIDx')
+            if ~isempty(cutP)
+                try
+                    h5create(outcutfn, ['/' sprintf('%06d', t) ], size(cutP)) ;
+                catch
+                    disp(['cut for t=' num2str(t) ' already exists'])
+                end
+                h5write(outcutfn, ['/' sprintf('%06d', t)], cutP) ;
 
-            disp('done with plotting & saving cut')
+                % Save cutMesh
+                save(cutMeshfn, 'cutMesh', 'adIDx', 'pdIDx')
+                disp('done with plotting & saving cut')
+            else
+                disp('Could not cut mesh, did not save.')
+            end
         else
             load(cutMeshfn) 
             cutP = h5read(outcutfn, ['/' sprintf('%06d', t)]) ;
@@ -369,7 +373,10 @@ else
         end
         
         %% Plot the cutPath (cutP) in 3D
-        if compute_pullback && save_ims
+        cutfn = sprintf( fullfile(cutMeshImagesDir, [fileNameBase, '_cut.png']), t ) ;
+        plot_cut = compute_pullback && save_ims  ;
+        plot_cut = plot_cut && (~exist(cutfn, 'file') || overwrite) ;
+        if plot_cut
             disp('Plotting cut...')
             xyzrs = ((rot * mesh.v')' + trans) * resolution ;
             fig = figure('Visible', 'Off')  ;
@@ -388,7 +395,6 @@ else
             xlabel('x [$\mu$m]', 'Interpreter', 'Latex') ;
             ylabel('y [$\mu$m]', 'Interpreter', 'Latex') ;
             zlabel('z [$\mu$m]', 'Interpreter', 'Latex') ;
-            cutfn = sprintf( fullfile(cutMeshImagesDir, [fileNameBase, '_cut.png']), t ) ;
             saveas(fig, cutfn)
             close all 
         end
@@ -442,21 +448,33 @@ else
             %----------------------------------------------------------------------
             fprintf('Generating Pullback... ');
             cutMesh = flattenAnnulus( cutMesh );
-
-            % Find lateral scaling that minimizes spring network energy
-            ar = minimizeIsoarealAffineEnergy( cutMesh.f, cutMesh.v, cutMesh.u );
+            
+            % Load or compute the affine-most scaling in x for the mesh
+            try
+                ar = h5read(outarfn, ['/' sprintf('%06d', t)]) ;
+            catch
+                disp('ar not saved, computing...')
+                % Find lateral scaling that minimizes spring network energy
+                ar = minimizeIsoarealAffineEnergy( cutMesh.f, cutMesh.v, cutMesh.u );
+                % Save the relaxed scaling factor in h5 file
+                try
+                    h5create(outarfn, ['/' sprintf('%06d', t) ], size(ar)) ;
+                catch
+                    disp(['ar for t=' num2str(t) ' already exists'])
+                end
+                h5write(outarfn, ['/' sprintf('%06d', t)], ar) ;
+            end
             % Assign scaling based on options: either a0 or a_fixed
             if tidx == 1 && ~a_fixed
                 a_fixed = ar ;
             end      
             a = a_fixed ;
-      
             % Scale the x axis by a or ar
             uvtx = cutMesh.u ;
             cutMesh.u = [ a .* uvtx(:,1), uvtx(:,2) ];
             cutMesh.urelax = [ ar .* uvtx(:,1), uvtx(:,2) ];
             fprintf('Done\n');
-
+            
             % View results --------------------------------------------------------
             % 
             % patch( 'Faces', cutMesh.f, 'Vertices', cutMesh.u, ...
@@ -482,16 +500,21 @@ else
             % Generate Output Image File
             %----------------------------------------------------------------------
             imfn = sprintf( fullfile([imFolder, '/', fileNameBase, '.tif']), t ); 
+            imfn_r = sprintf( fullfile([imFolder_r, '/', fileNameBase, '.tif']), t ) ;
+            
+            if ~exist(imfn, 'file') || ~exist(imfn_r, 'file')
+                disp('Loading timepoint data...')
+                % Load 3D data for coloring mesh pullback
+                xp.loadTime(t);
+                xp.rescaleStackToUnitAspect();
+            end
+            
             if ~exist(imfn, 'file')
                 fprintf(['Generating output image: ' imfn]);
 
                 % Texture patch options
                 Options.PSize = 5;
                 Options.EdgeColor = 'none';
-
-                % Load 3D data for coloring mesh pullback
-                xp.loadTime(t);
-                xp.rescaleStackToUnitAspect();
 
                 % Raw stack data
                 IV = xp.stack.image.apply();
@@ -576,7 +599,6 @@ else
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Save relaxed image
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-            imfn_r = sprintf( fullfile([imFolder_r, '/', fileNameBase, '.tif']), t ) ;
             if ~exist(imfn_r, 'file')
                 disp('Generating relaxed image...')
 
@@ -741,39 +763,45 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TILE IMAGES IN Y AND RESAVE ============================================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fns = dir(strrep(fullfile([imFolder, '/', fileNameBase, '.tif']), '%06d', '*')) ;
+dirs2do = {imFolder, imFolder_r} ;
+outs2do = {imFolder_e, imFolder_re} ;
+for kk = 1:2
+    dir2do = dirs2do{kk} ;
+    out2do = outs2do{kk} ;
+    fns = dir(strrep(fullfile([dir2do, '/', fileNameBase, '.tif']), '%06d', '*')) ;
 
-% Get original image size
-im = imread(fullfile(fns(1).folder, fns(1).name)) ;
-halfsize = round(0.5 * size(im, 1)) ;
-osize = size(im) ;
+    % Get original image size
+    im = imread(fullfile(fns(1).folder, fns(1).name)) ;
+    halfsize = round(0.5 * size(im, 1)) ;
+    osize = size(im) ;
 
-for i=1:length(fns)
-    if ~exist(fullfile(imFolder_e, fns(i).name), 'file')
-        disp(['Reading ' fns(i).name])
-        fileName = split(fns(i).name, '.tif') ;
-        fileName = fileName{1} ;
-        im = imread(fullfile(fns(i).folder, fns(i).name)) ;
+    for i=1:length(fns)
+        if ~exist(fullfile(out2do, fns(i).name), 'file')
+            disp(['Reading ' fns(i).name])
+            fileName = split(fns(i).name, '.tif') ;
+            fileName = fileName{1} ;
+            im = imread(fullfile(fns(i).folder, fns(i).name)) ;
 
-        % im2 is as follows:
-        % [ im(end-halfsize) ]
-        % [     ...          ]
-        % [    im(end)       ]
-        % [     im(1)        ]
-        % [     ...          ]
-        % [    im(end)       ]
-        % [     im(1)        ]
-        % [     ...          ]
-        % [  im(halfsize)    ]
-        im2 = uint8(zeros(size(im, 1) + 2 * halfsize, size(im, 2))) ;
-        im2(1:halfsize, :) = im(end-halfsize + 1:end, :);
-        im2(halfsize + 1:halfsize + size(im, 1), :) = im ;
-        im2(halfsize + size(im, 1) + 1:end, :) = im(1:halfsize, :);
-        imwrite( im2, fullfile(imFolder_e, fns(i).name), 'TIFF' );
-    else
-        disp('already exists')
+            % im2 is as follows:
+            % [ im(end-halfsize) ]
+            % [     ...          ]
+            % [    im(end)       ]
+            % [     im(1)        ]
+            % [     ...          ]
+            % [    im(end)       ]
+            % [     im(1)        ]
+            % [     ...          ]
+            % [  im(halfsize)    ]
+            im2 = uint8(zeros(size(im, 1) + 2 * halfsize, size(im, 2))) ;
+            im2(1:halfsize, :) = im(end-halfsize + 1:end, :);
+            im2(halfsize + 1:halfsize + size(im, 1), :) = im ;
+            im2(halfsize + size(im, 1) + 1:end, :) = im(1:halfsize, :);
+            imwrite( im2, fullfile(out2do, fns(i).name), 'TIFF' );
+        else
+            disp('already exists')
+        end
+
     end
-    
 end
 disp('done writing extended tiffs')
 

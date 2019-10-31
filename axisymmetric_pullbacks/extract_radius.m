@@ -97,19 +97,38 @@ for t = 1
     load(cutMeshfn, 'cutMesh')
 
     cutMesh
-    % Create global graph
-    GG = makeGraph(faceIn, vertexIn) ;
 
-    % Consider all vertices
+    % % Create global graph
+    % GG = makeGraph(faceIn, vertexIn) ;
+    % % Get min geodesic distance from the anterior cut point at the same phi
+    % % value
+    % apath = shortestpath( GG, cp1, cp2 )' ;
+    % adist = 
+    % % Get min geodesic distance from the anterior cut point at the same phi
+    % % value
+    % ppath = shortestpath( GG, cp1, cp2 )' ;
+    % pdist = 
     
-    % Get min geodesic distance from the anterior cut point at the same phi
-    % value
-    apath = shortestpath( GG, cp1, cp2 )' ;
-    adist = 
+    
+    % Consider all vertices
+    start_points = aidx ;
+    DD = perform_fast_marching_mesh(mesh.v, mesh.f, start_points, options) ;
 
-    % Get min geodesic distance from the anterior cut point at the same phi
-    % value
-    ppath = shortestpath( GG, cp1, cp2 )' ;
-    pdist = 
+    % perform_fast_marching_mesh - launch the Fast Marching algorithm on a 3D mesh.
+    %
+    %   [D,S,Q] = perform_fast_marching_mesh(vertex, faces, start_points, options)
+    %
+    %   vertex, faces: a 3D mesh
+    %   start_points(i) is the index of the ith starting point .
+    %
+    %   D is the distance function to the set of starting points.
+    %   S is the final state of the points : -1 for dead (ie the distance
+    %       has been computed), 0 for open (ie the distance is only a temporary
+    %       value), 1 for far (ie point not already computed). Distance function
+    %       for far points is Inf.
+    %   Q is the index of the closest point. Q is set to 0 for far points.
+    %       Q provide a Voronoi decomposition of the domain. 
+    
+    
     
 end
