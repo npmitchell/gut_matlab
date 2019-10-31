@@ -65,6 +65,7 @@ cylCutMeshOutDir = fullfile(cylCutDir, 'cleaned') ;
 cylinderMeshCleanBase = fullfile( cylCutMeshOutDir, ...
     'mesh_apical_stab_%06d_cylindercut_clean.ply' );
 
+
 % The file constaing the AD/PD points
 dpFile = fullfile( cylCutDir, 'ap_boundary_dorsalpts.h5' );
 
@@ -90,13 +91,11 @@ end
 
 %% Iterate Through Time Points to Compute radii ========================
 
-for t = 1
+for t = xp.fileMeta.timePoints
     % Load the cutMesh
     cutMeshfn = fullfile(cutFolder, [fileNameBase, '_cutMesh.mat']) ;
     cutMeshfn = sprintf(cutMeshfn, t) ;
     load(cutMeshfn, 'cutMesh')
-
-    cutMesh
 
     % % Create global graph
     % GG = makeGraph(faceIn, vertexIn) ;
@@ -111,7 +110,20 @@ for t = 1
     
     
     % Consider all vertices
-    start_points = aidx ;
+    
+    % Get starting points (anterior)
+    mesh3dfn =  sprintf( cylinderMeshCleanBase, t ) ;
+    outadIDxfn = fullfile(cylCutMeshOutDir, 'apIDx.h5') ;
+    outpdIDxfn = fullfile(cylCutMeshOutDir, 'pdIDx.h5') ;
+    
+    
+    % Load the mesh, the anterior and posterior boundary IDs
+    mesh = read_ply_mod(mesh3dfn) ;
+    adIDx = h5read(outadIDxfn, ['/' sprintf('%06d', t)]) ;
+    pdIDx = h5read(outpdIDxfn, ['/' sprintf('%06d', t)]) ;
+    start_points = adIDx ;
+
+    options = {} ;
     DD = perform_fast_marching_mesh(mesh.v, mesh.f, start_points, options) ;
 
     % perform_fast_marching_mesh - launch the Fast Marching algorithm on a 3D mesh.
