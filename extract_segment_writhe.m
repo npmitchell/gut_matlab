@@ -1,4 +1,5 @@
-%% Extract the centerlines from a series of meshes (PLY files)
+%% Extract the polar Writhe from a series of meshes (PLY files)
+% Uses approach taken by Berger & Prior, J. Phys. A, 2006
 % Run from meshDir, where msls_output is
 %
 % Prerequisites
@@ -32,11 +33,10 @@ addpath(fullfile(codepath, 'addpath_recurse')) ;
 addpath(fullfile(codepath, 'mesh_handling'));
 addpath(fullfile(codepath, 'inpolyhedron'));
 addpath(fullfile(codepath, 'savgol')) ;
-addpath_recurse(fullfile(codepath, gptoolbox)) ;
+addpath_recurse(fullfile(codepath, 'gptoolbox')) ;
 
 % toolbox_path = [codepath 'toolbox_fast_marching/toolbox_fast_marching/'];
 % compile_c_files
-cd(odir)
 
 %% Parameters
 res = 1 ;
@@ -207,8 +207,8 @@ disp('done loading xyzlimits for centerline')
 ii = 1;
 
 %% Check if the results have been saved already
-wrfn = fullfile(wroutdir, 'writhe_segment.txt') ;
-wdfn = fullfile(meshdir, 'writhe_segment_densities.mat') ;
+wrfn = fullfile(wroutdir, 'writhe_polar.txt') ;
+wdfn = fullfile(meshdir, 'writhe_polar_densities.mat') ;
 lnfn = fullfile(meshdir, 'lengths_over_time.mat') ;
 wre = exist(wrfn, 'file');
 wde = exist(wdfn, 'file') ;
