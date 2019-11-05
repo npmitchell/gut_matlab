@@ -11,10 +11,10 @@ clear; close all; clc;
 %% Options
 % seriestype defines what pullback we are considering for the Radon transf.
 % e: extended, es: extended_shifted, rs: relaxed_shifted, 
-seriestype = 'e'; 
+seriestype = 're'; 
 
 %% Parameters
-overwrite = true ;
+overwrite = false ;
 save_ims = true ;
 normal_shift = 10 ;
 a_fixed = 2 ;
@@ -138,6 +138,7 @@ xp.setExpMeta(expMeta);
 xp.initNew();
 
 clear fileMeta expMeta
+
 
 
 %% Initialize Some Directory Definitions ==================================
@@ -335,7 +336,7 @@ for ii=1:length(fns)
         disp(['Computing/loading polarity using algorithm ' sprintf('%01d', res)])
         options.res = res ;
         wstepstr = ['_w' sprintf('%04d', w) '_step' sprintf('%04d', step)] ;
-        fn = ['polarity_' seriestype wstepstr '_res' sprintf('%01d', res)] ;
+        fn = ['polarity_' seriestype wstepstr '_res' sprintf('%01d', res) '.h5'] ;
         radonfn = fullfile(polDir, fn) ;
         
         % Check for the results of this method (res = 1,2)
@@ -373,6 +374,13 @@ for ii=1:length(fns)
             mag_smooth = h5read(radonfn, ['/' fileName '/mag_smooth']) ;
             xx = h5read(radonfn, ['/' fileName '/xx']) ;
             yy = h5read(radonfn, ['/' fileName '/yy']) ;
+            
+            if stretch
+                angles_corrected = h5read(radonfn, ['/' fileName '/angles_corrected']) ;
+                nxc = cos(2 * angles_corrected) ;
+                nyc = sin(2 * angles_corrected) ;
+                angles_corr = atan2(nyc, nxc) * 0.5 ;
+            end
         else
             disp('Computing radon peaks...')
             % Preallocate
@@ -443,7 +451,7 @@ for ii=1:length(fns)
             %% Stretch the vectors if the image is not relaxed
             if stretch
                 scale_factor = ar(tidx - time(1) + 1) ;
-                angles_corrected = atan2(sin(angles), scale_factor * cos(angles)) ;
+                angles_corrected = atan2(sin(angles), (1 / scale_factor) * cos(angles)) ;
                 % save it
                 try
                     h5create(radonfn, ['/' fileName '/angles_corrected'], size(angles_corrected)) ;
@@ -486,11 +494,14 @@ for ii=1:length(fns)
             if stretch
                 % First smooth the image
                 % Note: multiply by 2 to give continuity around 2pi
-                nxs = conv2(cos(2 * angles_corrected), filt, 'same') ;
-                nys = conv2(sin(2 * angles_corrected), filt, 'same') ;
+                nxc = cos(2 * angles_corrected) ;
+                nyc = sin(2 * angles_corrected) ;
+                nxs = conv2(nxc, filt, 'same') ;
+                nys = conv2(nyc, filt, 'same') ;
                 
                 % Convert back to nematic order from polar
                 angles_smoothcorr = atan2(nys, nxs) * 0.5 ;
+                angles_corr = atan2(nyc, nxc) * 0.5 ;
 
                 % save it
                 try
@@ -558,8 +569,8 @@ for ii=1:length(fns)
                 ylims = ylim ;
                 hold on
                 [x0, y0] = meshgrid(xx, yy) ;
-                xv = nemsz * mag_smooth .* cos(angles_smoothcorr) ;
-                yv = nemsz * mag_smooth .* sin(angles_smoothcorr) ;
+                xv = nemsz * magnitudes .* cos(angles_corr) ;
+                yv = nemsz * magnitudes .* sin(angles_corr) ;
                 xvt = xv';
                 yvt = yv';
                 x0q = x0 - 0.5 * xvt ;
@@ -632,7 +643,7 @@ disp('done with radon peaks')
 
 % Use two different methods for comparison
 % todo: also try https://www.mathworks.com/help/images/ref/imhmax.html
-for res = 1:2
+for res = 2
     resstr = ['_res' sprintf('%01d', res)] ;
     cos2t_medians = zeros(length(ar), 1) ;
     sin2t_medians = zeros(length(ar), 1) ;
