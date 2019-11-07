@@ -1,7 +1,8 @@
 function wr = local_writhe(ss, xyz)
-%UNTITLED4 Summary of this function goes here
-%   Detailed explanation goes here
-% Based on Berger & Prior, The writhe of open and closed curves, 2006
+%LOCAL_WRITHE Compute Wr contribution of each point in a curve 
+%   This quantity (wr) is the amount of writhe stored in the segment 
+%   (r, r + dr). Method based on Berger & Prior, The writhe of open and 
+%   closed curves, 2006.
 % 
 % Note that in the paper, prime denotes d/dz.
 dz = gradient(xyz(:, 3));
@@ -25,7 +26,8 @@ tangentprime = tangent_gradient ./ dz ;
 
 % take cross product of tangent with change of tangent
 txtprime = cross(tangent, tangentprime) ;
-wr = (1 / (2 * pi)) * (ones(length(lamb), 1) ./ (1 + abs(lamb))) .* txtprime(:, 3) ; 
+wr = (1 / (2 * pi)) * (ones(length(lamb), 1) ./ (1 + abs(lamb))) .* txtprime(:, 3) ;
+wr = wr .* abs(dz) ;
 
 end
 

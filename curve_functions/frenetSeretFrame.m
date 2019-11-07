@@ -5,7 +5,7 @@ function [tangent, normal, binormal] = frenetSeretFrame(ss, xp, yp, zp)
 dsx = gradient(ss) ;
 
 % First calc rate of change of curve along curve
-gradc_raw = [gradient(xp'), gradient(yp'), gradient(zp')] ; 
+gradc_raw = [gradient(xp(:)), gradient(yp(:)), gradient(zp(:))] ; 
 gradc = bsxfun(@rdivide, gradc_raw, dsx(:)) ;
 gradc_ds = vecnorm(gradc, 2, 2) ;
 % Compute the tangent to the curve

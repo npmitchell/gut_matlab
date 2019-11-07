@@ -359,10 +359,9 @@ else
         %     % Writhe per unit length is wr
         %     wr(jj) = sum(integrand) ;
         % end
-        [wrp, wrp_local, wrp_nl, turns] = polarWrithe(xyzp, ssx(:)) ;
+        [Wrp(ii), wrp_local, wrp_nl, turns, segments] = polarWrithe(xyzp, ssx(:)) ;
         if length(turns) < 1
-            Wrp(ii) = sum(wrp(isfinite(wrp))) ;
-            wrp_densities{ii} = wrp ;
+            wrp_densities{ii} = wrp_local ;
         end
         lengths(ii) = max(ss) ;
         if preview
