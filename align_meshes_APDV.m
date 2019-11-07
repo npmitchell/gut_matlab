@@ -83,8 +83,8 @@ cd(odir)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parameters
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-overwrite = false ;  % recompute centerline
-overwrite_apdvcoms = false ;  % recompute APDV coms from training
+overwrite = true ;  % recompute centerline
+overwrite_apdvcoms = true ;  % recompute APDV coms from training
 save_figs = true ;  % save images of cntrline, etc, along the way
 overwrite_ims = true ;  % overwrite images even if centerlines are not overwritten
 preview = false ;  % display intermediate results, for debugging
@@ -451,7 +451,19 @@ for ii=1:length(fns)
         ddat = permute(squeeze(apdat(dorsalChannel, :, :, :)), axorder) ;
         
         options.check = false ;
-        dcom = com_region(ddat, dorsal_thres, options) ;
+        search4com = true ;
+        % start with a threshold == dorsal_thres, iteratively lower if
+        % necessary
+        tmp_dorsal_thres = dorsal_thres ;
+        while search4com 
+            try
+                dcom = com_region(ddat, tmp_dorsal_thres, options) ;
+                search4com = false ;
+            catch
+                disp('no region found, lowering dorsal threshold for prob cloud') ;
+                tmp_dorsal_thres = 0.9 * tmp_dorsal_thres ;
+            end
+        end
         %%%%%%%%%%%%%%%%%%%%%%
         if preview
             % % disp('Showing dorsal segmentation...')

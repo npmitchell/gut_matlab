@@ -1,5 +1,5 @@
 function com = com_region(probability_grid, thres, varargin)
-    % com = TRAINING_COM(probability_grid, thres, gridxyz)
+    % com = COM_REGION(probability_grid, thres, gridxyz)
     % Given a probability cloud, find the center of mass of the largest 
     % connected region of the probability cloud above
     % some threshold, with "mass" proportional to probability

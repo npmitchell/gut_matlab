@@ -17,7 +17,7 @@
 clear ;
 compute_chirality = false ;
 overwrite = false ;
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1_20190908
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1_20190908
 
 
 %% First, compile required c code
@@ -34,6 +34,7 @@ addpath(fullfile(codepath, 'mesh_handling'));
 addpath(fullfile(codepath, 'inpolyhedron'));
 addpath(fullfile(codepath, 'savgol')) ;
 addpath_recurse(fullfile(codepath, 'gptoolbox')) ;
+addpath_recurse(fullfile(codepath, 'curve_functions')) ;
 
 % toolbox_path = [codepath 'toolbox_fast_marching/toolbox_fast_marching/'];
 % compile_c_files
@@ -213,20 +214,20 @@ lnfn = fullfile(meshdir, 'lengths_over_time.mat') ;
 wre = exist(wrfn, 'file');
 wde = exist(wdfn, 'file') ;
 lne = exist(lnfn, 'file') ;
-saved = cde && che && wre && wde && lne ;
+saved = wre && wde && lne ;
 
 if saved && ~overwrite
     % Load the results
     wdat = dlmread(wrfn, ',', 1, 0);
     times = wdat(:, 1) ;
-    Wr = wdat(:, 2) ; 
+    Wrp = wdat(:, 2) ; 
     dwr = wdat(:, 3) ;
     load(wdfn) ;
     load(lnfn) ;
 else
     %% Iterate through each mesh
-    Wr = zeros(length(fns), 1) ;
-    wr_densities = cell(length(fns), 1);
+    Wrp = zeros(length(fns), 1) ;
+    wrp_densities = cell(length(fns), 1);
     times = zeros(length(fns), 1) ;
 
     for ii=1:length(fns)
@@ -258,7 +259,7 @@ else
         % Smoothing parameters
         framelen = 17 ;  % must be odd
         polyorder = 2 ;
-        [ssx, xp, yp, zp] = smooth_curve_via_fit_3d(skelrs, polyorder, framelen) ;
+        [ssx, xp, yp, zp] = smooth_curve_via_fit_3d(ss, skelrs, polyorder, framelen) ;
 
         %% Check the smoothing
         if preview
@@ -317,50 +318,53 @@ else
             saveas(fig, [figsmoutname '_fit.png'])
         end
 
-        %% Get tangent, normal, binormal
-        [tangent, normal, binormal] = frenetSeretFrame(ss, xp, yp, zp) ;
-
-        % Now compute how the normal changes along the AP axis    
-        v1 = normal(1:end-1, :) ;
-        v2 = normal(2:end, :) ;
-        dphi = acos(sum(v1 .* v2, 2)) ;
-        signphi = sign(sum(tangent(1:end-1, :) .* cross(v1, v2), 2)) ;
-        dphi = dphi .* signphi ;
-        chirality = dphi ./ dsx(1:end-1)' ;
-
-        % Check the angle change along AP axis
-        if preview
-            close all
-            fig = figure ;
-            set(fig, 'Visible', 'Off')
-            plot(ssx(1:end-1), dphi)
-            title('$d\phi/ds$', 'Interpreter', 'Latex')
-            ylabel('$d\phi/ds$', 'Interpreter', 'Latex')
-            xlabel('$s$ [$\mu$m]', 'Interpreter', 'Latex')
-            saveas(fig, [figsmoutname '_dphids.png'])
-        end
+        % %% Get tangent, normal, binormal
+        % [tangent, normal, binormal] = frenetSeretFrame(ss, xp, yp, zp) ;
+        % 
+        % % Now compute how the normal changes along the AP axis    
+        % v1 = normal(1:end-1, :) ;
+        % v2 = normal(2:end, :) ;
+        % dphi = acos(sum(v1 .* v2, 2)) ;
+        % signphi = sign(sum(tangent(1:end-1, :) .* cross(v1, v2), 2)) ;
+        % dphi = dphi .* signphi ;
+        % chirality = dphi ./ dsx(1:end-1)' ;
+        % 
+        % % Check the angle change along AP axis
+        % if preview
+        %     close all
+        %     fig = figure ;
+        %     set(fig, 'Visible', 'Off')
+        %     plot(ssx(1:end-1), dphi)
+        %     title('$d\phi/ds$', 'Interpreter', 'Latex')
+        %     ylabel('$d\phi/ds$', 'Interpreter', 'Latex')
+        %     xlabel('$s$ [$\mu$m]', 'Interpreter', 'Latex')
+        %     saveas(fig, [figsmoutname '_dphids.png'])
+        % end
 
         %% Compute the writhe
         % Wr = 1/4pi \int \int T(s) xx T(s') \cdot [R(s) - R(s') / |R(s) - R(s')|^3]
         % Here use the polynomial fit to the curve to compute
         % xp, yp, zp
         % first compute vec from each point to every other point
-        xyzp = [xp', yp', zp'] ;
-        wr = zeros(length(ssx), 1) ;
-        for jj=1:length(ssx)
-            oind = setdiff(1:length(ssx), jj) ;
-            rmr = xyzp(jj, :) - xyzp(oind, :) ;
-            rmrmag = vecnorm(rmr')' ;
-            txt = cross(tangent(jj,:) .* ones(length(oind), 3), tangent(oind, :));
-            % Take row-wise inner product
-            integrand = sum(sum(txt .* rmr, 2) ./ (rmrmag.^3 .* ones(size(txt))), 2) ;
-            % Writhe per unit length is wr
-            wr(jj) = sum(integrand) ;
+        xyzp = [yp', zp', xp'] ;
+        % traditional writhe:
+        % wr = zeros(length(ssx), 1) ;
+        % for jj=1:length(ssx)
+        %     oind = setdiff(1:length(ssx), jj) ;
+        %     rmr = xyzp(jj, :) - xyzp(oind, :) ;
+        %     rmrmag = vecnorm(rmr')' ;
+        %     txt = cross(tangent(jj,:) .* ones(length(oind), 3), tangent(oind, :));
+        %     % Take row-wise inner product
+        %     integrand = sum(sum(txt .* rmr, 2) ./ (rmrmag.^3 .* ones(size(txt))), 2) ;
+        %     % Writhe per unit length is wr
+        %     wr(jj) = sum(integrand) ;
+        % end
+        [wrp, wrp_local, wrp_nl, turns] = polarWrithe(xyzp, ssx(:)) ;
+        if length(turns) < 1
+            Wrp(ii) = sum(wrp(isfinite(wrp))) ;
+            wrp_densities{ii} = wrp ;
         end
-        Wr(ii) = sum(wr(isfinite(wr))) ;
-        wr_densities{ii} = wr ;
         lengths(ii) = max(ss) ;
-
         if preview
             % Plot the writhe 
             fig = figure('Visible', 'Off');
@@ -375,20 +379,20 @@ else
     end
 
     %% Save Wr(t) and Ch(t)
-    % Save the chirality
-    dlmwrite(fullfile(choutdir, 'chirality.txt'), [times, Chirality]);
-    save(fullfile(meshdir, 'chirality_densities.mat'), 'chirality_densities') ;
+    % Save the chirality -- todo
+    % dlmwrite(fullfile(choutdir, 'chirality.txt'), [times, Chirality]);
+    % save(fullfile(meshdir, 'chirality_densities.mat'), 'chirality_densities') ;
 
     % Save the writhe
     windowSize = 7; 
     b = (1/windowSize)*ones(1,windowSize);
     a = 1;
-    Wrsm = smoothdata(Wr, 'rlowess', 5) ;
+    Wrsm = smoothdata(Wrp, 'rlowess', 5) ;
     wsmooth = filter(b, a, Wrsm) ;
     dwr = gradient(wsmooth) ;
-    write_txt_with_header(fullfile(wroutdir, 'writhe.txt'),...
-        [times, Wr, dwr], 'timestamp, Writhe, d(Wr)/dt');
-    save(fullfile(meshdir, 'writhe_densities.mat'), 'wr_densities') ;
+    write_txt_with_header(wrfn, ...
+        [times, Wrp, dwr], 'timestamp, polar Writhe, d(Wr)/dt');
+    save(wdfn, 'wrp_densities') ;
 
     % Save length vs time and dlength 
     % Filter the data for derivative
@@ -403,29 +407,30 @@ end
 disp('Done loading/computing chirality/writhe')
 
 %% Save simple figures
-% Save chirality as a figure
-close all
-fig = figure('Visible', 'Off') ;
-plot(times, Chirality) ;
-xlabel('time [min]', 'Interpreter', 'Latex')
-ylabel('Chirality, $\Delta \phi$', 'Interpreter', 'Latex')
-title('Chirality over time', 'Interpreter', 'Latex')
-set(gcf, 'PaperUnits', 'centimeters');
-set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);        
-saveas(fig, fullfile(figoutdir, 'chirality_vs_time.pdf'))
-saveas(fig, fullfile(figoutdir, 'chirality_vs_time.png'))
+% Save chirality as a figure -- todo
+% close all
+% fig = figure('Visible', 'Off') ;
+% plot(times, Chirality) ;
+% xlabel('time [min]', 'Interpreter', 'Latex')
+% ylabel('Chirality, $\Delta \phi$', 'Interpreter', 'Latex')
+% title('Chirality over time', 'Interpreter', 'Latex')
+% set(gcf, 'PaperUnits', 'centimeters');
+% set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);        
+% saveas(fig, fullfile(figoutdir, 'chirality_vs_time.pdf'))
+% saveas(fig, fullfile(figoutdir, 'chirality_vs_time.png'))
 
 % Save writhe as a figure
 close all
 fig = figure('Visible', 'Off') ;
-plot(times, Wr) ;
+plot(times, mod(Wrp, 1)) ;
 xlabel('time [min]', 'Interpreter', 'Latex')
-ylabel('Writhe, $\int \mathrm{d}s_2 \int \mathrm{d}s_1 \, (\mathbf{t}(s_1) \times \mathbf{t}(s_2)) \cdot \delta \mathbf{r} / |\delta r|^3$', 'Interpreter', 'Latex')
-title('Writhe over time', 'Interpreter', 'Latex')
+ylabel('Polar Writhe')
+title('Polar Writhe over time', 'Interpreter', 'Latex')
 set(gcf, 'PaperUnits', 'centimeters');
 set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);        
-saveas(fig, fullfile(figwrdir, 'writhe_vs_time.pdf'))
-saveas(fig, fullfile(figwrdir, 'writhe_vs_time.png'))
+disp(['Saving figure to: ' fullfile(figwrdir, 'writhe_polar_vs_time.pdf')])
+saveas(fig, fullfile(figwrdir, 'writhe_polar_vs_time.pdf'))
+saveas(fig, fullfile(figwrdir, 'writhe_polar_vs_time.png'))
 
 
 %% Save writhe as a figure with length, surfarea, volume
@@ -447,16 +452,16 @@ lh = plot(times - t0, lengths / lengths(ind)) ;
 ylabel('$V$, $A$, $L$', 'Interpreter', 'Latex')
 % writhe on right
 yyaxis right
-wh = plot(times - t0, Wr ) ;
+wh = plot(times - t0, Wrp ) ;
 xlims = get(gca, 'xlim') ; 
 ylabel('Writhe, $Wr$', 'Interpreter', 'Latex')
 legend({'volume', 'area', 'length'}, ...
     'location', 'northwest', 'AutoUpdate', 'off')
 title('Gut dynamics', 'Interpreter', 'Latex')
 % Plot folding events
-plot(fold_times(2) - t0, Wr(fold_times(2)-t0+ind), 'ks') ;
-plot(fold_times(3) - t0, Wr(fold_times(3)-t0+ind), 'k^') ;
-plot(0, Wr(ind), 'ko') ;
+plot(fold_times(2) - t0, Wrp(fold_times(2)-t0+ind), 'ks') ;
+plot(fold_times(3) - t0, Wrp(fold_times(3)-t0+ind), 'k^') ;
+plot(0, Wrp(ind), 'ko') ;
 yyaxis left
 plot(fold_times(2) - t0, aas(fold_times(2)-t0+ind)/aas(ind), 'ks') ;
 plot(fold_times(3) - t0, aas(fold_times(3)-t0+ind)/aas(ind), 'k^') ;
@@ -570,7 +575,7 @@ for ii = 1:5
     elseif ii > 3
         % writhe on right
         yyaxis right
-        wh = plot(times(okinds) - t0, Wr(okinds) ) ;
+        wh = plot(times(okinds) - t0, Wrp(okinds) ) ;
         xlims = get(gca, 'xlim') ;
         ylabel('Writhe, $Wr$', 'Interpreter', 'Latex')
         legend({'volume', 'area', 'length'}, ...
@@ -579,9 +584,9 @@ for ii = 1:5
     % title('Gut dynamics', 'Interpreter', 'Latex')
     % Plot folding events
     if ii > 3
-        plot(fold_times(2) - t0, Wr(fold_times(2)-t0+ind), 'ks') ;
-        plot(fold_times(3) - t0, Wr(fold_times(3)-t0+ind), 'k^') ;
-        plot(0, Wr(ind), 'ko') ;
+        plot(fold_times(2) - t0, Wrp(fold_times(2)-t0+ind), 'ks') ;
+        plot(fold_times(3) - t0, Wrp(fold_times(3)-t0+ind), 'k^') ;
+        plot(0, Wrp(ind), 'ko') ;
     end
     
     yyaxis left
@@ -634,16 +639,16 @@ hold on;
 vh = plot(times - t0, vvs / vvs(ind)) ;
 ah = plot(times - t0, aas / aas(ind)) ;
 lh = plot(times - t0, lengths / lengths(ind)) ;
-wh = plot(times - t0, Wr ) ;
+wh = plot(times - t0, Wrp ) ;
 vcolor = get(vh, 'color') ;
 acolor = get(ah, 'color') ;
 xlims = get(gca, 'xlim') ; 
 ylims = get(gca, 'ylim') ; 
 plot(times - t0, dv / vvs(ind) * 100, '--', 'Color', vcolor) ;
 plot(times - t0, da / aas(ind) * 100, '--', 'Color', acolor) ;
-plot(t0, Wr(t0), 'k.') ;
-plot(fold_times(2) - t0, Wr(fold_times(2) - t0), 'ko') ;
-plot(fold_times(3) - t0, Wr(fold_times(3) - t0), 'ks') ;
+plot(t0, Wrp(t0), 'k.') ;
+plot(fold_times(2) - t0, Wrp(fold_times(2) - t0), 'ko') ;
+plot(fold_times(3) - t0, Wrp(fold_times(3) - t0), 'ks') ;
 set(gca, 'xlim', xlims)
 set(gca, 'ylim', ylims)
 xlabel('time [min]', 'Interpreter', 'Latex')
@@ -657,7 +662,7 @@ saveas(fig, fullfile(meshdir, 'writhe_dynamics2.png'))
 
 %% Save figures of writhe density
 fig = figure('Visible', 'Off') ;
-for ii=1:length(wr_densities)
+for ii=1:length(wrp_densities)
     timestr = sprintf('%06d', times(ii));
     scatter3(xp, yp, zp, 10, wr)
     xlim([xsmin, xsmax])
