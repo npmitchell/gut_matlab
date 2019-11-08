@@ -20,7 +20,7 @@ function lsegs = linesegments(xyz, closed)
 if closed
     lsegs = [xyz, circshift(xyz, -1, 1)] ;
 else
-    lsegs = [xyz(1:end-1, :), xyz(2:end)] ;
+    lsegs = [xyz(1:end-1, :), xyz(2:end, :)] ;
 end
 end
 

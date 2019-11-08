@@ -34,9 +34,9 @@ for jj=1:length(ssx)
     % Take row-wise inner product
     integrand = sum(sum(txt .* rmr, 2) ./ (rmrmag.^3 .* ones(size(txt))), 2) ;
     % Writhe per unit length is wr
-    wr(jj) = sum(integrand .* ds) ;
+    wr(jj) = sum(integrand .* ds(oind)) ;
 end
-Wr = nansum(wr .* ds) / (4 * pi) ;
+Wr = nansum(wr) / (4 * pi) ;
 wr = wr / (4 * pi) ;
 
 end

@@ -1,5 +1,5 @@
 % Demonstrate the polar Writhe definition on example curves
-outdir = '~/Desktop/polarwrithe/' ;
+outdir = '~/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/demo_polarwrithe/' ;
 if ~exist(outdir, 'dir')
     mkdir(outdir) ;
 end
@@ -260,22 +260,217 @@ text( 0.5, 0.95, titletext, 'FontSize', 14', 'FontWeight', 'Bold', ...
 saveas(gcf, fullfile(outdir, 'benthelix.png'))
 close all
 
-%% Torus wound curve
-t = 0:0.01:1 ;
-us = {t} ;
-vs = {2 * t} ;
-for ii = 1:length(us) 
-    u = us{ii} ;
-    v = vs{ii} ;
-    yy = cos(2*pi * v) .* (2 + cos(2 * pi * u)) ;
-    zz = sin(2*pi * v) .* (2 + cos(2 * pi * u)) ;
-    xx = sin(2*pi * u) ;
+%% Incomplete torus wound curve
+resl = [0.05, 0.03, 0.02, 0.01, 0.005, 0.001] ;
+Wrs = [] ;
+WrLs = [] ;
+WrGs = [] ;
+resID = 0 ;
+for res = resl
+    resID = resID + 1;
+    t = 0:res:1 ;
+    us = {t, t} ;
+    vs = {2 * t, 3 * t} ;
+    for ii = 1 
+        u = us{ii} ;
+        v = vs{ii} ;
+        yy = cos(2*pi * v) .* (2 + cos(2 * pi * u)) ;
+        zz = sin(2*pi * v) .* (2 + cos(2 * pi * u)) ;
+        xx = sin(2*pi * u) ;
+        xyz = [xx ; yy; zz]';
+        [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, [], res) ;
+        [WrL] = writheLevitt(xyz, false) ;
+        [WrG, wrG] = writheGaussIntegral(xyz, []) ;
+
+        Wrs(resID) = wr ;
+        WrLs(resID) = WrL ; 
+        WrGs(resID) = WrG ;
+
+        colors = define_colors(length(segs)) ;
+        markers = define_markers(length(segs)) ;
+
+        subplot(2, 2, 1)
+        % scatter3(xx', yy', zz', 10, yy) 
+        cvals = 1:length(xx) ;
+        scatter3(xx', yy', zz', 10, cvals) 
+        xlabel('x')
+        ylabel('y')
+        zlabel('z')
+        axis equal
+        title('Curve')
+
+        % Plot the segments colored
+        subplot(2,2,2)
+        for jj = 1:length(segs)
+            plot3(xx(segs{jj}), yy(segs{jj}), zz(segs{jj}), '.', 'Color', colors(jj, :)) ;
+            hold on
+        end
+        xlabel('x')
+        ylabel('y')
+        zlabel('z')
+        axis equal
+        title('Segments')
+        % Plot the local writhe
+        subplot(2, 2, 3)
+        plot(t, wr_local)
+        title('local writhe')
+        xlabel('position, s')
+        ylabel('local writhe')
+        % Plot the nonlocal writhe
+        subplot(2, 2, 4)
+        for jj = 1:length(wr_nonlocal)
+            segments = segpairs{jj} ;
+            segi = segments(1) ;
+            segj = segments(2) ;
+            plot(segi, wr_nonlocal(jj), markers{segj}, 'Color', colors(segj, :))
+            hold on
+        end
+        title('nonlocal writhe')
+        xlabel('segment pair index')
+        ylabel('nonlocal writhe')
+        axes( 'Position', [0, 0, 1, 1] ) ;
+        set( gca, 'Color', 'None', 'XColor', 'White', 'YColor', 'White' ) ;
+        titletext = ['Wr = ' num2str(wr)] ;
+        text( 0.5, 0.95, titletext, 'FontSize', 14', 'FontWeight', 'Bold', ...
+              'HorizontalAlignment', 'Center', 'VerticalAlignment', 'Bottom' ) ;
+        axis off
+        name = strrep(['torusknot_' num2str(ii) '_' sprintf('%0.3f', res)], '.', 'p') ;
+        saveas(gcf, fullfile(outdir, [name '.png']))
+        close all
+    end
+end
+
+close all
+h1 = plot(resl, Wrs, [markers{1} '-'], 'Color', colors(1, :)) ; 
+hold on;
+h2 = plot(resl, WrLs, [markers{2} '-'], 'Color', colors(2, :)) ;
+% h3 = plot(resl(WrGs < 10), WrGs(WrGs < 10), [markers{3} '-'], 'Color', colors(3, :)) ; 
+legend([h1, h2], {'polar', 'Levitt'}, 'location', 'best')
+title('Writhe comparison')
+xlabel('resolution')
+ylabel('Writhe') 
+saveas(gcf, fullfile(outdir, ['writhecomparison_curv' num2str(ii) '.png']))
+
+
+%% Torus wound open curve 
+close all
+res = 0.005 ;
+resl = [.1:0.05:1.0] ;
+Wrs = [] ;
+WrLs = [] ;
+WrGs = [] ;
+resID = 0 ;
+for leng = resl
+    resID = resID + 1;
+    t = 0:res:leng ;
+    us = {t} ;
+    vs = {2 * t} ;
+    for ii = 1:length(us) 
+        u = us{ii} ;
+        v = vs{ii} ;
+        yy = cos(2*pi * v) .* (2 + cos(2 * pi * u)) ;
+        zz = sin(2*pi * v) .* (2 + cos(2 * pi * u)) ;
+        xx = sin(2*pi * u) ;
+        xyz = [xx ; yy; zz]';
+        [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, [], res) ;
+        [WrL] = writheLevitt(xyz, true) ;
+        [WrG, wrG] = writheGaussIntegral(xyz, []) ;
+
+        Wrs(resID) = wr ;
+        WrLs(resID) = WrL ; 
+        WrGs(resID) = WrG ;
+
+        colors = define_colors(length(segs)) ;
+        markers = define_markers(length(segs)) ;
+
+        subplot(2, 2, 1)
+        % scatter3(xx', yy', zz', 10, yy) 
+        cvals = 1:length(xx) ;
+        scatter3(xx', yy', zz', 10, cvals) 
+        xlabel('x')
+        ylabel('y')
+        zlabel('z')
+        axis equal
+        title('Curve')
+
+        % Plot the segments colored
+        subplot(2,2,2)
+        for jj = 1:length(segs)
+            plot3(xx(segs{jj}), yy(segs{jj}), zz(segs{jj}), '.', 'Color', colors(jj, :)) ;
+            hold on
+        end
+        xlabel('x')
+        ylabel('y')
+        zlabel('z')
+        axis equal
+        title('Segments')
+        % Plot the local writhe
+        subplot(2, 2, 3)
+        plot(zz, wr_local)
+        title('local writhe')
+        xlabel('position, z')
+        ylabel('local writhe')
+        % Plot the nonlocal writhe
+        subplot(2, 2, 4)
+        for jj = 1:length(wr_nonlocal)
+            segments = segpairs{jj} ;
+            segi = segments(1) ;
+            segj = segments(2) ;
+            plot(segi, wr_nonlocal(jj), markers{segj}, 'Color', colors(segj, :))
+            hold on
+        end
+        title('nonlocal writhe')
+        xlabel('segment pair index')
+        ylabel('nonlocal writhe')
+        axes( 'Position', [0, 0, 1, 1] ) ;
+        set( gca, 'Color', 'None', 'XColor', 'White', 'YColor', 'White' ) ;
+        titletext = ['Wr = ' num2str(wr)] ;
+        text( 0.5, 0.95, titletext, 'FontSize', 14', 'FontWeight', 'Bold', ...
+              'HorizontalAlignment', 'Center', 'VerticalAlignment', 'Bottom' ) ;
+        axis off
+        name = strrep(['torusincomplete_' num2str(ii) '_' sprintf('%0.3f', leng)], '.', 'p') ;
+        saveas(gcf, fullfile(outdir, [name '.png']))
+        close all
+    end
+end
+
+close all
+h1 = plot(resl, Wrs, [markers{1} '-'], 'Color', colors(1, :)) ; 
+hold on;
+h2 = plot(resl, WrLs, [markers{2} '-'], 'Color', colors(2, :)) ;
+% h3 = plot(resl(WrGs < 10), WrGs(WrGs < 10), [markers{3} '-'], 'Color', colors(3, :)) ; 
+legend([h1, h2], {'polar', 'Levitt'}, 'location', 'best')
+title('Writhe comparison')
+xlabel('length of open curve')
+ylabel('Writhe') 
+saveas(gcf, fullfile(outdir, 'writhecomparison_incompletetorus.png'))
+
+%% Helix segment
+close all
+Wrs = [] ;
+WrLs = [] ;
+WrGs = [] ;
+resID = 0 ;
+resl = [0.05:0.05:1] ;
+for leng = resl
+    resID = resID + 1;
+    t = 0:0.002:leng ;
+    xx = sin(2*pi*t) ;
+    yy = cos(2*pi*t) ;
+    zz = t ;
     xyz = [xx ; yy; zz]';
-    [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, []) ;
+
+    [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, [], res) ;
+    [WrL] = writheLevitt(xyz, true) ;
+    [WrG, wrG] = writheGaussIntegral(xyz, []) ;
+
+    Wrs(resID) = wr ;
+    WrLs(resID) = WrL ; 
+    WrGs(resID) = WrG ;
 
     colors = define_colors(length(segs)) ;
     markers = define_markers(length(segs)) ;
-    
+
     subplot(2, 2, 1)
     % scatter3(xx', yy', zz', 10, yy) 
     cvals = 1:length(xx) ;
@@ -321,6 +516,18 @@ for ii = 1:length(us)
     text( 0.5, 0.95, titletext, 'FontSize', 14', 'FontWeight', 'Bold', ...
           'HorizontalAlignment', 'Center', 'VerticalAlignment', 'Bottom' ) ;
     axis off
-    saveas(gcf, fullfile(outdir, ['torusknot_' num2str(ii) '.png']))
+    name = strrep(['torusincomplete_' num2str(ii) '_' sprintf('%0.3f', leng)], '.', 'p') ;
+    saveas(gcf, fullfile(outdir, [name '.png']))
     close all
 end
+
+close all
+h1 = plot(resl, Wrs, [markers{1} '-'], 'Color', colors(1, :)) ; 
+hold on;
+h2 = plot(resl, WrLs, [markers{2} '-'], 'Color', colors(2, :)) ;
+% h3 = plot(resl(WrGs < 10), WrGs(WrGs < 10), [markers{3} '-'], 'Color', colors(3, :)) ; 
+legend([h1, h2], {'polar', 'Levitt'}, 'location', 'best')
+title('Writhe comparison')
+xlabel('length of open curve')
+ylabel('Writhe') 
+saveas(gcf, fullfile(outdir, 'writhecomparison_incompletetorus.png'))

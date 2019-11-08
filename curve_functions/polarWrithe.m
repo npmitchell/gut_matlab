@@ -1,4 +1,4 @@
-function [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, ss)
+function [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, ss, res)
 %POLARWRITHE Compute the polar writhe, its local and nonlocal components
 %   Compute as defined by "The writhe of open and closed curves, by 
 %   Mitchell A Berger and Chris Prior, 2006.
@@ -7,6 +7,8 @@ function [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, s
 % ----------
 % ss : optional, pathlength parameterization
 % xyz :
+% res : float 
+%   resolution of interpolation variable
 %
 % Returns
 % -------
@@ -56,6 +58,7 @@ if isempty(turns)
     wr_local = local_writhe(ss, xyz) ;
     wr_nonlocal = [] ;
     segs{1} = 1:size(xyz, 1) ;
+    segpairs = {} ;
 else
     disp([ num2str(length(turns) + 1) ' segments detected'])
     % Compute the local writhe for each segment
@@ -79,65 +82,76 @@ else
         end
         [~, minID] = min(xyz(segii, 3)) ;
         [~, maxID] = max(xyz(segii, 3)) ;
+        % Sigma denotes whether segment is moving +z or -z
         sigma(ii) = (minID < maxID) * 2 - 1 ;
-        segs{ii} = segii ;
+        if length(segii) > 1
+            segs{ii} = segii ;
+        else
+            segs{ii} = [];
+        end
     end
     
     % Now compute the twisting rate of the vector joining each segment to
     % every other
     for ii = 1:length(turns) + 1
         disp(['considering segment ' num2str(ii)])
-        
         % obtain segment indices of ii 
-        segii = segs{ii} ;        
-        [zmini, minIDi] = min(xyz(segii, 3)) ;
-        [zmaxi, maxIDi] = max(xyz(segii, 3)) ;
-        for jj = 1:length(turns) + 1
-            disp(['comparing segment ' num2str(ii) ' to segment ' num2str(jj)])
-            % skip self-energy terms
-            if ii ~= jj
-                % obtain segment indices of jj
-                segjj = segs{jj} ;
-                
-                % find the z range over which to interpolate
-                [zminj, minIDj] = min(xyz(segjj, 3)) ;
-                [zmaxj, maxIDj] = max(xyz(segjj, 3)) ;
+        if ~isempty(segs{ii})
+            segii = segs{ii} ;        
+            [zmini, minIDi] = min(xyz(segii, 3)) ;
+            [zmaxi, maxIDi] = max(xyz(segii, 3)) ;
+            for jj = 1:length(turns) + 1
+                disp(['comparing segment ' num2str(ii) ' to segment ' num2str(jj)])
+                % skip self-energy terms
+                if ii ~= jj
+                    % obtain segment indices of jj
+                    segjj = segs{jj} ;
 
-                % Only consider this pair if there is overlap between the
-                % segments, which means one enpt is in range of the other
-                % segment.
-                imin_jrange = zmini >= zminj && zmini <= zmaxj ;
-                imax_jrange = zmaxi >= zminj && zmaxi <= zmaxj ;
-                jmin_irange = zminj >= zmini && zminj <= zmaxi ;
-                jmax_irange = zmaxj >= zmini && zmaxj <= zmaxi ;
-                overlap = imin_jrange || imax_jrange || jmin_irange || jmax_irange ;
-                
-                if overlap
-                    zmin = max(zmini, zminj) ;
-                    zmax = min(zmaxi, zmaxj) ;
+                    if ~isempty(segjj)
+                        % find the z range over which to interpolate
+                        [zminj, minIDj] = min(xyz(segjj, 3)) ;
+                        [zmaxj, maxIDj] = max(xyz(segjj, 3)) ;
 
-                    % draw rvec pointing from ii to jj curve along (zmin, zmax)
-                    % Interpolate segment i
-                    dzz = (zmax - zmin) / 100 ;
-                    tt = zmin:dzz:zmax ;
-                    segi_x = interp1(xyz(segii, 3), xyz(segii, 1), tt)';
-                    segi_y = interp1(xyz(segii, 3), xyz(segii, 2), tt)';
+                        % Only consider this pair if there is overlap between the
+                        % segments, which means one enpt is in range of the other
+                        % segment.
+                        imin_jrange = zmini >= zminj && zmini <= zmaxj ;
+                        imax_jrange = zmaxi >= zminj && zmaxi <= zmaxj ;
+                        jmin_irange = zminj >= zmini && zminj <= zmaxi ;
+                        jmax_irange = zmaxj >= zmini && zmaxj <= zmaxi ;
+                        overlap = imin_jrange || imax_jrange || jmin_irange || jmax_irange ;
 
-                    % Interpolate segment j
-                    segj_x = interp1(xyz(segjj, 3), xyz(segjj, 1), tt)';
-                    segj_y = interp1(xyz(segjj, 3), xyz(segjj, 2), tt)';
+                        if overlap
+                            zmin = max(zmini, zminj) ;
+                            zmax = min(zmaxi, zmaxj) ;
 
-                    % Compute the twisting of i around j
-                    rij = [segj_x - segi_x, segj_y - segi_y, zeros(size(segj_x))] ;
-                    rijprime = [gradient(rij(:, 1), dzz), gradient(rij(:, 2), dzz), gradient(rij(:, 3), dzz)] ;
-                    numprod = cross(rij, rijprime)  ;
-                    dTheta_dz = numprod(:, 3) ./ vecnorm(rij, 2, 2).^2;
+                            % draw rvec pointing from ii to jj curve along (zmin, zmax)
+                            % Interpolate segment i
+                            if res <= 0
+                                res = (zmax - zmin) / 100 ;
+                            end
+                            tt = zmin:res:zmax ;
+                            segi_x = interp1(xyz(segii, 3), xyz(segii, 1), tt)';
+                            segi_y = interp1(xyz(segii, 3), xyz(segii, 2), tt)';
 
-                    contrib = sigma(ii) * sigma(jj) * nansum(dTheta_dz .* dzz) ;
-                    wr_nonlocal = [wr_nonlocal, contrib] ;
-                    segpairs{end + 1} = [ii, jj] ;
-                else
-                    disp(['no overlap between ' num2str(ii) ' and ' num2str(jj)])
+                            segjj
+                            % Interpolate segment j
+                            segj_x = interp1(xyz(segjj, 3), xyz(segjj, 1), tt)';
+                            segj_y = interp1(xyz(segjj, 3), xyz(segjj, 2), tt)';
+
+                            % Compute the twisting of i around j
+                            rij = [segj_x - segi_x, segj_y - segi_y, zeros(size(segj_x))] ;
+                            rijprime = [gradient(rij(:, 1), res), gradient(rij(:, 2), res), gradient(rij(:, 3), res)] ;
+                            numprod = cross(rij, rijprime)  ;
+                            dTheta_dz = numprod(:, 3) ./ vecnorm(rij, 2, 2).^2;
+
+                            contrib = sigma(ii) * sigma(jj) * nansum(dTheta_dz .* res) ;
+                            wr_nonlocal = [wr_nonlocal, contrib] ;
+                            segpairs{end + 1} = [ii, jj] ;
+                        else
+                            disp(['no overlap between ' num2str(ii) ' and ' num2str(jj)])
+                        end
+                    end
                 end
             end
         end 
@@ -148,8 +162,8 @@ else
     end
 end
 
-disp('wr_nonlocal = ')
-disp(wr_nonlocal)
+% disp('wr_nonlocal = ')
+% disp(wr_nonlocal)
 wr = nansum(wr_local) + nansum(wr_nonlocal) ;
 
 end
