@@ -5,20 +5,28 @@ function [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, s
 %
 % Parameters
 % ----------
-% ss : optional, pathlength parameterization
-% xyz :
-% res : float 
+% xyz : N x 3 float array
+%   the curve whose writhe will be computed
+% ss : N x 1 float array (optional, computed if not provided) 
+%   pathlength parameterization
+% res : float (optional, default is 0.01)
 %   resolution of interpolation variable
 %
 % Returns
 % -------
-% wr : 
-% wr_local :
-% wr_global :
+% wr : float
+%   the total polar writhe
+% wr_local : N x 1 float array
+%   the local contribution to the writhe
+% wr_nonlocal : float 
+%   the nonlocal contribution to the total writhe, from segment
+%   interactions (if there are both segments with dz/ds>0 and <0. 
 % turns : list of ints
 %   indices of curve where ds/dz changes sign
 % segs : cell array of lists of ints
 %   the segment indices
+% segpairs : #segment crossings x 1 cell array
+%   The indices of the segments that cross, as list pairs
 %
 % Example Usage
 % -------------
@@ -33,12 +41,19 @@ function [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, s
 % [wr, wr_local, wr_nonlocal] = polarWrithe(xyz) ;
 % 
 % NPMitchell 2019
-
-if length(ss) < 1
+if nargin < 2
     % get distance increment
     ds = vecnorm(diff(xyz), 2, 2) ;
     % get pathlength at each skeleton point
     ss = [0; cumsum(ds)] ;
+elseif length(ss) < 1
+    % get distance increment
+    ds = vecnorm(diff(xyz), 2, 2) ;
+    % get pathlength at each skeleton point
+    ss = [0; cumsum(ds)] ;
+end
+if nargin < 3
+    res = 0.01 ;
 end
 
 % Divide the curve into segments
@@ -134,7 +149,6 @@ else
                             segi_x = interp1(xyz(segii, 3), xyz(segii, 1), tt)';
                             segi_y = interp1(xyz(segii, 3), xyz(segii, 2), tt)';
 
-                            segjj
                             % Interpolate segment j
                             segj_x = interp1(xyz(segjj, 3), xyz(segjj, 1), tt)';
                             segj_y = interp1(xyz(segjj, 3), xyz(segjj, 2), tt)';

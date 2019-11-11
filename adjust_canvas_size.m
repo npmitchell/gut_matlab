@@ -20,6 +20,7 @@ nameFormat = ['cmp_',num2str(chan),'_1_T%04d.tif'];
 
 % For option 2
 nameFormat = 'Time_*_c1_stab_corr.png' ;
+nameFormat = 'Time_*_c1_stab.png' ;
 
 %% Create outdir
 if ~exist(outdir, 'dir')

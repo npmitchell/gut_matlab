@@ -3,10 +3,13 @@
 % 'axisymmetric' pullbacks of the growing Drosophila midgut
 %
 % Execute from the projectDir, where the data is. 
+% Note that the radon transform angles are taken wrt the vertical, not
+% horizonal axis.
 % By NPMitchell 2019
 %==========================================================================
 
 clear; close all; clc;
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/
 
 %% Options
 % seriestype defines what pullback we are considering for the Radon transf.
@@ -28,6 +31,8 @@ colorwheel_position = [.8 .01 .15 .15] ;
 % Add some necessary code to the path (ImSAnE should also be setup!) ------
 addpath(genpath('/mnt/crunch/djcislo/MATLAB/euclidean_orbifolds'));
 addpath(genpath('/mnt/data/code/gptoolbox'));
+addpath(genpath('/mnt/data/code/gut_matlab/geometry'));
+addpath(genpath('/mnt/data/code/gut_matlab/axisymmetric_pullbacks'));
 addpath(genpath('/mnt/data/code/gut_matlab/TexturePatch'));
 addpath(genpath('/mnt/data/code/gut_matlab/polarity'));
 addpath(genpath('/mnt/data/code/gut_matlab/PeakFinding'));
@@ -359,7 +364,7 @@ for ii=1:length(fns)
         load_from_disk = false ;
         if exist(radonfn, 'file')
             try 
-                h5read(radonfn, ['/' fileName '/angles_smoothcorr']) ;
+                h5read(radonfn, ['/' fileName '/angles_smooth']) ;
                 load_from_disk = true && ~overwrite;
             catch
             end
@@ -414,6 +419,7 @@ for ii=1:length(fns)
                     
                     % Store angle and magnitude of this patch in array
                     angles(j, k) = angle ;
+                    error('break')
                     magnitudes(j, k) = magnitude ;
                 end        
             end
@@ -683,8 +689,8 @@ for res = 2
         yy = h5read(radonfn, ['/' fileName '/yy']) ;
 
         % convert to cos2t, sin2t
-        cos2t = cos(2 * angles_smooth) ;
-        sin2t = sin(2 * angles_smooth) ;
+        cos2t = cos(2 * angles_smooth + pi) ;
+        sin2t = sin(2 * angles_smooth + pi) ;
         
         % Here just take simple medians 
         cos2t_medians(indx) = nanmedian(cos2t(cos2t ~= 0)) ;
@@ -716,12 +722,15 @@ for res = 2
     blue = colors(1, :)  ;
     red = uint8(colors(2, :) * 255) ;
     % lightblue = [149 / 255, 208 / 255, 252 / 255] ;
+    
+    % Get lower and upper bounds for error bars
     goodidx = find(~isnan(clower)) ;
     txg = tx(goodidx) ;
     clower = clower(goodidx) ;
     cupper = cupper(goodidx) ;
     slower = slower(goodidx) ;
     supper = supper(goodidx) ;
+    % Draw error bars
     cf = fill([txg, fliplr(txg)], [clower', fliplr(cupper')], blue, 'LineStyle', 'none') ;
     set(cf, 'facealpha', .1)
     hold on;
@@ -741,13 +750,14 @@ for res = 2
         'IconDisplayStyle','off'); % Exclude line from legend
 
     % save it
-    outfn_time = fullfile(polDir, ['radon_anisotropy' resstr '.png']) ;
+    seriesstr = ['_' seriestype ] ;
+    outfn_time = fullfile(polDir, ['radon_anisotropy' seriesstr resstr '.png']) ;
     disp(['Saving figure to ' outfn_time])
     saveas(gcf, outfn_time)
     close all
 
     % Save data
-    datfn = fullfile(polDir, ['radon_anisotropy_timeseq' resstr '.mat']) ;
+    datfn = fullfile(polDir, ['radon_anisotropy_timeseq' seriesstr resstr '.mat']) ;
     disp(['Saving time sequence data to ' datfn])
     save(datfn, 'cos2t_medians', 'cos2t_unc', 'sin2t_medians', 'sin2t_unc')
     
@@ -763,7 +773,7 @@ for res = 2
     ax.YDir = 'normal' ;
     xlim([-Inf, max(time) - time(1)])
     % save it
-    outfn_time = fullfile(polDir, ['radon_anisotropy' resstr '_histcos.png']) ;
+    outfn_time = fullfile(polDir, ['radon_anisotropy' seriesstr resstr '_histcos.png']) ;
     disp(['Saving figure to ' outfn_time])
     saveas(gcf, outfn_time)
     
@@ -778,13 +788,59 @@ for res = 2
     ax.YDir = 'normal' ;
     xlim([-Inf, max(time) - time(1)])
     % save it
-    outfn_time = fullfile(polDir, ['radon_anisotropy' resstr '_histsin.png']) ;
+    outfn_time = fullfile(polDir, ['radon_anisotropy' seriesstr resstr '_histsin.png']) ;
     disp(['Saving figure to ' outfn_time])
     saveas(gcf, outfn_time)
     
     error('break')
 end
 error('break')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Get twist of x axis around centerline
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+eps = 1e-6 ;
+for ii=1:length(fns) 
+    % Consider mesh for this timepoint
+    cutMesh = meshStack{meshidx(ii)} ;  
+
+    % Generate Tiled Orbifold Triangulation ------------------------------
+    tileCount = [1 1];  % how many above, how many below
+    [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount );
+    
+    % Find the edge indices
+    meshTri = triangulation( TF, TV2D );
+    % The vertex IDs of vertices on the mesh boundary
+    bdyIDx = meshTri.freeBoundary;
+    % Consider all points on the left free boundary between y=(0, 1)
+    bdLeft = bdyIDx(TV2D(bdyIDx(:, 1), 1) < eps, 1) ;
+    bdLeft = bdLeft(TV2D(bdLeft, 2) < 1+eps & TV2D(bdLeft, 2) > -eps) ;
+    % Find matching endpoint on the right
+    rightmost = max(TV2D(:, 1));
+    bdRight = bdyIDx(TV2D(bdyIDx(:, 1), 1) > rightmost - eps) ;
+    
+    % GG = makeGraph(mesh0.f, mesh0.urelax) ; 
+    GG = makeGraph(TF, TV2D) ; 
+    
+    % Can now compute the shortest path for each pair of endpoints
+    tw = zeros(length(bdLeft), 1) ;
+    for jj = 1:length(bdLeft)
+        cp1 = bdLeft(jj) ;
+        yval = TV2D(cp1, 2) ;
+        [~, closest] = min(abs(yval-TV2D(bdRight, 2))) ;
+        cp2 = bdRight(closest) ;
+        path = shortestpath( GG, cp1, cp2 )' ;
+        curvj = TV3D(path, :) ;
+        % plot3(curvj(:, 1), curvj(:, 2), curvj(:, 3))
+        % hold on;
+        
+        % Compute twist for this curve
+        tw(jj) = twist(curvj, centerline)
+    end
+    
+    error('break')
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% MAKE MAP FROM PIXEL TO XYZ =============================================

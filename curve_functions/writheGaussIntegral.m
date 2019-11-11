@@ -19,15 +19,22 @@ function [Wr, wr] = writheGaussIntegral(xyz, ss)
 %   The writhe "density" obtained by integrating only over ds', not over ds
 % 
 % NPMitchell 2019
-if length(ss) < 1
-    ssx = ss_from_xyz(xyz) ;
+
+% If the pathlength parameterization was not supplied, compute it
+if nargin > 1
+    if length(ss) < 1
+        ss = ss_from_xyz(xyz) ;
+    end
+else
+    ss = ss_from_xyz(xyz) ;
 end
 
-[tangent, ~, ~] = frenetSeretFrame(ssx, xyz(:, 1), xyz(:, 2), xyz(:, 3)) ;
-ds = gradient(ssx) ;
-wr = zeros(length(ssx), 1) ;
-for jj=1:length(ssx)
-    oind = setdiff(1:length(ssx), jj) ;
+% Compute tangent
+tangent = tangent_from_curve(ss, xyz(:, 1), xyz(:, 2), xyz(:, 3)) ;
+ds = gradient(ss) ;
+wr = zeros(length(ss), 1) ;
+for jj=1:length(ss)
+    oind = setdiff(1:length(ss), jj) ;
     rmr = xyz(jj, :) - xyz(oind, :) ;
     rmrmag = vecnorm(rmr')' ;
     txt = cross(tangent(jj,:) .* ones(length(oind), 3), tangent(oind, :));

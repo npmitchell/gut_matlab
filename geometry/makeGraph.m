@@ -1,5 +1,4 @@
-function [ Graph ] = ...
-    makeGraph(faceIn, vertexIn)
+function [ Graph ] = makeGraph(faceIn, vertexIn)
 %CYLINDERCUTMESH creates a MATLAB-style weighted, undirected graph 
 % representation of the mesh triangulation.
 % 
@@ -26,15 +25,15 @@ bdyIDx = unique(bdyIDx(:));
 % The #Ex3 edge connectivity list of the mesh
 edgeIn = edges( meshTri );
 
-% Check that the input mesh is a topological cylinder
-if ( length(vertexIn) - length(edgeIn) + length(faceIn) ) ~= 0
-    error( 'Input mesh is NOT a topological cylinder!' );
-end
+% % Check that the input mesh is a topological cylinder
+% if ( length(vertexIn) - length(edgeIn) + length(faceIn) ) ~= 0
+%     error( 'Input mesh is NOT a topological cylinder!' );
+% end
 
-% Check that the origin/terminal points lie on the mes
-if ~ismember(cp1, bdyIDx) || ~ismember(cp2, bdyIDx)
-    error('One or more input point does not lie on the mesh boundary!');
-end
+% % Check that the origin/terminal points lie on the mesh
+% if ~ismember(cp1, bdyIDx) || ~ismember(cp2, bdyIDx)
+%     error('One or more input point does not lie on the mesh boundary!');
+% end
 
 % Find edge lengths
 L = vertexIn( edgeIn(:,2), : ) - vertexIn( edgeIn(:,1), : );
