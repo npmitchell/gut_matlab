@@ -35,6 +35,12 @@ function com = com_region(probability_grid, thres, varargin)
         check = false ;
     end
     
+    if isfield(varargin{1}, 'check_slices')
+        check_slices = varargin{1}.check_slices ;
+    else
+        check_slices = false ;
+    end
+    
     bwcc = bwconncomp(probability_grid > thres) ; 
     npix = cellfun(@numel,bwcc.PixelIdxList);
     [~, indexOfMax] = max(npix); 
@@ -64,7 +70,7 @@ function com = com_region(probability_grid, thres, varargin)
     if check
         % Show relative to the mesh
         iso = isosurface(probability_grid, 0.5) ;
-        patch(iso,'facecolor',[1 0 0],'facealpha',0.1,'edgecolor','none');
+        patch(iso,'facecolor',[1 0 0],'facealpha',0.5,'edgecolor','none');
         view(3)
         camlight
         hold on
@@ -85,23 +91,23 @@ function com = com_region(probability_grid, thres, varargin)
         catch
             disp('figure closed')
         end
-        disp(clock)
-        
-        % Show slices
-        % tmp1 = round(com(1)) ;
-        % tmp2 = round(com(2)) ;
-        % imagesc(
-
+        disp(clock)        
+    end
+    
+    % Show mass slices
+    if check_slices
         % Plot each section of the intensity data 
         for jj=1:size(mass,1)
-            imshow(squeeze(mass(jj,:,:)))
-            title(['mass slice ' num2str(jj)])
-            pause(0.01)
+            if any(any(mass(jj, :, :)))
+                imshow(squeeze(mass(jj,:,:)))
+                title(['mass slice ' num2str(jj)])
+                pause(0.00001)
+            end
         end
         for jj=1:size(probability_grid,1)
             imshow(squeeze(probability_grid(jj,:,:)))
             title(['prediction slice' num2str(jj)])
-            pause(0.01)
+            pause(0.00001)
         end
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

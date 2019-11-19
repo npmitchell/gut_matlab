@@ -1,5 +1,5 @@
 function [ cutMesh, cp1Out, cp2Out, P ] = ...
-    cylinderCutMesh(faceIn, vertexIn, normalIn, cp1, cp2)
+    cylinderCutMesh(faceIn, vertexIn, normalIn, cp1, cp2, cutOptions)
 %CYLINDERCUTMESH creates a cut mesh structure from a an input mesh.  
 % Input mesh should be a topological cylinder.  
 % Output mesh will be a topological disk.  
@@ -11,6 +11,7 @@ function [ cutMesh, cp1Out, cp2Out, P ] = ...
 %       - normalIn:       #VxD vertex normal list
 %       - cp1:            Vertex ID of the cut path origin
 %       - cp2:            Vertex ID of the cut path termination
+%       - cutOptions:     optional struct with fields 'method' and 'cutP'
 %   
 %   OUTPUT PARAMETERS:
 %       - cutMesh:      An ImSAnE-style mesh struct with additional fields
@@ -18,10 +19,30 @@ function [ cutMesh, cp1Out, cp2Out, P ] = ...
 %       - cp1Out:       Vertex ID of the final cut path origin
 %       - cp2Out:       Vertex ID of the final cut path termination
 %       - P:            shortest path, indices of original vertices
+%
 
+% testing
+% faceIn = mesh.f ;
+% vertexIn = mesh.v ;
+% normalIn = mesh.vn ;
+% cp1 = adIDx ;
+% cp2 = pdIDx ;
 %==========================================================================
 % Calculate the Shortest Path Between Input Points Along Mesh Edges
 %==========================================================================
+
+% Ensure that the cutOptions are properly endowed with fields
+% Use defaults if not
+if nargin < 6
+    cutOptions.method = 'fastest';
+elseif strcmp(cutOptions.method, 'nearest')
+    if ~isfield(cutOptions, 'path')
+        error('cutOptions.path (path to match) must be supplied if cutOptions.method == nearest ')
+    end
+    if length(cutOptions.path) < 3
+        error('cutOptions.path must be length>3 if cutOptions.method == nearest ')
+    end
+end
 
 % MATLAB-style triangulation
 meshTri = triangulation( faceIn, vertexIn );
@@ -41,6 +62,12 @@ end
 % Check that the origin/terminal points lie on the mes
 if ~ismember(cp1, bdyIDx) || ~ismember(cp2, bdyIDx)
     error('One or more input point does not lie on the mesh boundary!');
+    % Show problem:
+    trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), 'EdgeColor', 'none', 'FaceAlpha', 0.2); 
+    hold on;
+    axis equal ;
+    plot3(mesh.v(adIDx, 1), mesh.v(adIDx, 2), mesh.v(adIDx, 3), 'o') ;
+    plot3(mesh.v(pdIDx, 1), mesh.v(pdIDx, 2), mesh.v(pdIDx, 3), 'o') ;
 end
 
 % Find edge lengths
@@ -56,8 +83,15 @@ A = sparse( [ edgeIn(:,1); edgeIn(:,2) ], ...
 % triangulation.
 G = graph(A);
 
-% The shortest path
-P = shortestpath( G, cp1, cp2 )' ;
+% Find the path to cut, P. Note the method options
+if strcmp(cutOptions.method, 'fastest') 
+    % The shortest path
+    P = shortestpath( G, cp1, cp2 )' ;
+elseif strcmp(cutOptions.method, 'nearest')
+    P = nearestpath( G, vertexIn, cp1, cp2, cutOptions.path) ;
+else
+    error(['Did not recognize cutOptions.method = ' cutOptions.method])
+end
 
 %--------------------------------------------------------------------------
 % Truncate the path so that it does not include any boundary edges
@@ -125,7 +159,58 @@ clear v
 PP = [ P(1:end-1), P(2:end) ]; 
 
 % Face attachments to cut cut edges
-PPE = cell2mat(meshTri.edgeAttachments( PP ));
+try
+    PPE = cell2mat(meshTri.edgeAttachments( PP ));
+catch
+    % There are perhaps only one face attached to some edges. This must be
+    % because the geodesic wanders along the sliced edge
+    % Find where the problem starts and ends
+    eattach = meshTri.edgeAttachments( PP ) ;
+    ids = [] ;
+    for dmyk = 1:length(eattach)
+        fk = eattach{dmyk} ;
+        if length(fk) < 2
+            ids = [ids dmyk];
+        end
+    end
+    
+    if length(find(diff(ids) > 1))
+        % Isolate contiguous regions of the problem area of the curve
+        error('Todo: identify contiguous regions of the curve, use those to trim it')
+    else
+        disp('cylinderCutMesh: curve has one region living on the edge')
+        if mean(ids) < length(eattach) * 0.5    
+            % Begin the curve from the last edge point reached
+            disp('--> trimming from the beginning')
+            PP = PP(ids(end):end, :) ;
+            P = P(ids(end):end) ;
+        else
+            % Terminate the curve at first edge point reached
+            disp('--> terminating the curve early (trimming from end)')
+            PP = PP(1:ids(1), :) ;
+            P = P(1:ids(1)) ;
+        end
+    end
+    
+    % Inspect it
+    if false
+        for dmyk = 1:length(eattach)
+            fk = eattach{dmyk} ;
+            if length(fk) < 2
+                ids = meshTri.ConnectivityList(fk, :) ;
+                plot3(meshTri.Points(ids, 1), meshTri.Points(ids, 2), ...
+                    meshTri.Points(ids, 3), '.');
+                hold on;
+            end
+        end
+        trisurf(meshTri, 'FaceAlpha', 0.2, 'EdgeColor', 'none')
+        hold on;
+        plot3(meshTri.Points(P, 1), meshTri.Points(P, 2), ...
+                    meshTri.Points(P, 3), '-');
+        axis equal
+    end
+    
+end
 
 % A list of face attachments in the original uncut mesh
 fA = meshTri.neighbors;

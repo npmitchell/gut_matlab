@@ -17,7 +17,7 @@
 clear ;
 compute_chirality = false ;
 overwrite = false ;
-cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1_20190908
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/
 
 
 %% First, compile required c code
@@ -227,6 +227,7 @@ if saved && ~overwrite
 else
     %% Iterate through each mesh
     Wrp = zeros(length(fns), 1) ;
+    Wr = zeros(length(fns), 1) ;
     wrp_densities = cell(length(fns), 1);
     times = zeros(length(fns), 1) ;
 
@@ -359,7 +360,20 @@ else
         %     % Writhe per unit length is wr
         %     wr(jj) = sum(integrand) ;
         % end
-        [Wrp(ii), wrp_local, wrp_nl, turns, segs] = polarWrithe(xyzp, ssx(:), 0.003) ;
+        [Wrp_ii, wrp_local, wrp_nl, turns, segments] = polarWrithe(xyzp, ssx(:)) ;
+        WrL(ii) = writheLevitt(xyzp, false) ;
+        WrG(ii) = writheGaussIntegral(xyzp, ssx(:)) ;
+        
+        
+        Wrp(ii) = Wrp_ii ;
+        % Just take sum of wrp_local of first segment
+        % if length(turns) > 1
+        %     Wrp(ii) = nansum(wrp_local(1:turns(1))) ;
+        % else
+        %     Wrp(ii) = Wrp_ii ;
+        % end
+        
+        
         if length(turns) < 1
             wrp_densities{ii} = wrp_local ;
         end
@@ -421,15 +435,21 @@ disp('Done loading/computing chirality/writhe')
 % Save writhe as a figure
 close all
 fig = figure('Visible', 'Off') ;
-plot(times, mod(Wrp, 1)) ;
+plot(times, Wrp) ;
+hold on 
+plot(times, WrL) ;
+plot(times, WrG, '--') ;
 xlabel('time [min]', 'Interpreter', 'Latex')
-ylabel('Polar Writhe')
-title('Polar Writhe over time', 'Interpreter', 'Latex')
+ylabel('Writhe')
+title('Writhe over time', 'Interpreter', 'Latex')
+legend({'polar', 'Levitt', 'Gauss'})
 set(gcf, 'PaperUnits', 'centimeters');
 set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);        
+
 disp(['Saving figure to: ' fullfile(figwrdir, 'writhe_polar_vs_time.pdf')])
-saveas(fig, fullfile(figwrdir, 'writhe_polar_vs_time.pdf'))
-saveas(fig, fullfile(figwrdir, 'writhe_polar_vs_time.png'))
+saveas(fig, fullfile(figwrdir, 'writhe_polar_vs_time_comparison.pdf'))
+saveas(fig, fullfile(figwrdir, 'writhe_polar_vs_time_comparison.png'))
+set(gcf, 'visible', 'on')
 
 
 %% Save writhe as a figure with length, surfarea, volume
@@ -500,8 +520,8 @@ set(s2, 'xlim', xlims)
 xlabel('time [min]', 'Interpreter', 'Latex')
 set(gcf, 'PaperUnits', 'centimeters');
 set(gcf, 'PaperPosition', [0 0 xwidth 2*ywidth]);        
-saveas(fig, fullfile(meshdir, 'writhe_dynamics.pdf'))
-saveas(fig, fullfile(meshdir, 'writhe_dynamics.png'))
+saveas(fig, fullfile(figwrdir, 'writhe_dynamics_polar.pdf'))
+saveas(fig, fullfile(figwrdir, 'writhe_dynamics_polar.png'))
 
 %% Do it again in stages --> the last build isn't finished right now
 % load 'aas', 'vvs', 'dt'
@@ -624,7 +644,7 @@ for ii = 1:5
     xlabel('time [min]', 'Interpreter', 'Latex')
     set(gcf, 'PaperUnits', 'centimeters');
     set(gcf, 'PaperPosition', [0 0 xwidth 2*ywidth]);    
-    fn = fullfile(meshdir, ['writhe_dynamics_build' num2str(ii) '.png']) ;
+    fn = fullfile(figwrdir, ['writhe_dynamics_build' num2str(ii) '_polar.png']) ;
     disp(['Saving figure ' fn])
     saveas(fig, fn)
 end

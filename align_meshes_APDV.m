@@ -83,13 +83,13 @@ cd(odir)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parameters
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-overwrite = true ;  % recompute centerline
-overwrite_apdvcoms = true ;  % recompute APDV coms from training
+overwrite = true ;  % recompute APDV rotation, translation
+overwrite_apdvcoms = false ;  % recompute APDV coms from training
 save_figs = true ;  % save images of cntrline, etc, along the way
 overwrite_ims = true ;  % overwrite images even if centerlines are not overwritten
 preview = false ;  % display intermediate results, for debugging
 resolution = 0.2619 ;  % um per pixel for full resolution (not subsampled)
-dorsal_thres = 0.9 ;  % threshold for extracting Dorsal probability cloud 
+dorsal_thres = 0.5 ;  % threshold for extracting Dorsal probability cloud 
 buffer = 5 ;  % extra space in meshgrid of centerline extraction, to ensure mesh contained in volume
 plot_buffer = 40;  % extra space in plots, in um
 ssfactor = 4;  % subsampling factor for the h5s used to train for mesh/acom/pcom/dcom
@@ -203,6 +203,7 @@ end
 %% Compute acom and pcom if not loaded from disk
 if ~load_from_disk || overwrite_apdvcoms
     for ii=1:length(fns)
+        error('breaking to avoid overwrite, debug')
         %% Get the timestamp string from the name of the mesh
         name_split = strsplit(fns(ii).name, '.ply') ;
         name = name_split{1} ; 
@@ -210,14 +211,16 @@ if ~load_from_disk || overwrite_apdvcoms
         timestr = tmp{length(tmp)} ;
         
         %% Load the AP axis determination
+        msg = ['Computing acom, pcom for ' timestr ] ;
+        disp(msg)
         if ~exist('fbar', 'var')
-            fbar = waitbar(ii / length(fns), ['Computing acom, pcom for ' timestr ]) ;
+            fbar = waitbar(ii / length(fns), msg) ;
         else
             if ~isvalid(fbar)
-              fbar = waitbar(ii / length(fns), ['Computing acom, pcom for ' timestr ]) ;
+              fbar = waitbar(ii / length(fns), msg) ;
             end
         end
-        waitbar(ii / length(fns), fbar, ['Computing acom, pcom for ' timestr ])
+        waitbar(ii / length(fns), fbar, msg)
         thres = 0.5 ;
         options.check = false ;
         apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
@@ -301,14 +304,26 @@ if ~load_from_disk || overwrite_apdvcoms
     clear acoms pcoms
 else
     disp('Skipping, since already loaded acom_sm and pcom_sm')
+    if preview
+        acom_sm = h5read(rawapdvname, '/acom_sm');
+        pcom_sm = h5read(rawapdvname, '/pcom_sm');
+        plot3(acom_sm(:, 1), acom_sm(:, 2), acom_sm(:, 3))
+        hold on;
+        plot3(pcom_sm(:, 1), pcom_sm(:, 2), pcom_sm(:, 3))
+        xlabel('x [subsampled pix]')
+        ylabel('y [subsampled pix]')
+        zlabel('z [subsampled pix]')
+        axis equal
+    end
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Get axis limits from looking at all meshes =============================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+close all
 fn = [xyzlimname_raw '.txt'] ;
 if exist(fn, 'file')
+    disp('loading xyzlimits from disk')
     xyzlims = dlmread(fn, ',', 1, 0);
     xmin = xyzlims(1);
     ymin = xyzlims(2);
@@ -351,8 +366,9 @@ end
 % xmin = xmin / ssfactor; xmax = xmax / ssfactor;
 % ymin = ymin / ssfactor; ymax = ymax / ssfactor;
 % zmin = zmin / ssfactor; zmax = zmax / ssfactor;
+disp('done')
 
-%% With acom and pcom in hand, we compute dorsal and centerlines ==========
+%% With acom and pcom in hand, we compute dorsal and rot/trans ============
 xminrs = 0 ; xmaxrs = 0;
 yminrs = 0 ; ymaxrs = 0;
 zminrs = 0 ; zmaxrs = 0;
@@ -426,7 +442,11 @@ for ii=1:length(fns)
     
     % Point match for aind and pind
     msg = strrep(['Point matching mesh ' fns(ii).name], '_', '\_') ;
-    waitbar(ii/length(fns), fbar, msg)
+    try
+        waitbar(ii/length(fns), fbar, msg)
+    catch
+        disp(msg)
+    end
     adist2 = sum((vtx_sub - acom) .^ 2, 2);
     %find the smallest distance and use that as an index 
     aind = find(adist2 == min(adist2)) ;
@@ -437,6 +457,7 @@ for ii=1:length(fns)
     
     % Check it
     if preview
+        disp('Previewing mesh in figure window')
         trimesh(tri, vtx_sub(:, 1), vtx_sub(:, 2), vtx_sub(:, 3), vtx_sub(:, 1))
         hold on;
         plot3(vtx_sub(aind, 1), vtx_sub(aind, 2), vtx_sub(aind, 3), 'ko')
@@ -445,94 +466,102 @@ for ii=1:length(fns)
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Grab dorsal direction if this is the first timepoint
-    if ii == 1    
-        apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
-        apdat = h5read(apfn, '/exported_data');
-        ddat = permute(squeeze(apdat(dorsalChannel, :, :, :)), axorder) ;
-        
-        options.check = false ;
-        search4com = true ;
-        % start with a threshold == dorsal_thres, iteratively lower if
-        % necessary
-        tmp_dorsal_thres = dorsal_thres ;
-        while search4com 
-            try
-                dcom = com_region(ddat, tmp_dorsal_thres, options) ;
-                search4com = false ;
-            catch
-                disp('no region found, lowering dorsal threshold for prob cloud') ;
-                tmp_dorsal_thres = 0.9 * tmp_dorsal_thres ;
+    if ii == 1  
+        disp('Obtaining dorsal direction since this is first TP')
+        if ~exist([rotname '.txt'], 'file') || overwrite
+            apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
+            apdat = h5read(apfn, '/exported_data');
+            ddat = permute(squeeze(apdat(dorsalChannel, :, :, :)), axorder) ;
+
+            options.check = preview ;
+            options.check_slices = false ;
+            search4com = true ;
+            % start with a threshold == dorsal_thres, iteratively lower if
+            % necessary
+            tmp_dorsal_thres = dorsal_thres ;
+            while search4com 
+                try
+                    msg = 'Finding com region of dorsal data: ' ;
+                    disp([msg 'thres=' num2str(tmp_dorsal_thres)])
+                    dcom = com_region(ddat, tmp_dorsal_thres, options) ;
+                    search4com = false ;
+                catch
+                    disp('no region found, lowering dorsal threshold for prob cloud') ;
+                    tmp_dorsal_thres = 0.9 * tmp_dorsal_thres ;
+                end
             end
-        end
-        %%%%%%%%%%%%%%%%%%%%%%
-        if preview
-            % % disp('Showing dorsal segmentation...')
-            % clf
-            % for slice=1:2:size(ddat, 2)
-            %     im = squeeze(ddat(:, slice, :)) ;
-            %     % im(im < dorsal_thres) = 0 ;
-            %     imshow(im)
-            %     xlabel('x')
-            %     ylabel('z')
-            %     hold on
-            %     plot(dcom(:, 1), dcom(:, 3), 'o')
-            %     title([num2str(slice) '/' num2str(size(apdat, 3))])
-            %     pause(0.001)
-            % end
             %%%%%%%%%%%%%%%%%%%%%%
-            fig = figure ;
-            disp('Displaying mesh in figure ...')
-            % iso = isosurface(rawdat, 880) ;
-            % patch(iso,'facecolor',[1 0 0],'facealpha',0.1,'edgecolor','none');
-            % view(3)
-            % camlight
-            % hold on;
-            tmp = trimesh(fv.faces, ...
-                vtx_sub(:, 1), vtx_sub(:,2), vtx_sub(:, 3), ...
-                vtx_sub(:, 1)) ; % , 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
-            hold on;
-            plot3(acom(1), acom(2), acom(3), 'ro')
-            plot3(pcom(1), pcom(2), pcom(3), 'bo')
-            plot3(dcom(1), dcom(2), dcom(3), 'go')
-            xlabel('x [subsampled pixels]')
-            ylabel('y [subsampled pixels]')
-            zlabel('z [subsampled pixels]')
-            title('Original mesh in subsampled pixels, with APD marked')
-            axis equal
-            %%%%%%%%%%%%%%%%%%%%%%
-            waitfor(fig)
+            if preview
+                % % disp('Showing dorsal segmentation...')
+                % clf
+                % for slice=1:2:size(ddat, 2)
+                %     im = squeeze(ddat(:, slice, :)) ;
+                %     % im(im < dorsal_thres) = 0 ;
+                %     imshow(im)
+                %     xlabel('x')
+                %     ylabel('z')
+                %     hold on
+                %     plot(dcom(:, 1), dcom(:, 3), 'o')
+                %     title([num2str(slice) '/' num2str(size(apdat, 3))])
+                %     pause(0.001)
+                % end
+                %%%%%%%%%%%%%%%%%%%%%%
+                fig = figure ;
+                disp('Displaying mesh in figure ...')
+                % iso = isosurface(rawdat, 880) ;
+                % patch(iso,'facecolor',[1 0 0],'facealpha',0.1,'edgecolor','none');
+                % view(3)
+                % camlight
+                % hold on;
+                tmp = trimesh(fv.faces, ...
+                    vtx_sub(:, 1), vtx_sub(:,2), vtx_sub(:, 3), ...
+                    vtx_sub(:, 1)) ; % , 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+                hold on;
+                plot3(acom(1), acom(2), acom(3), 'ro')
+                plot3(pcom(1), pcom(2), pcom(3), 'bo')
+                plot3(dcom(1), dcom(2), dcom(3), 'go')
+                xlabel('x [subsampled pixels]')
+                ylabel('y [subsampled pixels]')
+                zlabel('z [subsampled pixels]')
+                title('Original mesh in subsampled pixels, with APD marked')
+                axis equal
+                %%%%%%%%%%%%%%%%%%%%%%
+                waitfor(fig)
+            end
+
+            % compute rotation 
+            apaxis = pcom - acom ;
+            aphat = apaxis / norm(apaxis) ;
+
+            % compute rotation matrix using this procedure: 
+            % https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
+            xhat = [1, 0, 0] ;
+            zhat = [0, 0, 1] ;
+            ssc = @(v) [0 -v(3) v(2); v(3) 0 -v(1); -v(2) v(1) 0] ;
+            RU = @(A,B) eye(3) + ssc(cross(A,B)) + ...
+                 ssc(cross(A,B))^2*(1-dot(A,B))/(norm(cross(A,B))^2) ;
+            % rotz aligns AP to xhat (x axis)
+            rotx = RU(aphat, xhat) ;
+
+            % Rotate dorsal to the z axis
+            % find component of dorsal vector from acom perp to AP
+            dvec = rotx * (dcom - acom)' - rotx * (dot(dcom - acom, aphat) * aphat)' ;
+            dhat = dvec / norm(dvec) ;
+            rotz = RU(dhat, zhat) ;
+            rot = rotz * rotx  ;
+
+            % Save the rotation matrix
+            disp(['Saving rotation matrix to txt: ', rotname, '.txt'])
+            dlmwrite([rotname '.txt'], rot)
+        else
+            rot = dlmread([rotname '.txt']) ;
         end
-        
-        % compute rotation 
-        apaxis = pcom - acom ;
-        aphat = apaxis / norm(apaxis) ;
-        
-        % compute rotation matrix using this procedure: 
-        % https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
-        xhat = [1, 0, 0] ;
-        zhat = [0, 0, 1] ;
-        ssc = @(v) [0 -v(3) v(2); v(3) 0 -v(1); -v(2) v(1) 0] ;
-        RU = @(A,B) eye(3) + ssc(cross(A,B)) + ...
-             ssc(cross(A,B))^2*(1-dot(A,B))/(norm(cross(A,B))^2) ;
-        % rotz aligns AP to xhat (x axis)
-        rotx = RU(aphat, xhat) ;
-        
-        % Rotate dorsal to the z axis
-        % find component of dorsal vector from acom perp to AP
-        dvec = rotx * (dcom - acom)' - rotx * (dot(dcom - acom, aphat) * aphat)' ;
-        dhat = dvec / norm(dvec) ;
-        rotz = RU(dhat, zhat) ;
-        rot = rotz * rotx  ;
-        
-        % Save the rotation matrix
-        disp(['Saving rotation matrix to txt: ', rotname, '.txt'])
-        dlmwrite([rotname '.txt'], rot)
-        
     end
     
     if ii == 1
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        %% Define start point
+        %% Define start point and endpoint for first TP
+        disp('Defining start point and endpoint for first TP')
         % Check if acom is inside mesh. If so, use that as starting point.
         ainside = inpolyhedron(fv, acom(1), acom(2), acom(3)) ;
         pinside = inpolyhedron(fv, pcom(1), pcom(2), pcom(3)) ;
@@ -722,6 +751,7 @@ for ii=1:length(fns)
         zlim([zminrs_plot zmaxrs_plot]) ;
         set(gcf, 'PaperUnits', 'centimeters');
         set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);
+        disp(['Saving to ' fig1outname '.png'])
         saveas(fig, [fig1outname '.png'])
         
         % yz

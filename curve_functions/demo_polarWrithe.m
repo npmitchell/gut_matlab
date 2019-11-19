@@ -1,4 +1,7 @@
-% Demonstrate the polar Writhe definition on example curves
+%% Demonstrate the polar Writhe definition on example curves
+%
+% NPMitchell 2019
+%
 outdir = '~/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/demo_polarwrithe/' ;
 if ~exist(outdir, 'dir')
     mkdir(outdir) ;

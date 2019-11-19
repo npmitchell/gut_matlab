@@ -59,7 +59,7 @@ normal_step = 0.5 ;  % how far to move normally from ptmatched vtx if a/pcom is 
 eps = 0.01 ;  % value for DT outside of mesh in centerline extraction
 meshorder = 'zyx' ;  % ordering of axes in loaded mesh wrt iLastik output
 exponent = 1;  % exponent of DT used for velocity. Good values are ~1-2
-axorder = [2, 1, 3] ;  % axis order for APD training output
+axorder = [2, 1, 3] ;  % axis order for output mesh wrt input mesh
 % figure parameters
 xwidth = 16 ; % cm
 ywidth = 10 ; % cm
@@ -253,7 +253,11 @@ for ii=1:length(fns)
         disp(['Removed ' num2str(nbefore - nremain) ' vertices with final pass'])
 
         %% Save the data in units of pixels (same as original mesh)
-        faces = [faces(:, 2), faces(:, 1), faces(:, 3) ];
+        if strcmp(meshorder, 'zyx')
+            faces = [faces(:, 2), faces(:, 1), faces(:, 3) ];
+        else
+            error('Have not checked this meshorder yet')
+        end
         plywrite_with_normals(outfn, faces, vtx * ssfactor, vn)
         
         % Save the indices to keep when cutting off endcaps

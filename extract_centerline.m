@@ -57,6 +57,7 @@
 % --------
 % To run first:
 %    Gut_Pipeline.m
+%    align_meshes_APDV.m
 % To run after:
 %    slice_mesh_endcaps.m
 %    extract_chirality_writhe.m
@@ -334,6 +335,7 @@ end
 
 fn = [xyzlimname_raw '.txt'] ;
 if exist(fn, 'file')
+    disp('Loading xyzlimits from disk...')
     xyzlims = dlmread(fn, ',', 1, 0);
     xmin = xyzlims(1);
     ymin = xyzlims(2);
@@ -376,6 +378,7 @@ end
 % xmin = xmin / ssfactor; xmax = xmax / ssfactor;
 % ymin = ymin / ssfactor; ymax = ymax / ssfactor;
 % zmin = zmin / ssfactor; zmax = zmax / ssfactor;
+disp('done')
 
 %% With acom and pcom in hand, we compute dorsal and centerlines ==========
 xminrs = 0 ; xmaxrs = 0;
@@ -476,76 +479,81 @@ for ii=1:length(fns)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Grab dorsal direction if this is the first timepoint
     if ii == 1    
-        apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
-        apdat = h5read(apfn, '/exported_data');
-        ddat = permute(squeeze(apdat(dorsalChannel, :, :, :)), axorder) ;
-        
-        options.check = false ;
-        dcom = com_region(ddat, dorsal_thres, options) ;
-        %%%%%%%%%%%%%%%%%%%%%%
-        if preview
-            % % disp('Showing dorsal segmentation...')
-            % clf
-            % for slice=1:2:size(ddat, 2)
-            %     im = squeeze(ddat(:, slice, :)) ;
-            %     % im(im < dorsal_thres) = 0 ;
-            %     imshow(im)
-            %     xlabel('x')
-            %     ylabel('z')
-            %     hold on
-            %     plot(dcom(:, 1), dcom(:, 3), 'o')
-            %     title([num2str(slice) '/' num2str(size(apdat, 3))])
-            %     pause(0.001)
-            % end
+        disp('Obtaining dorsal direction since this is first TP...')
+        if ~exist([rotname '.txt'], 'file') || overwrite_apdvcoms
+            apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
+            apdat = h5read(apfn, '/exported_data');
+            ddat = permute(squeeze(apdat(dorsalChannel, :, :, :)), axorder) ;
+
+            options.check = false ;
+            dcom = com_region(ddat, dorsal_thres, options) ;
             %%%%%%%%%%%%%%%%%%%%%%
-            fig = figure ;
-            disp('Displaying mesh in figure ...')
-            % iso = isosurface(rawdat, 880) ;
-            % patch(iso,'facecolor',[1 0 0],'facealpha',0.1,'edgecolor','none');
-            % view(3)
-            % camlight
-            % hold on;
-            tmp = trimesh(fv.faces, ...
-                vtx_sub(:, 1), vtx_sub(:,2), vtx_sub(:, 3), ...
-                vtx_sub(:, 1)) ; % , 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
-            hold on;
-            plot3(acom(1), acom(2), acom(3), 'ro')
-            plot3(pcom(1), pcom(2), pcom(3), 'bo')
-            plot3(dcom(1), dcom(2), dcom(3), 'go')
-            xlabel('x [subsampled pixels]')
-            ylabel('y [subsampled pixels]')
-            zlabel('z [subsampled pixels]')
-            title('Original mesh in subsampled pixels, with APD marked')
-            axis equal
-            %%%%%%%%%%%%%%%%%%%%%%
-            waitfor(fig)
+            if preview
+                % % disp('Showing dorsal segmentation...')
+                % clf
+                % for slice=1:2:size(ddat, 2)
+                %     im = squeeze(ddat(:, slice, :)) ;
+                %     % im(im < dorsal_thres) = 0 ;
+                %     imshow(im)
+                %     xlabel('x')
+                %     ylabel('z')
+                %     hold on
+                %     plot(dcom(:, 1), dcom(:, 3), 'o')
+                %     title([num2str(slice) '/' num2str(size(apdat, 3))])
+                %     pause(0.001)
+                % end
+                %%%%%%%%%%%%%%%%%%%%%%
+                fig = figure ;
+                disp('Displaying mesh in figure ...')
+                % iso = isosurface(rawdat, 880) ;
+                % patch(iso,'facecolor',[1 0 0],'facealpha',0.1,'edgecolor','none');
+                % view(3)
+                % camlight
+                % hold on;
+                tmp = trimesh(fv.faces, ...
+                    vtx_sub(:, 1), vtx_sub(:,2), vtx_sub(:, 3), ...
+                    vtx_sub(:, 1)) ; % , 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+                hold on;
+                plot3(acom(1), acom(2), acom(3), 'ro')
+                plot3(pcom(1), pcom(2), pcom(3), 'bo')
+                plot4(dcom(1), dcom(2), dcom(3), 'go')
+                xlabel('x [subsampled pixels]')
+                ylabel('y [subsampled pixels]')
+                zlabel('z [subsampled pixels]')
+                title('Original mesh in subsampled pixels, with APD marked')
+                axis equal
+                %%%%%%%%%%%%%%%%%%%%%%
+                waitfor(fig)
+            end
+
+            % compute rotation 
+            apaxis = pcom - acom ;
+            aphat = apaxis / norm(apaxis) ;
+
+            % compute rotation matrix using this procedure: 
+            % https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
+            xhat = [1, 0, 0] ;
+            zhat = [0, 0, 1] ;
+            ssc = @(v) [0 -v(3) v(2); v(3) 0 -v(1); -v(2) v(1) 0] ;
+            RU = @(A,B) eye(3) + ssc(cross(A,B)) + ...
+                 ssc(cross(A,B))^2*(1-dot(A,B))/(norm(cross(A,B))^2) ;
+            % rotz aligns AP to xhat (x axis)
+            rotx = RU(aphat, xhat) ;
+
+            % Rotate dorsal to the z axis
+            % find component of dorsal vector from acom perp to AP
+            dvec = rotx * (dcom - acom)' - rotx * (dot(dcom - acom, aphat) * aphat)' ;
+            dhat = dvec / norm(dvec) ;
+            rotz = RU(dhat, zhat) ;
+            rot = rotz * rotx  ;
+
+            % Save the rotation matrix
+            disp(['Saving rotation matrix to txt: ', rotname, '.txt'])
+            dlmwrite([rotname '.txt'], rot)
+        else
+            disp('Loading rotation from disk since already exists...')
+            rot = dlmread([rotname '.txt']) ;
         end
-        
-        % compute rotation 
-        apaxis = pcom - acom ;
-        aphat = apaxis / norm(apaxis) ;
-        
-        % compute rotation matrix using this procedure: 
-        % https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
-        xhat = [1, 0, 0] ;
-        zhat = [0, 0, 1] ;
-        ssc = @(v) [0 -v(3) v(2); v(3) 0 -v(1); -v(2) v(1) 0] ;
-        RU = @(A,B) eye(3) + ssc(cross(A,B)) + ...
-             ssc(cross(A,B))^2*(1-dot(A,B))/(norm(cross(A,B))^2) ;
-        % rotz aligns AP to xhat (x axis)
-        rotx = RU(aphat, xhat) ;
-        
-        % Rotate dorsal to the z axis
-        % find component of dorsal vector from acom perp to AP
-        dvec = rotx * (dcom - acom)' - rotx * (dot(dcom - acom, aphat) * aphat)' ;
-        dhat = dvec / norm(dvec) ;
-        rotz = RU(dhat, zhat) ;
-        rot = rotz * rotx  ;
-        
-        % Save the rotation matrix
-        disp(['Saving rotation matrix to txt: ', rotname, '.txt'])
-        dlmwrite([rotname '.txt'], rot)
-        
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Define start point

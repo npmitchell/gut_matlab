@@ -32,6 +32,7 @@ colorwheel_position = [.8 .01 .15 .15] ;
 addpath(genpath('/mnt/crunch/djcislo/MATLAB/euclidean_orbifolds'));
 addpath(genpath('/mnt/data/code/gptoolbox'));
 addpath(genpath('/mnt/data/code/gut_matlab/geometry'));
+addpath(genpath('/mnt/data/code/gut_matlab/curve_functions'));
 addpath(genpath('/mnt/data/code/gut_matlab/axisymmetric_pullbacks'));
 addpath(genpath('/mnt/data/code/gut_matlab/TexturePatch'));
 addpath(genpath('/mnt/data/code/gut_matlab/polarity'));
@@ -179,8 +180,13 @@ polDir = fullfile(meshDir, ['polarity' filesep 'radon' ]) ;
 imFolder_es = [imFolder '_extended_shifted' filesep] ;
 % The extensile scale factor in x for relaxing the mesh
 arfn = fullfile(imFolder_r, 'ar_scalefactors.h5') ;
-
-tomake = {polDir} ;
+centerlineDir = fullfile(meshDir, 'centerline') ;
+cntrsFileName = fullfile(centerlineDir, 'mesh_apical_stab_%06d_centerline_scaled_exp1p0_res1p0.txt') ;
+cntrFileName = fullfile(centerlineDir, 'mesh_apical_stab_%06d_centerline_exp1p0_res1p0.txt') ;
+pbTwistDir = fullfile(meshDir, 'PullbackTwist') ;
+pbTwistImDir = fullfile(pbTwistDir, 'images') ;
+ 
+tomake = {polDir, pbTwistDir, pbTwistImDir} ;
 for ii = 1:length(tomake)
     dir2make = tomake{ii} ;
     if ~exist( dir2make, 'dir' )
@@ -799,49 +805,13 @@ error('break')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Get twist of x axis around centerline
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+extract_pullback_twist
 
-eps = 1e-6 ;
-for ii=1:length(fns) 
-    % Consider mesh for this timepoint
-    cutMesh = meshStack{meshidx(ii)} ;  
-
-    % Generate Tiled Orbifold Triangulation ------------------------------
-    tileCount = [1 1];  % how many above, how many below
-    [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount );
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% RADIUS VS SS ===========================================================
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+extract_radius_from_dvhoops
     
-    % Find the edge indices
-    meshTri = triangulation( TF, TV2D );
-    % The vertex IDs of vertices on the mesh boundary
-    bdyIDx = meshTri.freeBoundary;
-    % Consider all points on the left free boundary between y=(0, 1)
-    bdLeft = bdyIDx(TV2D(bdyIDx(:, 1), 1) < eps, 1) ;
-    bdLeft = bdLeft(TV2D(bdLeft, 2) < 1+eps & TV2D(bdLeft, 2) > -eps) ;
-    % Find matching endpoint on the right
-    rightmost = max(TV2D(:, 1));
-    bdRight = bdyIDx(TV2D(bdyIDx(:, 1), 1) > rightmost - eps) ;
-    
-    % GG = makeGraph(mesh0.f, mesh0.urelax) ; 
-    GG = makeGraph(TF, TV2D) ; 
-    
-    % Can now compute the shortest path for each pair of endpoints
-    tw = zeros(length(bdLeft), 1) ;
-    for jj = 1:length(bdLeft)
-        cp1 = bdLeft(jj) ;
-        yval = TV2D(cp1, 2) ;
-        [~, closest] = min(abs(yval-TV2D(bdRight, 2))) ;
-        cp2 = bdRight(closest) ;
-        path = shortestpath( GG, cp1, cp2 )' ;
-        curvj = TV3D(path, :) ;
-        % plot3(curvj(:, 1), curvj(:, 2), curvj(:, 3))
-        % hold on;
-        
-        % Compute twist for this curve
-        tw(jj) = twist(curvj, centerline)
-    end
-    
-    error('break')
-end
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% MAKE MAP FROM PIXEL TO XYZ =============================================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

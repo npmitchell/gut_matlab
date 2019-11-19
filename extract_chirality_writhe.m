@@ -1,4 +1,5 @@
-%% Extract the centerlines from a series of meshes (PLY files)
+%% Extract the writhe using Gauss integral from a series of meshes (PLY files)
+% Note: this is outdated. Use extract_segment_writhe.m instead
 % Run from meshDir, where msls_output is
 %
 % Prerequisites
