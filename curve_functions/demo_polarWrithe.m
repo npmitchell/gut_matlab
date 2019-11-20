@@ -3,21 +3,27 @@
 % NPMitchell 2019
 %
 outdir = '~/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/demo_polarwrithe/' ;
+outdir = '~/Desktop/demo_polarwrithe/' ;
 if ~exist(outdir, 'dir')
     mkdir(outdir) ;
 end
 addpath('../plotting/')
 
 %% First example: half twist, then twist back
-t = 0:0.01:1 ;
+t = 0:0.001:1 ;
 xx = sin(2*pi*t) ;
 yy = cos(2*pi*t) ;
 zz = t ;
 xx = [xx xx(1:end) ];
 yy = [yy fliplr(yy(1:end)) ];
 zz = [zz fliplr(zz(1:end)) ];
+xx = xx(1:5:end) ;
+yy = yy(1:5:end) ;
+zz = zz(1:5:end) ;
 xyz = [xx ; yy; zz]';
 [wr, wr_local, wr_nonlocal, turns] = polarWrithe(xyz, []) ;
+[WrL, wrL] = writheLevitt(xyz, true) ;
+[WrG, wrG] = writheGaussIntegral(xyz, []) ;
 
 subplot(2, 2, 1)
 % scatter3(xx', yy', zz', 10, yy) 
@@ -50,12 +56,22 @@ xlabel('segment index')
 ylabel('nonlocal writhe')
 axes( 'Position', [0, 0, 1, 1] ) ;
 set( gca, 'Color', 'None', 'XColor', 'White', 'YColor', 'White' ) ;
-titletext = ['Wr = ' num2str(wr)] ;
+titletext = ['Wr$_p$ = ' sprintf('%0.3f', wr) ];
+titletext = [titletext ', Wr$_G$ = ' sprintf('%0.3f', WrG) ] ;
+titletext = [titletext ', Wr$_L$ = ' sprintf('%0.3f', WrL) ] ;
 text( 0.5, 0.95, titletext, 'FontSize', 14', 'FontWeight', 'Bold', ...
-      'HorizontalAlignment', 'Center', 'VerticalAlignment', 'Bottom' ) ;
+      'HorizontalAlignment', 'Center', 'VerticalAlignment', 'Bottom', ...
+      'Interpreter', 'Latex') ;
 axis off
 saveas(gcf, fullfile(outdir, 'twoseg_helix.png'))
-close all
+close all;
+plot(wrL)
+hold on
+plot(wrG)
+plot(wr_local)
+legend({'Levitt', 'Gauss', 'polar'})
+xlabel('index')
+ylabel('Writhe density')
 
 %% Half twist
 t = 0:0.002 :1 ;
@@ -200,23 +216,6 @@ axis off
 saveas(gcf, fullfile(outdir, 'twoseg_helix.png'))
 close all
 
-
-%% traditional writhe:
-ssx = ss_from_xyz(xyz) ;
-[tangent, normal, binormal] = frenetSeretFrame(ssx, xyz(:, 1), xyz(:, 2), xyz(:, 3)) ;
-ds = gradient(ssx) ;
-wr = zeros(length(ssx), 1) ;
-for jj=1:length(ssx)
-    oind = setdiff(1:length(ssx), jj) ;
-    rmr = xyz(jj, :) - xyz(oind, :) ;
-    rmrmag = vecnorm(rmr')' ;
-    txt = cross(tangent(jj,:) .* ones(length(oind), 3), tangent(oind, :));
-    % Take row-wise inner product
-    integrand = sum(sum(txt .* rmr, 2) ./ (rmrmag.^3 .* ones(size(txt))), 2) ;
-    % Writhe per unit length is wr
-    wr(jj) = sum(integrand) ;
-end
-wrtot = nansum(wr .* ds)
 
 %% half twist that turns back
 t = 0:0.01:1 ;

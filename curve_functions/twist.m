@@ -45,7 +45,7 @@ tang1 = tangent_from_curve(ss1, curv1(:, 1), curv1(:, 2), curv1(:, 3)) ;
 tang2 = tangent_from_curve(ss2, curv2(:, 1), curv2(:, 2), curv2(:, 3)) ;
 ds1 = gradient(ss1) ;
 ds2 = gradient(ss2) ;
-wr = zeros(length(ss), 1) ;
+tw = zeros(length(ss1), 1) ;
 for jj=1:length(ss1)
     rmr = curv1(jj, :) - curv2 ;
     rmrmag = vecnorm(rmr')' ;
@@ -53,10 +53,10 @@ for jj=1:length(ss1)
     % Take row-wise inner product
     integrand = sum(sum(txt .* rmr, 2) ./ (rmrmag.^3 .* ones(size(txt))), 2) ;
     % Writhe per unit length is wr
-    wr(jj) = sum(integrand .* ds2) ;
+    tw(jj) = sum(integrand .* ds2) ;
 end
-Tw = nansum(wr .* ds1) / (4 * pi) ;
-tw = wr / (4 * pi) ;
+Tw = nansum(tw .* ds1) / (4 * pi) ;
+tw = tw / (4 * pi) ;
 
 end
 

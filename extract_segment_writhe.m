@@ -16,7 +16,7 @@
 %% Run from the msls_output directory
 clear ;
 compute_chirality = false ;
-overwrite = false ;
+overwrite = true ;
 cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/
 
 
@@ -208,31 +208,40 @@ disp('done loading xyzlimits for centerline')
 ii = 1;
 
 %% Check if the results have been saved already
-wrfn = fullfile(wroutdir, 'writhe_polar.txt') ;
-wdfn = fullfile(meshdir, 'writhe_polar_densities.mat') ;
-lnfn = fullfile(meshdir, 'lengths_over_time.mat') ;
-wre = exist(wrfn, 'file');
-wde = exist(wdfn, 'file') ;
+wrpfn = fullfile(wroutdir, 'writhe_polar.txt') ;
+wdpfn = fullfile(wroutdir, 'writhe_polar_densities.mat') ;
+wrLfn = fullfile(wroutdir, 'writhe_Levitt.txt') ;
+wdLfn = fullfile(wroutdir, 'writhe_Levitt_densities.mat') ;
+wrGfn = fullfile(wroutdir, 'writhe_Gauss.txt') ;
+wdGfn = fullfile(wroutdir, 'writhe_Gauss_densities.mat') ;
+lnfn = fullfile(outdir, 'lengths_over_time.mat') ;
+wre = exist(wrpfn, 'file');
+wde = exist(wdpfn, 'file') ;
 lne = exist(lnfn, 'file') ;
 saved = wre && wde && lne ;
 
 if saved && ~overwrite
     % Load the results
-    wdat = dlmread(wrfn, ',', 1, 0);
+    wdat = dlmread(wrpfn, ',', 1, 0);
     times = wdat(:, 1) ;
     Wrp = wdat(:, 2) ; 
     dwr = wdat(:, 3) ;
-    load(wdfn) ;
+    load(wdpfn) ;
     load(lnfn) ;
 else
-    %% Iterate through each mesh
+    % Iterate through each mesh
     Wrp = zeros(length(fns), 1) ;
-    Wr = zeros(length(fns), 1) ;
     wrp_densities = cell(length(fns), 1);
+    Wrpseg1 = zeros(length(fns), 1) ;
+    WrL = zeros(length(fns), 1) ;
+    wrL_densities = cell(length(fns), 1);
+    WrG = zeros(length(fns), 1) ;
+    wrG_densities = cell(length(fns), 1);
     times = zeros(length(fns), 1) ;
-
+    lengths = zeros(length(fns), 1) ;
+    
     for ii=1:length(fns)
-        %% Name the output centerline
+        % Name the output centerline
         name_split = strsplit(fns(ii).name, '.ply') ;
         name = name_split{1} ; 
         expstr = ['exp' strrep(num2str(exponent, '%0.1f'), '.', 'p') ] ;
@@ -254,7 +263,7 @@ else
         skelrs = sskelrs(:, 2:4) ;
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        %% Compute writhe of the centerline
+        % Compute writhe of the centerline
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % Filter the result
         % Smoothing parameters
@@ -262,7 +271,7 @@ else
         polyorder = 2 ;
         [ssx, xp, yp, zp] = smooth_curve_via_fit_3d(ss, skelrs, polyorder, framelen) ;
 
-        %% Check the smoothing
+        % Check the smoothing
         if preview
             close all
             fig = figure;
@@ -342,7 +351,7 @@ else
         %     saveas(fig, [figsmoutname '_dphids.png'])
         % end
 
-        %% Compute the writhe
+        % Compute the writhe
         % Wr = 1/4pi \int \int T(s) xx T(s') \cdot [R(s) - R(s') / |R(s) - R(s')|^3]
         % Here use the polynomial fit to the curve to compute
         % xp, yp, zp
@@ -360,23 +369,21 @@ else
         %     % Writhe per unit length is wr
         %     wr(jj) = sum(integrand) ;
         % end
-        [Wrp_ii, wrp_local, wrp_nl, turns, segments] = polarWrithe(xyzp, ssx(:)) ;
-        WrL(ii) = writheLevitt(xyzp, false) ;
-        WrG(ii) = writheGaussIntegral(xyzp, ssx(:)) ;
-        
-        
-        Wrp(ii) = Wrp_ii ;
-        % Just take sum of wrp_local of first segment
-        % if length(turns) > 1
-        %     Wrp(ii) = nansum(wrp_local(1:turns(1))) ;
-        % else
-        %     Wrp(ii) = Wrp_ii ;
-        % end
-        
-        
-        if length(turns) < 1
-            wrp_densities{ii} = wrp_local ;
+        [Wrp(ii), wrp_local, wrp_nl, turns, segments] = polarWrithe(xyzp, ssx(:)) ;
+        % Store the first segment writhe: sum of wrp_local of first segment
+        if ~isempty(turns)
+            error('exiting now')
+            Wrpseg1(ii) = nansum(wrp_local(1:turns(1))) ;
+        else
+            Wrpseg1(ii) = nansum(wrp_local) ;
         end
+        wrp_densities{ii} = wrp_local ;
+        
+        % Segment cross product writhe
+        % [WrL(ii)] = writheLevitt(xyzp, false) ;
+        [WrL(ii), wrL_densities{ii}] = writheLevitt(xyzp, false) ;
+        [WrG(ii), wrG_densities{ii}] = writheGaussIntegral(xyzp, ssx(:)) ;
+                
         lengths(ii) = max(ss) ;
         if preview
             % Plot the writhe 
@@ -391,11 +398,9 @@ else
         end
     end
 
-    %% Save Wr(t) and Ch(t)
-    % Save the chirality -- todo
-    % dlmwrite(fullfile(choutdir, 'chirality.txt'), [times, Chirality]);
-    % save(fullfile(meshdir, 'chirality_densities.mat'), 'chirality_densities') ;
-
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Save Wr(t)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Save the writhe
     windowSize = 7; 
     b = (1/windowSize)*ones(1,windowSize);
@@ -403,9 +408,31 @@ else
     Wrsm = smoothdata(Wrp, 'rlowess', 5) ;
     wsmooth = filter(b, a, Wrsm) ;
     dwr = gradient(wsmooth) ;
-    write_txt_with_header(wrfn, ...
-        [times, Wrp, dwr], 'timestamp, polar Writhe, d(Wr)/dt');
-    save(wdfn, 'wrp_densities') ;
+    write_txt_with_header(wrpfn, ...
+        [times, Wrp, dwr], 'timestamp, polar Writhe, smoothed d(Wrp)/dt');
+    save(wdpfn, 'wrp_densities') ;
+
+    % Save the Levitt writhe
+    windowSize = 7; 
+    b = (1/windowSize)*ones(1,windowSize);
+    a = 1;
+    WrLsm = smoothdata(WrL, 'rlowess', 5) ;
+    wsmooth = filter(b, a, WrLsm) ;
+    dwr = gradient(wsmooth) ;
+    write_txt_with_header(wrLfn, ...
+        [times, WrL, dwr], 'timestamp, Levitt Writhe, smoothed d(WrL)/dt');
+    save(wdLfn, 'wrL_densities') ;
+
+    % Save the Gauss writhe
+    windowSize = 7; 
+    b = (1/windowSize)*ones(1,windowSize);
+    a = 1;
+    WrGsm = smoothdata(WrG, 'rlowess', 5) ;
+    wsmooth = filter(b, a, WrGsm) ;
+    dwr = gradient(wsmooth) ;
+    write_txt_with_header(wrGfn, ...
+        [times, WrG, dwr], 'timestamp, Gauss Writhe, smoothed d(WrG)/dt');
+    save(wdGfn, 'wrG_densities') ;
 
     % Save length vs time and dlength 
     % Filter the data for derivative
@@ -437,16 +464,17 @@ close all
 fig = figure('Visible', 'Off') ;
 plot(times, Wrp) ;
 hold on 
-plot(times, WrL) ;
-plot(times, WrG, '--') ;
+plot(times, Wrpseg1) ;
+plot(times, WrL, '--') ;
+plot(times, WrG, ':') ;
 xlabel('time [min]', 'Interpreter', 'Latex')
 ylabel('Writhe')
 title('Writhe over time', 'Interpreter', 'Latex')
-legend({'polar', 'Levitt', 'Gauss'})
+legend({'polar', 'polar (segment 1 only)', 'Levitt', 'Gauss'}, 'location', 'best')
 set(gcf, 'PaperUnits', 'centimeters');
 set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);        
 
-disp(['Saving figure to: ' fullfile(figwrdir, 'writhe_polar_vs_time.pdf')])
+disp(['Saving figure to: ' fullfile(figwrdir, 'writhe_polar_vs_time.pdf/png')])
 saveas(fig, fullfile(figwrdir, 'writhe_polar_vs_time_comparison.pdf'))
 saveas(fig, fullfile(figwrdir, 'writhe_polar_vs_time_comparison.png'))
 set(gcf, 'visible', 'on')

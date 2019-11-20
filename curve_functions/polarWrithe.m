@@ -10,7 +10,7 @@ function [wr, wr_local, wr_nonlocal, turns, segs, segpairs] = polarWrithe(xyz, s
 % ss : N x 1 float array (optional, computed if not provided) 
 %   pathlength parameterization
 % res : float (optional, default is 0.01)
-%   resolution of interpolation variable
+%   resolution of interpolation variable 
 %
 % Returns
 % -------

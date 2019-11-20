@@ -198,7 +198,7 @@ cylinderMeshCleanBase = fullfile( cylCutMeshOutDir, ...
 cylinderMeshCleanFigBase = fullfile( cylCutMeshOutImDir, ...
     'mesh_apical_stab_%06d_cylindercut_clean.png' );
 
-% The file constaing the AD/PD points
+% The file containg the AD/PD points
 dpFile = fullfile( cylCutDir, 'ap_boundary_dorsalpts.h5' );
 
 tomake = {imFolder, imFolder_e, imFolder_r, imFolder_re,...
@@ -276,7 +276,7 @@ else
     disp('meshStack is not on disk or is to be overwritten, compute...')
     meshStack = cell( length(xp.fileMeta.timePoints), 1 );
     new_run = true ;
-    for t = xp.fileMeta.timePoints(148:end)
+    for t = xp.fileMeta.timePoints
         disp(['NOW PROCESSING TIME POINT ', num2str(t)]);
         tidx = xp.tIdx(t);
 
@@ -477,7 +477,7 @@ else
         end
         
         %% Plot the cutPath (cutP) in 3D
-        if save_ims && (compute_pullback || overwrite_pullbacks)
+        if save_ims && overwrite_cutMesh 
             disp('Plotting cut...')
             xyzrs = ((rot * mesh.v')' + trans) * resolution ;
             fig = figure('Visible', 'Off')  ;
@@ -588,10 +588,10 @@ else
             % 
             % clear cornerColors corners
 
-            generate_sphi_coord = false
+            generate_sphi_coord = true
             if generate_sphi_coord
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                %% Generate s,phi coord system
+                %% Generate s,phi coord system for rotated,scaled mesh (rs)
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 fprintf('Generating s,phi coord system\n');
                 % Transform from u,v coordinates to s, phi coordinates
@@ -601,66 +601,27 @@ else
                 % Generate tiled orbifold triangulation
                 %----------------------------------------------------------------------
                 tileCount = [1 1];  % how many above, how many below
-                [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount );
+                cutMeshrs = cutMesh;
+                % Rotate and translate TV3D
+                cutMeshrs.v = ((rot * cutMesh.v')' + trans) * resolution ;
+                cutMeshrs.vn = (rot * cutMesh.vn')' ;
+                [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMeshrs, tileCount );
 
                 %----------------------------------------------------------------------
                 % Calculate abbreviated centerline from cutMesh boundaries
                 %----------------------------------------------------------------------
-                meshTri = triangulation( TF, TV2D );
-                % The vertex IDs of vertices on the mesh boundary
-                bdyIDx = meshTri.freeBoundary;
-                % Consider all points on the left free boundary between y=(0, 1)
-                bdLeft = bdyIDx(TV2D(bdyIDx(:, 1), 1) < eps, 1) ;
-                bdLeft = bdLeft(TV2D(bdLeft, 2) < 1+eps & TV2D(bdLeft, 2) > -eps) ;
-                % Find matching endpoint on the right
-                rightmost = max(TV2D(:, 1));
-                bdRight = bdyIDx(TV2D(bdyIDx(:, 1), 1) > rightmost - eps) ;
-
                 % Load centerline in raw units
                 cntrfn = sprintf(cntrsFileName, t) ;
                 cline = dlmread(cntrfn, ',') ;
                 ss = cline(:, 1) ;
                 cline = cline(:, 2:end) ;
-
-                % Rotate and translate TV3D
-                % cline = ((rot * cline')' + trans) * resolution  ;
-                TV3D = ((rot * TV3D')' + trans) * resolution  ;
+                
+                % Check it
+                % trisurf(triangulation(TF, TV3D), 'EdgeColor', 'none', 'FaceAlpha', 0.3)
                 % plot3(cline(:, 1), cline(:, 3), cline(:, 2), 'k-')
                 % set(gcf, 'visible', 'on')
-                % error('break')
-
-                % Find segment of centerline to use
-                % grab "front"/"start" of centerline nearest to bdLeft
-                % distance from each point in bdLeft to this point in cntrline
-                Adist = zeros(length(cline), 1) ;
-                for kk = 1:length(cline)
-                    Adist(kk) = mean(vecnorm(TV3D(bdLeft, :) - cline(kk, :), 2, 2)) ;
-                end
-                [~, acID] = min(Adist) ; 
-
-                % grab "back"/"end" of centerline nearest to bdRight
-                Pdist = zeros(length(cline), 1) ;
-                for kk = 1:length(cline)
-                    Pdist(kk) = mean(vecnorm(TV3D(bdRight, :) - cline(kk, :), 2, 2)) ;
-                end
-                [~, pcID] = min(Pdist) ;
-                cseg = cline(acID:pcID, :) ;
-
-                % Visualizing 
-                if preview
-                    close all
-                    fig = figure('visible', 'off') ;
-                    plot(ss, Adist)
-                    hold on
-                    plot(ss, Pdist)
-                    xlabel('pathlength of centerline')
-                    ylabel('mean distance from anterior or posterior cuts')
-                    title('Extracting relevant portion of centerline for twist')
-                    legend({'anterior', 'posterior'}, 'location', 'best')
-                    xlim([0 smax])
-                    waitfor(fig)
-                    close all
-                end
+                
+                [cseg, acID, pcID, bdLeft, bdRight] = centerlineSegmentFromCutMesh(cline, TF, TV2D, TV3D) ;
 
                 %----------------------------------------------------------------------
                 % Generate surface curves of constant s
@@ -694,64 +655,83 @@ else
                 vspace = linspace( eps, 1-eps, nV )' ;
 
                 disp('Casting points into 3D...')
+                % NOTE: first dimension indexes u, second indexes v
                 curves3d = zeros(nU, nV, 3) ;
                 for kk = 1:nU
                     if mod(kk, 50) == 0
                         disp(['u = ' num2str(kk / nU)])
                     end
                     uv = [uspace(kk) * ones(size(vspace)), vspace] ;
-                    curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(cutMesh.f, cutMesh.u, cutMesh.v, uv) ;
+                    curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(cutMeshrs.f, cutMeshrs.u, cutMeshrs.v, uv) ;
                 end 
-
+                
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                fprintf('Compute s(u) and radius(u), each (0,1) \n');
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                % todo: sample at evenly spaced dphi in embedding space
+                fprintf('Resampling curves...')
+                c3ds = 0 * curves3d ;
+                for i=1:nU
+                    % Note: no need to add the first point to the curve
+                    % since the endpoints already match exactly in 3d and
+                    % curvspace gives a curve with points on either
+                    % endpoint (corresponding to the same 3d location).
+                    c3ds(i, :, :) = resampleCurvReplaceNaNs(squeeze(curves3d(i, :, :)), nV, true) ;
+                end
+                
+                % todo: wrap into function
+                cseg_ss = ss(acID:pcID) ;
+                [ssv, radii, avgpts, radii_from_mean, cids] = srFromDVCurves(cseg_ss, cseg, c3ds) ;
+                
+                % Adjust the centerline indices to index into the full
+                % centerline. Note that cseg_ss already does this for ss.
+                cids = cids + acID ;
+                
+                % Now define sphi using new centerline
+                mcline = curvspace(curv, 100) ;
+                mss = ss_from_xyz(mcline) ;
+                sphi = 
+                [sgrid, phigrid] =
+                
+                % Show average points
+                dc2d = delaunay(sgrid, phigrid) ;
+                scatter3(avgpts(:, 1), avgpts(:, 2), avgpts(:, 3), 10, ssv) ;
+                hold on;
+                scatter3(cseg(:, 1), cseg(:, 2), cseg(:, 3), 10, cseg_ss)
+                plot3(cline(:, 1), cline(:, 2), cline(:, 3), 'k');
+                trisurf(triangulation(TF, TV3D), 'EdgeColor', 'none', 'FaceAlpha', 0.1); 
+                axis equal
+                
+                
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                fprintf('Done with measuring radius\n');
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 if t == xp.fileMeta.timePoints(1)
-                    prevc3d = curves3d ;
+                    % Store for next timepoint
+                    prevsphi = curves3d ;
                 else
                     % [x,fval] = fmincon('distanceEnergy',x0,A,b,[],[],lb)
                     % Consider each value of u in turn
                     phi0s = zeros(nU, 1) ;
                     for qq = 1:nU
                         curve = curves3d(qq, :) ;
-                        phi0s(qq) = fminsearch(@(phi0) sum(norm( mod(curve + phi0(1), 1) - prevc3d(qq, :, :), 2, 2)), [phi0]);
+                        phi0s(qq) = fminsearch(@(phi0) sum(norm( mod(curve + phi0(1), 1) - prevsphi(qq, :, :), 2, 2)), [0.]);
                     end   
+                
+                    % Convert phi0s to a smooth polynomial phi
+                    phi = phi0s; 
+                    
+                    % Store for next timepoint
+                    prevsphi
                 end
+                
+                % Save s,phi and their 3D embedding
+                save(sprintf(sphiBaseName, t), 'ssv', 'phiv', 'sphi_xyz') ;
 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 fprintf('Done with generating S,Phi coords \n');
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                fprintf('Measure radius as function of s \n');
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % todo: sample at evenly spaced ds in embedding space
-                curvesAP = resample_curve(curvesAP, ds) ;
-                curvesDV = resample_curve(curvesDV, ds) ;
-
-                % todo: wrap into function
-                [radii, cids, avgpts, radii_from_mean, cid_list] = radiusFromDVcurves(cseg, curvesDV) ;
-
-                % Measure radius to nearest common centerline point for each bin
-                for jj = 1:size(curvesDV, 1)
-                    % Consider this hoop
-                    hoop = curvesDV(jj, :) ;
-
-                    % Compute radii for this bin
-                    % First find which centerline segment from which to compute radius
-                    rdist = zeros(length(cseg), 1) ;
-                    for kk = 1:length(cseg)
-                        rdist(kk) = mean(vecnorm(hoop - cseg(kk, :), 2, 2)) ;
-                    end
-                    [~, cid] = min(rdist) ;
-
-                    radii(jj, :) = vecnorm(hoop - cseg(cid, :), 2, 2) ;
-                    cids(jj) = acID + cid ;
-                    avgpts(jj, :) = mean(hoop) ; 
-                    radii_from_mean(hoop) = vecnorm(hoop - avgpts(jj, :), 2, 2) ;
-                    cid_list(jj) = acID + cid ;
-                end
-
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                fprintf('Done with measuring radius\n');
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             end
 
             %----------------------------------------------------------------------
