@@ -25,7 +25,7 @@
 % Train for anterior dorsal (D) only at the first time point, because
 % that's the only one that's used.
 clear ; close all
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/
 
 %% First, compile required c code
 % mex ./FastMarching_version3b/shortestpath/rk4
@@ -88,7 +88,7 @@ cntrlinedir = fullfile(meshdir, 'centerline') ;
 outapd_boundaryfn = fullfile(outdir, 'ap_boundary_dorsalpts.h5') ;
 boundaryfn = fullfile(outdir, 'ap_boundary_indices.h5') ;
 outapphicd_fn = fullfile(outdir, 'ap_boundary_phicd_values.h5') ;
-keepfn = fullfile(outdir, 'cut_endcap_indx.h5') ;
+keepfnExtn = '_cut_endcap_indx.mat' ;
 
 ii = 1 ;
 
@@ -128,6 +128,7 @@ for ii=1:length(fns)
     tmp = strsplit(name, '_') ;
     timestr = tmp{length(tmp)} ;
     outfn = fullfile(outdir, [name '_cylindercut.ply']);
+    keepfn = fullfile(outdir, [name keepfnExtn]) ; 
     
     %% Read the mesh
     msg = strrep(['Loading mesh ' fns(ii).name], '_', '\_') ;
@@ -261,13 +262,7 @@ for ii=1:length(fns)
         plywrite_with_normals(outfn, faces, vtx * ssfactor, vn)
         
         % Save the indices to keep when cutting off endcaps
-        try
-            h5create(keepfn, ['/' name], size(keep)) ;
-        catch
-            msg = 'keep already exists in keepfn' ;
-            waitbar(ii / length(fns), fbar, msg) ;
-        end
-        h5write(keepfn, ['/' name], keep)
+        save(keepfn, 'keep') ;
     else
         meshcut = read_ply_mod(outfn) ;
         faces = meshcut.f ;
@@ -275,7 +270,10 @@ for ii=1:length(fns)
         vn = meshcut.vn ;
         
         % Load which indices to keep when cutting off endcaps
-        keep = h5read(keepfn, ['/' name]) ;
+        keep = load(keepfn, 'keep') ; 
+        if strcmp(class(keep), 'struct')
+            keep = keep.keep;
+        end
     end
     % % Check the normals 
     % close all
