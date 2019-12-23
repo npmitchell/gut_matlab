@@ -51,6 +51,7 @@ function [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount )
 % Default tiling creates three stacked tiles
 if nargin < 2
     tileCount = [1 1];
+    
 end
 
 % Verify input cut mesh

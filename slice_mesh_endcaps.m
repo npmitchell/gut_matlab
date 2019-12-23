@@ -133,18 +133,10 @@ for ii=1:length(fns)
     %% Read the mesh
     msg = strrep(['Loading mesh ' fns(ii).name], '_', '\_') ;
     waitbar(ii/length(fns), fbar, msg) ;
-    % if exist('fbar', 'var')
-    %     if isvalid(fbar)    
-    %         waitbar(ii/length(fns), fbar, msg)
-    %     else
-    %         fbar = waitbar(ii/length(fns), msg) ;
-    %     end
-    % else
-    %     fbar = waitbar(ii / length(fns), msg) ;
-    % end
     
     % Compute the endcaps if not already saved
     if overwrite || ~exist(outfn, 'file') || ~exist(keepfn, 'file')
+        disp(['Computing endcaps for ' fns(ii).name])
         mesh = read_ply_mod(fullfile(fns(ii).folder, fns(ii).name));
         tri = mesh.f ;
         if strcmp(meshorder, 'zyx')
@@ -448,8 +440,6 @@ for ii=1:length(fns)
             close(fig)
         end
     end
-    
-    
 end
 
 close(fbar)

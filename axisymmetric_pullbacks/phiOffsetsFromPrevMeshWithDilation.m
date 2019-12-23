@@ -1,5 +1,5 @@
-function [phi0s] = phiOffsetsFromPrevMesh(TF, TV2D, TV3Drs, uspace, ...
-    vspace, prev3d_sphi, lowerbound, upperbound, vargin)
+function [phi0s, coscoeffs] = phiOffsetsFromPrevMeshWithDilation(TF, TV2D, TV3Drs, uspace, ...
+    vspace, prev3d_sphi, visualize, options)
 %PHIOFFSETSFROMPREVMESH(TF, TV2D, TV3Drs, nU, vpsace, prev3d_sphi) 
 %   Find the offset in phi (the y dimension of the 2d pullback) that
 %   minimizes the difference in 3D of the positions of each DV hoop from
@@ -33,23 +33,17 @@ function [phi0s] = phiOffsetsFromPrevMesh(TF, TV2D, TV3Drs, uspace, ...
 % NPMitchell 2019
 
 % Interpret vargin as boolean for visualization 
-if nargin > 8
-    if vargin{1}
+if nargin > 6
+    if visualize
         fig = figure('visible', 'on') ;
-        visualize = true ;
-    else
-        visualize = false ;
-    end
-    if nargin > 9
-        options = vargin{2} ;
-    else
-        % options = optimset('PlotFcns','optimplotfval','TolX',1e-7);
-        options = optimset() ; 
     end
 else
-    visualize = true ;
-    % options = optimset('PlotFcns','optimplotfval', 'TolX',1e-7); 
-    options = optimset() ; % 'TolX',1e-7); 
+    visualize = false ;
+end
+
+if nargin < 8
+    % options = optimset('PlotFcns','optimplotfval','TolX',1e-7);
+    options = optimset() ; 
 end
 
 % Consider each value of u in turn
@@ -57,12 +51,13 @@ end
 nU = length(uspace) ;
 nV = length(vspace) ;
 phi0s = zeros(nU, 1) ;
+coscoeffs = zeros(nU, 1) ;
 % The V values here are (0...1)
 vqq = vspace ;
 
 prog = repmat('.', [1 floor(nU/10)]) ;
 for qq = 1:nU
-    tic 
+    tic
     % curve = curves3d(qq, :) ;
     % The previous 3d embedding values are stored 
     prev3dvals = squeeze(prev3d_sphi(qq, :, :)) ;
@@ -78,18 +73,22 @@ for qq = 1:nU
         
     % Note: interpolate2Dpts_3Dmesh(cutMeshrs.f, cutMeshrs.u, cutMeshrs.v, uv) 
     
-    % Used to do simple search fmin, now do constrained
-    % phi0s(qq) = fminsearch(@(phi0)...
-    %     sum(vecnorm(...
-    %     interpolate2Dpts_3Dmesh(TF, TV2D, ...
-    %         TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)]) ...
-    %         - prev3dvals, 2, 2) .^ 2), [0.], options);
-
-    phi0s(qq) = fminbnd(@(phi0)...
+    % 
+    phiopt = fminsearch(@(phi0)...
         sum(vecnorm(...
         interpolate2Dpts_3Dmesh(TF, TV2D, ...
-            TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)]) ...
-            - prev3dvals, 2, 2) .^ 2), lowerbound, upperbound, options);
+            TV3Drs, [uspace(qq) * ones(nV, 1),...
+            mod(vqq + phi0(1) + phi0(2) * cos(vqq * 2 * pi), 1)]) ...
+            - prev3dvals, 2, 2).^ 2), [0., 0.], options);
+    phi0s(qq) = phiopt(1) ;
+    coscoeffs(qq) = phiopt(2) ;
+    
+    % Old version
+    % phi0s(qq) = fminbnd(@(phi0)...
+    % sum(vecnorm(...
+    % interpolate2Dpts_3Dmesh(TF, TV2D, ...
+    %     TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)]) ...
+    %     - prev3dvals, 2, 2) .^ 2), lowerbound, upperbound, options);
         
     % Visualize the minimization output values
     if visualize

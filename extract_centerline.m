@@ -94,9 +94,9 @@ cd(odir)
 overwrite = false ;  % recompute centerline
 overwrite_apdvcoms = false ;  % recompute APDV coms from training
 save_figs = true ;  % save images of cntrline, etc, along the way
-overwrite_ims = true ;  % overwrite images even if centerlines are not overwritten
+overwrite_ims = false ;  % overwrite images even if centerlines are not overwritten
 preview = false ;  % display intermediate results, for debugging
-res = 1 ;  % pixels per gridspacing of DT for cntrline extraction
+res = 1 ;  % pixels per gridspacing of DT for cntrline extraction, in units of subsampled pixels
 resolution = 0.2619 ;  % um per pixel for full resolution (not subsampled)
 dorsal_thres = 0.9 ;  % threshold for extracting Dorsal probability cloud 
 buffer = 5 ;  % extra space in meshgrid of centerline extraction, to ensure mesh contained in volume
@@ -145,6 +145,7 @@ xyzlimname_raw = fullfile(meshdir, 'xyzlim') ;
 xyzlimname = fullfile(meshdir, 'xyzlim_APDV') ;
 xyzlimname_um = fullfile(meshdir, 'xyzlim_APDV_um') ;
 outapdvname = fullfile(outdir, 'apdv_coms_rs.h5') ;
+dcomname = fullfile(outdir, 'dorsalcom.txt') ;
 
 % Name the directory for outputting figures
 figoutdir = [outdir 'images' filesep];
@@ -171,18 +172,20 @@ phi_def_outdir = [figoutdir 'phid_definition' filesep];
 if ~exist(phi_def_outdir, 'dir')
     mkdir(phi_def_outdir) ;
 end
-radius_vs_s_phi_outdir = [figoutdir 'radius_vs_s_phid' filesep];
-if ~exist(radius_vs_s_phi_outdir, 'dir')
-    mkdir(radius_vs_s_phi_outdir) ;
-end
+
+% No longer saving radius 
+% radius_vs_s_phi_outdir = [figoutdir 'radius_vs_s_phid' filesep];
+% if ~exist(radius_vs_s_phi_outdir, 'dir')
+%     mkdir(radius_vs_s_phi_outdir) ;
+% end
+% radius_vs_s_phicd_outdir = [figoutdir 'radius_vs_s_phicd' filesep];
+% if ~exist(radius_vs_s_phicd_outdir, 'dir')
+%     mkdir(radius_vs_s_phicd_outdir) ;
+% end
 
 phicd_def_outdir = [figoutdir 'phicd_definition' filesep];
 if ~exist(phicd_def_outdir, 'dir')
     mkdir(phicd_def_outdir) ;
-end
-radius_vs_s_phicd_outdir = [figoutdir 'radius_vs_s_phicd' filesep];
-if ~exist(radius_vs_s_phicd_outdir, 'dir')
-    mkdir(radius_vs_s_phicd_outdir) ;
 end
 alignedmeshdir = fullfile(meshdir, ['aligned_meshes' filesep]) ;
 if ~exist(alignedmeshdir, 'dir')
@@ -480,7 +483,7 @@ for ii=1:length(fns)
     %% Grab dorsal direction if this is the first timepoint
     if ii == 1    
         disp('Obtaining dorsal direction since this is first TP...')
-        if ~exist([rotname '.txt'], 'file') || overwrite_apdvcoms
+        if ~exist([rotname '.txt'], 'file') || overwrite_apdvcoms || ~exist(dcomname, 'file')
             apfn = fullfile(rootdir, ['Time_' timestr '_c1_stab_Probabilities_apcenterline.h5' ]);
             apdat = h5read(apfn, '/exported_data');
             ddat = permute(squeeze(apdat(dorsalChannel, :, :, :)), axorder) ;
@@ -526,6 +529,10 @@ for ii=1:length(fns)
                 waitfor(fig)
             end
 
+            % Save dcom to dcomname
+            header = 'Dorsal point in xyz subsampled pixel units' ;
+            write_txt_with_header(dcomname, dcom, header)
+            
             % compute rotation 
             apaxis = pcom - acom ;
             aphat = apaxis / norm(apaxis) ;
@@ -553,6 +560,7 @@ for ii=1:length(fns)
         else
             disp('Loading rotation from disk since already exists...')
             rot = dlmread([rotname '.txt']) ;
+            dcom = dlmread(dcomname) ;
         end
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -951,7 +959,7 @@ for ii=1:length(fns)
     end
     
     % Compute radius R(s) in microns
-    radii = vecnorm(vtx_sub * ssfactor - skel(kmatch), 2, 2) * resolution ;
+    % radii = vecnorm(vtx_sub * ssfactor - skel(kmatch), 2, 2) * resolution ;
     
     % Compute phi(s), which is just the polar angle in the yz plane - pi/2
     % taken wrt the centerline
@@ -960,13 +968,13 @@ for ii=1:length(fns)
                         xyzr(:, 2) - skelr(kmatch, 2)) - pi * 0.5, 2*pi);
 
     % Save radii and angle wrt dorsal as text file
-    disp(['Saving radii to txt: ', polaroutfn, '.txt'])
-    fn = [polaroutfn '.txt'] ;
-    fid = fopen(fn, 'wt');
-    % make header
-    fprintf(fid, 'kmatch, radii [microns], phi_dorsal, phi_ctrdorsal');  
-    fclose(fid);
-    dlmwrite(fn, [kmatch, radii, phi_dorsal, phi_ctrdorsal])
+    % disp(['Saving radii to txt: ', polaroutfn, '.txt'])
+    % fn = [polaroutfn '.txt'] ;
+    % fid = fopen(fn, 'wt');
+    % % make header
+    % fprintf(fid, 'kmatch, radii [microns], phi_dorsal, phi_ctrdorsal');  
+    % fclose(fid);
+    % dlmwrite(fn, [kmatch, radii, phi_dorsal, phi_ctrdorsal])
         
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Check phi_dorsal
@@ -1019,61 +1027,66 @@ for ii=1:length(fns)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Save the radius data as a plot
-    fexist1 = exist(fullfile(radius_vs_s_phi_outdir, [name '.png']), 'file') ;
-    fexist2 = exist(fullfile(radius_vs_s_phicd_outdir, [name '.png']), 'file') ;
-    figs_exist = fexist1 && fexist2 ;
-    if save_figs && (overwrite || figs_exist) 
-        % Color by phi_dorsal
-        close all
-        fig = figure;
-        set(gcf, 'Visible', 'Off')
-        scatter(sss(kmatch), radii, [], ...
-            phi_dorsal / pi, 'filled', ...
-            'MarkerFaceAlpha', 0.05) ;        
-        xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
-        ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
-        cb = colorbar() ;
-        ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
-        cb.Label.Interpreter = 'latex';
-        cb.Label.FontSize = 12 ;
-        title('$\phi_{\textrm{dorsal}}$', 'Interpreter', 'Latex')
-        xlim([0, 525])
-        set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-        saveas(fig, fullfile(radius_vs_s_phi_outdir, [name '.png']))
+    % Save the crude radius data as a plot
+    % fexist1 = exist(fullfile(radius_vs_s_phi_outdir, [name '.png']), 'file') ;
+    % fexist2 = exist(fullfile(radius_vs_s_phicd_outdir, [name '.png']), 'file') ;
+    % figs_exist = fexist1 && fexist2 ;
+    % if save_figs && (overwrite || figs_exist) 
+    %     % Color by phi_dorsal
+    %     close all
+    %     fig = figure;
+    %     set(gcf, 'Visible', 'Off')
+    %     scatter(sss(kmatch), radii, [], ...
+    %         phi_dorsal / pi, 'filled', ...
+    %         'MarkerFaceAlpha', 0.05) ;        
+    %     xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
+    %     ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
+    %     cb = colorbar() ;
+    %     ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
+    %     cb.Label.Interpreter = 'latex';
+    %     cb.Label.FontSize = 12 ;
+    %     title('$\phi_{\textrm{dorsal}}$', 'Interpreter', 'Latex')
+    %     xlim([0, 525])
+    %     set(gcf, 'PaperUnits', 'centimeters');
+    %     set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
+    %     saveas(fig, fullfile(radius_vs_s_phi_outdir, [name '.png']))
+    % 
+    %     % Color by phi_ctrdorsal
+    %     close all
+    %     fig = figure;
+    %     set(gcf, 'Visible', 'Off')
+    %     scatter(ss(kmatch), radii, [], ...
+    %         phi_dorsal / pi, 'filled', ...
+    %         'MarkerFaceAlpha', 0.05) ;        
+    %     xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
+    %     ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
+    %     cb = colorbar() ;
+    %     ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
+    %     cb.Label.Interpreter = 'latex';
+    %     cb.Label.FontSize = 12 ;
+    %     title('Midgut radius')
+    %     xlim([0, 525])
+    %     set(gcf, 'PaperUnits', 'centimeters');
+    %     set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
+    %     saveas(fig, fullfile(radius_vs_s_phicd_outdir, [name '.png']))
+    %     clf
+    % end
 
-        % Color by phi_ctrdorsal
-        close all
-        fig = figure;
-        set(gcf, 'Visible', 'Off')
-        scatter(ss(kmatch), radii, [], ...
-            phi_dorsal / pi, 'filled', ...
-            'MarkerFaceAlpha', 0.05) ;        
-        xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex')
-        ylabel('radius, $R$ [$\mu$m]', 'Interpreter', 'Latex')
-        cb = colorbar() ;
-        ylabel(cb, 'angle w.r.t. dorsal, $\phi / \pi$')
-        cb.Label.Interpreter = 'latex';
-        cb.Label.FontSize = 12 ;
-        title('Midgut radius')
-        xlim([0, 525])
-        set(gcf, 'PaperUnits', 'centimeters');
-        set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
-        saveas(fig, fullfile(radius_vs_s_phicd_outdir, [name '.png']))
-        clf
-    end
-    
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Save the rotated, translated, scaled to microns mesh ===============
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    disp('Saving the aligned mesh...')
+    disp('Shall we save the aligned mesh?')
     alignedmeshfn = fullfile(alignedmeshdir, [name '_APDV_um.ply']) ;
-    disp([' --> ' alignedmeshfn])
-    vtx_rs = (rot * (vtx_sub * ssfactor)' + trans')' * resolution ;
-    vn_rs = (rot * fv.normals')' ;
-    outfaces = [fv.faces(:, 2), fv.faces(:, 1), fv.faces(:, 3)] ;
-    plywrite_with_normals(alignedmeshfn, outfaces, vtx_rs, vn_rs)
+    if ~exist(alignedmeshfn, 'file') || overwrite
+        disp('yes, Saving the aligned mesh...')
+        disp([' --> ' alignedmeshfn])
+        vtx_rs = (rot * (vtx_sub * ssfactor)' + trans')' * resolution ;
+        vn_rs = (rot * fv.normals')' ;
+        outfaces = [fv.faces(:, 2), fv.faces(:, 1), fv.faces(:, 3)] ;
+        plywrite_with_normals(alignedmeshfn, outfaces, vtx_rs, vn_rs)
+    else
+        disp('no, already saved')
+    end
        
     % Check the normals 
     if preview 

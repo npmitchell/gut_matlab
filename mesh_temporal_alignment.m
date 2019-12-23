@@ -1,16 +1,19 @@
 %% Align meshes in time
+%
 % Isaac Breinyn 2019
 %
 % Extract information for temporal alignment and scaling of meshes
+% Collapses curves using shape parameter s = A / V^(2/3).
 %
-% Run before this: compute_mesh_surfacearea_volume.m
-% Run after this: plot_aligned_meshes.m
+% To run before: compute_mesh_surfacearea_volume.m
+% To run after: plot_aligned_meshes.m
 %
 % Note: All scaling and alignment is done relative to CAAX Excellent
 
 clear
 close all
 clc
+addpath('/mnt/data/code/gut_matlab/curve_functions/')
 
 %% Prepare paths, Load Data, Calculate Scaling Factors
 outdir = '/mnt/data/analysis/SA_volume/' ;
@@ -68,6 +71,10 @@ sfa = {} ; % scale factor cell array
 del = {} ; % delta cell array
 Pi = {} ; % dedimensionalized factor cell array
 Pavg = {} ; % average dedimensionalized factor cell array
+
+P1 = {} ;
+toffmin = {} ;
+
 % Iterate over each marker
 for mi = 1:length(markers)
     % Obtain the label for this marker
@@ -112,6 +119,7 @@ for mi = 1:length(markers)
                 aat{mi, j} = toff ; % save to cell array
             end
             P{mi,j} = Pi ;
+            
             % grab scaling factor for this dataset
             
             delta = (max(aas)-min(aas)) ; % diff between max and min SA
@@ -126,19 +134,33 @@ for mi = 1:length(markers)
             vss = vvs / vvs(tva) ; % normed volume array (over time)
             svss = (scalfac*vvs) / vvs(tva) ; % scaled normed volume array (over time)
             
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            pl = Pi ; % Choose which thing you want to plot
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Minimization
+            if mi == 1 & j == 1
+                P{mi,j} = P{mi,j}(30:110);
+            else
+                P{mi,j} = vertcat((P{mi,j}(2)+zeros(length(P{1,1})-length(P{mi,j}),1)),P{mi,j},(P{mi,j}(end-2)+zeros(1,1)));
+            end
+            time = zeros(length(P{mi,j}),1);
+            for i = 1:length(time)
+                time(i) = i;
+            end
+            P1{mi,j} = horzcat(time, P{mi,j});
+            options = optimset('PlotFcns',@optimplotfval);
+            toffmin{mi,j} = fminsearch(@(vars)matchCurves(vars, P1{mi,j}, P1{1,1}), [0, 1, 0, 1], options) ;
+            
+            % Specify what you want to plot!
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            pl = toffmin{mi,j}(4)*(P{mi,j} + toffmin{mi,j}(3)) ; 
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             
             % Plot the data for surface area and volume
             
-            times = 1:dt:dt*length(aas) ;
-            times = times - toff ;
+            time = toffmin{mi,j}(2)*(time + round(toffmin{mi,j}(1)));
             
             % Filter the data
             
             windowSize = 7;
-            sampling = 1:length(times) ;
+            sampling = 1:length(time) ;
             b = (1/windowSize)*ones(1,windowSize);
             a = 1;
             asmooth = filter(b, a, pl(sampling)) ;
@@ -146,9 +168,9 @@ for mi = 1:length(markers)
             
             figure(figh)
             if mark_origin
-                ah = plot(times, asmooth2, 'Color', color1, 'LineStyle', linestyle) ; % Plot data
+                ah = plot(time, asmooth2, 'Color', color1, 'LineStyle', linestyle) ; % Plot data
             else
-                plot(times, asmooth2, 'Color', color1, 'LineStyle', linestyle) ; % Plot data
+                plot(time, asmooth2, 'Color', color1, 'LineStyle', linestyle) ; % Plot data
             end
         else
             disp(['Could not find ' fn])
@@ -156,47 +178,21 @@ for mi = 1:length(markers)
     end
 end
 
-%% Minimization to extract time offsets
-
-t0 = cell(3,3) ; % start times
-t0(:,:) = {0} ;
-Pt = {} ;
-SSD = {} ;
-E = {} ;
-% Create master cell array {Marker, Dataset, time}
-for mi = 1:length(markers) % Obtain the label for this marker
-    these_paths = paths{mi} ;
-    these_paths = these_paths{1} ;
-    for j=1:length(these_paths) % Cycle through all datasets of this marker
-        for t = 1:200
-            Pcur = [(P{mi,j}(1)+zeros(t0{mi,j},1));P{mi,j};(P{mi,j}(end)+zeros((200-length(P{mi,j})-t0{mi,j}),1))] ;
-            Ptt = Pcur(t) ;
-            Pt{mi,j,t} = Ptt ;
-            tvar = t-t0{mi,j} ;
-            SSDi = (Pt{mi,j,tvar}- Pt{1,1,t})^2 ;
-            SSD{mi,j,t} = SSDi ;
-        end
-        E{mi,j} = sum([SSD{mi,j,:}]) ;
-        t0
-    end
-end
-options = optimset('PlotFcns',@optimplotfval);
-x{mi,j} = fminsearch(E,options);
-
-
 %% Save area and volume info as .txt
-ofn = fullfile(outdir, 'aat_sfa.txt') ;
+ofn = fullfile(outdir, 'aat_sfa_toffmin.txt') ;
 maat = [aat{1,:}, aat{2,:}, aat{3,:}];
 msfa = [sfa{1,:}, sfa{2,:}, sfa{3,:}];
+mtoffmin = [toffmin{1,:}, toffmin{2,:}, toffmin{3,:}];
 dlmwrite(ofn,maat);
-dlmwrite(ofn,msfa,'-append', 'delimiter',' ','roffset',1);
+dlmwrite(ofn,msfa,'-append', 'delimiter',',','roffset',1);
+dlmwrite(ofn,mtoffmin,'-append', 'delimiter',',','roffset',1);
 
 %% Data Figure
 figure(figh)
 % Label and save figure
-title('Temporal Alignment of Meshes', 'FontSize' , 20)
+title('Alignment of Meshes', 'FontSize' , 20)
 xlabel('Time [min]', 'FontSize' , 20)
-ylabel('Alignment Value', 'FontSize' , 20)
+ylabel('Your label here! $5/mo.', 'FontSize' , 20)
 
 % axes for the second plot (secondaxes) and the two helping Lines H1 and H2
 hold on

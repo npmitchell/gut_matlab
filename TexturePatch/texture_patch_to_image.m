@@ -40,14 +40,15 @@ function [ patchIm, imref, zeroID, MIP, SIP ] = ...
 %       - Options.pixelSearch:  The method of searching for the faces
 %                               containing pixel centers
 %                                   - 'AABB' (requires GPToolBox)
-%                                   - 'Default' (MATLAB built-ins)
+%                                   - 'Default' (MATLAB built-ins, faster than AABB)
 %       - Options.numLayers:    The number of onion layers to create
 %                               Format is [ (num +), (num -) ]
 %       - Options.layerSpacing: The spacing between adjacent onion layers
+%                               in units of pixels
 %       - Options.smoothIter:   Number of iterations of Laplacian mesh
 %                               smoothing to run on the mesh prior to
 %                               vertex normal displacement (requires
-%                               GPToolBox)
+%                               GPToolBox) (Default is 0)
 %       - Options.vertexNormal: User supplied vertex unit normals to the
 %                               texture triangulation
 %       - Options.Interpolant:  A pre-made texture image volume interpolant
@@ -298,7 +299,20 @@ if makeOnion
     
     % Calculate the vertex unit normals of the texture triangulation
     if isempty(vN)
-        vN = vertexNormal( triangulation( TF, smoothV ) );
+        % Default is angle weighted vertex normals
+        try
+            mesh = struct() ;
+            mesh.f = TF ;
+            mesh.v = smoothV ;
+            mesh.vn = per_vertex_normals(smoothV, TF, 'Weighting', 'angle') ;
+            % Average normals with neighboring normals
+            disp('Averaging normals with neighboring normals')
+            vN = average_normals_with_neighboring_vertices(mesh, 0.5) ;
+        catch
+            % Alternative is uniform weighting of faces incident to each
+            % vertex.
+            vN = vertexNormal( triangulation( TF, smoothV ) );
+        end
     end
     
     %----------------------------------------------------------------------
