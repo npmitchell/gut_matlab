@@ -25,16 +25,26 @@
 
 clear; close all; clc;
 
+%% ------------------------------------------------------------------------
+% Run setup.m from imsane
+% -------------------------------------------------------------------------
+
 %% Parameters
-overwrite_meshStack = true ;
-overwrite_pullbacks = true ;
-overwrite_cleanCylMesh = true ;
-overwrite_cutMesh = true ;
-overwrite_spcutMesh = true ;
+overwrite_meshStack = false ;
+overwrite_pullbacks = false ;
+overwrite_cleanCylMesh = false ;
+overwrite_cutMesh = false ;
+overwrite_spcutMesh = false ;
 generate_sphi_coord = true ;
+overwrite_foldims = false ;
+overwrite_lobeims = false ;
+overwrite_spcutMesh_smoothradii = false ;
 resave_ims = false ;
 save_ims = true ;
 nsegs4path = 5 ;
+nV = 100 ;
+nU = 100 ;
+dvexten = sprintf('_nU%04d_nV%04d', nU, nV) ;
 nCurves_yjitter = 100 ;
 nCurves_sphicoord = 1000 ;
 normal_shift = 10 ;
@@ -45,20 +55,45 @@ washout3d = 0.5 ;
 
 %% Add paths
 % Add some necessary code to the path (ImSAnE should also be setup!) ------
-addpath(genpath('/mnt/crunch/djcislo/MATLAB/euclidean_orbifolds'));
-addpath(genpath('/mnt/data/code/gptoolbox'));
-addpath(genpath('/mnt/data/code/gut_matlab/TexturePatch'));
-addpath('/mnt/data/code/gut_matlab/') ;
-addpath_recurse('/mnt/data/code/gut_matlab/axisymmetric_pullbacks/') ;
-addpath_recurse('/mnt/data/code/imsaneV1.2.3/external/') ;
-addpath_recurse('/mnt/data/code/gut_matlab/plotting/') ;
-addpath_recurse('/mnt/data/code/gut_matlab/mesh_handling/') ;
-addpath_recurse('/mnt/data/code/gut_matlab/h5_handling/') ;
-addpath_recurse('/mnt/data/code/gut_matlab/curve_functions/') ;
-addpath('/mnt/data/code/gut_matlab/savgol') ;
+if strcmp(computer, 'MACI64')
+    rootdir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/'; 
+    gutpath = fullfile(rootdir, 'gut_matlab/') ;
+    addpath(genpath(fullfile(gutpath, 'euclidean_orbifolds')));
+    addpath(genpath(fullfile(gutpath, 'gptoolbox')));
+    addpath_recurse(fullfile(rootdir, 'imsane/external/')) ;
+    
+    % Setup a working directory for the project, where extracted surfaces,
+    % metadata and debugging output will be stored.  Also specifiy the
+    % directory containing the data.
+    dataDir = ['/Volumes/Pal/48YGal4UASCAAXmCh/201902072000_excellent/', ...
+        'Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/'] ;
+    cd(dataDir)
+else
+    gutpath = '/mnt/data/code/gut_matlab/' ;
+    addpath(genpath('/mnt/crunch/djcislo/MATLAB/euclidean_orbifolds'));
+    addpath(genpath('/mnt/data/code/gptoolbox'));
+    addpath_recurse('/mnt/data/code/imsaneV1.2.3/external/') ;
+    
+    % Setup a working directory for the project, where extracted surfaces,
+    % metadata and debugging output will be stored.  Also specifiy the
+    % directory containing the data.
+    dataDir = [ '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/', ...
+        'Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/' ];
+    cd(dataDir)
+end
+
+addpath(genpath(fullfile(gutpath, 'TexturePatch')));
+addpath(gutpath) ;
+addpath_recurse(fullfile(gutpath, 'axisymmetric_pullbacks/')) ;
+addpath_recurse(fullfile(gutpath, 'plotting/')) ;
+addpath_recurse(fullfile(gutpath, 'mesh_handling/')) ;
+addpath_recurse(fullfile(gutpath, 'h5_handling/')) ;
+addpath_recurse(fullfile(gutpath, 'curve_functions/')) ;
+addpath(fullfile(gutpath, 'savgol')) ;
 % addpath(genpath('/mnt/crunch/djcislo/MATLAB/TexturePatch'));
 
 %% Define some colors
+[colors, color_names] = define_colors() ;
 blue = [0 0.4470 0.7410] ;
 orange = [0.8500 0.3250 0.0980] ;
 yellow = [0.9290, 0.6940, 0.1250] ;
@@ -72,13 +107,6 @@ light_gray = [0.830000 0.830000 0.830000] ;
 bwr = diverging_cmap([0:0.01:1], 1, 2) ;
 
 %% Initialize ImSAnE Project ==============================================
-
-% Setup a working directory for the project, where extracted surfaces,
-% metadata and debugging output will be stored.  Also specifiy the
-% directory containing the data.
-dataDir = [ '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/', ...
-    'Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/' ];
-cd(dataDir)
 
 projectDir = dataDir ;
 % [ projectDir, ~, ~ ] = fileparts(matlab.desktop.editor.getActiveFilename); 
@@ -193,15 +221,13 @@ centerlineDir = fullfile(meshDir, 'centerline') ;
 centerlineBase = fullfile(centerlineDir, 'mesh_apical_stab_%06d_centerline_exp1p0_res1p0.txt') ;
 cntrsFileName = fullfile(centerlineDir, 'mesh_apical_stab_%06d_centerline_scaled_exp1p0_res1p0.txt') ;
 
-clineDVhoopDir = fullfile(centerlineDir, 'centerline_from_DVhoops') ;
+% centerline from DV hoops
+clineDVhoopDir = fullfile(centerlineDir, ['centerline_from_DVhoops' dvexten]) ;
 clineDVhoopBase = fullfile(clineDVhoopDir, 'centerline_from_DVhoops_%06d.mat');
 clineDVhoopImDir = fullfile(clineDVhoopDir, 'images') ;
 clineDVhoopFigBase = fullfile(clineDVhoopImDir, 'clineDVhoop_%06d.png') ;
-
-sphiDir = fullfile(meshDir, 'sphi_cutMesh') ;
-sphiBase = fullfile(sphiDir, 'mesh_apical_stab_%06d_spcutMesh.mat') ;
-imFolder_sp = [imFolder '_sphi'] ;
-phi0fitBase = fullfile(sphiDir, 'phi0s_%06d.png'); 
+radiusDir = fullfile(meshDir, ['radiusDVhoops' dvexten]) ;
+radiusImDir = fullfile(radiusDir, 'images') ;
 
 % The file name base for the cylinder meshes
 cylinderMeshBase = fullfile( cylCutDir, ...
@@ -211,13 +237,26 @@ cylinderMeshCleanBase = fullfile( cylCutMeshOutDir, ...
 cylinderMeshCleanFigBase = fullfile( cylCutMeshOutImDir, ...
     'mesh_apical_stab_%06d_cylindercut_clean.png' );
 
+% Lobe identification paths
+lobeDir = fullfile(meshDir, 'lobes') ;
+
+% Define cutMesh directories
+sphiDir = fullfile(meshDir, ['sphi_cutMesh' dvexten]) ;
+sphiBase = fullfile(sphiDir, 'mesh_apical_stab_%06d_spcutMesh.mat') ;
+imFolder_sp = [imFolder '_sphi' dvexten] ;
+imFolder_sp_e = [imFolder '_sphi' dvexten '_extended'] ;
+imFolder_up = [imFolder '_uphi' dvexten] ;
+imFolder_up_e = [imFolder '_uphi' dvexten '_extended'] ;
+phi0fitBase = fullfile(sphiDir, 'phi0s_%06d.png') ; 
+
 % The file containg the AD/PD points
 dpFile = fullfile( cylCutDir, 'ap_boundary_dorsalpts.h5' );
 
 tomake = {imFolder, imFolder_e, imFolder_r, imFolder_re,...
     pivDir, cutFolder, cutMeshImagesDir, cylCutMeshOutDir,...
     cylCutMeshOutImDir, clineDVhoopDir, clineDVhoopImDir, ...
-    sphiDir, imFolder_sp} ;
+    sphiDir, imFolder_sp, imFolder_sp_e, imFolder_sp, imFolder_sp_e,  ...
+    lobeDir, radiusDir, radiusImDir} ;
 for i = 1:length(tomake)
     dir2make = tomake{i} ;
     if ~exist( dir2make, 'dir' )
@@ -227,7 +266,10 @@ end
 
 %% Load rotation, translation, resolution
 rot = dlmread(fullfile(meshDir, 'rotation_APDV.txt')) ;
+buff = 20 ;
 xyzlim = dlmread(fullfile(meshDir, 'xyzlim_APDV_um.txt'), ',', 1, 0) ;
+xyzlim(:, 1) = xyzlim(:, 1) - buff ;
+xyzlim(:, 2) = xyzlim(:, 2) + buff ;
 xyzlim_APDV = xyzlim ;
 trans = dlmread(fullfile(meshDir, 'translation_APDV.txt'));
 resolution = dlmread(fullfile(meshDir, 'resolution.txt'), ',', 1, 0) ;
@@ -405,10 +447,10 @@ else
             % Find lateral scaling that minimizes spring network energy
             ar = minimizeIsoarealAffineEnergy( cutMesh.f, cutMesh.v, cutMesh.u );
             % Assign scaling based on options: either a0 or a_fixed
-            if tidx == 1 && ~a_fixed
-                a_fixed = ar ;
-            end      
-            a = a_fixed ;
+            % if tidx == 1 && ~a_fixed
+            %     a_fixed = ar ;
+            % end      
+            % a = a_fixed ;
       
             % Scale the x axis by a or ar
             uvtx = cutMesh.u ;
@@ -516,11 +558,8 @@ else
                 %----------------------------------------------------------------------
                 % For lines of constant phi
                 disp('Creating constant y curves')
-
                 % Make grid
                 eps = 1e-14 ;
-                nV = 100 ;
-                nU = 100 ;
                 uspace = linspace( eps, max(TV2D(:, 1)) - eps, nU )' ;
                 vspace = linspace( eps, 1-eps, nV )' ;
 
@@ -557,10 +596,11 @@ else
                     % plot(uv(:, 1), uv(:, 2), '.')
                 end
 
-                % todo: wrap into function
                 fprintf('Finding s(u) and r(u) of resampled c3ds...\n')
-                [mss, mcline, radii_from_mean, avgpts_ss, avgpts] = srFromDVCurves(c3ds) ;
-
+                % mcline is the resampled centerline, with mss
+                % avgpts is the raw Nx3 averaged hoops, with avgpts_ss
+                [mss, mcline, radii_from_mean_uniform_rs, avgpts_ss, avgpts] = srFromDVCurves(c3ds) ;
+                
                 % Used to find radius using original centerline
                 % [ssv, radii, avgpts, cids] = srFromDVCurvesGivenCenterline(ss, cline, c3ds) ;
                 % Could operate just on the centerline segment
@@ -575,18 +615,28 @@ else
                 aux_plot_clineDVhoop(avgpts, avgpts_ss, cseg, cline, cseg_ss, curves3d, xyzlim, clineDVhoopFigBase, t)
 
                 % Optional: clean curve with polynomial and point match
-                % avgpts onto cleaned curve
-                % todo: this
+                % avgpts onto cleaned curve. Skipping for later.
 
-                % Save new centerline
+                % Compute ringpath_ss, the mean distance traveled from one
+                % line of constant u to the next
+                disp('Computing ringpath_ss...')
+                % The distance from one hoop to another is the
+                % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
+                dsuphi = reshape([vecnorm(diff(c3ds), 2, 2); 0], [nU, nV]) ;
+                ringpath_ds = nanmean(dsuphi(1:(end-1), :), 2) * resolution ;
+                ringpath_ss = cumsum([0; ringpath_ds]) ;
+                clearvars dsuphi ringpath_ds
+                
+                % Save new centerline in rotated translated units
                 fn = sprintf(clineDVhoopBase, t) ;
                 disp(['Saving new centerline to ' fn])
-                save(fn, 'mss', 'mcline', 'avgpts')
-
-                % Save radii_from_mean later with spcurves                    
-
+                save(fn, 'mss', 'mcline', 'avgpts', 'avgpts_ss')
+                
+                % Note: radii_from_mean_uniform_rs is the radius of 
+                % interpolated hoops, not the actual points
+                
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                fprintf('Done with constructing new centerline\n');
+                fprintf('Done with constructing new centerline\n') ;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 if t == xp.fileMeta.timePoints(1)
                     % Store for next timepoint
@@ -594,23 +644,20 @@ else
                     phi0s = zeros(size(uspace)) ;
                     phi0_fit = phi0s ;
                 else
-                    % Load previous sphi vertices in 3d if not present
-                    % in RAM
-                    if ~exist('prev3d_sphi', 'var')
-                        tmp = load(sprintf(sphiBase, t-1), 'spcutMesh') ;
-                        prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
-                    end
+                    % Load previous sphi vertices in 3d if not in RAM
+                    % if ~exist('prev3d_sphi', 'var')
+                    tmp = load(sprintf(sphiBase, t-1), 'spcutMesh') ;
+                    prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
+                    
                     plotfn = sprintf(phi0fitBase, t);
-                    [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, uspace, vspace, prev3d_sphi, -0.25, 0.25, save_ims, plotfn) ;
+                    [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
+                        uspace, vspace, prev3d_sphi, -0.25, 0.25, save_ims, plotfn) ;
                     % Store for next timepoint
                     phiv = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
                 end
                 disp('done computing phi0s')
 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % Compute ringpath_ss, the mean distance traveled from one
-                % line of constant u to the next
-                disp('Computing ringpath_ss...')
                 onesUV = ones(nU, nV) ;
                 uu = uspace .* onesUV ;
                 vv = (vspace .* onesUV')' ;
@@ -620,13 +667,17 @@ else
                 % Express the coordinates as a grid
                 % new3drs = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uphi) ;
                 prev3d_sphi = reshape(new3d, [nU, nV, 3]) ; 
-
-                % The distance from one hoop to another is the
-                % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
-                dsuphi = reshape([vecnorm(diff(new3d), 2, 2); 0], [nU, nV]) ;
-                ringpath_ds = nanmean(dsuphi(1:(end-1), :), 2) ;
-                ringpath_ss = cumsum([0; ringpath_ds]) ;
-
+                
+                % Recompute radii_from_mean_uniform_rs as radii_from_avgpts 
+                % NOTE: all radius calculations done in microns, not pixels
+                sphi3d_rs = ((rot * prev3d_sphi')' + trans) * resolution ;
+                radii_from_avgpts = zeros(size(sphi3d_rs, 1), size(sphi3d_rs, 2)) ;
+                for jj = 1:nU
+                    % Consider this hoop
+                    hoop = squeeze(sphi3d_rs(jj, :, :)) ;
+                    radii_from_avgpts(jj, :) = vecnorm(hoop - avgpts(jj, :), 2, 2) ;
+                end
+                
                 % Triangulate the sphigrid and store as its own cutMesh
                 % sphiv = zeros(nU, nV, 2) ;
                 % sphiv(:, :, 1) = sv ;
@@ -648,12 +699,29 @@ else
 
                 spcutMesh.f = cleantri ;
                 spcutMesh.v = new3d ;
+                % spcutMesh.vrs = ((rot * new3d')' + trans) * resolution ;
+                spcutMesh.nU = nU ;
+                spcutMesh.nV = nV ;
                 % Define normals based on the original mesh normals
                 % todo: spcutMesh.vn =  ;
+                Fnx = scatteredInterpolant(TV2D(:, 1), TV2D(:, 2), cutMesh.vn(:, 1)) ;
+                Fny = scatteredInterpolant(TV2D(:, 1), TV2D(:, 2), cutMesh.vn(:, 2)) ;
+                Fnz = scatteredInterpolant(TV2D(:, 1), TV2D(:, 2), cutMesh.vn(:, 3)) ;
+                spcutMesh.vn = zeros(size(spcutMesh.v)) ;
+                spcutMesh.vn(:, 1) = Fnx(uphi(:, 1), uphi(:, 2)) ;
+                spcutMesh.vn(:, 2) = Fny(uphi(:, 1), uphi(:, 2)) ;
+                spcutMesh.vn(:, 3) = Fnz(uphi(:, 1), uphi(:, 2)) ;
                 spcutMesh.sphi = [sv(:), phiv(:)] ;
                 spcutMesh.uphi = uphi ;
-                spcutMesh.uv = uv ;
-                spcutMesh.radii_from_mean = radii_from_mean ;
+                % Note: uv has no direct relation with cutMesh, just a grid for utility
+                spcutMesh.uv = uv ;  
+                spcutMesh.ringpath_ss = ringpath_ss ;
+                spcutMesh.radii_from_mean_uniform_rs = radii_from_mean_uniform_rs ;
+                spcutMesh.radii_from_avgpts = radii_from_avgpts ;
+                spcutMesh.mss = mss ;       % from uniform sampling, also stored in centerline
+                spcutMesh.mcline = mcline ; % from uniform sampling, also stored in centerline
+                spcutMesh.avgpts = avgpts ; % from uniform sampling, also stored in centerline
+                spcutMesh.avgpts_ss = avgpts_ss ; % from uniform sampling, also stored in centerline
 
                 % Save s,phi and their 3D embedding
                 spcutMesh.phi0s = phi0s ;
@@ -666,9 +734,8 @@ else
                 % Load new centerline
                 fn = sprintf(clineDVhoopBase, t) ;
                 disp(['Loading new centerline from ' fn])
-                load(fn, 'mss', 'mcline', 'avgpts')
+                load(fn, 'mss', 'mcline', 'avgpts', 'avgpts_ss')
             end
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             fprintf('Done with generating S,Phi coords \n');
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -679,8 +746,12 @@ else
             % Generate Output Image File
             %--------------------------------------------------------------
             imfn = sprintf( fullfile([imFolder, '/', fileNameBase, '.tif']), t ); 
+            imfn_r = sprintf( fullfile([imFolder_r, '/', fileNameBase, '.tif']), t ) ;
             imfn_sp = sprintf( fullfile([imFolder_sp, '/', fileNameBase, '.tif']), t ) ;
-            if ~exist(imfn_sp, 'file') || ~exist(imfn, 'file') || overwrite_pullbacks
+            imfn_up = sprintf( fullfile([imFolder_up, '/', fileNameBase, '.tif']), t ) ;
+            pullbacks_exist1 = exist(imfn, 'file') && exist(imfn_r, 'file') ;
+            pullbacks_exist2 = exist(imfn_sp, 'file') && exist(imfn_up, 'file') ;
+            if ~pullbacks_exist1 || ~pullbacks_exist2 || overwrite_pullbacks
                 % Load 3D data for coloring mesh pullback
                 xp.loadTime(t);
                 xp.rescaleStackToUnitAspect();
@@ -695,90 +766,26 @@ else
                 % Assigning field spcutMesh.u to be [s, phi] (ringpath
                 % and azimuthal angle)
                 spcutMesh.u = spcutMesh.sphi ;
-
-                % Texture patch options
-                Options.PSize = 5;
-                Options.EdgeColor = 'none';
-
-                fprintf('Generating SP output image... ');
-                % Generate Tiled Orbifold Triangulation -------------------
-                tileCount = [2 2];  % how many above, how many below
-                [ TF, TV2D, TV3D ] = tileAnnularCutMesh( spcutMesh, tileCount );
-
-                % View Results --------------------------------------------
-                % patch( 'Faces', TF, 'Vertices', TV2D, 'FaceVertexCData', ...
-                %      TV3D(:,3), 'FaceColor', 'interp', 'EdgeColor', 'k' );
-                % error('catch')
-
-                % Texture image options
-                Options.imSize = ceil( 1000 .* [ 1 1 ] );
-                Options.yLim = [0 1];
-
-                % Create texture image
-                patchIm = texture_patch_to_image( TF, TV2D, TF, TV3D(:, [2 1 3]), ...
-                    IV, Options );
-                fprintf('Done\n');
-
-                % View results --------------------------------------------
-                % imshow( patchIm );
-                % set( gca, 'YDir', 'Normal' );
-
-                % Write figure to file
-                disp(['Writing ' imfn_sp]) 
-                imwrite( patchIm, imfn_sp, 'TIFF' );
-
-                % Close open figures
-                close all
-            else
-                disp('Skipping pullback image generation since exists')
+                aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_sp)
+                spcutMesh = rmfield(spcutMesh, 'u') ;
+            end
+            
+            if ~exist(imfn_up, 'file') || overwrite_pullbacks
+                fprintf(['Generating uphi output image: ' imfn_up]);
+                % Assigning field spcutMesh.u to be [s, phi] (ringpath
+                % and azimuthal angle)
+                spcutMesh.u = spcutMesh.uphi ;
+                aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_up)
+                spcutMesh = rmfield(spcutMesh, 'u') ;
             end
 
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %--------------------------------------------------------------
             % Generate Output Image File -- regular UV coordinates
-            %--------------------------------------------------------------
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             if ~exist(imfn, 'file') || overwrite_pullbacks
+                % Generate output image in uv
                 fprintf(['Generating output image: ' imfn]);
-
-                % Texture patch options
-                Options.PSize = 5;
-                Options.EdgeColor = 'none';
-                               
-                %% Generate output image in uphi
-                fprintf('Generating output image... ');
-
-                % Generate Tiled Orbifold Triangulation -------------------
-                tileCount = [1 1];  % how many above, how many below
-                [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount );
-
-                % View Results --------------------------------------------
-                % patch( 'Faces', TF, 'Vertices', TV2D, 'FaceVertexCData', ...
-                %     TV3D(:,3), 'FaceColor', 'interp', 'EdgeColor', 'k' );
-                % axis equal
-
-                % Texture image options
-                Options.imSize = ceil( 1000 .* [ 1 1 ] );
-                Options.yLim = [0 1];
-
-                % profile on
-                % Create texture image
-                patchIm = texture_patch_to_image( TF, TV2D, TF, TV3D(:, [2 1 3]), ...
-                    IV, Options );
-                % profile viewer
-
-                fprintf('Done\n');
-
-                % View results --------------------------------------------
-                % imshow( patchIm );
-                % set( gca, 'YDir', 'Normal' );
-                
-                % Write figure to file
-                disp(['Writing ' imfn]) 
-                imwrite( patchIm, imfn, 'TIFF' );
-
-                % Close open figures
-                close all
+                aux_generate_orbifold(cutMesh, a_fixed, IV, imfn)
             else
                 disp('Skipping pullback image generation since exists')
             end
@@ -786,57 +793,9 @@ else
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Save relaxed image
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-            imfn_r = sprintf( fullfile([imFolder_r, '/', fileNameBase, '.tif']), t ) ;
             if ~exist(imfn_r, 'file')
                 disp('Generating relaxed image...')
-
-                % Generate Tiled Orbifold Triangulation ------------------------------
-                tileCount = [2 2];  % how many above, how many below
-                [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount );
-
-                % View Results -------------------------------------------------------
-                % patch( 'Faces', TF, 'Vertices', TV2D, 'FaceVertexCData', ...
-                %     TV3D(:,3), 'FaceColor', 'interp', 'EdgeColor', 'k' );
-                % axis equal
-
-                % Texture image options
-                Options.imSize = ceil( 1000 .* [ 1 ar ] );
-                Options.yLim = [0 1];
-
-                % Raw stack data
-                IV = xp.stack.image.apply();
-                IV = imadjustn(IV{1});
-
-                % profile on
-                % Create texture image
-                patchIm = texture_patch_to_image( TF, TV2D, TF, TV3D(:, [2 1 3]), ...
-                    IV, Options );
-                % profile viewer
-
-                fprintf('Done\n');
-                                
-                % Write figure to file
-                disp(['Writing ' imfn_r]) 
-                imwrite( patchIm, imfn_r, 'TIFF' );            
-
-                % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % % Save extended relaxed image
-                % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-                % disp('Generating relaxed, extended image...')          
-                % % Format axes
-                % xlim([0 ar]); ylim([-0.5 1.5]);
-                % 
-                % % Extract image from figure axes
-                % patchIm_e = getframe(gca);
-                % patchIm_e = rgb2gray(patchIm_e.cdata);
-                % 
-                % % Write figure to file
-                % imwrite( patchIm_e, ...
-                %     sprintf( fullfile([imFolder_re, '/', fileNameBase, '.tif']), t ), ...
-                %     'TIFF' );
-            
-                % Close open figures
-                close all
+                aux_generate_orbifold(cutMesh, ar, IV, imfn_r)
             end
             
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -867,7 +826,6 @@ else
     end
 end
 
-
 %% Preview results
 check = false ;
 if check
@@ -877,50 +835,326 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TILE IMAGES IN Y AND RESAVE ============================================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-imDirs = {imFolder, imFolder_sphi} ;
-imDirs_e = {imFolder_e, imFolder_sphi_e} ;
+imDirs = {imFolder, imFolder_sp, imFolder_up} ;
+imDirs_e = {imFolder_e, imFolder_sp_e, imFolder_up_e} ;
 for qq = 1:2
-    fns = dir(strrep(fullfile([imFolder, '/', fileNameBase, '.tif']), '%06d', '*')) ;
+    extendImages(imDirs{qq}, imDirs_e{qq}, fileNameBase)
+    disp(['done ensuring extended tiffs for ' directory ' in ' direc_e])
+end
+disp('done')
 
-    % Get original image size
-    im = imread(fullfile(fns(1).folder, fns(1).name)) ;
-    halfsize = round(0.5 * size(im, 1)) ;
-    % osize = size(im) ;
+%% FIND THE FOLDS SEPARATING COMPARTMENTS =================================
+% First compute using the avgpts (DVhoop means)
+guess123 = [0.2, 0.5, 0.8] ;
+max_wander = 20 ;
+disp('Identifying lobes...')
+foldfn = fullfile(lobeDir, ['fold_locations_sphi' dvexten '_avgpts.mat']) ;
+if exist(foldfn, 'file')
+    % Save the fold locations as a mat file
+    load(foldfn, 'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset')
+else
+    [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = identifyLobes(xp.fileMeta.timePoints,...
+            sphiBase, guess123, max_wander, preview, 'avgpts') ;
+    
+    % Compute ringpath pathlength for results found using centerline
+    disp('Converting folds to ringpath_ss locations...')
+    [rssfold, rssfold_frac, rssmax] = rssFromFoldID(folds, xp.fileMeta.timePoints, sphiBase) ;
 
-    for i=1:length(fns)
-        if ~exist(fullfile(imFolder_e, fns(i).name), 'file')
-            disp(['Reading ' fns(i).name])
-            % fileName = split(fns(i).name, '.tif') ;
-            % fileName = fileName{1} ;
-            im = imread(fullfile(fns(i).folder, fns(i).name)) ;
+    % Save the fold locations as a mat file
+    save(foldfn, 'rssfold', 'rssfold_frac', 'rssmax', ...
+        'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset')
 
-            % im2 is as follows:
-            % [ im(end-halfsize) ]
-            % [     ...          ]
-            % [    im(end)       ]
-            % [     im(1)        ]
-            % [     ...          ]
-            % [    im(end)       ]
-            % [     im(1)        ]
-            % [     ...          ]
-            % [  im(halfsize)    ]
-            im2 = uint8(zeros(size(im, 1) + 2 * halfsize, size(im, 2))) ;
-            im2(1:halfsize, :) = im(end-halfsize + 1:end, :);
-            im2(halfsize + 1:halfsize + size(im, 1), :) = im ;
-            im2(halfsize + size(im, 1) + 1:end, :) = im(1:halfsize, :);
-            imwrite( im2, fullfile(imFolder_e, fns(i).name), 'TIFF' );
-        else
-            disp('already exists')
-        end
-
+    % Plot results as both avgpts and ringpath distances
+    if save_ims
+        disp('Plotting ss folds...')
+        aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
+            xp.fileMeta.timePoints, lobeDir, dvexten, sphiBase, ...
+            'avgpts', overwrite_foldims)
+        disp('Plotting rss folds...')
+        aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
+            xp.fileMeta.timePoints, lobeDir, dvexten, sphiBase, ...
+            'ringpath', overwrite_foldims)
     end
-    disp(['done writing extended tiffs for ' imDirs{qq} ' in ' imDirs_e{qq}])
+end
+disp('done')
+
+%% Compute surface area and volume for each compartment
+lobe_dynamics_fn = fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']) ;
+if exist(lobe_dynamics_fn, 'file')
+    % Load length, surface area, and volume dynamics for each lobe
+    disp('Loading lobe length, area, and volume...')
+    load(lobe_dynamics_fn, 'length_lobes', 'area_lobes', 'volume_lobes')
+    tp = xp.fileMeta.timePoints - min(fold_onset) ;
+else
+    aux_compute_lobe_dynamics(ssfold, ssmax, lobeDir, timePoints, ...
+        sphiBase, rot, trans, xyzlim, colors) 
+    % Save surface area and volume dynamics for each lobe
+    save(fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']), ...
+        'length_lobes', 'area_lobes', 'volume_lobes')
 end
 
-%% PLOT RADIUS ============================================================
+
+%% plot length, area, and volume for each lobe
+lobe_dynamics_figfn = fullfile(lobeDir, ['lobe_dynamics' dvexten '.png']) ;
+if save_ims && (~exist(lobe_dynamics_figfn, 'file') || overwrite_lobefigs)
+    close all;
+    fig = figure('visible', 'off');
+    fh = cell(1, 4) ;
+    tp = timePoints - min(fold_onset) ;
+    for lobe = 1:4
+        % Length
+        subplot(3,2,1)
+        plot(tp, length_lobes(:, lobe), '.', 'Color', colors(lobe, :)) ;
+        hold on
+
+        % Area
+        subplot(3,2,3)
+        fh{lobe} = plot(tp, area_lobes(:, lobe), '.', 'Color', colors(lobe, :)) ;
+        hold on
+
+        % Volume
+        subplot(3,2,5)
+        plot(tp, volume_lobes(:, lobe), '.', 'Color', colors(lobe, :)) ;
+        hold on
+    end
+
+    subplot(3, 2, 1)
+    xlim([min(tp), max(tp)])
+    ylabel('Length [\mum]')
+
+    subplot(3, 2, 3)
+    xlim([min(tp), max(tp)])
+    ylabel('Area [\mum^2]')
+    legend({'\color[rgb]{ 0,0.4470,0.7410} lobe 1', ...
+        '\color[rgb]{0.8500,0.3250,0.0980} lobe 2', ...
+        '\color[rgb]{0.9290,0.6940,0.1250} lobe 3', ...
+        '\color[rgb]{0.4940,0.1840,0.5560} lobe 4'}, 'Position', [0.55 0.4 0.1 0.2])
+
+    subplot(3, 2, 5)
+    xlim([min(tp), max(tp)])
+    ylabel('Volume [\mum^3]')
+
+    xlabel('time [min]')
+    disp(['Saving summary to ' lobe_dynamics_figfn])
+    saveas(fig, lobe_dynamics_figfn)
+end
+
+%% Plot motion of avgpts at lobes in yz plane over time
+fold_dynamics_figfn = fullfile(lobeDir, ['constriction_dynamics' dvexten '.png']) ;
+if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobefigs)
+    f1pts = zeros(length(tp), 3) ;
+    f2pts = zeros(length(tp), 3) ;
+    f3pts = zeros(length(tp), 3) ;
+
+    disp('Loading centerline position of each fold...')
+    for kk = 1:length(xp.fileMeta.timePoints)
+        % Translate to which timestamp
+        t = xp.fileMeta.timePoints(kk) ;
+        load(sprintf(sphiBase, t), 'spcutMesh') ;
+
+        % Load the centerline too
+        avgpts = spcutMesh.avgpts ;
+
+        % rename the fold indices (in U)
+        f1 = folds(kk, 1) ;
+        f2 = folds(kk, 2) ;
+        f3 = folds(kk, 3) ;
+
+        % store distance from x axis of folds
+        f1pts(kk, :) = avgpts(f1, :) ;
+        f2pts(kk, :) = avgpts(f2, :) ;
+        f3pts(kk, :) = avgpts(f3, :) ;
+    end
+    close all
+    alph = 0.2 ;
+    cmap = colormap ;
+    fig = figure('visible', 'off'); 
+    hold on;
+    for qq = 1:length(tp)
+        t = xp.fileMeta.timePoints(qq) ;
+        % Load the centerline
+        fn = sprintf(clineDVhoopBase, t) ;
+        load(fn, 'avgpts')
+
+        color = cat(2, cmap(uint8(max(1, qq * length(cmap)/length(tp))), :), alph);
+        % plot([f1pts(qq, 2), f2pts(qq, 2), f3pts(qq, 2)], ...
+        %     [f1pts(qq, 3), f2pts(qq, 3), f3pts(qq, 3)], '-', 'color', color)
+        plot(avgpts(:, 2), avgpts(:, 3), '-', 'color', color)
+    end
+    sz = 40 ;
+    msz = 20 ;
+    scatter(f1pts(:, 2), f1pts(:, 3), sz, tp, 'o'); hold on;
+    scatter(f2pts(:, 2), f2pts(:, 3), sz, tp, 's');
+    scatter(f3pts(:, 2), f3pts(:, 3), sz, tp, '^');
+    idx = zeros(max(xp.fileMeta.timePoints), 1) ;
+    idx(xp.fileMeta.timePoints) = 1:length(tp) ;
+    plot(f1pts(idx(fold_onset(1)), 2), f1pts(idx(fold_onset(1)), 3), 'ko', 'markersize', msz); 
+    plot(f2pts(idx(fold_onset(2)), 2), f2pts(idx(fold_onset(2)), 3), 'ks', 'markersize', msz);
+    plot(f3pts(idx(fold_onset(3)), 2), f3pts(idx(fold_onset(3)), 3), 'k^', 'markersize', msz);
+    axis equal
+    xlabel('y [\mum]')
+    ylabel('z [\mum]')
+    title('Constriction dynamics')
+    cb = colorbar() ;
+    cb.Label.String = 'time [min]' ;
+    saveas(fig, fold_dynamics_figfn) ;
+    close all
+end
+
+%% SMOOTH MEAN CENTERLINE RADIUS ==========================================
+mclineM = zeros(length(xp.fileMeta.timePoints), 1000, 3) ;
+for kk=1:length(xp.fileMeta.timePoints)
+    t = xp.fileMeta.timePoints(kk) ;
+    % Load mcline
+    load(sprintf(clineDVhoopBase, t), 'mcline') ;
+    mclineM(kk, :, :) = mcline ;
+end
+
+% Time-average the centerline
+mcline_sm = movmean(mclineM,5,1) ;
+
+% Optional: polynomial fit to smooth
+
+% Re-compute radii from smoothed centerlines by pointmatching avgpts onto
+% smoothed centerline and plot them
+radImDir0 = fullfile(radiusImDir, 'view0') ;
+radImDirD = fullfile(radiusImDir, 'viewD') ;
+radImDirV = fullfile(radiusImDir, 'viewV') ;
+radImDirA = fullfile(radiusImDir, 'viewA') ;
+radImDirP = fullfile(radiusImDir, 'viewP') ;
+radImDirL = fullfile(radiusImDir, 'viewL') ;
+radImDirR = fullfile(radiusImDir, 'viewR') ;
+radImDirs = fullfile(radiusImDir, 'sphi') ;
+radImDiru = fullfile(radiusImDir, 'uphi') ;
+dirs2do = {radImDir0, radImDirD, radImDirV, ...
+    radImDirA, radImDirP, radImDirL, radImDirR, ...
+    radImDirs, radImDiru} ;
+for qq = 1:length(dirs2do)
+    if ~exist(dirs2do{qq}, 'dir')
+        mkdir(dirs2do{qq})
+    end
+end
+% Now compute and plot
+for kk=1:length(xp.fileMeta.timePoints)
+    t = xp.fileMeta.timePoints(kk) ;
+    % Load mcline
+    load(sprintf(clineDVhoopBase, t), 'avgpts', 'mcline', 'mss') ;
+    mcs_kk = squeeze(mcline_sm(kk, :, :)) ;
+    mss_sm = ss_from_xyz(mcs_kk) ;
+    inds = pointMatch(avgpts, mcs_kk) ;
+    avgpts_projected = mcs_kk(inds, :) ;
+    
+    % Save the new results with the old
+    save(sprintf(clineDVhoopBase, t), 'avgpts', 'mcline', 'mss',...
+        'avgpts_projected', 'mcline_sm', 'mss_sm') ;
+    
+    % Add radii from smoothed mcline to spcutMesh if not already present
+    load(sprintf(sphiBase, t), 'spcutMesh') ;
+    vrs = ((rot * spcutMesh.v')' + trans) * resolution ;
+    radii_in_cutMeshsm = isfield(spcutMesh, 'radii_from_smoothed_mcline') ;
+    if ~radii_in_cutMeshsm || overwrite_spcutMesh_smoothradii
+        curvesDV = reshape(vrs, [nU, nV, 3]) ;
+        radii_from_avgpts_sm = zeros(size(curvesDV, 1), size(curvesDV, 2)) ;
+        for jj = 1:size(curvesDV, 1)
+            % Consider this hoop
+            hoop = squeeze(curvesDV(jj, :, :)) ;
+            radii_from_avgpts_sm(jj, :) = vecnorm(hoop - avgpts_projected(jj, :), 2, 2) ;
+        end
+    else
+        radii_from_avgpts_sm = spcutMesh.radii_from_smoothed_mcline ;
+    end
+    
+    % Plot the radii as 3D image
+    rad2dfigfn_s = fullfile(radImDirs, sprintf('radius_dvhoop_sphi_%06d.png', t)) ;
+    rad2dfigfn_u = fullfile(radImDiru, sprintf('radius_dvhoop_uphi_%06d.png', t)) ;
+    rad3dfigfn = fullfile(radImDir0, sprintf('radius_dvhoop_xyz_%06d.png', t)) ;
+    if ~exist(rad3dfigfn, 'file') || ~exist(rad2dfigfn_s, 'file') || ...
+            ~exist(rad2dfigfn_u, 'file') || overwrite_spcutMesh_smoothradii
+        close all
+        fig = figure('visible', 'off') ;
+        trisurf(spcutMesh.f, vrs(:, 1), vrs(:, 2), ...
+            vrs(:, 3), radii_from_avgpts_sm(:), ...
+            'Edgecolor', 'none')
+        c = colorbar ;
+        c.Label.String = 'radius [\mum]' ;
+        xlabel('x [\mum]')
+        ylabel('y [\mum]')
+        zlabel('z [\mum]')
+        axis equal
+        xlim(xyzlim(1, :))
+        ylim(xyzlim(2, :))
+        zlim(xyzlim(3, :))
+        title('Radius via DV curves and smoothed centerline')
+        saveas(fig, rad3dfigfn)
+        title('Radius via DV curves, Dorsal view')
+        view(0, 90)
+        fn = sprintf('radius_dvhoop_xyD_%06d.png', t) ;
+        disp(['Saving ' fn])
+        saveas(gcf, fullfile(radImDirD, fn)) 
+        title('Radius via DV curves, Ventral view')
+        view(0, -90)
+        fn = sprintf('radius_dvhoop_xyV_%06d.png', t) ;
+        disp(['Saving ' fn])
+        saveas(gcf, fullfile(radImDirV, fn)) 
+        title('Radius via DV curves, Posterior view')
+        view(90, 0)
+        fn = sprintf('radius_dvhoop_yzP_%06d.png', t) ;
+        disp(['Saving ' fn])
+        saveas(gcf, fullfile(radImDirP, fn)) 
+        title('Radius via DV curves, Anterior view')
+        view(-90, 0)
+        fn = sprintf('radius_dvhoop_yzA_%06d.png', t) ;
+        disp(['Saving ' fn])
+        saveas(gcf, fullfile(radImDirA, fn)) 
+        title('Radius via DV curves, Lateral view')
+        view(0, 0)
+        fn = sprintf('radius_dvhoop_xzL_%06d.png', t) ;
+        disp(['Saving ' fn])
+        saveas(gcf, fullfile(radImDirL, fn)) 
+        title('Radius via DV curves, Lateral view')
+        view(0, 180)
+        fn = sprintf('radius_dvhoop_xzR_%06d.png', t) ;
+        disp(['Saving ' fn])
+        saveas(gcf, fullfile(radImDirR, fn)) 
+
+        % Plot the radii as 2D image
+        tmp = {spcutMesh.sphi, spcutMesh.uphi} ;
+        rad2dfigfns = {rad2dfigfn_s, rad2dfigfn_u} ;
+        xlabels = {'AP position, s/L', 'AP position, u/L'} ;
+        for qq=1:2
+            uu = tmp{qq} ;
+            if qq == 1
+                uu(:, 1) = uu(:, 1) / max(uu(:, 1)) ;
+            else
+                uu(:, 1) = 0.5 * uu(:, 1) ;
+            end
+            close all
+            fig = figure('visible', 'off') ;
+            trisurf(spcutMesh.f, uu(:, 1), uu(:, 2), ...
+                radii_from_avgpts_sm(:), 'EdgeColor', 'none')
+            caxis([0, 80]) ;
+            % also plot tiled meshes above and below
+            hold on;
+            trisurf(spcutMesh.f, uu(:, 1), uu(:, 2) + 1, ...
+                radii_from_avgpts_sm(:), 'Edgecolor', 'none')
+            trisurf(spcutMesh.f, uu(:, 1), uu(:, 2) - 1, ...
+                radii_from_avgpts_sm(:), 'Edgecolor', 'none')
+            c = colorbar ;
+            c.Label.String = 'radius [\mum]' ;
+            xlabel(xlabels{qq})
+            ylabel('\phi/2\pi')
+            ylim([0, 1])
+            view(2)
+            saveas(fig, rad2dfigfns{qq})
+            close all
+        end
+    end
+end
+disp('done')
+% note: see extract_radius_from_DVhoops for old version of radius plotting
 
 
-error('breaking here')
+
 %% PERFORM PIV ============================================================
 % Select all frames in PullbackImages_extended_shifted/ 
 % Select Sequencing style 1-2, 2-3, ... 
@@ -930,8 +1164,8 @@ error('breaking here')
 % filter, local median filter: thres=2, eps=0.1
 % with default values.
 % File > Save > Export all frames as pivresults.mat
-disp('Loading pivresults_orbifold_pass0.mat ...')
-load(fullfile(pivDir, 'pivresults_orbifold_pass0.mat'))
+disp('Loading pivresults_sphi_pass0.mat ...')
+piv = load(fullfile(pivDir, 'pivresults_sphi_pass0.mat')) ;
 
 %% Get timestamps for the images with pullbacks
 fns = dir(fullfile(imFolder_e, '*.tif')) ;
@@ -946,8 +1180,8 @@ for i=1:npiv
 end
 dt = diff(time) ;
 disp('done building dt, meshidx') 
-save(fullfile(meshDir, 'timestamps_orbifold.mat'), 'time', 'meshidx')
-
+save(fullfile(pivDir, 'timestamps_orbifold.mat'), 'time', 'meshidx')
+% 
 %% Subtract off the mean flow in y for each frame ========================= 
 % meanv = zeros(length(v_filtered), 1) ;
 % for i=1:length(v_filtered)
@@ -960,8 +1194,8 @@ save(fullfile(meshDir, 'timestamps_orbifold.mat'), 'time', 'meshidx')
 % save(fullfile(pivDir, 'shifty.mat'), 'shifty')
 
 %% Shift each frame by shifty and resave ==================================
-% fns = dir(strrep(fullfile([imFolder_e, '/', fileNameBase, '.tif']), '%06d', '*')) ;
-% imFolder_es = [imFolder '_extended_shifted' filesep] ;
+% fns = dir(strrep(fullfile([imFolder_sp_e, '/', fileNameBase, '.tif']), '%06d', '*')) ;
+% imFolder_es = [imFolder_sp_e '_shifted' filesep] ;
 % if ~exist(imFolder_es, 'dir')
 %     mkdir(imFolder_es) ;
 % end
@@ -970,13 +1204,14 @@ save(fullfile(meshDir, 'timestamps_orbifold.mat'), 'time', 'meshidx')
 % disp('Resaving shifted images if necessary...')
 % imsizes = zeros(length(fns), 2) ;
 % for i=1:length(fns)
-%     outfn = fullfile(imFolder_es, fns(i).name) ;
+%     outfn = fullfile(imFolder_sp_es, fns(i).name) ;
 %     if ~exist(outfn, 'file')
 %         disp(['Reading ' fns(i).name])
 %         fileName = split(fns(i).name, '.tif') ;
 %         fileName = fileName{1} ;
 %         im = imread(fullfile(fns(i).folder, fns(i).name)) ;
-%         im = circshift(im, shifty(i), 1) ;
+%         % Note adaptive histogram equilization
+%         im = adapthisteq(circshift(im, shifty(i), 1)) ;
 %         imsizes(i, :) = size(im) ;
 %         imwrite( im, outfn, 'TIFF' );
 %     else
@@ -987,21 +1222,35 @@ save(fullfile(meshDir, 'timestamps_orbifold.mat'), 'time', 'meshidx')
 % disp('done with shifted images')
 
 %% PERFORM PIV ON SHIFTED FRAMES ==========================================
-% Select all frames in PullbackImages_extended_shifted/ 
-% Select Sequencing style 1-2, 2-3, ... 
-% Load settings: piv_set_pass1.mat
-% Image Preprocessing > Select All
-% PIV settings: 128 (32 step), 64 (16 step), 32 (16 step) for three passes
-disp('Loading pivresults_orbifold_pass1.mat ...')
-load(fullfile(pivDir, 'pivresults_orbifold_pass1.mat'))
+% % Select all frames in PullbackImages_extended_shifted/ 
+% % Select Sequencing style 1-2, 2-3, ... 
+% % Load settings: piv_set_pass1.mat
+% % Image Preprocessing > Select All
+% % PIV settings: 128 (32 step), 64 (16 step), 32 (16 step) for three passes
+% disp('Loading pivresults_orbifold_pass1.mat ...')
+% load(fullfile(pivDir, 'pivresults_orbifold_pass1.mat'))
 
 
 
-%% Interpolate velocities on grid from sphi coord pullbacks
-F = griddedInterpolant(x,xvel)
-F = griddedInterpolant(x,xvel)
-F = griddedInterpolant(x,xvel)
-% query the velocity at the advected locations for each PIV gridpt
+%% Smooth velocities in time
+% Interpolate velocities on grid to smooth them in time
+piv3dfn = fullfile(pivDir, 'piv3d.mat') ;
+if exist(piv3dfn, 'file')
+    load(piv3dfn)
+else
+    piv3d = cell(length(fns), 1) ;
+    for i=1:length(fns) - 1
+        % Average 
+        x0 = x{i} ;
+        y0 = y{i} ;
+        uu = u_filtered{i} ;
+        vv = v_filtered{i} ; 
+        Fx = griddedInterpolant(x0, y0, xvel) ;
+        Fy = griddedInterpolant(x0, y0, yvel) ;
+        Fz = griddedInterpolant(x0, y0, zvel) ;
+        % query the velocity at the advected locations for each PIV gridpt
+    end
+end
 
 
 %% MAKE MAP FROM PIXEL TO XYZ =============================================
@@ -1011,25 +1260,44 @@ pivOutDir = fullfile(pivDir, 'images') ;
 if ~exist(pivOutDir, 'dir')
     mkdir(pivOutDir)
 end
+use_shifty = false ;
 
 % Compute size of domain (0,1), (0, 1)
-fns = dir(strrep(fullfile([imFolder_es, '/', fileNameBase, '.tif']), '%06d', '*')) ;
+if use_shifty
+    fns = dir(strrep(fullfile([imFolder_sp_es, '/', fileNameBase, '.tif']), '%06d', '*')) ;
+else
+    fns = dir(strrep(fullfile([imFolder_sp_e, '/', fileNameBase, '.tif']), '%06d', '*')) ;
+end
+
+% For now, assume that all images are the same size
+% % Get imsizes
+% imsizes = zeros(length(fns), 2) ;
+% for i=1:length(fns)
+%     im = imread(fullfile(fns(i).folder, fns(i).name)) ;
+%     imsizes(i, :) = size(im) ;
+% end
+
 im = imread(fullfile(fns(i).folder, fns(i).name)) ;
 % size of extended image
 esize = size(im) ;
 % map extended image size to (0, 1), (-0.5, 1.5)
-xesz = esize(1) ;
-yesz = esize(2) ;
-% map from pixel y to network y
-fy = @(y) 2.0 * y / yesz - 0.5 ;
-pix2u = @(x) 2.0 * x / yesz ;
+xesz = esize(2) ;
+yesz = esize(1) ;
+% map from pixel y to network y (sphi)
+Ypix2y = @(ypix) 2.0 * ypix / yesz - 0.5 ;
+Xpix2x = @(xpix) 2.0 * xpix / yesz ;
 % map from network y to pixel y
-% Note that for some reason we need to flip the image
-u2pix = @(x, ysc) ysc / 2.0 * x ;
-y2pix = @(y, h, ysc) ysc - u2pix(y + 0.5, ysc) + h ;
+% Note that for some reason we need to flip the image (Yscale - stuff)
+x2Xpix = @(x, Yscale, xscale) (Yscale * 0.5) * x / xscale ;
+dx2dX = @ (y, Yscale, xscale) (Yscale * 0.5) * x / xscale ;
+dy2dY = @ (y, Yscale) (Yscale*0.5)*y ;
+if use_shifty
+    y2Ypix = @(y, h, Yscale) Yscale - (Yscale*0.5)*(y+0.5) + h ;
+else
+    y2Ypix = @(y, Yscale) Yscale - (Yscale*0.5)*(y+0.5) ;
+end
 
 piv3dfn = fullfile(pivDir, 'piv3d.mat') ;
-
 if exist(piv3dfn, 'file')
     load(piv3dfn)
 else
@@ -1041,12 +1309,17 @@ else
         disp(['t = ' timestr])
 
         % Get scale of image
-        ysc0 = imsizes(i, 2) ;
-        ysc1 = imsizes(i+1, 2) ;
+        Ysc0 = yesz ;  % imsizes(i, 2) ;
+        Ysc1 = yesz ;  % imsizes(i+1, 2) ;
 
-        mesh0 = meshStack{meshidx(i)} ;    
-        mesh1 = meshStack{meshidx(i + 1)} ;
+        % Load spcutMesh
+        mesh0 = load(sprintf(sphiBase, time(i)), 'spcutMesh') ;
+        mesh0 = mesh0.spcutMesh ;
+        mesh1 = load(sprintf(sphiBase, time(i + 1)), 'spcutMesh') ;
+        mesh1 = mesh1.spcutMesh ;
         assert(time(i) + dt(i) == time(i+ 1))
+        xsc0 = max(mesh0.sphi(:, 1)) ;
+        xsc1 = max(mesh0.sphi(:, 1)) ;
 
         % Load the positions of the velocity vectors in pixels
         x0 = x{i} ;
@@ -1056,22 +1329,27 @@ else
         % Get position in next timepoint in pixels (in xy plane)
         % Clip the x position to the size of the image, and wrap the y position
         x1 = x0 + uu ;
-        x1 = max(x1, 0) ;
-        x1 = min(x1, imsizes(i+1, 1)) ;
-        y1 = mod(y0 + vv, ysc1) ;
+        eps = 1e-14 ;
+        x1 = max(x1, eps) ;
+        x1 = min(x1, xesz-eps) ;
+        y1 = mod(y0 + vv, Ysc1) ;
 
         % get embedded vector in R^3 for t0
         % Obtain the equivalent of v2D: ie the 2D vertices: mesh0.u
-        % The shift in pixels of the current frame = shifty(i)
-        mesh0x = u2pix(mesh0.u(:, 1), ysc0) ;
-        mesh0y = y2pix(mesh0.u(:, 2), shifty(i), ysc0) ;
-
+        mesh0x = x2Xpix(mesh0.sphi(:, 1), Ysc0, xsc0) ;
+        if use_shifty
+            % The shift in pixels of the current frame = shifty(i)
+            mesh0y = y2Ypix(mesh0.sphi(:, 2), shifty(i), Ysc0) ;
+        else
+            mesh0y = y2Ypix(mesh0.sphi(:, 2), Ysc0) ;
+        end
+        
         % Create extended mesh (copied above and below), also shifted by shifty
         meshxy = [mesh0x, mesh0y ] ;
-        mabove = [mesh0x, mesh0y + u2pix(1., ysc0)] ;
-        mbelow = [mesh0x, mesh0y - u2pix(1., ysc0)] ;
-        mabove2 = [mesh0x, mesh0y + 2 * u2pix(1., ysc0)] ;
-        mbelow2 = [mesh0x, mesh0y - 2 * u2pix(1., ysc0)] ;
+        mabove = [mesh0x, mesh0y + dy2dY(1., Ysc0)] ;
+        mbelow = [mesh0x, mesh0y - dy2dY(1., Ysc0)] ;
+        mabove2 = [mesh0x, mesh0y + dy2dY(2., Ysc0)] ;
+        mbelow2 = [mesh0x, mesh0y - dy2dY(2., Ysc0)] ;
         m0xy = [meshxy; mabove; mbelow; mabove2; mbelow2] ;
         % mesh faces for t0 concatenated = mf0c
         mf0 = mesh0.f ;
@@ -1109,36 +1387,38 @@ else
             close all
             fig = figure('Visible', 'Off');
             tr0_orig = triangulation(mf0, meshxy) ;
-            triplot(tr0, 'Color', blue)
+            hc = triplot(tr0, 'Color', blue) ;
             hold on
-            triplot(tr0_orig, 'Color', orange)
+            ho = triplot(tr0_orig, 'Color', orange) ;
             axis equal
             title('Triangulation in pullback space')
             ylim([0 yesz])
             xlabel('x [pix]')
             ylabel('y [pix]')
+            legend({'tiled', 'original'})
             saveas(fig, fullfile(pivOutDir, ['tri_' timestr '.png']))
             if preview
                 set(fig, 'Visible', 'On')
                 waitfor(fig)
             end
             close all
-
-            triplot(tr0_orig, 'Color', orange)
         end
 
         % Find xyz for matching position in t1 xy plane
         % get embedded vector in R^3 for t0
         % The shift in pixels of the current frame = shifty(i)
-        mesh1x = u2pix(mesh1.u(:, 1), ysc1) ;
-        mesh1y = y2pix(mesh1.u(:, 2), shifty(i + 1), ysc1) ;
-
+        mesh1x = x2Xpix(mesh1.sphi(:, 1), Ysc1, xsc1) ;
+        if use_shifty
+            mesh1y = y2Ypix(mesh1.sphi(:, 2), shifty(i + 1), Ysc1) ;
+        else
+            mesh1y = y2Ypix(mesh1.sphi(:, 2), Ysc1) ;
+        end
         % Create extended mesh (copied above and below), also shifted by shifty
         meshxy = [mesh1x, mesh1y ] ;
-        mabove = [mesh1x, mesh1y + u2pix(1., ysc1)] ;
-        mbelow = [mesh1x, mesh1y - u2pix(1., ysc1)] ;
-        mabove2 = [mesh1x, mesh1y + u2pix(2., ysc1)] ;
-        mbelow2 = [mesh1x, mesh1y - u2pix(2., ysc1)] ;
+        mabove = [mesh1x, mesh1y + dy2dY(1., Ysc1)] ;
+        mbelow = [mesh1x, mesh1y - dy2dY(1., Ysc1)] ;
+        mabove2 = [mesh1x, mesh1y + dy2dY(2., Ysc1)] ;
+        mbelow2 = [mesh1x, mesh1y - dy2dY(2., Ysc1)] ;
         m1xy = [meshxy; mabove; mbelow; mabove2; mbelow2] ;
         mf1 = mesh1.f ;
         mf1c = [mf1; mf1 + length(mesh1x); mf1 + 2 * length(mesh1x); ...

@@ -1,8 +1,8 @@
 function [mss, mcline, radii_from_mean, avgpts_ss, avgpts] = srFromDVCurves(curvesDV)
-%srFromDVCurves Find pathlength match and radius for hoops in 3d 
-%   Given the centerline pathlength cseg_ss, the centerline cseg, and the
-%   array of 1d DV curves, compute the matching centerline pathlength for
-%   each 
+%SRFROMDVCURVES(curvesDV) Find new centerline, pathlength, and radii for 3D DV hoops 
+%   Given the array of 1d DV curves, compute the new centerline from
+%   averaging each hoop and resampling the string of averages. Also returns
+%   the pathlength of the resampling and distance from the average points.
 %
 % Parameters
 % ----------
@@ -11,16 +11,18 @@ function [mss, mcline, radii_from_mean, avgpts_ss, avgpts] = srFromDVCurves(curv
 % 
 % Returns
 % -------
-% ssv : N*M x 1 float
-%   pathlength values of supplied centerline
-% radii : N*M x 1 float
-%   distance of each gridpt (on hoops) to pointmatch on supplied
-%   centerline
+% mss : 1000 x 1 float
+%   pathlength values of centerline constructed via mean of hoops
+% mcline : 1000 x 3 float
+%   Resampled centerline created from avgpts (which is average 3d positions 
+%   of hoops)
+% radii_from_mean : N*M x 1 float
+%   distance of each gridpt (on hoops) to averaged hoop points (avgpts)
+% avgpts_ss : N x 1 float
+%   pathlength values of the centerline made by connecting average of each
+%   hoop
 % avgpts : N x 3 float
-%   positions of the average of each hoop
-% cids : N x 1 int
-%   indices into supplied centerline that are closest on average to
-%   points in each hoop
+%   positions of the average of each hoop (3d positions of each hoop)
 %
 % NPMitchell 2019
                    

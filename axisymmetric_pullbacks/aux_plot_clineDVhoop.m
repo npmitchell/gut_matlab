@@ -1,6 +1,10 @@
 function aux_plot_clineDVhoop(avgpts, avgpts_ss, cseg, cline, cseg_ss, curves3d, xyzlim, clineDVhoopFigBase, t)
 % aux_plot_clineDVhoop: auxilliary function for
 % Generate_Axisymmetric_Pullbacks_Orbifold script
+%
+% Plots the DVhoop as a scatter plot in 3d.
+%
+% NPMitchell 2019
 
 close all
 fig = figure('visible', 'off') ;

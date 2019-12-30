@@ -10,7 +10,14 @@
 % Saves segID for each meshpoint in cutMesh
 %
 % Execute from the projectDir, where the data is. 
-% By NPMitchell 2019
+% By NPMitchell 2019, outdated -- now use instead:
+% Generate_Axisymmetric_Pullbacks_Orbifold.m 
+%
+% This was used before it became clear that the original centerline from
+% fast marching is useful only as a step towards the avgpts centerline.
+% This digitizes the pullbacks of the original mesh (not the resampled DV 
+% meshes) and plots the radius of those, using tricks to find the relevant
+% portion of the original centerline.
 %==========================================================================
 
 clear; close all; clc;

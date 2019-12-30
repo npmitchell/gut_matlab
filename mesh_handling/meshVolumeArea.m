@@ -1,11 +1,24 @@
 function [totalVolume, totalArea] = meshVolumeArea(pts, tri)
-% Given a surface triangulation, compute the volume enclosed using
-% divergence theorem.
-% Assumption:Triangle nodes are ordered correctly, i.e.,computed normal is outwards
-% Input: pts: (nx3 Points), tri: (nx3 Triangles)
-% Output: total volume enclosed, and total area of surface  
-% Authors: K. Suresh (suresh@engr.wisc.edu) and NPMitchell 2019
+% MESHVOLUMEAREA(pts, tri) compute area and volume of a triangulated mesh
+%   Given a surface triangulation, compute the volume enclosed using
+%   divergence theorem.
+%   Assumption: Triangle nodes are ordered correctly, i.e.,computed normal is outwards
+% 
+% Parameters
+% ----------
+% pts: N x 3 float
+%   3D coordinates of the mesh vertices
+% tri: M x 3 integer 
+%   face connectivity list indexing into pts 
+% 
+% Returns
+% -------
+% totalVolume: float
+%   total volume enclosed
+% totalArea : float 
+%   total area of surface  
 %
+% Authors: K. Suresh (suresh@engr.wisc.edu) and NPMitchell 2019
 
 p = pts' ;
 t = tri' ;

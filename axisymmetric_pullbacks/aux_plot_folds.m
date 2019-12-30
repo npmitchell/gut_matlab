@@ -1,0 +1,125 @@
+function aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
+    timePoints, lobeDir, dvexten, sphiBase, method, overwrite) 
+% aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, nU, timePoints, lobeDir, dvexten)
+%
+% Parameters
+% ----------
+% folds :
+% ssfold : N x 1 float array
+% ssfold_frac : N x 1 float array
+%   Values between 0 and 1 of x/L
+% ssmax : N x 1 float
+%   Maximum pathlength for this timepoint in pixels
+% rmax : N x 1 float
+%   Maximum radius for this timepoint in pixels
+% nU : int or double
+%   Number of sampled points along the U axis of the mesh 
+% timePoints : N x 1 int array
+% resolution : float
+%   Conversion from mesh coordinates to microns
+% lobeDir : str
+%   path to the directory where plots are saved
+% dvexten : str
+%   extension to specify APDV sampling, of the form '_nU%03d_nV%03d'
+% method : 'avgpts' or 'ringpath'
+%   Whether distances (pathlengths) were determined via DVhoop means or by
+%   the ringpath (mean distances along the surface between hoops)
+% 
+% 
+% Returns
+% -------
+%
+% NPMitchell 2019
+
+foldImDir = fullfile(lobeDir, 'images_foldID') ;
+if ~exist(foldImDir, 'dir')
+    mkdir(foldImDir)
+end
+mexten = ['_' method] ;
+
+% Plot kymograph
+close all; figure('visible', 'off'); hold on
+plot(folds(:, 1), timePoints)
+plot(folds(:, 2), timePoints)
+plot(folds(:, 3), timePoints)
+ylim([timePoints(1), timePoints(end)])
+xlim([0, nU])
+ylabel('time [min]')
+xlabel('position index')
+title('Fold positions')
+set(gca,'YDir','reverse')
+saveas(gcf, fullfile(lobeDir, ['fold_idx' dvexten mexten '.png']))
+
+% Plot the locations as a fraction of the total length as a kymograph
+close all; figure('visible', 'off'); hold on
+plot(ssfold_frac(:, 1), timePoints)
+plot(ssfold_frac(:, 2), timePoints)
+plot(ssfold_frac(:, 3), timePoints)
+xlim([0, 1])
+ylim([timePoints(1), timePoints(end)])
+ylabel('time [min]')
+xlabel('position [x/L]')
+title('Fold positions')
+set(gca,'YDir','reverse')
+saveas(gcf, fullfile(lobeDir, ['fold_ssfrac' dvexten mexten '.png']))
+
+% Plot the locations (pathlength) as a kymograph
+close all; figure('visible', 'off'); hold on
+plot(ssfold(:, 1), timePoints)
+plot(ssfold(:, 2), timePoints)
+plot(ssfold(:, 3), timePoints)
+plot(ssmax, timePoints, 'k--')
+ylim([timePoints(1), timePoints(end)])
+ylabel('time [min]')
+xlabel('position [\mum]')
+title('Fold positions')
+set(gca,'YDir','reverse')
+saveas(gcf, fullfile(lobeDir, ['fold_ss' dvexten mexten '.png']))
+close all
+
+% Plot location of each fold superimposed on the mean radius for uniformly
+% sampled DVhoops
+blue = [0 0.4470 0.7410] ;
+maxrmax = max(rmax) ;
+maxss = max(ssmax) ;
+fig = figure('visible', 'off') ;
+for kk = 1:length(timePoints)
+    % Translate to which timestamp
+    t = timePoints(kk) ;
+    timestr = sprintf('_%04d', t) ;
+
+    ofn = fullfile(foldImDir, ['radii_folds' dvexten mexten timestr '.png']) ;
+    if ~exist(ofn, 'file') || overwrite        
+        load(sprintf(sphiBase, t), 'spcutMesh') ;
+
+        % Find the average radius over the uniformly sampled hoops. 
+        % (make radius 1d)
+        rad = mean(spcutMesh.radii_from_mean_uniform, 2) ;
+        minrad = min(spcutMesh.radii_from_mean_uniform, [], 2) ;
+        maxrad = max(spcutMesh.radii_from_mean_uniform, [], 2) ;
+
+        if strcmp(method, 'avgpts')
+            ss = spcutMesh.ringpath_ss ;
+        elseif strcmp(method, 'ringpath')
+            ss = spcutMesh.avgpts_ss ;
+        end
+
+        % Save plot of radius with fold locations marked
+        fill([ss; flipud(ss)], [minrad; flipud(maxrad)], blue, ...
+            'facealpha', 0.3, 'edgecolor', 'none')
+        hold on;
+        plot(ss, rad)
+        plot(ss(folds(kk, :)), rad(folds(kk, :)), 'o')
+        xlim([0, maxss])
+        ylim([0, maxrmax])
+        % axis equal
+        xlabel('AP position [\mum]')
+        ylabel('radius [\mum]')
+        title('Fold locations')
+        disp(['Saving radius vs ss plot for t=' num2str(t)])
+        saveas(fig, ofn)
+        clf
+    end
+end
+
+

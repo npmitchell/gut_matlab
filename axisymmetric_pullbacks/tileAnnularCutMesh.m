@@ -1,4 +1,4 @@
-function [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount )
+function [ TF, TV2D, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount )
 %TILEANNULARCUTMESH This function vertically tiles the orbifold pullback of
 %an annular cutMesh and returns the parameters of a single triangulation
 %   INPUT PARAMETERS:
@@ -16,8 +16,9 @@ function [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount )
 %                           combined triangulation.
 %       - TV3D:             #Vx3 3D embedding coordinate list of the
 %                           combined triangulation.
+%       - TNV3D:            #Vx3 3D normal vectors of embedding coords
 %
-% by Dillon Cislo
+% by Dillon Cislo, additions by NPMitchell 2019
 
 %==========================================================================
 % THE GEOMETRY OF THE CUT MESH:
@@ -51,7 +52,12 @@ function [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount )
 % Default tiling creates three stacked tiles
 if nargin < 2
     tileCount = [1 1];
-    
+end
+
+if nargout > 3
+    compute_normals = true ;
+else
+    compute_normals = false ;
 end
 
 % Verify input cut mesh
@@ -72,6 +78,9 @@ bottomSeamLoc = ismember( cutMesh.f, pathPairs(:,2) );
 TF = cutMesh.f;
 TV2D = cutMesh.u;
 TV3D = cutMesh.v;
+if compute_normals
+    TVN3D = cutMesh.vn ;
+end
 
 % Find the vertical shift between tiles (should just be 1)
 shift = cutMesh.u( pathPairs(1,1), 2 ) - cutMesh.u( pathPairs(1,2), 2 );
@@ -115,6 +124,11 @@ for i = 1:sum(abs(tileCount))
     TF = [ TF; face ];
     TV2D = [ TV2D; V2D ];
     TV3D = [ TV3D; V3D ];
+    if compute_normals
+        VN3D = cutMesh.vn;
+        VN3D( pathPairs(:,2), : ) = [];
+        TVN3D = [ TVN3D; VN3D ]; 
+    end
     
 end
 
