@@ -36,9 +36,13 @@ overwrite_cleanCylMesh = false ;
 overwrite_cutMesh = false ;
 overwrite_spcutMesh = false ;
 generate_sphi_coord = true ;
+generate_uphi_coord = false ;
+overwrite_folds = false ;
+overwrite_lobedynamics = false ;
 overwrite_foldims = false ;
 overwrite_lobeims = false ;
 overwrite_spcutMesh_smoothradii = false ;
+overwrite_piv = true ;
 resave_ims = false ;
 save_ims = true ;
 nsegs4path = 5 ;
@@ -213,6 +217,7 @@ imFolder_r = [imFolder '_relaxed'] ;
 imFolder_re = [imFolder '_relaxed_extended'] ;
 pivDir = fullfile(meshDir, 'piv') ;
 cutFolder = fullfile(meshDir, 'cutMesh') ;
+cutMeshBase = fullfile(cutFolder, [fileNameBase, '_cutMesh.mat']) ;
 cutMeshImagesDir = fullfile(cutFolder, 'images') ;
 cylCutDir = fullfile(meshDir, 'cylindercut') ;
 cylCutMeshOutDir = fullfile(cylCutDir, 'cleaned') ;
@@ -242,7 +247,7 @@ lobeDir = fullfile(meshDir, 'lobes') ;
 
 % Define cutMesh directories
 sphiDir = fullfile(meshDir, ['sphi_cutMesh' dvexten]) ;
-sphiBase = fullfile(sphiDir, 'mesh_apical_stab_%06d_spcutMesh.mat') ;
+spcutMeshBase = fullfile(sphiDir, 'mesh_apical_stab_%06d_spcutMesh.mat') ;
 imFolder_sp = [imFolder '_sphi' dvexten] ;
 imFolder_sp_e = [imFolder '_sphi' dvexten '_extended'] ;
 imFolder_up = [imFolder '_uphi' dvexten] ;
@@ -288,8 +293,10 @@ outadIDxfn = fullfile(cylCutMeshOutDir, 'adIDx.h5') ;
 outpdIDxfn = fullfile(cylCutMeshOutDir, 'pdIDx.h5') ;
 if exist(mstckfn, 'file') && ~overwrite_meshStack
     % The cutPaths.h5 is loading here
-    disp(['Loading meshStack: ' mstckfn])
-    load(mstckfn)
+    disp(['Not loading meshStack since we can load those one by one'])
+    % disp(['Loading meshStack: ' mstckfn])
+    % load(mstckfn)
+    disp(['Not loading spmeshStack since we load those one by one'])
     
     if resave_ims
         for t = xp.fileMeta.timePoints
@@ -346,8 +353,7 @@ else
         %----------------------------------------------------------------------
         % Create the Cut Mesh
         %----------------------------------------------------------------------
-        cutMeshfn = fullfile(cutFolder, [fileNameBase, '_cutMesh.mat']) ;
-        cutMeshfn = sprintf(cutMeshfn, t) ;
+        cutMeshfn = sprintf(cutMeshBase, t) ;
         if ~exist(cutMeshfn, 'file') || overwrite_cutMesh
             if overwrite_cutMesh
                 fprintf('Generating to overwrite cutMesh...')
@@ -515,7 +521,7 @@ else
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             fprintf('Establishing s,phi coord system\n');
 
-            if ~exist(sprintf(sphiBase, t), 'file') || overwrite_spcutMesh
+            if ~exist(sprintf(spcutMeshBase, t), 'file') || overwrite_spcutMesh
                 if overwrite_spcutMesh
                     disp('Overwriting spcutMesh...')
                 else
@@ -646,7 +652,7 @@ else
                 else
                     % Load previous sphi vertices in 3d if not in RAM
                     % if ~exist('prev3d_sphi', 'var')
-                    tmp = load(sprintf(sphiBase, t-1), 'spcutMesh') ;
+                    tmp = load(sprintf(spcutMeshBase, t-1), 'spcutMesh') ;
                     prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
                     
                     plotfn = sprintf(phi0fitBase, t);
@@ -726,10 +732,10 @@ else
                 % Save s,phi and their 3D embedding
                 spcutMesh.phi0s = phi0s ;
                 spcutMesh.phi0_fit = phi0_fit ;
-                save(sprintf(sphiBase, t), 'spcutMesh') ;
+                save(sprintf(spcutMeshBase, t), 'spcutMesh') ;
             else
                 disp('Loading spcutMesh from disk...')
-                load(sprintf(sphiBase, t), 'spcutMesh') ;
+                load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
 
                 % Load new centerline
                 fn = sprintf(clineDVhoopBase, t) ;
@@ -770,7 +776,7 @@ else
                 spcutMesh = rmfield(spcutMesh, 'u') ;
             end
             
-            if ~exist(imfn_up, 'file') || overwrite_pullbacks
+            if (~exist(imfn_up, 'file') || overwrite_pullbacks) && generate_uphi_coord
                 fprintf(['Generating uphi output image: ' imfn_up]);
                 % Assigning field spcutMesh.u to be [s, phi] (ringpath
                 % and azimuthal angle)
@@ -837,9 +843,12 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 imDirs = {imFolder, imFolder_sp, imFolder_up} ;
 imDirs_e = {imFolder_e, imFolder_sp_e, imFolder_up_e} ;
+ntiles = 50 ;   %   The number of bins in each dimension for histogram equilization for a
+                %   square original image. That is, the extended image will have (a_fixed *
+                %   ntiles, 2 * ntiles) bins in (x,y).
 for qq = 1:2
-    extendImages(imDirs{qq}, imDirs_e{qq}, fileNameBase)
-    disp(['done ensuring extended tiffs for ' directory ' in ' direc_e])
+    extendImages(imDirs{qq}, imDirs_e{qq}, fileNameBase, a_fixed, ntiles)
+    disp(['done ensuring extended tiffs for ' imDirs{qq} ' in ' imDirs_e{qq}])
 end
 disp('done')
 
@@ -849,16 +858,31 @@ guess123 = [0.2, 0.5, 0.8] ;
 max_wander = 20 ;
 disp('Identifying lobes...')
 foldfn = fullfile(lobeDir, ['fold_locations_sphi' dvexten '_avgpts.mat']) ;
-if exist(foldfn, 'file')
+if exist(foldfn, 'file') && ~overwrite_folds
+    disp('Loading lobes')
     % Save the fold locations as a mat file
-    load(foldfn, 'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset')
+    load(foldfn, 'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset', ...
+        'rssfold', 'rssfold_frac', 'rssmax')
+    if overwrite_foldims
+        % Plot results as both avgpts and ringpath distances
+        if save_ims
+            disp('Plotting ss folds...')
+            aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
+                xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
+                'avgpts', overwrite_foldims)
+            disp('Plotting rss folds...')
+            aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
+                xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
+                'ringpath', overwrite_foldims)
+        end
+    end
 else
     [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = identifyLobes(xp.fileMeta.timePoints,...
-            sphiBase, guess123, max_wander, preview, 'avgpts') ;
+            spcutMeshBase, guess123, max_wander, preview, 'avgpts') ;
     
     % Compute ringpath pathlength for results found using centerline
     disp('Converting folds to ringpath_ss locations...')
-    [rssfold, rssfold_frac, rssmax] = rssFromFoldID(folds, xp.fileMeta.timePoints, sphiBase) ;
+    [rssfold, rssfold_frac, rssmax] = rssFromFoldID(folds, xp.fileMeta.timePoints, spcutMeshBase) ;
 
     % Save the fold locations as a mat file
     save(foldfn, 'rssfold', 'rssfold_frac', 'rssmax', ...
@@ -868,11 +892,11 @@ else
     if save_ims
         disp('Plotting ss folds...')
         aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
-            xp.fileMeta.timePoints, lobeDir, dvexten, sphiBase, ...
+            xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
             'avgpts', overwrite_foldims)
         disp('Plotting rss folds...')
         aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
-            xp.fileMeta.timePoints, lobeDir, dvexten, sphiBase, ...
+            xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
             'ringpath', overwrite_foldims)
     end
 end
@@ -880,14 +904,14 @@ disp('done')
 
 %% Compute surface area and volume for each compartment
 lobe_dynamics_fn = fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']) ;
-if exist(lobe_dynamics_fn, 'file')
+if exist(lobe_dynamics_fn, 'file') || ~overwrite_lobedynamics
     % Load length, surface area, and volume dynamics for each lobe
     disp('Loading lobe length, area, and volume...')
     load(lobe_dynamics_fn, 'length_lobes', 'area_lobes', 'volume_lobes')
     tp = xp.fileMeta.timePoints - min(fold_onset) ;
 else
     aux_compute_lobe_dynamics(ssfold, ssmax, lobeDir, timePoints, ...
-        sphiBase, rot, trans, xyzlim, colors) 
+        spcutMeshBase, rot, trans, xyzlim, colors) 
     % Save surface area and volume dynamics for each lobe
     save(fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']), ...
         'length_lobes', 'area_lobes', 'volume_lobes')
@@ -896,7 +920,8 @@ end
 
 %% plot length, area, and volume for each lobe
 lobe_dynamics_figfn = fullfile(lobeDir, ['lobe_dynamics' dvexten '.png']) ;
-if save_ims && (~exist(lobe_dynamics_figfn, 'file') || overwrite_lobefigs)
+if save_ims && (~exist(lobe_dynamics_figfn, 'file') || overwrite_lobeims)
+    disp('Plotting lobe dynamics...')
     close all;
     fig = figure('visible', 'off');
     fh = cell(1, 4) ;
@@ -937,11 +962,14 @@ if save_ims && (~exist(lobe_dynamics_figfn, 'file') || overwrite_lobefigs)
     xlabel('time [min]')
     disp(['Saving summary to ' lobe_dynamics_figfn])
     saveas(fig, lobe_dynamics_figfn)
+else
+    disp('Skipping lobe dynamics plots since they exist...')
 end
 
 %% Plot motion of avgpts at lobes in yz plane over time
 fold_dynamics_figfn = fullfile(lobeDir, ['constriction_dynamics' dvexten '.png']) ;
-if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobefigs)
+if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobeims)
+    disp('Creating constriction dynamics plots...')
     f1pts = zeros(length(tp), 3) ;
     f2pts = zeros(length(tp), 3) ;
     f3pts = zeros(length(tp), 3) ;
@@ -950,7 +978,7 @@ if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobefigs)
     for kk = 1:length(xp.fileMeta.timePoints)
         % Translate to which timestamp
         t = xp.fileMeta.timePoints(kk) ;
-        load(sprintf(sphiBase, t), 'spcutMesh') ;
+        load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
 
         % Load the centerline too
         avgpts = spcutMesh.avgpts ;
@@ -999,7 +1027,10 @@ if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobefigs)
     cb.Label.String = 'time [min]' ;
     saveas(fig, fold_dynamics_figfn) ;
     close all
+else
+    disp('Skipping constriction dynamics plots since they exist...')
 end
+disp('done')
 
 %% SMOOTH MEAN CENTERLINE RADIUS ==========================================
 mclineM = zeros(length(xp.fileMeta.timePoints), 1000, 3) ;
@@ -1011,7 +1042,7 @@ for kk=1:length(xp.fileMeta.timePoints)
 end
 
 % Time-average the centerline
-mcline_sm = movmean(mclineM,5,1) ;
+mcline_smM = movmean(mclineM,5,1) ;
 
 % Optional: polynomial fit to smooth
 
@@ -1037,19 +1068,20 @@ end
 % Now compute and plot
 for kk=1:length(xp.fileMeta.timePoints)
     t = xp.fileMeta.timePoints(kk) ;
+    disp(['Computing radii from smoothed centerline for t=' num2str(t)])
     % Load mcline
     load(sprintf(clineDVhoopBase, t), 'avgpts', 'mcline', 'mss') ;
-    mcs_kk = squeeze(mcline_sm(kk, :, :)) ;
-    mss_sm = ss_from_xyz(mcs_kk) ;
-    inds = pointMatch(avgpts, mcs_kk) ;
-    avgpts_projected = mcs_kk(inds, :) ;
+    mcline_sm = squeeze(mcline_smM(kk, :, :)) ;
+    mss_sm = ss_from_xyz(mcline_sm) ;
+    inds = pointMatch(avgpts, mcline_sm) ;
+    avgpts_projected = mcline_sm(inds, :) ;
     
     % Save the new results with the old
     save(sprintf(clineDVhoopBase, t), 'avgpts', 'mcline', 'mss',...
         'avgpts_projected', 'mcline_sm', 'mss_sm') ;
     
     % Add radii from smoothed mcline to spcutMesh if not already present
-    load(sprintf(sphiBase, t), 'spcutMesh') ;
+    load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
     vrs = ((rot * spcutMesh.v')' + trans) * resolution ;
     radii_in_cutMeshsm = isfield(spcutMesh, 'radii_from_smoothed_mcline') ;
     if ~radii_in_cutMeshsm || overwrite_spcutMesh_smoothradii
@@ -1070,6 +1102,7 @@ for kk=1:length(xp.fileMeta.timePoints)
     rad3dfigfn = fullfile(radImDir0, sprintf('radius_dvhoop_xyz_%06d.png', t)) ;
     if ~exist(rad3dfigfn, 'file') || ~exist(rad2dfigfn_s, 'file') || ...
             ~exist(rad2dfigfn_u, 'file') || overwrite_spcutMesh_smoothradii
+        disp('Writing/overwriting figures for radii from cline_sm')
         close all
         fig = figure('visible', 'off') ;
         trisurf(spcutMesh.f, vrs(:, 1), vrs(:, 2), ...
@@ -1286,8 +1319,11 @@ yesz = esize(1) ;
 % map from pixel y to network y (sphi)
 Ypix2y = @(ypix) 2.0 * ypix / yesz - 0.5 ;
 Xpix2x = @(xpix) 2.0 * xpix / yesz ;
-% map from network y to pixel y
-% Note that for some reason we need to flip the image (Yscale - stuff)
+% map from network xy to pixel xy
+% Note that we need to flip the image (Yscale - stuff) since saved ims had
+% natural ydirection.
+% Assume here a coord system xy ranging from (0, xscale) and (0, 1) 
+% maps to a coord system XY ranging from (0, Yscale * 0.5) and (0, Yscale)
 x2Xpix = @(x, Yscale, xscale) (Yscale * 0.5) * x / xscale ;
 dx2dX = @ (y, Yscale, xscale) (Yscale * 0.5) * x / xscale ;
 dy2dY = @ (y, Yscale) (Yscale*0.5)*y ;
@@ -1295,10 +1331,12 @@ if use_shifty
     y2Ypix = @(y, h, Yscale) Yscale - (Yscale*0.5)*(y+0.5) + h ;
 else
     y2Ypix = @(y, Yscale) Yscale - (Yscale*0.5)*(y+0.5) ;
+    shifty = [] ;
 end
 
 piv3dfn = fullfile(pivDir, 'piv3d.mat') ;
-if exist(piv3dfn, 'file')
+if exist(piv3dfn, 'file') && ~overwrite_piv
+    disp(['Loading piv3d from ' piv3dfn])
     load(piv3dfn)
 else
     piv3d = cell(length(fns), 1) ;
@@ -1307,86 +1345,69 @@ else
     for i=1:length(fns) - 1
         timestr = sprintf('%03d', time(i)) ;
         disp(['t = ' timestr])
+        t = time(i) ;
 
         % Get scale of image
         Ysc0 = yesz ;  % imsizes(i, 2) ;
         Ysc1 = yesz ;  % imsizes(i+1, 2) ;
 
         % Load spcutMesh
-        mesh0 = load(sprintf(sphiBase, time(i)), 'spcutMesh') ;
+        mesh0 = load(sprintf(spcutMeshBase, time(i)), 'spcutMesh') ;
         mesh0 = mesh0.spcutMesh ;
-        mesh1 = load(sprintf(sphiBase, time(i + 1)), 'spcutMesh') ;
+        mesh1 = load(sprintf(spcutMeshBase, time(i + 1)), 'spcutMesh') ;
         mesh1 = mesh1.spcutMesh ;
         assert(time(i) + dt(i) == time(i+ 1))
         xsc0 = max(mesh0.sphi(:, 1)) ;
-        xsc1 = max(mesh0.sphi(:, 1)) ;
+        xsc1 = max(mesh1.sphi(:, 1)) ;
 
         % Load the positions of the velocity vectors in pixels
-        x0 = x{i} ;
-        y0 = y{i} ;
-        uu = u_filtered{i} ;
-        vv = v_filtered{i} ; 
+        x0 = piv.x{i} ;
+        y0 = piv.y{i} ;
+        uu = piv.u_filtered{i} ;
+        vv = piv.v_filtered{i} ; 
         % Get position in next timepoint in pixels (in xy plane)
         % Clip the x position to the size of the image, and wrap the y position
         x1 = x0 + uu ;
-        eps = 1e-14 ;
+        eps = 1e-8 ;
         x1 = max(x1, eps) ;
         x1 = min(x1, xesz-eps) ;
         y1 = mod(y0 + vv, Ysc1) ;
 
-        % get embedded vector in R^3 for t0
-        % Obtain the equivalent of v2D: ie the 2D vertices: mesh0.u
-        mesh0x = x2Xpix(mesh0.sphi(:, 1), Ysc0, xsc0) ;
-        if use_shifty
-            % The shift in pixels of the current frame = shifty(i)
-            mesh0y = y2Ypix(mesh0.sphi(:, 2), shifty(i), Ysc0) ;
-        else
-            mesh0y = y2Ypix(mesh0.sphi(:, 2), Ysc0) ;
-        end
+        % Two methods of obtaining the 3d vel evaluation pts. Ignore
+        % barycenteric version:
+        [pt0, pt1, tr0, tr0_orig, trisa] = aux_barycentricInterpTiledMesh(mesh0, mesh1,...
+            Ysc0, xsc0, Ysc1, xsc1, ...
+            use_shifty, shifty, i, x0, y0, x1, y1, x2Xpix, y2Ypix, dx2dX, dy2dY) ;
+        % % Instead, do interpolation:
+        % tileCount = [2, 2] ;
+        % mesh0.u = mesh0.sphi ;
+        % [ tm0f, tm0v2d, tm0v3d ] = tileAnnularCutMesh( mesh0, tileCount );
+        % tm0x = x2Xpix(tm0v2d(:, 1), Ysc0, xsc0) ;
+        % tm0y = y2Ypix(tm0v2d(:, 2), Ysc0) ;
+        % xai = scatteredInterpolant(tm0x, tm0y, tm0v3d(:, 1)) ;
+        % yai = scatteredInterpolant(tm0x, tm0y, tm0v3d(:, 2)) ;
+        % zai = scatteredInterpolant(tm0x, tm0y, tm0v3d(:, 3)) ;
+        % pt0 = [xai(x0(:), y0(:)), yai(x0(:), y0(:)), zai(x0(:), y0(:))] ;
+        % % Interpolate for next timepoint
+        % tileCount = [2, 2] ;
+        % mesh1.u = mesh1.sphi ;
+        % [ tm1f, tm1v2d, tm1v3d ] = tileAnnularCutMesh( mesh1, tileCount );
+        % tm1x = x2Xpix(tm1v2d(:, 1), Ysc1, xsc1) ;
+        % tm1y = y2Ypix(tm1v2d(:, 2), Ysc1) ;
+        % xbi = scatteredInterpolant(tm1x, tm1y, tm1v3d(:, 1)) ;
+        % ybi = scatteredInterpolant(tm1x, tm1y, tm1v3d(:, 2)) ;
+        % zbi = scatteredInterpolant(tm1x, tm1y, tm1v3d(:, 3)) ;
+        % pt1 = [xbi(x1(:), y1(:)), ybi(x1(:), y1(:)), zbi(x1(:), y1(:))] ;
         
-        % Create extended mesh (copied above and below), also shifted by shifty
-        meshxy = [mesh0x, mesh0y ] ;
-        mabove = [mesh0x, mesh0y + dy2dY(1., Ysc0)] ;
-        mbelow = [mesh0x, mesh0y - dy2dY(1., Ysc0)] ;
-        mabove2 = [mesh0x, mesh0y + dy2dY(2., Ysc0)] ;
-        mbelow2 = [mesh0x, mesh0y - dy2dY(2., Ysc0)] ;
-        m0xy = [meshxy; mabove; mbelow; mabove2; mbelow2] ;
-        % mesh faces for t0 concatenated = mf0c
-        mf0 = mesh0.f ;
-        mf0c = [mf0; mf0 + length(mesh0x); mf0 + 2 * length(mesh0x); ...
-            mf0 + 3 * length(mesh0x); mf0 + 4 * length(mesh0x)] ;
-        tr0 = triangulation(mf0c, m0xy) ;
-        [t0_contain, baryc0] = pointLocation(tr0, [x0(:), y0(:)]) ;    
-        % Interpolate the position in 3D given relative position within 2D
-        % triangle.
-        % x123(i) is the x coords of the elements of triangle t_contain(i)
-        vxa = mesh0.v(:, 1) ;
-        vya = mesh0.v(:, 2) ;
-        vza = mesh0.v(:, 3) ;
-        assert(size(vxa, 1) == size(mesh0x, 1))
-        % Modulo the vertex IDs: trisa are the triangle vertex IDs
-        tria = tr0.ConnectivityList(t0_contain, :) ;
-        
-        % Make sure normals are pointing the right way
-        % tmp = faceNormal(tr0)
-        % v21 = x0(trisa(:, 2), :) - mesh0.v(trisa(:, 1), :) ;
-        % v31 = mesh0.v(trisa(:, 3), :) - mesh0.v(trisa(:, 1), :) ;
-        
-        trisa = mod(tria, size(vxa, 1)) ;
-        trisa(trisa == 0) = size(vxa, 1) ;
-        x123a = vxa(trisa) ;
-        y123a = vya(trisa) ;
-        z123a = vza(trisa) ;
-        % Multiply the vertex positions by relative weights.
-        % Note that baryc gives weights of the three vertices of triangle
-        % t_contain(i) for pointLocation x0(i), y0(i)
-        pt0 = [sum(baryc0 .* x123a, 2), sum(baryc0 .* y123a, 2), sum(baryc0 .* z123a, 2) ] ;
-
         if save_ims
             % Check out the triangulation    
             close all
             fig = figure('Visible', 'Off');
-            tr0_orig = triangulation(mf0, meshxy) ;
+            
+            % second option
+            % tr0 = triangulation(tm0f, tm0v2d) ;
+            % tr0_orig = triangulation(mesh0.f, mesh0.sphi) ;
+            
             hc = triplot(tr0, 'Color', blue) ;
             hold on
             ho = triplot(tr0_orig, 'Color', orange) ;
@@ -1403,48 +1424,64 @@ else
             end
             close all
         end
-
-        % Find xyz for matching position in t1 xy plane
-        % get embedded vector in R^3 for t0
-        % The shift in pixels of the current frame = shifty(i)
-        mesh1x = x2Xpix(mesh1.sphi(:, 1), Ysc1, xsc1) ;
-        if use_shifty
-            mesh1y = y2Ypix(mesh1.sphi(:, 2), shifty(i + 1), Ysc1) ;
-        else
-            mesh1y = y2Ypix(mesh1.sphi(:, 2), Ysc1) ;
-        end
-        % Create extended mesh (copied above and below), also shifted by shifty
-        meshxy = [mesh1x, mesh1y ] ;
-        mabove = [mesh1x, mesh1y + dy2dY(1., Ysc1)] ;
-        mbelow = [mesh1x, mesh1y - dy2dY(1., Ysc1)] ;
-        mabove2 = [mesh1x, mesh1y + dy2dY(2., Ysc1)] ;
-        mbelow2 = [mesh1x, mesh1y - dy2dY(2., Ysc1)] ;
-        m1xy = [meshxy; mabove; mbelow; mabove2; mbelow2] ;
-        mf1 = mesh1.f ;
-        mf1c = [mf1; mf1 + length(mesh1x); mf1 + 2 * length(mesh1x); ...
-             mf1 + 3 * length(mesh1x); mf1 + 4 * length(mesh1x)] ;
-        tr1 = triangulation(mf1c, m1xy) ;
-        % x123(i) is the x coords of the elements of triangle t_contain(i)
-        [t1_contain, baryc1] = pointLocation(tr1, [x1(:), y1(:)]) ;
-        vxb = mesh1.v(:, 1) ;
-        vyb = mesh1.v(:, 2) ;
-        vzb = mesh1.v(:, 3) ;
-        trisb = mod(tr1.ConnectivityList(t1_contain, :), size(vxb, 1)) ;
-        trisb(trisb == 0) = size(vxb, 1) ;
-        x123b = vxb(trisb) ;
-        y123b = vyb(trisb) ;
-        z123b = vzb(trisb) ;
-        pt1 = [sum(baryc1 .* x123b, 2), sum(baryc1 .* y123b, 2), sum(baryc1 .* z123b, 2) ] ;
         
         %% Take the difference to get the velocity field ------------------
         v0 = (pt1 - pt0) / dt(i) ;
         
         %% Visualize the flow in 3d ---------------------------------------
-        if save_ims
+        if save_ims            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Plot the advected mesh
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Load 3D data for coloring mesh pullback
+            xp.loadTime(t);
+            xp.rescaleStackToUnitAspect();
+            % Raw stack data
+            IV0 = xp.stack.image.apply();
+            IV0 = imadjustn(IV0{1});
+            % also plot the next timepoint
+            t1 = t + 1 ;
+            tmp = load(sprintf(spcutMeshBase, t1));
+            spcutMesh1 = tmp.spcutMesh ;
+            clearvars tmp
+            xp.loadTime(t1);
+            xp.rescaleStackToUnitAspect();
+            % Raw stack data
+            IV1 = xp.stack.image.apply();
+            IV1 = imadjustn(IV1{1});
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             close all
             fig = figure('Visible', 'Off') ;
             quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
                 v0(:, 1), v0(:, 2), v0(:, 3), 0)
+            hold on            
+            clearvars Options
+            Options.PSize = 5;
+            Options.EdgeColor = 'none';
+            % Options.Rotation = rot ;
+            % Options.Translation = trans ;
+            texture_patch_3d( mesh0.f, mesh0.v, ...
+                mesh0.f, mesh0.v(:, [2 1 3]), IV0, Options );
+            texture_patch_3d( mesh1.f, mesh1.v, ...
+                mesh1.f, mesh1.v(:, [2 1 3]), -IV1, Options );
+            axis equal
+            rgb = [ ...
+                    94    79   162
+                    50   136   189
+                   102   194   165
+                   171   221   164
+                   230   245   152
+                   255   255   191
+                   254   224   139
+                   253   174    97
+                   244   109    67
+                   213    62    79
+                   158     1    66  ] / 255;
+            colormap(rgb)
+            
+            plot3(pt0(:, 1), pt0(:, 2), pt0(:, 3), 'o', 'color', yellow)
+            plot3(pt1(:, 1), pt1(:, 2), pt1(:, 3), 's', 'color', yellow)
             axis equal
             title(['t=' timestr]) 
             saveas(gcf, fullfile(pivOutDir, ['piv3d_' timestr '.png']))
@@ -1526,7 +1563,6 @@ else
         % Subtract the normal velocity to obtain tangential velocity
         v0t = v0 - v0n .* normals ;
         
-        
         %% Compute the tangential velocities in plane
         u21 = tv2proj - tv1proj ;
         u31 = tv3proj - tv1proj ;
@@ -1555,12 +1591,12 @@ else
         % triangle. 
         
         % Compute 2D veclocities and metric tensor, also dilation
-        v0t2d = zeros(size(v0, 1), 2) ;
-        g_ab = zeros(size(v0, 1), 2, 2) ;
-        dilation = zeros(size(v0, 1), 1) ;
-        for qq = 1:size(v0, 1)
+        v0t2d = zeros(size(v0t, 1), 2) ;
+        g_ab = zeros(size(v0t, 1), 2, 2) ;
+        dilation = zeros(size(v0t, 1), 1) ;
+        for qq = 1:size(v0t, 1)
             qjac = squeeze(jac(qq, :, :)) ; 
-            v0t2d(qq, :) = qjac * v0(qq, :)' ;
+            v0t2d(qq, :) = qjac * v0t(qq, :)' ;
             g_ab(qq, :, :) = qjac * qjac' ;
             dilation(qq) = sqrt(det(qjac * qjac')) ;
         end
@@ -1622,14 +1658,14 @@ else
             % set( normalflow, 'AlphaData', alpha );   
             options.caxis = [-10 10] ;
             options.cmap = bwr ;
+            options.alpha = 0.5 ;
             v0grid = reshape(v0n, size(x0)) ;
             xfield = x0(1, :)' ;
             yfield = y0(:, 1) ;
-            
             % Create the figure
             figure('units', 'normalized', ...
                 'outerposition', [0 0 1 1], 'visible', 'off')
-            c_handle = heatmap_on_alphaimage(image, xfield, yfield, v0grid, options) ;
+            c_handle = heatmap_on_alphaimage(image, yfield, xfield, v0grid, options) ;
             axis equal
             % Extract image from figure axes
             patchIm = getframe(gca);
@@ -1638,6 +1674,108 @@ else
             % print('-dpng','-r300', outimfn)
             imwrite( patchIm.cdata, outimfn );
 
+            % % Debug -- plot spcutMesh and cutMesh
+            % close all ;
+            % fig = figure('visible', 'on') ;
+            % load(sprintf(cutMeshBase, t), 'cutMesh') ; 
+            % hold on;
+            % trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), cutMesh.v(:, 3))
+            % trisurf(mesh0.f, mesh0.v(:, 1), mesh0.v(:, 2), mesh0.v(:, 3))
+            % axis equal
+            % waitfor(fig)
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Plot the advected mesh
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Plot the advected tissue on top of the next frame
+            % interpolate velocities (x0, y0) onto mesh (mesh0x, mesh0y)
+            uuinterp = griddedInterpolant(x0', y0', uu') ; % in inverted Y
+            vvinterp = griddedInterpolant(x0', y0', vv') ; 
+            umeshpix = uuinterp(mesh0x, ysz - mesh0y) ; % interpolate in inverted Y
+            vmeshpix = vvinterp(mesh0x, ysz - mesh0y) ;
+            addx = umeshpix ;
+            addy = vmeshpix ;
+            mesh0adv_pix = [ mesh0x + addx, (ysz - mesh0y) + addy] ;
+            
+            % Texture image options
+            Options.imSize = ceil( 1000 .* [ a_fixed 1 ] );
+            Options.yLim = [0 ysz];
+            % original image RED
+            % patchIm0 = texture_patch_to_image(mesh0.f, [mesh0x, mesh0y], ...
+            %     mesh0.f, mesh0.v(:, [ 2 1 3]), IV0, Options );
+            im0 = imread(fullfile(fns(i).folder, fns(i).name)) ;
+            % advected image GREEN
+            patchIma = texture_patch_to_image(mesh0.f, mesh0adv_pix, ...
+                mesh0.f, mesh0.v(:, [ 2 1 3]), IV0, Options );
+            patchIma = adapthisteq(patchIma, 'NumTiles', [round(a_fixed * ntiles), round(2 * ntiles)]) ;
+            % Next timepoint BLUE
+            % patchIm1 = texture_patch_to_image(spcutMesh1.f, [mesh1x, mesh1y], ...
+            %     spcutMesh1.f, spcutMesh1.v(:, [2 1 3]), IV1, Options );
+            % Load next timepoint BLUE
+            im1 = imread(fullfile(fns(i+1).folder, fns(i+1).name)) ;
+            patchImRGB = cat(3, im0, uint8(patchIma * 255), im1) ;
+            
+            % Plot the image and advected image, in inverted Y space but
+            % with increasing Y going down
+            close all; 
+            fig1 = figure(1) ; 
+            h = imshow( patchImRGB );
+            hold on;  
+            quiver(mesh0x, ysz - mesh0y, addx, addy, 0, 'color', yellow)
+            % plot(mesh0x, ysz - mesh0y, 'o')
+            plot(mesh0adv_pix(:, 1), mesh0adv_pix(:, 2), 's')
+            triplot(mesh0.f, mesh0x, ysz - mesh0y, 'color', red)
+            triplot(mesh0.f, mesh0x + addx, ysz - mesh0y + addy, 'color', green)
+            axis equal
+            
+            fig = figure(2) ;
+            pressed_enter = false ; 
+            kk = 0 ;
+            while ~pressed_enter
+                if kk == 0
+                    imshow(flipud(patchIm0))
+                    %set( gca, 'YDir', 'Normal' );
+                    titlestr = '0: <Enter> to exit, <-> to toggle' ;
+                else
+                    imshow(flipud(patchIm1))
+                    %set( gca, 'YDir', 'Normal' );
+                    titlestr = '1: <Enter> to exit, <-> to toggle' ;
+                end
+                title(titlestr)
+                was_a_key = waitforbuttonpress;
+                left = strcmp(get(fig, 'CurrentKey'), 'leftarrow');
+                rght = strcmp(get(fig, 'CurrentKey'), 'rightarrow') ;
+                if was_a_key && strcmp(get(fig, 'CurrentKey'), 'return')
+                    pressed_enter = true ;
+                elseif was_a_key && left || rght 
+                    kk = mod(kk + 1, 2) ;
+                end
+            end
+                
+            % Check differences
+            d0 = patchIm1 - patchIm0 ;
+            d0pos = 0*d0 ;
+            d0pos(d0 > 0) = d0(d0 > 0) ;
+            d0neg = 0*d0 ;
+            d0neg(d0 < 0) = abs(d0(d0 < 0)) ;
+            pd0 = cat(3, d0pos, 0*d0, d0neg) ; 
+            
+            % diff between next and advected 
+            da = patchIm1 - patchIma ;
+            dapos = 0*da ;
+            dapos(da > 0) = da(da > 0) ;
+            daneg = 0*da ;
+            daneg(da < 0) = abs(da(da < 0)) ;
+            pda = cat(3, dapos, 0*da, daneg) ;
+            % plot both
+            fig = figure(1)
+            imshow(pd0) 
+            title(['\langle|t1 - t0|\rangle = ' num2str(100 * mean(pd0(:))) '%'])
+            
+            fig = figure(2)
+            imshow(pda) 
+            title(['\langle|t1 - advected t0|\rangle = ' num2str(100 * mean(pda(:))) '%'])
+            
         end
         
         % %% Draw 3D flows
@@ -1714,7 +1852,34 @@ else
     end 
     save(piv3dfn, 'piv3d') ;
 end
+disp('done')
 
+%% Check phi0s
+close all
+for ii = 1:length(xp.fileMeta.timePoints)
+    t = time(ii) ;
+    % Load the spcutMesh for this timepoint
+    disp(['Loading spcutMesh from disk... [t = ' num2str(t) ']'])
+    load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
+
+    % plot cut paths
+    vv = spcutMesh.v ;
+    inds = spcutMesh.pathPairs(:, 1) ;
+    clf;
+    trisurf(spcutMesh.f, spcutMesh.v(:, 1), spcutMesh.v(:, 2), ...
+        spcutMesh.v(:, 3), spcutMesh.v(:, 1), 'edgecolor', 'none', 'Facealpha', 0.2); 
+    hold on
+    plot3(vv(inds, 1), vv(inds, 2), vv(inds, 3), '.-')
+    pause(0.1)
+    
+    
+    % % plot phi0s
+    % plot(spcutMesh.phi0s, '.')
+    % hold on;
+    % plot(spcutMesh.phi0_fit, '-')
+    % pause(0.1)
+    % clf
+end
 
 %% Rotate and translate to aligned meshes =================================
 

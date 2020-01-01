@@ -33,7 +33,11 @@ end
 if isfield(options, 'clims')
     clims = options.clims ;
 else
-    clims = [-1 1];
+    if isfield(options, 'caxis')
+        clims = options.caxis;
+    else
+        clims = [-1 1];
+    end
 end
 if isfield(options, 'cmap')
     cmap = options.cmap ;

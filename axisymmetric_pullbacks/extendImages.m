@@ -1,4 +1,4 @@
-function extendImages(directory, direc_e, fileNameBase)
+function extendImages(directory, direc_e, fileNameBase, a_fixed, ntiles)
 % EXTENDIMAGES(directory, direc_e, fileNameBase) Repeat an image above and
 % below
 %
@@ -8,6 +8,12 @@ function extendImages(directory, direc_e, fileNameBase)
 %   path to the place where extended images are to be saved
 % fileNameBase : str
 %   The file name of the images to load and save
+% a_fixed : float
+%   The aspect ratio of the pullback image: Lx / Ly
+% ntiles : int 
+%   The number of bins in each dimension for histogram equilization for a
+%   square original image. That is, the extended image will have (a_fixed *
+%   ntiles, 2 * ntiles) bins in (x,y).
 %
 % NPMitchell 2019 
 
@@ -38,6 +44,7 @@ for i=1:length(fns)
         im2(1:halfsize, :) = im(end-halfsize + 1:end, :);
         im2(halfsize + 1:halfsize + size(im, 1), :) = im ;
         im2(halfsize + size(im, 1) + 1:end, :) = im(1:halfsize, :);
+        im2 = adapthisteq(im2, 'NumTiles', [round(a_fixed * ntiles), round(2 * ntiles)]) ;
         imwrite( im2, fullfile(direc_e, fns(i).name), 'TIFF' );
     else
         disp('already exists')

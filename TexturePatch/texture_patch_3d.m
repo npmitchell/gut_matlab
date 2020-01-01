@@ -87,6 +87,15 @@ else
     dilate = false ;
 end
 
+% Also get color if bright pixels should be a color for all patches
+if isfield( Options, 'FaceScalarField' )
+    heat = Options.Color ;
+    Options = rmfield(Options, 'FaceScalarField');
+    colorize = true ;
+else
+    colorize = false ;
+end
+
 % Check that the number of faces is consistent
 if ( size(FF,2) ~= size(TF,2) )
     error('texture_patch_3d:inputs', ...
@@ -196,6 +205,11 @@ for i = 1:size(FF,1)
         y = y * dilation ;
         z = z * dilation ;
     end
+    
+    if colorize
+        J = heat(i) * J ;
+    end
+    
     surface( container, x, y, z, J, Options );
     
 end

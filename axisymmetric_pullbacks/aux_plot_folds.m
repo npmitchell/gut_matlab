@@ -31,7 +31,7 @@ function aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
 %
 % NPMitchell 2019
 
-foldImDir = fullfile(lobeDir, 'images_foldID') ;
+foldImDir = fullfile(lobeDir, ['images_foldID_' method]) ;
 if ~exist(foldImDir, 'dir')
     mkdir(foldImDir)
 end
@@ -80,6 +80,9 @@ close all
 % Plot location of each fold superimposed on the mean radius for uniformly
 % sampled DVhoops
 blue = [0 0.4470 0.7410] ;
+red = [0.8500    0.3250    0.0980] ;
+maroon = [0.6350    0.0780    0.1840]; 
+yellow = [0.9290    0.6940    0.1250 ]; 
 maxrmax = max(rmax) ;
 maxss = max(ssmax) ;
 fig = figure('visible', 'off') ;
@@ -97,19 +100,24 @@ for kk = 1:length(timePoints)
         rad = mean(spcutMesh.radii_from_mean_uniform, 2) ;
         minrad = min(spcutMesh.radii_from_mean_uniform, [], 2) ;
         maxrad = max(spcutMesh.radii_from_mean_uniform, [], 2) ;
+        
+        stdradlo = rad - std(spcutMesh.radii_from_mean_uniform, [], 2) ;
+        stdradhi = rad + std(spcutMesh.radii_from_mean_uniform, [], 2) ;
 
         if strcmp(method, 'avgpts')
-            ss = spcutMesh.ringpath_ss ;
-        elseif strcmp(method, 'ringpath')
             ss = spcutMesh.avgpts_ss ;
+        elseif strcmp(method, 'ringpath')
+            ss = spcutMesh.ringpath_ss ;
         end
 
         % Save plot of radius with fold locations marked
         fill([ss; flipud(ss)], [minrad; flipud(maxrad)], blue, ...
             'facealpha', 0.3, 'edgecolor', 'none')
         hold on;
-        plot(ss, rad)
-        plot(ss(folds(kk, :)), rad(folds(kk, :)), 'o')
+        fill([ss; flipud(ss)], [stdradlo; flipud(stdradhi)], maroon, ...
+            'facealpha', 0.3, 'edgecolor', 'none')
+        plot(ss, rad, 'Color', 'k')
+        plot(ss(folds(kk, :)), rad(folds(kk, :)), 'o', 'Color', yellow)
         xlim([0, maxss])
         ylim([0, maxrmax])
         % axis equal
