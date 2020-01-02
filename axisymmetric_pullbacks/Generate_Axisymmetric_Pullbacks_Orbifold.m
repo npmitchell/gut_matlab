@@ -911,8 +911,8 @@ if exist(lobe_dynamics_fn, 'file') && ~overwrite_lobedynamics
     load(lobe_dynamics_fn, 'length_lobes', 'area_lobes', 'volume_lobes')
     tp = xp.fileMeta.timePoints - min(fold_onset) ;
 else
-    aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, xp.fileMeta.timePoints, ...
-        spcutMeshBase, nV, nU, rot, trans, resolution, xyzlim, colors, save_ims, overwrite_lobeims) 
+    [length_lobes, area_lobes, volume_lobes] = aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, xp.fileMeta.timePoints, ...
+        spcutMeshBase, nV, nU, rot, trans, resolution, xyzlim, colors, save_ims, overwrite_lobeims) ;
     % Save surface area and volume dynamics for each lobe
     save(fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']), ...
         'length_lobes', 'area_lobes', 'volume_lobes')
@@ -926,7 +926,7 @@ if save_ims && (~exist(lobe_dynamics_figfn, 'file') || overwrite_lobeims)
     close all;
     fig = figure('visible', 'off');
     fh = cell(1, 4) ;
-    tp = timePoints - min(fold_onset) ;
+    tp = xp.fileMeta.timePoints - min(fold_onset) ;
     for lobe = 1:4
         % Length
         subplot(3,2,1)
@@ -1453,24 +1453,18 @@ else
             fig = figure('Visible', 'Off') ;
             hold on            
             clearvars Options
-            Options.PSize = 5;
+            Options.PSize = 2;
             Options.EdgeColor = 'none';
             % Options.Rotation = rot ;
             % Options.Translation = trans ;
            
             % for checking purposes, grab the first few indices
             m0 = mesh0 ;
-            % keep = mesh0.f(1:100, :);
-            % keep = unique(keep(:)) ;
-            % rmIDx = setdiff(1:length(m0.v), keep) ;
             rmIDx = 600:length(m0.v) ;
             [m0.f, m0.v, oldvIdx] = remove_vertex_from_mesh(m0.f, m0.v, rmIDx) ;
             m0.vn = m0.vn(oldvIdx, :) ;
             
             m1 = mesh1 ;
-            % keep = m1.f(1:100, :);
-            % keep = unique(keep(:)) ;
-            % rmIDx = setdiff(1:length(m1.v), keep) ;
             rmIDx = 600:length(m1.v) ;
             [m1.f, m1.v, oldvIdx] = remove_vertex_from_mesh(m1.f, m1.v, rmIDx) ;
             m1.vn = m1.vn(oldvIdx, :) ;
@@ -1482,26 +1476,24 @@ else
                 m1.f, m1.v(:, [2 1 3]), 32768 - 0.5 * IV1, Options );
             hold on            
             axis equal
-            rgb = [ ...
-                    94    79   162
-                    50   136   189
-                   102   194   165
-                   171   221   164
-                   230   245   152
-                   255   255   191
-                   254   224   139
-                   253   174    97
-                   244   109    67
-                   213    62    79
-                   158     1    66  ] / 255;
-            colormap(rgb)
+            colormap(bwr)
             alpha 0.5
             colorbar()
-            hold on            
-            quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
-                v0(:, 1), v0(:, 2), v0(:, 3), 0, 'color', green)
+            hold on       
+            nearby = false(size(pt0(:, 1), 1), 1) ;
+            for qq = 1:length(pt0(:, 1))
+                if min(vecnorm(pt0(qq, :) - m0.v, 2, 2)) < 10
+                    nearby(qq) = true ;
+                end
+            end
+            nearby = find(nearby) ;
+            % quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
+            %     v0(:, 1), v0(:, 2), v0(:, 3), 0, 'color', green)
+            quiver3(pt0(nearby, 1), pt0(nearby, 2), pt0(nearby, 3), ...
+                v0(nearby, 1), v0(nearby, 2), v0(nearby, 3), 0, 'color', green) 
+            hold on
             
-            
+            % scatter3(pt0(:, 1), pt0(:, 2), pt0(:, 3))
             % plot3(pt0(:, 1), pt0(:, 2), pt0(:, 3), 'o', 'color', yellow)
             % plot3(pt1(:, 1), pt1(:, 2), pt1(:, 3), 's', 'color', yellow)
             axis equal
