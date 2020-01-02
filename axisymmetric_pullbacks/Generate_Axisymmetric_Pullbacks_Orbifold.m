@@ -1442,9 +1442,6 @@ else
             IV0 = imadjustn(IV0{1});
             % also plot the next timepoint
             t1 = t + 1 ;
-            tmp = load(sprintf(spcutMeshBase, t1));
-            spcutMesh1 = tmp.spcutMesh ;
-            clearvars tmp
             xp.loadTime(t1);
             xp.rescaleStackToUnitAspect();
             % Raw stack data
@@ -1454,8 +1451,6 @@ else
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             close all
             fig = figure('Visible', 'Off') ;
-            % quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
-            %     v0(:, 1), v0(:, 2), v0(:, 3), 0)
             hold on            
             clearvars Options
             Options.PSize = 5;
@@ -1464,12 +1459,28 @@ else
             % Options.Translation = trans ;
            
             % for checking purposes, grab the first few indices
-           
-            texture_patch_3d( mesh0.f, mesh0.v, ...
-                mesh0.f, mesh0.v(:, [2 1 3]), IV0, Options );
+            m0 = mesh0 ;
+            % keep = mesh0.f(1:100, :);
+            % keep = unique(keep(:)) ;
+            % rmIDx = setdiff(1:length(m0.v), keep) ;
+            rmIDx = 600:length(m0.v) ;
+            [m0.f, m0.v, oldvIdx] = remove_vertex_from_mesh(m0.f, m0.v, rmIDx) ;
+            m0.vn = m0.vn(oldvIdx, :) ;
+            
+            m1 = mesh1 ;
+            % keep = m1.f(1:100, :);
+            % keep = unique(keep(:)) ;
+            % rmIDx = setdiff(1:length(m1.v), keep) ;
+            rmIDx = 600:length(m1.v) ;
+            [m1.f, m1.v, oldvIdx] = remove_vertex_from_mesh(m1.f, m1.v, rmIDx) ;
+            m1.vn = m1.vn(oldvIdx, :) ;
+            
+            texture_patch_3d( m0.f, m0.v, ...
+                m0.f, m0.v(:, [2 1 3]), 32768 + 0.5 * IV0, Options );
             hold on            
-            texture_patch_3d( mesh1.f, mesh1.v, ...
-                mesh1.f, mesh1.v(:, [2 1 3]), -IV1, Options );
+            texture_patch_3d( m1.f, m1.v, ...
+                m1.f, m1.v(:, [2 1 3]), 32768 - 0.5 * IV1, Options );
+            hold on            
             axis equal
             rgb = [ ...
                     94    79   162
@@ -1486,13 +1497,22 @@ else
             colormap(rgb)
             alpha 0.5
             colorbar()
+            hold on            
+            quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
+                v0(:, 1), v0(:, 2), v0(:, 3), 0, 'color', green)
+            
             
             % plot3(pt0(:, 1), pt0(:, 2), pt0(:, 3), 'o', 'color', yellow)
             % plot3(pt1(:, 1), pt1(:, 2), pt1(:, 3), 's', 'color', yellow)
             axis equal
             title(['t=' timestr]) 
-            saveas(gcf, fullfile('/Users/npmitchell/Desktop/tmp/', ['piv3d_' timestr '.png']))
-            % saveas(gcf, fullfile(pivOutDir, ['piv3d_' timestr '.png']))
+            xlabel('x')
+            ylabel('y')
+            zlabel('z')
+            % plot3(m1.v(:, 1), m1.v(:, 2), m1.v(:, 3), '.')
+            
+            % saveas(gcf, fullfile('/Users/npmitchell/Desktop/tmp/', ['piv3d_' timestr '.png']))
+            saveas(gcf, fullfile(pivOutDir, ['piv3d_' timestr '.png']))
             close all
             error('break')
         end

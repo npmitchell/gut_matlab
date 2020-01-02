@@ -11,9 +11,10 @@ function [ newFace, newVertex, oldVertexIDx ] = ...
 %       - newFace:      #F'x3 updated face connectivity list
 %       - newVertex:    #V'xD updated vertex coordinate list
 %       - oldVertexIDx: #V'x1 list of the vertex IDs of the updated
-%                       vertices in the old vertex list
+%                       vertices in the old vertex list, so that, for ex,
+%                       vn_new = old_mesh.vn(oldVertexIdx, :)
 %
-% By Dillon Cislo
+% By Dillon Cislo, modified NPMitchell 2019
 
 % Alternate version by NPMitchell:
 % 
