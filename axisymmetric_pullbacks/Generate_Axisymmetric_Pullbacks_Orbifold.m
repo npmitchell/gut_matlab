@@ -1453,16 +1453,20 @@ else
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             close all
             fig = figure('Visible', 'Off') ;
-            quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
-                v0(:, 1), v0(:, 2), v0(:, 3), 0)
+            % quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
+            %     v0(:, 1), v0(:, 2), v0(:, 3), 0)
             hold on            
             clearvars Options
             Options.PSize = 5;
             Options.EdgeColor = 'none';
             % Options.Rotation = rot ;
             % Options.Translation = trans ;
+           
+            % for checking purposes, grab the first few indices
+           
             texture_patch_3d( mesh0.f, mesh0.v, ...
                 mesh0.f, mesh0.v(:, [2 1 3]), IV0, Options );
+            hold on            
             texture_patch_3d( mesh1.f, mesh1.v, ...
                 mesh1.f, mesh1.v(:, [2 1 3]), -IV1, Options );
             axis equal
@@ -1479,13 +1483,17 @@ else
                    213    62    79
                    158     1    66  ] / 255;
             colormap(rgb)
+            alpha 0.5
+            colorbar()
             
-            plot3(pt0(:, 1), pt0(:, 2), pt0(:, 3), 'o', 'color', yellow)
-            plot3(pt1(:, 1), pt1(:, 2), pt1(:, 3), 's', 'color', yellow)
+            % plot3(pt0(:, 1), pt0(:, 2), pt0(:, 3), 'o', 'color', yellow)
+            % plot3(pt1(:, 1), pt1(:, 2), pt1(:, 3), 's', 'color', yellow)
             axis equal
             title(['t=' timestr]) 
-            saveas(gcf, fullfile(pivOutDir, ['piv3d_' timestr '.png']))
+            saveas(gcf, fullfile('/Users/npmitchell/Desktop/tmp/', ['piv3d_' timestr '.png']))
+            % saveas(gcf, fullfile(pivOutDir, ['piv3d_' timestr '.png']))
             close all
+            error('break')
         end
         
         %% Obtain normal & tangential components of velocity --------------
