@@ -1,5 +1,5 @@
-function aux_compute_lobe_dynamics(ssfold, ssmax, lobeDir, timePoints, ...
-    sphiBase, rot, trans, xyzlim, colors)
+function aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, timePoints, ...
+    spcutMeshBase, nV, nU, rot, trans, resolution, xyzlim, colors, save_ims, overwrite_lobeims)
 %AUX_COMPUTE_LOBE_DYNAMICS auxiliary function for Generate_Axisymmetric_Pullbacks_Orbifold.m
 %   Compute the lobe dynamics for all timepoints
 % 
@@ -29,7 +29,7 @@ for kk = 1:length(timePoints)
     % Translate to which timestamp
     t = timePoints(kk) ;
     timestr = sprintf('%04d', t) ;
-    load(sprintf(sphiBase, t), 'spcutMesh') ;
+    load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
 
     % Load the centerline too
     % fn = sprintf(clineDVhoopBase, t) ;

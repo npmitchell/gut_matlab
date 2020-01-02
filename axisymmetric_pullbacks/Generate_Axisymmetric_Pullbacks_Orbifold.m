@@ -196,7 +196,6 @@ xp.initNew();
 
 clear fileMeta expMeta
 
-
 %% Initialize Some Directory Definitions ==================================
 
 % The top level data directory
@@ -211,7 +210,8 @@ PDBase = '/mesh_apical_stab_%06d/pdorsal';
 
 % The folder where the pullback images will be saved
 nshift = strrep(sprintf('%03d', normal_shift), '-', 'n') ;
-imFolder = fullfile(meshDir, ['PullbackImages_' nshift 'step'] ) ;
+shiftstr = ['_' nshift 'step'] ;
+imFolder = fullfile(meshDir, ['PullbackImages' shiftstr] ) ;
 imFolder_e = [imFolder '_extended'] ;
 imFolder_r = [imFolder '_relaxed'] ;
 imFolder_re = [imFolder '_relaxed_extended'] ;
@@ -227,11 +227,11 @@ centerlineBase = fullfile(centerlineDir, 'mesh_apical_stab_%06d_centerline_exp1p
 cntrsFileName = fullfile(centerlineDir, 'mesh_apical_stab_%06d_centerline_scaled_exp1p0_res1p0.txt') ;
 
 % centerline from DV hoops
-clineDVhoopDir = fullfile(centerlineDir, ['centerline_from_DVhoops' dvexten]) ;
+clineDVhoopDir = fullfile(centerlineDir, ['centerline_from_DVhoops' shiftstr dvexten]) ;
 clineDVhoopBase = fullfile(clineDVhoopDir, 'centerline_from_DVhoops_%06d.mat');
 clineDVhoopImDir = fullfile(clineDVhoopDir, 'images') ;
 clineDVhoopFigBase = fullfile(clineDVhoopImDir, 'clineDVhoop_%06d.png') ;
-radiusDir = fullfile(meshDir, ['radiusDVhoops' dvexten]) ;
+radiusDir = fullfile(meshDir, ['radiusDVhoops' shiftstr dvexten]) ;
 radiusImDir = fullfile(radiusDir, 'images') ;
 
 % The file name base for the cylinder meshes
@@ -246,7 +246,7 @@ cylinderMeshCleanFigBase = fullfile( cylCutMeshOutImDir, ...
 lobeDir = fullfile(meshDir, 'lobes') ;
 
 % Define cutMesh directories
-sphiDir = fullfile(meshDir, ['sphi_cutMesh' dvexten]) ;
+sphiDir = fullfile(meshDir, ['sphi_cutMesh' shiftstr dvexten]) ;
 spcutMeshBase = fullfile(sphiDir, 'mesh_apical_stab_%06d_spcutMesh.mat') ;
 imFolder_sp = [imFolder '_sphi' dvexten] ;
 imFolder_sp_e = [imFolder '_sphi' dvexten '_extended'] ;
@@ -268,6 +268,7 @@ for i = 1:length(tomake)
         mkdir(dir2make);
     end
 end
+clearvars tomake dir2make i nshift 
 
 %% Load rotation, translation, resolution
 rot = dlmread(fullfile(meshDir, 'rotation_APDV.txt')) ;
@@ -642,7 +643,7 @@ else
                 % interpolated hoops, not the actual points
                 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                fprintf('Done with constructing new centerline\n') ;
+                fprintf('Done making new centerline + using uniformly sampled hoops\n') ;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 if t == xp.fileMeta.timePoints(1)
                     % Store for next timepoint
@@ -658,7 +659,7 @@ else
                     plotfn = sprintf(phi0fitBase, t);
                     [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
                         uspace, vspace, prev3d_sphi, -0.25, 0.25, save_ims, plotfn) ;
-                    % Store for next timepoint
+                    % Store to save at this timepoint
                     phiv = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
                 end
                 disp('done computing phi0s')
@@ -904,14 +905,14 @@ disp('done')
 
 %% Compute surface area and volume for each compartment
 lobe_dynamics_fn = fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']) ;
-if exist(lobe_dynamics_fn, 'file') || ~overwrite_lobedynamics
+if exist(lobe_dynamics_fn, 'file') && ~overwrite_lobedynamics
     % Load length, surface area, and volume dynamics for each lobe
     disp('Loading lobe length, area, and volume...')
     load(lobe_dynamics_fn, 'length_lobes', 'area_lobes', 'volume_lobes')
     tp = xp.fileMeta.timePoints - min(fold_onset) ;
 else
-    aux_compute_lobe_dynamics(ssfold, ssmax, lobeDir, timePoints, ...
-        spcutMeshBase, rot, trans, xyzlim, colors) 
+    aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, xp.fileMeta.timePoints, ...
+        spcutMeshBase, nV, nU, rot, trans, resolution, xyzlim, colors, save_ims, overwrite_lobeims) 
     % Save surface area and volume dynamics for each lobe
     save(fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']), ...
         'length_lobes', 'area_lobes', 'volume_lobes')

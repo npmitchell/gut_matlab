@@ -103,7 +103,7 @@ for mi = 1:length(markers)
         if exist(fn, 'file')
             % Load the surface area and volume from disk
             load(fn)
-            
+   
             % get time offset
             if strcmp(label, 'Membrane')
                 disp('loading membrane tps')
