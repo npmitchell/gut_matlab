@@ -147,7 +147,7 @@ for kk = 1:length(timePoints)
         for qq = 1:length(front)
             nid = mod(qq + 1, length(front)) ;
             if nid == 0
-                nid = length(rear) ;
+                nid = length(front) ;
             end
             frontf(qq, :) = [front(qq), addptidx, front(nid)];
         end

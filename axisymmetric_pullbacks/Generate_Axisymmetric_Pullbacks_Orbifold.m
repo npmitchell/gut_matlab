@@ -1,4 +1,4 @@
-%% GENERATE_AXISYMMETRIC_PULLBACK ==========================================
+%% GENERATE_AXISYMMETRIC_PULLBACK =========================================
 % Pipeline for creating 'axisymmetric' pullbacks of the growing Drosophila 
 % midgut about a centerline (previously computed). Uses orbifold method to
 % guarantee conformality except at x=0 and x=L
@@ -15,11 +15,20 @@
 % meshDir/rotation_APDV.txt
 % meshDir/xyzlim_APDV_um.txt
 % 
-% Returns
+% Saves
 % -------
 % meshDir/meshStack.mat
 % PullbackImages_###step/ (images)
-% 
+% spcutMeshSmRS: struct with fields
+%       f:  2*(nU-1)*(nV-1) x 3 int array
+%               connectivity list (faces indexing vertices)
+%       v:  nU*nV x 3 float array
+%               3d coordinates of the mesh vertices
+%       u:  nU*nV x 2 float array
+%               2d coordinates in units of (avg centerline pathlength of this DVhoop, 1/2pi radians of hoop angle)
+%       vn: nU*nV x 3 float array
+%               smoothed vertex normals
+%
 % By Dillon Cislo and Noah Mitchell
 %==========================================================================
 
@@ -45,6 +54,7 @@ overwrite_spcutMesh_smoothradii = false ;
 overwrite_piv = true ;
 resave_ims = false ;
 save_ims = true ;
+debug = false ;
 nsegs4path = 5 ;
 nV = 100 ;
 nU = 100 ;
@@ -88,6 +98,7 @@ end
 
 addpath(genpath(fullfile(gutpath, 'TexturePatch')));
 addpath(gutpath) ;
+addpath_recurse(fullfile(gutpath, 'basics/')) ;
 addpath_recurse(fullfile(gutpath, 'axisymmetric_pullbacks/')) ;
 addpath_recurse(fullfile(gutpath, 'plotting/')) ;
 addpath_recurse(fullfile(gutpath, 'mesh_handling/')) ;
@@ -248,6 +259,13 @@ lobeDir = fullfile(meshDir, 'lobes') ;
 % Define cutMesh directories
 sphiDir = fullfile(meshDir, ['sphi_cutMesh' shiftstr dvexten]) ;
 spcutMeshBase = fullfile(sphiDir, 'mesh_apical_stab_%06d_spcutMesh.mat') ;
+sphiSmDir = fullfile(sphiDir, 'smoothed') ;
+sphiSmRSDir = fullfile(sphiDir, 'smoothed_rs') ;
+sphiSmRSImDir = fullfile(sphiSmRSDir, 'images') ;
+sphiSmRSCDir = fullfile(sphiDir, 'smoothed_rs_closed') ;
+spcutMeshSmBase = fullfile(sphiSmDir, '%06d_spcutMeshSm.mat') ;
+spcutMeshSmRSBase = fullfile(sphiSmRSDir, '%06d_spcutMeshSmRS.mat') ;
+spcutMeshSmRSCBase = fullfile(sphiSmRSCDir, '%06d_spcMSmRSC.mat') ;
 imFolder_sp = [imFolder '_sphi' dvexten] ;
 imFolder_sp_e = [imFolder '_sphi' dvexten '_extended'] ;
 imFolder_up = [imFolder '_uphi' dvexten] ;
@@ -261,7 +279,8 @@ tomake = {imFolder, imFolder_e, imFolder_r, imFolder_re,...
     pivDir, cutFolder, cutMeshImagesDir, cylCutMeshOutDir,...
     cylCutMeshOutImDir, clineDVhoopDir, clineDVhoopImDir, ...
     sphiDir, imFolder_sp, imFolder_sp_e, imFolder_sp, imFolder_sp_e,  ...
-    lobeDir, radiusDir, radiusImDir} ;
+    lobeDir, radiusDir, radiusImDir, ...
+    sphiSmDir, sphiSmRSImDir, sphiSmRSDir} ;
 for i = 1:length(tomake)
     dir2make = tomake{i} ;
     if ~exist( dir2make, 'dir' )
@@ -567,10 +586,34 @@ else
                 disp('Creating constant y curves')
                 % Make grid
                 eps = 1e-14 ;
-                uspace = linspace( eps, max(TV2D(:, 1)) - eps, nU )' ;
+                uspace0 = linspace( eps, max(TV2D(:, 1)) - eps, nU )' ;
                 vspace = linspace( eps, 1-eps, nV )' ;
 
-                disp('Casting points into 3D...')
+                disp('Casting crude (equal dU) points into 3D...')
+                % NOTE: first dimension indexes u, second indexes v
+                curves3d = zeros(nU, nV, 3) ;
+                for kk = 1:nU
+                    if mod(kk, 50) == 0
+                        disp(['u = ' num2str(kk / nU)])
+                    end
+                    uv = [uspace0(kk) * ones(size(vspace)), vspace] ;
+                    curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uv) ;
+                end 
+
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                % Compute ds along the surface from each hoop to the next
+                % The distance from one hoop to another is the
+                % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
+                dsuphi = reshape([vecnorm(diff(curves3d), 2, 2); 0], [nU, nV]) ;
+                crude_ringpath_ds = nanmean(dsuphi(1:(end-1), :), 2) * resolution ;
+                crude_ringpath_ss = cumsum([0; crude_ringpath_ds]) ;
+                clearvars dsuphi
+                
+                % Resample crude_ringpath_ds
+                [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU), crude_ringpath_ss, nU, 'linear') ;
+                
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                disp('Casting resampled (approx equal ds) points into 3D...')
                 % NOTE: first dimension indexes u, second indexes v
                 curves3d = zeros(nU, nV, 3) ;
                 for kk = 1:nU
@@ -584,7 +627,7 @@ else
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 fprintf('Compute s(u) and radius(u), each (0,1) \n');
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % todo: sample at evenly spaced dphi in embedding space
+                % Resample at evenly spaced dphi in embedding space
                 fprintf('Resampling curves...\n')
                 c3ds = zeros(size(curves3d)) ;
                 for i=1:nU
@@ -602,7 +645,7 @@ else
                     % hold on;
                     % plot(uv(:, 1), uv(:, 2), '.')
                 end
-
+                
                 fprintf('Finding s(u) and r(u) of resampled c3ds...\n')
                 % mcline is the resampled centerline, with mss
                 % avgpts is the raw Nx3 averaged hoops, with avgpts_ss
@@ -658,7 +701,7 @@ else
                     
                     plotfn = sprintf(phi0fitBase, t);
                     [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
-                        uspace, vspace, prev3d_sphi, -0.25, 0.25, save_ims, plotfn) ;
+                        uspace, vspace, prev3d_sphi, -0.5, 0.5, save_ims, plotfn) ;
                     % Store to save at this timepoint
                     phiv = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
                 end
@@ -704,31 +747,69 @@ else
                 % non-Nearest Neighbors.
                 cleantri = cleanBoundaryPath2D(tmptri, [sv(:), phiv(:)], spcutMesh.pathPairs(:), true) ;
 
-                spcutMesh.f = cleantri ;
-                spcutMesh.v = new3d ;
-                % spcutMesh.vrs = ((rot * new3d')' + trans) * resolution ;
                 spcutMesh.nU = nU ;
                 spcutMesh.nV = nV ;
+                % First resampling
+                spcutMesh.f0 = cleantri ;
+                spcutMesh.v0 = new3d ;
+                % spcutMesh.vrs0 = ((rot * new3d')' + trans) * resolution ;
                 % Define normals based on the original mesh normals
-                % todo: spcutMesh.vn =  ;
-                Fnx = scatteredInterpolant(TV2D(:, 1), TV2D(:, 2), cutMesh.vn(:, 1)) ;
-                Fny = scatteredInterpolant(TV2D(:, 1), TV2D(:, 2), cutMesh.vn(:, 2)) ;
-                Fnz = scatteredInterpolant(TV2D(:, 1), TV2D(:, 2), cutMesh.vn(:, 3)) ;
-                spcutMesh.vn = zeros(size(spcutMesh.v)) ;
-                spcutMesh.vn(:, 1) = Fnx(uphi(:, 1), uphi(:, 2)) ;
-                spcutMesh.vn(:, 2) = Fny(uphi(:, 1), uphi(:, 2)) ;
-                spcutMesh.vn(:, 3) = Fnz(uphi(:, 1), uphi(:, 2)) ;
-                spcutMesh.sphi = [sv(:), phiv(:)] ;
-                spcutMesh.uphi = uphi ;
-                % Note: uv has no direct relation with cutMesh, just a grid for utility
+                spvn03d = interpolate2Dpts_3Dmesh(TF, TV2D, TVN3D, uphi) ;
+                spvn03d = spvn03d ./ vecnorm(spvn03d, 2, 2) ;
+                spcutMesh.vn0 = spvn03d ;
+                spcutMesh.sphi0 = [sv(:), phiv(:)] ;
+                spcutMesh.uphi0 = uphi ;
+                % Note: uv has no direct relation with cutMesh, just a grid
+                % for utility and reference, but it does have unequal 
+                % spacing in u in anticipation of building sphi0 as a 
+                % near perfect grid.
                 spcutMesh.uv = uv ;  
+                
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                % SECOND RESAMPLING
+                % Make a new grid
+                slin = linspace(0, max(spcutMesh.sphi0(:, 1)), nU) ;
+                plin = linspace(0, 1, nV) ;
+                [ss, pp] = meshgrid(slin, plin) ;
+                % Push the endpoints on each boundary in by epsilon to
+                % avoid NaNs
+                eps = 1e-14 ;
+                ss(:, 1) = eps ;
+                ss(:, end) = ss(:, end) - eps ;
+                % Transpose so that x increases with increasing index first
+                ss = ss' ;
+                pp = pp' ;
+                sp = [ss(:), pp(:)] ;
+                
+                % Tile the spcutMesh
+                tileCount = [2, 2] ;
+                spcutMesh.u = spcutMesh.sphi0 ;
+                [ faces, v2d, v3d, vn3d ] = tileAnnularCutMesh( spcutMesh, tileCount );
+                spv3d = interpolate2Dpts_3Dmesh(faces, v2d, v3d, sp) ;
+                % check the pts
+                % plot3(spv3d(:, 1), spv3d(:, 2), spv3d(:, 3))  
+                
+                % also interpolate the normals
+                spvn3d = interpolate2Dpts_3Dmesh(faces, v2d, vn3d, sp) ;
+                spvn3d = spvn3d ./ vecnorm(spvn3d, 2, 2) ;
+                
+                % Define new faces for second rectilinear resampling
+                spcutMesh.f = defineFacesRectilinearGrid(sp, nU, nV) ;
+                spcutMesh.sphi = sp ;
+                spcutMesh.v = spv3d ;
+                spcutMesh.vn = spvn3d ;
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                
                 spcutMesh.ringpath_ss = ringpath_ss ;
-                spcutMesh.radii_from_mean_uniform_rs = radii_from_mean_uniform_rs ;
+                spcutMesh.radii_from_mean_uniform_rs = radii_from_mean_uniform_rs ;  % from uniform DV sampling
                 spcutMesh.radii_from_avgpts = radii_from_avgpts ;
-                spcutMesh.mss = mss ;       % from uniform sampling, also stored in centerline
-                spcutMesh.mcline = mcline ; % from uniform sampling, also stored in centerline
-                spcutMesh.avgpts = avgpts ; % from uniform sampling, also stored in centerline
+                spcutMesh.mss = mss ;       % from uniform DV sampling, also stored in centerline
+                spcutMesh.mcline = mcline ; % from uniform DV sampling, also stored in centerline
+                spcutMesh.avgpts = avgpts ; % from uniform DV sampling, also stored in centerline
                 spcutMesh.avgpts_ss = avgpts_ss ; % from uniform sampling, also stored in centerline
+                
+                % todo: check that u coords have not shifted upon
+                % redefinition of sphi0 -> sphi
 
                 % Save s,phi and their 3D embedding
                 spcutMesh.phi0s = phi0s ;
@@ -921,7 +1002,8 @@ end
 
 %% plot length, area, and volume for each lobe
 lobe_dynamics_figfn = fullfile(lobeDir, ['lobe_dynamics' dvexten '.png']) ;
-if save_ims && (~exist(lobe_dynamics_figfn, 'file') || overwrite_lobeims)
+fig1exist = ~exist(lobe_dynamics_figfn, 'file') ;
+if save_ims && (fig1exist || overwrite_lobeims)
     disp('Plotting lobe dynamics...')
     close all;
     fig = figure('visible', 'off');
@@ -964,7 +1046,61 @@ if save_ims && (~exist(lobe_dynamics_figfn, 'file') || overwrite_lobeims)
     disp(['Saving summary to ' lobe_dynamics_figfn])
     saveas(fig, lobe_dynamics_figfn)
 else
-    disp('Skipping lobe dynamics plots since they exist...')
+    disp('Skipping lobe dynamics plot since it exists...')
+end
+
+% scaled version of same plot
+lobe_dynamics_figfn = fullfile(lobeDir, ['lobe_dynamics' dvexten '_scaled.png']) ;
+fig2exist = ~exist(lobe_dynamics_figfn, 'file') ;
+if save_ims && (fig2exist || overwrite_lobeims)
+    disp('Plotting lobe dynamics scaled...')
+    close all;
+    fig = figure('visible', 'off');
+    fh = cell(1, 4) ;
+    tp = xp.fileMeta.timePoints - min(fold_onset) ;
+    for lobe = 1:4
+        % Length
+        subplot(3,2,1)
+        y = length_lobes(:, lobe) / length_lobes(tp==0, lobe) ;
+        plot(tp, y, '.', 'Color', colors(lobe, :)) ;
+        hold on
+
+        % Area
+        subplot(3,2,3)
+        y = area_lobes(:, lobe)/ area_lobes(tp==0, lobe) ;
+        fh{lobe} = plot(tp, y, '.', 'Color', colors(lobe, :)) ;
+        hold on
+
+        % Volume
+        subplot(3,2,5)
+        y = volume_lobes(:, lobe) / volume_lobes(tp==0, lobe)
+        plot(tp, y, '.', 'Color', colors(lobe, :)) ;
+        hold on
+    end
+
+    subplot(3, 2, 1)
+    xlim([min(tp), max(tp)])
+    ylabel('Length / L_0')
+    ylim([0, 5])
+
+    subplot(3, 2, 3)
+    xlim([min(tp), max(tp)])
+    ylabel('Area / A_0')
+    legend({'\color[rgb]{ 0,0.4470,0.7410} lobe 1', ...
+        '\color[rgb]{0.8500,0.3250,0.0980} lobe 2', ...
+        '\color[rgb]{0.9290,0.6940,0.1250} lobe 3', ...
+        '\color[rgb]{0.4940,0.1840,0.5560} lobe 4'}, 'Position', [0.55 0.4 0.1 0.2])
+    ylim([0, 2])
+    
+    subplot(3, 2, 5)
+    xlim([min(tp), max(tp)])
+    ylabel('Volume / V_0')
+
+    xlabel('time [min]')
+    disp(['Saving summary to ' lobe_dynamics_figfn])
+    saveas(fig, lobe_dynamics_figfn)
+else
+    disp('Skipping lobe dynamics plot since it exists...')
 end
 
 %% Plot motion of avgpts at lobes in yz plane over time
@@ -1034,160 +1170,282 @@ end
 disp('done')
 
 %% SMOOTH MEAN CENTERLINE RADIUS ==========================================
-mclineM = zeros(length(xp.fileMeta.timePoints), 1000, 3) ;
-for kk=1:length(xp.fileMeta.timePoints)
+redo_smoothed_centerline_and_radius = overwrite_spcutMesh_smoothradii ;
+kk = 1;
+while ~redo_smoothed_centerline_and_radius && kk < (length(xp.fileMeta.timePoints) + 1)
     t = xp.fileMeta.timePoints(kk) ;
+    disp(['Checking if cline smoothing needs to be done for t=' num2str(t)])
     % Load mcline
-    load(sprintf(clineDVhoopBase, t), 'mcline') ;
-    mclineM(kk, :, :) = mcline ;
-end
-
-% Time-average the centerline
-mcline_smM = movmean(mclineM,5,1) ;
-
-% Optional: polynomial fit to smooth
-
-% Re-compute radii from smoothed centerlines by pointmatching avgpts onto
-% smoothed centerline and plot them
-radImDir0 = fullfile(radiusImDir, 'view0') ;
-radImDirD = fullfile(radiusImDir, 'viewD') ;
-radImDirV = fullfile(radiusImDir, 'viewV') ;
-radImDirA = fullfile(radiusImDir, 'viewA') ;
-radImDirP = fullfile(radiusImDir, 'viewP') ;
-radImDirL = fullfile(radiusImDir, 'viewL') ;
-radImDirR = fullfile(radiusImDir, 'viewR') ;
-radImDirs = fullfile(radiusImDir, 'sphi') ;
-radImDiru = fullfile(radiusImDir, 'uphi') ;
-dirs2do = {radImDir0, radImDirD, radImDirV, ...
-    radImDirA, radImDirP, radImDirL, radImDirR, ...
-    radImDirs, radImDiru} ;
-for qq = 1:length(dirs2do)
-    if ~exist(dirs2do{qq}, 'dir')
-        mkdir(dirs2do{qq})
-    end
-end
-% Now compute and plot
-for kk=1:length(xp.fileMeta.timePoints)
-    t = xp.fileMeta.timePoints(kk) ;
-    disp(['Computing radii from smoothed centerline for t=' num2str(t)])
-    % Load mcline
-    load(sprintf(clineDVhoopBase, t), 'avgpts', 'mcline', 'mss') ;
-    mcline_sm = squeeze(mcline_smM(kk, :, :)) ;
-    mss_sm = ss_from_xyz(mcline_sm) ;
-    inds = pointMatch(avgpts, mcline_sm) ;
-    avgpts_projected = mcline_sm(inds, :) ;
-    
-    % Save the new results with the old
-    save(sprintf(clineDVhoopBase, t), 'avgpts', 'mcline', 'mss',...
-        'avgpts_projected', 'mcline_sm', 'mss_sm') ;
-    
+    tmp = load(sprintf(clineDVhoopBase, t)) ;
     % Add radii from smoothed mcline to spcutMesh if not already present
     load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
-    vrs = ((rot * spcutMesh.v')' + trans) * resolution ;
-    radii_in_cutMeshsm = isfield(spcutMesh, 'radii_from_smoothed_mcline') ;
-    if ~radii_in_cutMeshsm || overwrite_spcutMesh_smoothradii
-        curvesDV = reshape(vrs, [nU, nV, 3]) ;
-        radii_from_avgpts_sm = zeros(size(curvesDV, 1), size(curvesDV, 2)) ;
-        for jj = 1:size(curvesDV, 1)
-            % Consider this hoop
-            hoop = squeeze(curvesDV(jj, :, :)) ;
-            radii_from_avgpts_sm(jj, :) = vecnorm(hoop - avgpts_projected(jj, :), 2, 2) ;
-        end
-    else
-        radii_from_avgpts_sm = spcutMesh.radii_from_smoothed_mcline ;
-    end
-    
-    % Plot the radii as 3D image
-    rad2dfigfn_s = fullfile(radImDirs, sprintf('radius_dvhoop_sphi_%06d.png', t)) ;
-    rad2dfigfn_u = fullfile(radImDiru, sprintf('radius_dvhoop_uphi_%06d.png', t)) ;
-    rad3dfigfn = fullfile(radImDir0, sprintf('radius_dvhoop_xyz_%06d.png', t)) ;
-    if ~exist(rad3dfigfn, 'file') || ~exist(rad2dfigfn_s, 'file') || ...
-            ~exist(rad2dfigfn_u, 'file') || overwrite_spcutMesh_smoothradii
-        disp('Writing/overwriting figures for radii from cline_sm')
-        close all
-        fig = figure('visible', 'off') ;
-        trisurf(spcutMesh.f, vrs(:, 1), vrs(:, 2), ...
-            vrs(:, 3), radii_from_avgpts_sm(:), ...
-            'Edgecolor', 'none')
-        c = colorbar ;
-        c.Label.String = 'radius [\mum]' ;
-        xlabel('x [\mum]')
-        ylabel('y [\mum]')
-        zlabel('z [\mum]')
-        axis equal
-        xlim(xyzlim(1, :))
-        ylim(xyzlim(2, :))
-        zlim(xyzlim(3, :))
-        title('Radius via DV curves and smoothed centerline')
-        saveas(fig, rad3dfigfn)
-        title('Radius via DV curves, Dorsal view')
-        view(0, 90)
-        fn = sprintf('radius_dvhoop_xyD_%06d.png', t) ;
-        disp(['Saving ' fn])
-        saveas(gcf, fullfile(radImDirD, fn)) 
-        title('Radius via DV curves, Ventral view')
-        view(0, -90)
-        fn = sprintf('radius_dvhoop_xyV_%06d.png', t) ;
-        disp(['Saving ' fn])
-        saveas(gcf, fullfile(radImDirV, fn)) 
-        title('Radius via DV curves, Posterior view')
-        view(90, 0)
-        fn = sprintf('radius_dvhoop_yzP_%06d.png', t) ;
-        disp(['Saving ' fn])
-        saveas(gcf, fullfile(radImDirP, fn)) 
-        title('Radius via DV curves, Anterior view')
-        view(-90, 0)
-        fn = sprintf('radius_dvhoop_yzA_%06d.png', t) ;
-        disp(['Saving ' fn])
-        saveas(gcf, fullfile(radImDirA, fn)) 
-        title('Radius via DV curves, Lateral view')
-        view(0, 0)
-        fn = sprintf('radius_dvhoop_xzL_%06d.png', t) ;
-        disp(['Saving ' fn])
-        saveas(gcf, fullfile(radImDirL, fn)) 
-        title('Radius via DV curves, Lateral view')
-        view(0, 180)
-        fn = sprintf('radius_dvhoop_xzR_%06d.png', t) ;
-        disp(['Saving ' fn])
-        saveas(gcf, fullfile(radImDirR, fn)) 
 
-        % Plot the radii as 2D image
-        tmp = {spcutMesh.sphi, spcutMesh.uphi} ;
-        rad2dfigfns = {rad2dfigfn_s, rad2dfigfn_u} ;
-        xlabels = {'AP position, s/L', 'AP position, u/L'} ;
-        for qq=1:2
-            uu = tmp{qq} ;
-            if qq == 1
-                uu(:, 1) = uu(:, 1) / max(uu(:, 1)) ;
-            else
-                uu(:, 1) = 0.5 * uu(:, 1) ;
+    radii_in_cutMeshsm = isfield(spcutMesh, 'radii_from_smoothed_mcline') ;
+    avgpts_projected_in_cline = isfield(tmp, 'avgpts_projected') ;
+    if ~radii_in_cutMeshsm  || ~avgpts_projected_in_cline
+        redo_smoothed_centerline_and_radius = true;
+    end
+    kk = kk + 1 ;
+end
+
+% If any data is missing on disk, or if overwrite is true, redo
+if redo_smoothed_centerline_and_radius
+    mclineM = zeros(length(xp.fileMeta.timePoints), 1000, 3) ;
+    for kk=1:length(xp.fileMeta.timePoints)
+        t = xp.fileMeta.timePoints(kk) ;
+        % Load mcline
+        load(sprintf(clineDVhoopBase, t), 'mcline') ;
+        mclineM(kk, :, :) = mcline ;
+    end
+
+    % Time-average the centerline
+    mcline_smM = movmean(mclineM,5,1) ;
+
+    % Optional: polynomial fit to smooth
+
+    % Re-compute radii from smoothed centerlines by pointmatching avgpts onto
+    % smoothed centerline and plot them
+    radImDir0 = fullfile(radiusImDir, 'view0') ;
+    radImDirD = fullfile(radiusImDir, 'viewD') ;
+    radImDirV = fullfile(radiusImDir, 'viewV') ;
+    radImDirA = fullfile(radiusImDir, 'viewA') ;
+    radImDirP = fullfile(radiusImDir, 'viewP') ;
+    radImDirL = fullfile(radiusImDir, 'viewL') ;
+    radImDirR = fullfile(radiusImDir, 'viewR') ;
+    radImDirs = fullfile(radiusImDir, 'sphi') ;
+    radImDiru = fullfile(radiusImDir, 'uphi') ;
+    dirs2do = {radImDir0, radImDirD, radImDirV, ...
+        radImDirA, radImDirP, radImDirL, radImDirR, ...
+        radImDirs, radImDiru} ;
+    for qq = 1:length(dirs2do)
+        if ~exist(dirs2do{qq}, 'dir')
+            mkdir(dirs2do{qq})
+        end
+    end
+    % Now compute and plot
+    for kk=1:length(xp.fileMeta.timePoints)
+        t = xp.fileMeta.timePoints(kk) ;
+        disp(['Computing radii from smoothed centerline for t=' num2str(t)])
+        % Load mcline
+        load(sprintf(clineDVhoopBase, t), 'avgpts', 'mcline', 'mss') ;
+        mcline_sm = squeeze(mcline_smM(kk, :, :)) ;
+        mss_sm = ss_from_xyz(mcline_sm) ;
+        inds = pointMatch(avgpts, mcline_sm) ;
+        avgpts_projected = mcline_sm(inds, :) ;
+
+        % Save the new results with the old
+        save(sprintf(clineDVhoopBase, t), 'avgpts', 'mcline', 'mss',...
+            'avgpts_projected', 'mcline_sm', 'mss_sm') ;
+
+        % Add radii from smoothed mcline to spcutMesh if not already present
+        load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
+        vrs = ((rot * spcutMesh.v')' + trans) * resolution ;
+        radii_in_cutMeshsm = isfield(spcutMesh, 'radii_from_smoothed_mcline') ;
+        if ~radii_in_cutMeshsm || overwrite_spcutMesh_smoothradii
+            curvesDV = reshape(vrs, [nU, nV, 3]) ;
+            radii_from_avgpts_sm = zeros(size(curvesDV, 1), size(curvesDV, 2)) ;
+            for jj = 1:size(curvesDV, 1)
+                % Consider this hoop
+                hoop = squeeze(curvesDV(jj, :, :)) ;
+                radii_from_avgpts_sm(jj, :) = vecnorm(hoop - avgpts_projected(jj, :), 2, 2) ;
             end
+            % Save it in spcutMesh
+            spcutMesh.radii_from_smoothed_mcline = radii_from_avgpts_sm ;
+            save(sprintf(spcutMeshBase, t), 'spcutMesh') ;
+        else
+            radii_from_avgpts_sm = spcutMesh.radii_from_smoothed_mcline ;
+        end
+
+        % Plot the radii as 3D image
+        rad2dfigfn_s = fullfile(radImDirs, sprintf('radius_dvhoop_sphi_%06d.png', t)) ;
+        rad2dfigfn_u = fullfile(radImDiru, sprintf('radius_dvhoop_uphi_%06d.png', t)) ;
+        rad3dfigfn = fullfile(radImDir0, sprintf('radius_dvhoop_xyz_%06d.png', t)) ;
+        if ~exist(rad3dfigfn, 'file') || ~exist(rad2dfigfn_s, 'file') || ...
+                ~exist(rad2dfigfn_u, 'file') || overwrite_spcutMesh_smoothradii
+            disp('Writing/overwriting figures for radii from cline_sm')
             close all
             fig = figure('visible', 'off') ;
-            trisurf(spcutMesh.f, uu(:, 1), uu(:, 2), ...
-                radii_from_avgpts_sm(:), 'EdgeColor', 'none')
-            caxis([0, 80]) ;
-            % also plot tiled meshes above and below
-            hold on;
-            trisurf(spcutMesh.f, uu(:, 1), uu(:, 2) + 1, ...
-                radii_from_avgpts_sm(:), 'Edgecolor', 'none')
-            trisurf(spcutMesh.f, uu(:, 1), uu(:, 2) - 1, ...
-                radii_from_avgpts_sm(:), 'Edgecolor', 'none')
+            trisurf(spcutMesh.f, vrs(:, 1), vrs(:, 2), ...
+                vrs(:, 3), radii_from_avgpts_sm(:), ...
+                'Edgecolor', 'none')
             c = colorbar ;
             c.Label.String = 'radius [\mum]' ;
-            xlabel(xlabels{qq})
-            ylabel('\phi/2\pi')
-            ylim([0, 1])
-            view(2)
-            saveas(fig, rad2dfigfns{qq})
-            close all
+            xlabel('x [\mum]')
+            ylabel('y [\mum]')
+            zlabel('z [\mum]')
+            axis equal
+            xlim(xyzlim(1, :))
+            ylim(xyzlim(2, :))
+            zlim(xyzlim(3, :))
+            title('Radius via DV curves and smoothed centerline')
+            saveas(fig, rad3dfigfn)
+            title('Radius via DV curves, Dorsal view')
+            view(0, 90)
+            fn = sprintf('radius_dvhoop_xyD_%06d.png', t) ;
+            disp(['Saving ' fn])
+            saveas(gcf, fullfile(radImDirD, fn)) 
+            title('Radius via DV curves, Ventral view')
+            view(0, -90)
+            fn = sprintf('radius_dvhoop_xyV_%06d.png', t) ;
+            disp(['Saving ' fn])
+            saveas(gcf, fullfile(radImDirV, fn)) 
+            title('Radius via DV curves, Posterior view')
+            view(90, 0)
+            fn = sprintf('radius_dvhoop_yzP_%06d.png', t) ;
+            disp(['Saving ' fn])
+            saveas(gcf, fullfile(radImDirP, fn)) 
+            title('Radius via DV curves, Anterior view')
+            view(-90, 0)
+            fn = sprintf('radius_dvhoop_yzA_%06d.png', t) ;
+            disp(['Saving ' fn])
+            saveas(gcf, fullfile(radImDirA, fn)) 
+            title('Radius via DV curves, Lateral view')
+            view(0, 0)
+            fn = sprintf('radius_dvhoop_xzL_%06d.png', t) ;
+            disp(['Saving ' fn])
+            saveas(gcf, fullfile(radImDirL, fn)) 
+            title('Radius via DV curves, Lateral view')
+            view(0, 180)
+            fn = sprintf('radius_dvhoop_xzR_%06d.png', t) ;
+            disp(['Saving ' fn])
+            saveas(gcf, fullfile(radImDirR, fn)) 
+
+            % Plot the radii as 2D image
+            tmp = {spcutMesh.sphi, spcutMesh.uphi} ;
+            rad2dfigfns = {rad2dfigfn_s, rad2dfigfn_u} ;
+            xlabels = {'AP position, s/L', 'AP position, u/L'} ;
+            for qq=1:2
+                uu = tmp{qq} ;
+                if qq == 1
+                    uu(:, 1) = uu(:, 1) / max(uu(:, 1)) ;
+                else
+                    uu(:, 1) = 0.5 * uu(:, 1) ;
+                end
+                close all
+                fig = figure('visible', 'off') ;
+                trisurf(spcutMesh.f, uu(:, 1), uu(:, 2), ...
+                    radii_from_avgpts_sm(:), 'EdgeColor', 'none')
+                caxis([0, 80]) ;
+                % also plot tiled meshes above and below
+                hold on;
+                trisurf(spcutMesh.f, uu(:, 1), uu(:, 2) + 1, ...
+                    radii_from_avgpts_sm(:), 'Edgecolor', 'none')
+                trisurf(spcutMesh.f, uu(:, 1), uu(:, 2) - 1, ...
+                    radii_from_avgpts_sm(:), 'Edgecolor', 'none')
+                c = colorbar ;
+                c.Label.String = 'radius [\mum]' ;
+                xlabel(xlabels{qq})
+                ylabel('\phi/2\pi')
+                ylim([0, 1])
+                view(2)
+                saveas(fig, rad2dfigfns{qq})
+                close all
+            end
         end
     end
 end
 disp('done')
 % note: see extract_radius_from_DVhoops for old version of radius plotting
 
+%% Smooth the sphi grid meshes in time 
+% Load all spcutMesh objects 
+vM = zeros(length(xp.fileMeta.timePoints), nU*nV, 3);
+nM = zeros(length(xp.fileMeta.timePoints), nU*nV, 3);
+for i = 1:length(xp.fileMeta.timePoints)
+    t = xp.fileMeta.timePoints(i) ;
+    % Load the spcutMesh for this timepoint
+    disp(['Loading spcutMesh from disk... [t = ' num2str(t) ']'])
+    load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
+    vM(i, :, :) = spcutMesh.v ;
+    nM(i, :, :) = spcutMesh.vn ;
+end
+disp('built v3d matrix')
+% Filter in time axis
+tripulse_filt = zeros(11, 1, 1, 1) ;
+tripulse_filt(:) = tripuls(-0.5:0.1:0.5) ;
+tripulse_filt = tripulse_filt ./ sum(tripulse_filt(:)) ;
+% linfilt = 0.1 * ones(10, 1, 1) ;
+% ellipsoid = fspecial3('ellipsoid', [5, 1, 1]) ;
+vsmM = imfilter(vM, tripulse_filt, 'replicate') ;
+nsmM = imfilter(nM, tripulse_filt, 'replicate') ;
+close all
+for qq = 1:length(xp.fileMeta.timePoints)
+    t = xp.fileMeta.timePoints(qq) ;
+    figfn = fullfile(sphiSmRSImDir, [sprintf('%04d', t ) '.png']) ;
+    if ~exist(figfn, 'file')
+        fig = figure('visible', 'off') ;
+        disp(['saving smoothed sphi gridmesh figure for time ' num2str(t)])
+        % Load the spcutMesh for this timepoint
+        vqq = squeeze(vsmM(qq, :, :)) ;
+        nqq = squeeze(nsmM(qq, :, :)) ;
+        nqq = nqq ./ vecnorm(nqq, 2, 2) ;
 
+        % rotate and scale
+        nqqrs = (rot * nqq')' ;
+        vqq = ((rot * vqq')' + trans) * resolution;
+        trisurf(spcutMesh.f, vqq(:, 1), vqq(:, 2), vqq(:, 3), -nqqrs(:, 2))
+        axis equal
+        xlim(xyzlim(1, :))
+        ylim(xyzlim(2, :))
+        zlim(xyzlim(3, :))
+        xlabel('x [\mum]')
+        ylabel('y [\mum]')
+        zlabel('z [\mum]')
+        title(['Smoothed mesh using tripulse filter, t=' num2str(t)])
+        saveas(gcf, figfn)
+        close all
+    end
+end
+
+% Save the smoothed meshes, then smoothed/rotated/scaled meshes
+for qq = 1:length(xp.fileMeta.timePoints)
+    t = xp.fileMeta.timePoints(qq) ;
+    smfn = sprintf(spcutMeshSmBase, t) ;
+    smrsfn = sprintf(spcutMeshSmRSBase, t) ;
+    smrscfn = sprintf(spcutMeshSmRSCBase, t) ;
+    if ~exist(smfn, 'file') || ~exist(smrsfn, 'file') || ~exist(smrscfn, 'file') 
+        vqq = squeeze(vsmM(qq, :, :)) ;
+        nqq = squeeze(nsmM(qq, :, :)) ;
+        nsmM(qq, :, :) = nqq ./ vecnorm(nqq, 2, 2) ;
+
+        % rotate and scale
+        nqqrs = (rot * nqq')' ;
+        vqqrs = ((rot * vqq')' + trans) * resolution;
+
+        spcutMeshSm.f = spcutMesh.f ;
+        spcutMeshSm.v = vqq ;
+        spcutMeshSm.vn = nqq ;
+        spcutMeshSm.u = spcutMesh.sphi ;
+
+        % Resave s,phi and their 3D embedding
+        save(sprintf(spcutMeshSmBase, t), 'spcutMeshSm') ;
+
+        spcutMeshSmRS = spcutMeshSm ;
+        spcutMeshSmRS.v = vqqrs ;
+        spcutMeshSmRS.vn = nqqrs ;
+        % Resave s,phi and their 3D embedding
+        save(sprintf(spcutMeshSmRSBase, t), 'spcutMeshSmRS') ;
+        clearvars vqq vqqrs
+
+        % To close the mesh, do the following:
+        spcutMeshSmRSC.v = spcutMeshSmRS.v(1:end-nU, :) ;
+        spcutMeshSmRSC.f = mod(spcutMeshSmRS.f, (nV-1)*nU + 1) ;
+        spcutMeshSmRSC.f(spcutMeshSmRS.f > (nV-1)*nU) = spcutMeshSmRSC.f(spcutMeshSmRS.f > (nV-1)*nU) + 1 ;
+        spcutMeshSmRSC.vn = spcutMeshSmRS.vn(1:end-nU, :) ;
+        spcutMeshSmRSC.u = spcutMesh.sphi(1:end-nU, :) ;
+        save(sprintf(spcutMeshSmRSCBase, t), 'spcutMeshSmRSC') ;
+
+        % check it
+        % fig = figure ;
+        % % triplot(spcutMeshSmRSC.f, spcutMeshSmRSC.u(:, 1), spcutMeshSmRSC.u(:, 2))
+        % trisurf(spcutMeshSmRSC.f, spcutMeshSmRSC.v(:, 1),...
+        %     spcutMeshSmRSC.v(:, 2), spcutMeshSmRSC.v(:, 3))
+        % To fully close the mesh use:
+        % anewpt = mean(spcutMeshSmRS.v(1:nV:end, :), 1)
+        % pnewpt = mean(spcutMeshSmRS.v(nU:nV:end, :), 1)
+        % waitfor(fig)
+    end
+end
 
 %% PERFORM PIV ============================================================
 % Select all frames in PullbackImages_extended_shifted/ 
@@ -1265,28 +1523,6 @@ save(fullfile(pivDir, 'timestamps_orbifold.mat'), 'time', 'meshidx')
 % load(fullfile(pivDir, 'pivresults_orbifold_pass1.mat'))
 
 
-
-%% Smooth velocities in time
-% Interpolate velocities on grid to smooth them in time
-piv3dfn = fullfile(pivDir, 'piv3d.mat') ;
-if exist(piv3dfn, 'file')
-    load(piv3dfn)
-else
-    piv3d = cell(length(fns), 1) ;
-    for i=1:length(fns) - 1
-        % Average 
-        x0 = x{i} ;
-        y0 = y{i} ;
-        uu = u_filtered{i} ;
-        vv = v_filtered{i} ; 
-        Fx = griddedInterpolant(x0, y0, xvel) ;
-        Fy = griddedInterpolant(x0, y0, yvel) ;
-        Fz = griddedInterpolant(x0, y0, zvel) ;
-        % query the velocity at the advected locations for each PIV gridpt
-    end
-end
-
-
 %% MAKE MAP FROM PIXEL TO XYZ =============================================
 disp('Making map from pixel to xyz to compute velocities in 3d...')
 % Get position of embedding points associated with velocities 
@@ -1329,9 +1565,11 @@ x2Xpix = @(x, Yscale, xscale) (Yscale * 0.5) * x / xscale ;
 dx2dX = @ (y, Yscale, xscale) (Yscale * 0.5) * x / xscale ;
 dy2dY = @ (y, Yscale) (Yscale*0.5)*y ;
 if use_shifty
-    y2Ypix = @(y, h, Yscale) Yscale - (Yscale*0.5)*(y+0.5) + h ;
+    % y2Ypix = @(y, h, Yscale) Yscale - (Yscale*0.5)*(y+0.5) + h ;
+    y2Ypix = @(y, h, Yscale) (Yscale*0.5)*(y+0.5) + h ;
 else
-    y2Ypix = @(y, Yscale) Yscale - (Yscale*0.5)*(y+0.5) ;
+    % y2Ypix = @(y, Yscale) Yscale - (Yscale*0.5)*(y+0.5) ;
+    y2Ypix = @(y, Yscale) (Yscale*0.5)*(y+0.5) ;
     shifty = [] ;
 end
 
@@ -1349,6 +1587,7 @@ else
         t = time(i) ;
 
         % Get scale of image
+        Xsc0 = xesz ;
         Ysc0 = yesz ;  % imsizes(i, 2) ;
         Ysc1 = yesz ;  % imsizes(i+1, 2) ;
 
@@ -1360,6 +1599,10 @@ else
         assert(time(i) + dt(i) == time(i+ 1))
         xsc0 = max(mesh0.sphi(:, 1)) ;
         xsc1 = max(mesh1.sphi(:, 1)) ;
+        mesh0x = x2Xpix(mesh0.sphi(:, 1), Ysc0, xsc0) ;
+        mesh0y = y2Ypix(mesh0.sphi(:, 2), Ysc0) ;
+        mesh1x = x2Xpix(mesh1.sphi(:, 1), Ysc1, xsc1) ;
+        mesh1y = y2Ypix(mesh1.sphi(:, 2), Ysc1) ;
 
         % Load the positions of the velocity vectors in pixels
         x0 = piv.x{i} ;
@@ -1372,48 +1615,190 @@ else
         eps = 1e-8 ;
         x1 = max(x1, eps) ;
         x1 = min(x1, xesz-eps) ;
-        y1 = mod(y0 + vv, Ysc1) ;
+        y1 = mod(y0 + vv, Ysc1) ;  
 
-        % Two methods of obtaining the 3d vel evaluation pts. Ignore
-        % barycenteric version:
-        [pt0, pt1, tr0, tr0_orig, trisa] = aux_barycentricInterpTiledMesh(mesh0, mesh1,...
-            Ysc0, xsc0, Ysc1, xsc1, ...
-            use_shifty, shifty, i, x0, y0, x1, y1, x2Xpix, y2Ypix, dx2dX, dy2dY) ;
+        % Two methods of obtaining the 3d vel evaluation pts. 
+        % Barycenteric version:
+        % [pt0, pt1, tr0, tr0_orig, tr1, tr1_orig, tria] = aux_barycentricInterpTiledMesh(mesh0, mesh1,...
+        %     Ysc0, xsc0, Ysc1, xsc1, use_shifty, shifty, i, x0, y0, x1, y1, x2Xpix, y2Ypix, dx2dX, dy2dY) ;
+        % mf0c = tr0.ConnectivityList ;
+        % m0xy = tr0.Points ;
+        % mesh0x = tr0_orig.Points(:, 1) ;
+        % mesh0y = tr0_orig.Points(:, 2) ;
+        % mesh1x = tr1_orig.Points(:, 1) ;
+        % mesh1y = tr1_orig.Points(:, 2) ;
+
         % % Instead, do interpolation:
-        % tileCount = [2, 2] ;
-        % mesh0.u = mesh0.sphi ;
-        % [ tm0f, tm0v2d, tm0v3d ] = tileAnnularCutMesh( mesh0, tileCount );
-        % tm0x = x2Xpix(tm0v2d(:, 1), Ysc0, xsc0) ;
-        % tm0y = y2Ypix(tm0v2d(:, 2), Ysc0) ;
-        % xai = scatteredInterpolant(tm0x, tm0y, tm0v3d(:, 1)) ;
-        % yai = scatteredInterpolant(tm0x, tm0y, tm0v3d(:, 2)) ;
-        % zai = scatteredInterpolant(tm0x, tm0y, tm0v3d(:, 3)) ;
-        % pt0 = [xai(x0(:), y0(:)), yai(x0(:), y0(:)), zai(x0(:), y0(:))] ;
-        % % Interpolate for next timepoint
-        % tileCount = [2, 2] ;
-        % mesh1.u = mesh1.sphi ;
-        % [ tm1f, tm1v2d, tm1v3d ] = tileAnnularCutMesh( mesh1, tileCount );
-        % tm1x = x2Xpix(tm1v2d(:, 1), Ysc1, xsc1) ;
-        % tm1y = y2Ypix(tm1v2d(:, 2), Ysc1) ;
-        % xbi = scatteredInterpolant(tm1x, tm1y, tm1v3d(:, 1)) ;
-        % ybi = scatteredInterpolant(tm1x, tm1y, tm1v3d(:, 2)) ;
-        % zbi = scatteredInterpolant(tm1x, tm1y, tm1v3d(:, 3)) ;
-        % pt1 = [xbi(x1(:), y1(:)), ybi(x1(:), y1(:)), zbi(x1(:), y1(:))] ;
+        disp('Interpolating 3d vertices for tiled mesh 0')
+        tileCount = [2, 2] ;
+        mesh0.u = mesh0.sphi ;
+        [ tm0f, tm0v2d, tm0v3d, tm0vn ] = tileAnnularCutMesh( mesh0, tileCount );
+        tm0X = x2Xpix(tm0v2d(:, 1), Ysc0, xsc0) ;
+        tm0Y = y2Ypix(tm0v2d(:, 2), Ysc0) ;
+        Xai = scatteredInterpolant(tm0X, tm0Y, tm0v3d(:, 1)) ;
+        Yai = scatteredInterpolant(tm0X, tm0Y, tm0v3d(:, 2)) ;
+        Zai = scatteredInterpolant(tm0X, tm0Y, tm0v3d(:, 3)) ;
+        pt0 = [Xai(x0(:), y0(:)), Yai(x0(:), y0(:)), Zai(x0(:), y0(:))] ;
+        disp('Finding barycentric coordinates')
+        % Compute barycentric coordinates for later
+        tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
+        [t0_contain, baryc0] = pointLocation(tr0, [x0(:), y0(:)]) ;    
+        % Modulo the vertex IDs: trisa are the triangle vertex IDs
+        tria = tr0.ConnectivityList(t0_contain, :) ;
+        
+        % Interpolate for next timepoint
+        disp('Interpolating 3d vertices for tiled mesh 1')
+        tileCount = [2, 2] ;
+        mesh1.u = mesh1.sphi ;
+        [ tm1f, tm1v2d, tm1v3d, tm1vn ] = tileAnnularCutMesh( mesh1, tileCount );
+        tm1X = x2Xpix(tm1v2d(:, 1), Ysc1, xsc1) ;
+        tm1Y = y2Ypix(tm1v2d(:, 2), Ysc1) ;
+        Xbi = scatteredInterpolant(tm1X, tm1Y, tm1v3d(:, 1)) ;
+        Ybi = scatteredInterpolant(tm1X, tm1Y, tm1v3d(:, 2)) ;
+        Zbi = scatteredInterpolant(tm1X, tm1Y, tm1v3d(:, 3)) ;
+        pt1 = [Xbi(x1(:), y1(:)), Ybi(x1(:), y1(:)), Zbi(x1(:), y1(:))] ;
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        if preview || save_ims
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Plot the advected mesh
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Load 3D data for coloring mesh pullback
+            disp('loading timepoint data')
+            xp.loadTime(t);
+            xp.rescaleStackToUnitAspect();
+            % Raw stack data
+            IV0 = xp.stack.image.apply();
+            IV0 = imadjustn(IV0{1});
+            
+            % also plot the next timepoint
+            t1 = t + 1 ;
+            disp('loading subsequent timepoint data')
+            xp.loadTime(t1);
+            xp.rescaleStackToUnitAspect();
+            % Raw stack data
+            IV1 = xp.stack.image.apply();
+            IV1 = imadjustn(IV1{1});
+        end
+        
+        if preview
+            disp('previewing')
+            % evaluate flow field at (x, Ysz - y). Add (u,v) to (x, Ysz - y).
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Plot the advected mesh
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Plot the advected tissue on top of the next frame
+            % interpolate velocities (x0, y0) onto mesh (mesh0x, mesh0y)
+            uuinterp = griddedInterpolant(x0', y0', uu') ; % in inverted Y
+            vvinterp = griddedInterpolant(x0', y0', vv') ; 
+            umeshpix = uuinterp(mesh0x, mesh0y) ; % interpolate in correct Y
+            vmeshpix = vvinterp(mesh0x, mesh0y) ;
+            addx = umeshpix ;
+            addy = vmeshpix ;
+            mesh0adv_pix = [ mesh0x + addx, mesh0y + addy] ;
+
+            % Texture image options
+            Options.imSize = ceil( Xsc0 .* [ a_fixed 1 ] );  % row, col pix
+            Options.yLim = [0 Ysc0];
+            Options.xLim = [0 Xsc0];
+            % original image RED
+            im0 = texture_patch_to_image(tm0f, [tm0X, tm0Y], ...
+                tm0f, tm0v3d(:, [ 2 1 3]), IV0, Options );
+            % im0 = imread(fullfile(fns(i).folder, fns(i).name)) ;
+            % advected image GREEN
+            
+            patchIma = texture_patch_to_image(mesh0.f, mesh0adv_pix, ...
+                mesh0.f, mesh0.v(:, [ 2 1 3]), IV0, Options );
+            % patchIma = adapthisteq(patchIma, 'NumTiles', [round(a_fixed * ntiles), round(2 * ntiles)]) ;
+            % Next timepoint BLUE
+            im1 = texture_patch_to_image(tm1f, [tm1X, tm1Y], ...
+                tm1f, tm1v3d(:, [ 2 1 3]), IV1, Options );
+            % Load next timepoint BLUE
+            % im1 = imread(fullfile(fns(i+1).folder, fns(i+1).name)) ;
+            % patchImRGB = cat(3, im0, uint8(patchIma * 255), im1) ;
+            patchImRGB = cat(3, im0, patchIma, im1) ;
+
+            % Plot the image and advected image, in inverted Y space but
+            % with increasing Y going down
+            close all; 
+            fig1 = figure(1) ; 
+            h = imshow( patchImRGB );
+            hold on;  
+            quiver(mesh0x, mesh0y, addx, addy, 0, 'color', yellow, 'linewidth', 2)
+            % plot(mesh0x, mesh0y, 'o')
+            % plot(mesh0adv_pix(:, 1), mesh0adv_pix(:, 2), 's')
+            triplot(mesh0.f, mesh0x, mesh0y, 'color', red, 'linewidth', 2)
+            triplot(mesh0.f, mesh0x + addx, mesh0y + addy, 'color', green, 'linewidth', 2)
+            % axis equal
+            
+            % Check the displacement by toggling between frames
+            % fig = figure(2) ;
+            % pressed_enter = false ; 
+            % kk = 0 ;
+            % while ~pressed_enter
+            %     if kk == 0
+            %         imshow(flipud(im0))
+            %         %set( gca, 'YDir', 'Normal' );
+            %         titlestr = '0: <Enter> to exit, <-> to toggle' ;
+            %     else
+            %         imshow(flipud(im1))
+            %         %set( gca, 'YDir', 'Normal' );
+            %         titlestr = '1: <Enter> to exit, <-> to toggle' ;
+            %     end
+            %     title(titlestr)
+            %     was_a_key = waitforbuttonpress;
+            %     left = strcmp(get(fig, 'CurrentKey'), 'leftarrow');
+            %     rght = strcmp(get(fig, 'CurrentKey'), 'rightarrow') ;
+            %     if was_a_key && strcmp(get(fig, 'CurrentKey'), 'return')
+            %         pressed_enter = true ;
+            %     elseif was_a_key && left || rght 
+            %         kk = mod(kk + 1, 2) ;
+            %     end
+            % end
+
+            % Check differences
+            d0 = mat2gray(im1, [0, double(max(im1(:)))]) - mat2gray(im0, [0, double(max(im0(:)))]);
+            d0pos = 0*d0 ;
+            d0pos(d0 > 0) = d0(d0 > 0) ;
+            d0neg = 0*d0 ;
+            d0neg(d0 < 0) = abs(d0(d0 < 0)) ;
+            pd0 = cat(3, d0pos, 0*d0, d0neg) ; 
+
+            % diff between next and advected 
+            da = mat2gray(im1, [0, double(max(im1(:)))]) - patchIma ;
+            dapos = 0*da ;
+            dapos(da > 0) = da(da > 0) ;
+            daneg = 0*da ;
+            daneg(da < 0) = abs(da(da < 0)) ;
+            pda = cat(3, dapos, 0*da, daneg) ;
+            % plot both
+            fig1 = figure(1) ;
+            imshow(pd0) 
+            title(['\langle|t1 - t0|\rangle = ' num2str(100 * mean(pd0(:))) '%'])
+            waitfor(fig1)
+
+            fig2 = figure(2) ;
+            imshow(pda) 
+            title(['\langle|t1 - advected t0|\rangle = ' num2str(100 * mean(pda(:))) '%'])
+            waitfor(fig2)
+        end
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
         if save_ims
+            disp('visualize 2d triangulation')
             % Check out the triangulation    
             close all
             fig = figure('Visible', 'Off');
             
             % second option
             % tr0 = triangulation(tm0f, tm0v2d) ;
-            % tr0_orig = triangulation(mesh0.f, mesh0.sphi) ;
+            tr0_orig = triangulation(mesh0.f, [mesh0x, mesh0y]) ;
             
-            hc = triplot(tr0, 'Color', blue) ;
-            hold on
+            % hc = triplot(tr0, 'Color', blue) ;
+            % hold on
             ho = triplot(tr0_orig, 'Color', orange) ;
             axis equal
-            title('Triangulation in pullback space')
+            title('Triangulation in pullback image space')
             ylim([0 yesz])
             xlabel('x [pix]')
             ylabel('y [pix]')
@@ -1429,69 +1814,79 @@ else
         %% Take the difference to get the velocity field ------------------
         v0 = (pt1 - pt0) / dt(i) ;
         
-        %% Visualize the flow in 3d ---------------------------------------
-        if save_ims            
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Plot the advected mesh
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Load 3D data for coloring mesh pullback
-            xp.loadTime(t);
-            xp.rescaleStackToUnitAspect();
-            % Raw stack data
-            IV0 = xp.stack.image.apply();
-            IV0 = imadjustn(IV0{1});
-            % also plot the next timepoint
-            t1 = t + 1 ;
-            xp.loadTime(t1);
-            xp.rescaleStackToUnitAspect();
-            % Raw stack data
-            IV1 = xp.stack.image.apply();
-            IV1 = imadjustn(IV1{1});
-            
+        %% Visualize the flow in 3d --------------------------------------- 
+        if save_ims
+            disp('visualize flow in 3d')
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             close all
             fig = figure('Visible', 'Off') ;
             hold on            
-            clearvars Options
-            Options.PSize = 2;
-            Options.EdgeColor = 'none';
-            % Options.Rotation = rot ;
-            % Options.Translation = trans ;
-           
             % for checking purposes, grab the first few indices
             m0 = mesh0 ;
-            rmIDx = 600:length(m0.v) ;
-            [m0.f, m0.v, oldvIdx] = remove_vertex_from_mesh(m0.f, m0.v, rmIDx) ;
-            m0.vn = m0.vn(oldvIdx, :) ;
-            
+            % rmIDx = 600:length(m0.v) ;
+            % [m0.f, m0.v, oldvIdx] = remove_vertex_from_mesh(m0.f, m0.v, rmIDx) ;
+            % m0.vn = m0.vn(oldvIdx, :) ;
             m1 = mesh1 ;
-            rmIDx = 600:length(m1.v) ;
-            [m1.f, m1.v, oldvIdx] = remove_vertex_from_mesh(m1.f, m1.v, rmIDx) ;
-            m1.vn = m1.vn(oldvIdx, :) ;
             
-            texture_patch_3d( m0.f, m0.v, ...
-                m0.f, m0.v(:, [2 1 3]), 32768 + 0.5 * IV0, Options );
-            hold on            
-            texture_patch_3d( m1.f, m1.v, ...
-                m1.f, m1.v(:, [2 1 3]), 32768 - 0.5 * IV1, Options );
-            hold on            
+            % Instead of using texture_patch_3d
+            % create griddedInterpolant 
+            IV0interp = griddedInterpolant(single(32768 + 0.5 * IV0), 'cubic') ;
+            v0i = IV0interp(m0.v(:, 2), m0.v(:, 1), m0.v(:, 3)) ;
+            patch('Faces', m0.f, 'Vertices', m0.v, ...
+                'FaceVertexCData', v0i, 'FaceColor', 'interp', ...
+                'EdgeColor', 'none') ; 
+            hold on;
+            IV1i = griddedInterpolant(single(32768 - 0.5 * IV1)) ;
+            v1i = IV1i(m1.v(:, 2), m1.v(:, 1), m1.v(:, 3)) ;
+            patch('Faces', m1.f, 'Vertices', m1.v, ...
+                'FaceVertexCData', v1i, 'FaceColor', 'interp', ...
+                'EdgeColor', 'none') ;
             axis equal
             colormap(bwr)
+            % Option 2:
+            % least squares vertex baking : intead of evaluating vertices
+            % in image volume and interpolating values, baking will
+            % minimize an energy functional that makes the intensities
+            % closer to the proper values from texture mapping
+            % 
+            
+            % Option 3 (expensive): texture mapping
+            % clearvars Options
+            % Options.PSize = 2;
+            % Options.EdgeColor = 'none';
+            % % Options.Rotation = rot ;
+            % % Options.Translation = trans ;
+            % texture_patch_3d( m0.f, m0.v, ...
+            %     m0.f, m0.v(:, [2 1 3]), 32768 + 0.5 * IV0, Options );
+            % hold on            
+            % texture_patch_3d( m1.f, m1.v, ...
+            %     m1.f, m1.v(:, [2 1 3]), 32768 - 0.5 * IV1, Options );
+            % hold on            
+            % axis equal
+            % nearby = false(size(pt0(:, 1), 1), 1) ;
+            % for qq = 1:length(pt0(:, 1))
+            %     if min(vecnorm(pt0(qq, :) - m0.v, 2, 2)) < 10
+            %         nearby(qq) = true ;
+            %     end
+            % end
+            % nearby = find(nearby) ;
+            % quiver3(pt0(nearby, 1), pt0(nearby, 2), pt0(nearby, 3), ...
+            %     v0(nearby, 1), v0(nearby, 2), v0(nearby, 3), 0, 'color', green) 
+            
             alpha 0.5
-            colorbar()
             hold on       
-            nearby = false(size(pt0(:, 1), 1), 1) ;
-            for qq = 1:length(pt0(:, 1))
-                if min(vecnorm(pt0(qq, :) - m0.v, 2, 2)) < 10
-                    nearby(qq) = true ;
+            quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
+                v0(:, 1), v0(:, 2), v0(:, 3), 0, 'color', green)
+            hold on
+            % Check it manually, then save some images
+            if false
+                for aa = 0:2:360
+                    if mod(aa, 5) ~= 0
+                        view(aa, 0)
+                        saveas(gcf, sprintf('/Users/npmitchell/Desktop/tmp/%04d.png', aa))
+                    end
                 end
             end
-            nearby = find(nearby) ;
-            % quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
-            %     v0(:, 1), v0(:, 2), v0(:, 3), 0, 'color', green)
-            quiver3(pt0(nearby, 1), pt0(nearby, 2), pt0(nearby, 3), ...
-                v0(nearby, 1), v0(nearby, 2), v0(nearby, 3), 0, 'color', green) 
-            hold on
             
             % scatter3(pt0(:, 1), pt0(:, 2), pt0(:, 3))
             % plot3(pt0(:, 1), pt0(:, 2), pt0(:, 3), 'o', 'color', yellow)
@@ -1506,24 +1901,23 @@ else
             % saveas(gcf, fullfile('/Users/npmitchell/Desktop/tmp/', ['piv3d_' timestr '.png']))
             saveas(gcf, fullfile(pivOutDir, ['piv3d_' timestr '.png']))
             close all
-            error('break')
         end
         
         %% Obtain normal & tangential components of velocity --------------
         % Use normal vectors defined on every face by averaging from
         % vertices
-        normals1 = mesh0.vn(trisa(:, 1), :) ;
-        normals2 = mesh0.vn(trisa(:, 2), :) ;
-        normals3 = mesh0.vn(trisa(:, 3), :) ;
+        normals1 = tm0vn(tria(:, 1), :) ;
+        normals2 = tm0vn(tria(:, 2), :) ;
+        normals3 = tm0vn(tria(:, 3), :) ;
         normals = normals1 + normals2 + normals3 ;
         normals = normals ./ sqrt(sum(normals.^2, 2)) ;
         
         % Compare with finding normals from vertex positions cross product
-        v21 = mesh0.v(trisa(:, 2), :) - mesh0.v(trisa(:, 1), :) ;
-        v31 = mesh0.v(trisa(:, 3), :) - mesh0.v(trisa(:, 1), :) ;
-        nx = v21(:, 2) .* v31(:, 3) - v21(:, 3) .* v31(:, 2) ;
-        ny = v21(:, 3) .* v31(:, 1) - v21(:, 1) .* v31(:, 3) ;
-        nz = v21(:, 1) .* v31(:, 2) - v21(:, 2) .* v31(:, 1) ;
+        v21 = tm0v3d(tria(:, 2), :) - tm0v3d(tria(:, 1), :) ;
+        v31 = tm0v3d(tria(:, 3), :) - tm0v3d(tria(:, 1), :) ;
+        nx = -v21(:, 2) .* v31(:, 3) + v21(:, 3) .* v31(:, 2) ;
+        ny = -v21(:, 3) .* v31(:, 1) + v21(:, 1) .* v31(:, 3) ;
+        nz = -v21(:, 1) .* v31(:, 2) + v21(:, 2) .* v31(:, 1) ;
         norms = [nx, ny, nz] ;
         norms = norms ./ sqrt(sum(norms.^2, 2)) ;
         
@@ -1537,6 +1931,24 @@ else
             legend('nx', 'ny', 'nz')
             xlabel('triangle normals')
             ylabel('averaged vertex normals')
+            saveas(gcf, '/Users/npmitchell/Desktop/tmp/normal_smoothing.png')
+            waitfor(fig)
+            
+            % Check each set of normals in 3d
+            close all
+            fig = figure('visible', 'on') ;
+            trisurf(tm0f, tm0v3d(:, 1), tm0v3d(:, 2), tm0v3d(:, 3),...
+                'EdgeColor', 'none', 'FaceAlpha', 1)
+            hold on
+            quiver3(tm0v3d(tria(:, 1), 1) + norms(:, 1), ...
+                tm0v3d(tria(:, 1), 2) + norms(:, 2), ...
+                tm0v3d(tria(:, 1), 3) + norms(:, 3), ...
+                norms(:, 1), norms(:, 2), norms(:, 3))
+            quiver3(tm0v3d(tria(:, 1), 1) + normals(:, 1),...
+                tm0v3d(tria(:, 1), 2) + normals(:, 2), ...
+                tm0v3d(tria(:, 1), 3) + normals(:, 3), ...
+                normals(:, 1), normals(:, 2), normals(:, 3))
+            axis equal
             waitfor(fig)
         end
         
@@ -1545,9 +1957,9 @@ else
         % project each triangle containing a velocity evaluation pt onto 
         % the local smoothed tangent plane
         % triangle vector 1/2/3 projected:
-        tv1 = mesh0.v(trisa(:, 1), :) ;
-        tv2 = mesh0.v(trisa(:, 2), :) ;
-        tv3 = mesh0.v(trisa(:, 3), :) ;
+        tv1 = tm0v3d(tria(:, 1), :) ;
+        tv2 = tm0v3d(tria(:, 2), :) ;
+        tv3 = tm0v3d(tria(:, 3), :) ;
         % triangle vertex positions (vertices 1,2,3 of each face)
         tv1proj = tv1 - dot(tv1 - pt0, normals, 2) .* normals;
         tv2proj = tv2 - dot(tv2 - pt0, normals, 2) .* normals ;
@@ -1565,6 +1977,7 @@ else
             xlabel('vertex index')
             ylabel('$|v_p - v| / |v|$', 'Interpreter', 'Latex')
             title('Change when projecting triangles to smoothed tangent planes')
+            saveas(gcf, '/Users/npmitchell/Desktop/tmp/projection_change.png')
             waitfor(fig)
             
             fig = figure('Visible', 'On')
@@ -1585,12 +1998,22 @@ else
         v0t = v0 - v0n .* normals ;
         
         %% Compute the tangential velocities in plane
+        % u is 3d, w is 2d. jac takes u->w, jjac takes w->u
         u21 = tv2proj - tv1proj ;
         u31 = tv3proj - tv1proj ;
-        w21 = m0xy(tria(:, 2), :) - m0xy(tria(:, 1), :) ;
-        w31 = m0xy(tria(:, 3), :) - m0xy(tria(:, 1), :) ;
+        % to avoid div by zero errors, rotate the square lattice
+        jac_rotangle = pi * 0.1 ;
+        jrot = [cos(jac_rotangle), -sin(jac_rotangle); ...
+            sin(jac_rotangle), cos(jac_rotangle)];
+        jrotinv = [cos(jac_rotangle), sin(jac_rotangle); ...
+            -sin(jac_rotangle), cos(jac_rotangle)];
+        tm0XY = [tm0X, tm0Y] ;
+        tm0XYr = (jrot * tm0XY')' ;
+        w21 = tm0XYr(tria(:, 2), :) - tm0XYr(tria(:, 1), :) ;
+        w31 = tm0XYr(tria(:, 3), :) - tm0XYr(tria(:, 1), :) ;
         
         % Build jacobian for each triangle jjac(triangle index, :, :)
+        % jac goes from 3D -> 2D
         jac = zeros(size(tv2proj, 1), 2, 3) ;
         jac(:, 1, 1) = w21(:, 1) ./ u21(:, 1) + w31(:, 1) ./ u31(:, 1) ;
         jac(:, 1, 2) = w21(:, 1) ./ u21(:, 2) + w31(:, 1) ./ u31(:, 2) ;
@@ -1600,6 +2023,7 @@ else
         jac(:, 2, 3) = w21(:, 2) ./ u21(:, 3) + w31(:, 2) ./ u31(:, 3) ;
         
         % Build jacobian for each triangle jac(triangle index, :, :)
+        % jjac goes from 2D -> 3D
         jjac = zeros(size(tv2proj, 1), 3, 2) ;
         jjac(:, 1, 1) = u21(:, 1) ./ w21(:, 1) + u31(:, 1) ./ w31(:, 1) ;
         jjac(:, 1, 2) = u21(:, 1) ./ w21(:, 2) + u31(:, 1) ./ w31(:, 2) ;
@@ -1617,18 +2041,72 @@ else
         dilation = zeros(size(v0t, 1), 1) ;
         for qq = 1:size(v0t, 1)
             qjac = squeeze(jac(qq, :, :)) ; 
+            qjjac = squeeze(jjac(qq, :, :)) ; 
             v0t2d(qq, :) = qjac * v0t(qq, :)' ;
-            g_ab(qq, :, :) = qjac * qjac' ;
-            dilation(qq) = sqrt(det(qjac * qjac')) ;
+            qg = qjac * qjac' ;
+            g_ab(qq, :, :) = qg ;
+            dilation(qq) = sqrt(det(qg)) ; 
+            dilation2d3d(qq) = sqrt(det(qjjac * qjjac')) ;
+            % Note that the detJ = sqrt(det g) = area ratio of the triangle
         end
         
+        % todo: check that the dilation = ratio of areas of triangles2d /
+        % triangles3d
+        
+        % check that normal.u12 = 0
+        plot(sum(u21 .* normals, 2))
+        xlabel('face index')
+        ylabel('u_{21} \cdot n')
+        title('Normals are perpendicular to face components')
+        saveas(gcf, '/Users/npmitchell/Desktop/tmp/debug1.png')
+        % check that normal.u13 = 0
+        plot(sum(u31 .* normals, 2))
+        xlabel('face index')
+        ylabel('u_{31} \cdot n')
+        title('Normals are perpendicular to face components')
+        saveas(gcf, '/Users/npmitchell/Desktop/tmp/debug2.png')
+        % check that normal.v0t = 0
+        plot(sum(v0t .* normals, 2))
+        xlabel('face index')
+        ylabel('v_t \cdot n')
+        title('Normals are perpendicular to tangential velocity')
+        saveas(gcf, '/Users/npmitchell/Desktop/tmp/debug3.png')
+        
+        % Checking the dilation
+        plot(tm0X, tm0Y, '.')
+        hold on;
+        scatter(x0(:), y0(:), 10, dilation)
+        
+        % Now independently measure the areas of triangles in 3d
+        % Evaluate for every face in tm0
+        fa3d = doublearea(tm0v3d, tm0f) * 0.5 ;
+        % also do 2d areas
+        fa2d = doublearea(tm0XY, tm0f) * 0.5 ;
+        arearatio = fa2d(t0_contain) ./ fa3d(t0_contain) ;
+        plot(dilation, arearatio, '.') ;
+        error('break')
+        
         %% Save the results in datstruct ----------------------------------
+        % v0, v0n, v0t are in units of um/min,  
+        % while v0t2d, g_ab, and jacobian are in pullback pixels
         datstruct.pt0 = pt0 ;
         datstruct.pt1 = pt1 ;
-        datstruct.v0 = v0 ;
-        datstruct.v0n = v0n ;
-        datstruct.v0t = v0t ;
+        datstruct.v0 = v0 / dt(i) ;
+        datstruct.v0n = v0n / dt(i) ;
+        datstruct.v0t = v0t / dt(i) ;
+        datstruct.normals = normals ;
+        
+        % rotated and scaled velocities
+        datstruct.v0_rs = (rot * v0')' * resolution / dt(i) ;
+        datstruct.v0n_rs = v0n * resolution / dt(i) ;
+        datstruct.v0t_rs = (rot * v0t')' * resolution / dt(i) ;
+        datstruct.normals_rs = (rot * normals')' ;
+        
+        % 2d pullback velocities
         datstruct.v0t2d = v0t2d ;
+        datstruct.g_ab = g_ab ;
+        datstruct.dilation = dilation ;
+        datstruct.jacobian = jjac ;
         piv3d{i} = datstruct ;
 
         %% Draw 2D flows
@@ -1646,12 +2124,14 @@ else
             fileName = split(fns(i).name, '.tif') ;
             fileName = fileName{1} ;
             im = imread(fullfile(fns(i).folder, fns(i).name)) ;
+            im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
             figure('units', 'normalized', ...
                 'outerposition', [0 0 1 1], 'visible', 'off')
             imshow(im * washout2d + max(im) * (1-washout2d))
             xlims = xlim ;
             ylims = ylim ;
             hold on
+            % Control for dilation
             v0t2dsc = v0t2d ./ dilation ;
             quiver(x0(:), y0(:), v0t2dsc(:, 1), v0t2dsc(:, 2), 0) ;
             axis equal
@@ -1663,11 +2143,10 @@ else
             % print('-dpng','-r300', outimfn)
             imwrite( patchIm.cdata, outimfn );
             
-            
             %% Now draw normal flow as heatmap
             close all; clear alpha 
+            alphaVal = 0.5 ;
             % image = im * washout2d + max(im) * (1-washout2d) ;
-            image = mat2gray(im, [0, 256]) ;
             % xlims = xlim ;
             % ylims = ylim ;
             % hold on
@@ -1680,20 +2159,50 @@ else
             options.caxis = [-10 10] ;
             options.cmap = bwr ;
             options.alpha = 0.5 ;
-            v0grid = reshape(v0n, size(x0)) ;
-            xfield = x0(1, :)' ;
-            yfield = y0(:, 1) ;
+            v0ngrid = reshape(v0n, size(x0)) ;
             % Create the figure
             figure('units', 'normalized', ...
                 'outerposition', [0 0 1 1], 'visible', 'off')
-            c_handle = heatmap_on_alphaimage(image, yfield, xfield, v0grid, options) ;
-            axis equal
-            % Extract image from figure axes
-            patchIm = getframe(gca);
+            
+            % Option 1: heatmap on alpha image
+            % --------------------------------
+            % xfield = x0(1, :)' ;
+            % yfield = y0(:, 1) ;
+            % image = mat2gray(im, [0, 256]) ;
+            % c_handle = heatmap_on_alphaimage(image, yfield, xfield, v0grid, options) ;
+            % % Extract image from figure axes
+            % patchIm = getframe(gca);
+            % % Write figure to file
+            % outimfn = fullfile(vndir2d, [fileName '.png']) ;
+            % % print('-dpng','-r300', outimfn)
+            % imwrite( patchIm.cdata, outimfn );
+            
+            % Option 2: rgb + overlay
+            % --------------------------------
+            imshow(im) ; hold on;
+            pcolor(x0, y0, v0ngrid)
+            shading interp
+            colormap(bwr)
+            alpha(alphaVal)
+            set(gca, 'clim', [-5 5])
+            ylim([500 1500])
+            c = colorbar();
+            % Manually flush the event queue and force MATLAB to render the colorbar
+            % necessary on some versions
+            drawnow
+            % Get the color data of the object that correponds to the colorbar
+            cdata = c.Face.Texture.CData;
+            % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+            cdata(end,:) = uint8(alphaVal * cdata(end,:));
+            % Ensure that the display respects the alpha channel
+            c.Face.Texture.ColorType = 'truecoloralpha';
+            % Update the color data with the new transparency information
+            c.Face.Texture.CData = cdata;
+            c.Label.String = 'v_n' ;
+            title(['t = ' num2str(t)])
             % Write figure to file
             outimfn = fullfile(vndir2d, [fileName '.png']) ;
-            % print('-dpng','-r300', outimfn)
-            imwrite( patchIm.cdata, outimfn );
+            saveas(gcf, outimfn)
 
             % % Debug -- plot spcutMesh and cutMesh
             % close all ;
@@ -1704,98 +2213,6 @@ else
             % trisurf(mesh0.f, mesh0.v(:, 1), mesh0.v(:, 2), mesh0.v(:, 3))
             % axis equal
             % waitfor(fig)
-            
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Plot the advected mesh
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Plot the advected tissue on top of the next frame
-            % interpolate velocities (x0, y0) onto mesh (mesh0x, mesh0y)
-            uuinterp = griddedInterpolant(x0', y0', uu') ; % in inverted Y
-            vvinterp = griddedInterpolant(x0', y0', vv') ; 
-            umeshpix = uuinterp(mesh0x, ysz - mesh0y) ; % interpolate in inverted Y
-            vmeshpix = vvinterp(mesh0x, ysz - mesh0y) ;
-            addx = umeshpix ;
-            addy = vmeshpix ;
-            mesh0adv_pix = [ mesh0x + addx, (ysz - mesh0y) + addy] ;
-            
-            % Texture image options
-            Options.imSize = ceil( 1000 .* [ a_fixed 1 ] );
-            Options.yLim = [0 ysz];
-            % original image RED
-            % patchIm0 = texture_patch_to_image(mesh0.f, [mesh0x, mesh0y], ...
-            %     mesh0.f, mesh0.v(:, [ 2 1 3]), IV0, Options );
-            im0 = imread(fullfile(fns(i).folder, fns(i).name)) ;
-            % advected image GREEN
-            patchIma = texture_patch_to_image(mesh0.f, mesh0adv_pix, ...
-                mesh0.f, mesh0.v(:, [ 2 1 3]), IV0, Options );
-            patchIma = adapthisteq(patchIma, 'NumTiles', [round(a_fixed * ntiles), round(2 * ntiles)]) ;
-            % Next timepoint BLUE
-            % patchIm1 = texture_patch_to_image(spcutMesh1.f, [mesh1x, mesh1y], ...
-            %     spcutMesh1.f, spcutMesh1.v(:, [2 1 3]), IV1, Options );
-            % Load next timepoint BLUE
-            im1 = imread(fullfile(fns(i+1).folder, fns(i+1).name)) ;
-            patchImRGB = cat(3, im0, uint8(patchIma * 255), im1) ;
-            
-            % Plot the image and advected image, in inverted Y space but
-            % with increasing Y going down
-            close all; 
-            fig1 = figure(1) ; 
-            h = imshow( patchImRGB );
-            hold on;  
-            quiver(mesh0x, ysz - mesh0y, addx, addy, 0, 'color', yellow)
-            % plot(mesh0x, ysz - mesh0y, 'o')
-            plot(mesh0adv_pix(:, 1), mesh0adv_pix(:, 2), 's')
-            triplot(mesh0.f, mesh0x, ysz - mesh0y, 'color', red)
-            triplot(mesh0.f, mesh0x + addx, ysz - mesh0y + addy, 'color', green)
-            axis equal
-            
-            fig = figure(2) ;
-            pressed_enter = false ; 
-            kk = 0 ;
-            while ~pressed_enter
-                if kk == 0
-                    imshow(flipud(patchIm0))
-                    %set( gca, 'YDir', 'Normal' );
-                    titlestr = '0: <Enter> to exit, <-> to toggle' ;
-                else
-                    imshow(flipud(patchIm1))
-                    %set( gca, 'YDir', 'Normal' );
-                    titlestr = '1: <Enter> to exit, <-> to toggle' ;
-                end
-                title(titlestr)
-                was_a_key = waitforbuttonpress;
-                left = strcmp(get(fig, 'CurrentKey'), 'leftarrow');
-                rght = strcmp(get(fig, 'CurrentKey'), 'rightarrow') ;
-                if was_a_key && strcmp(get(fig, 'CurrentKey'), 'return')
-                    pressed_enter = true ;
-                elseif was_a_key && left || rght 
-                    kk = mod(kk + 1, 2) ;
-                end
-            end
-                
-            % Check differences
-            d0 = patchIm1 - patchIm0 ;
-            d0pos = 0*d0 ;
-            d0pos(d0 > 0) = d0(d0 > 0) ;
-            d0neg = 0*d0 ;
-            d0neg(d0 < 0) = abs(d0(d0 < 0)) ;
-            pd0 = cat(3, d0pos, 0*d0, d0neg) ; 
-            
-            % diff between next and advected 
-            da = patchIm1 - patchIma ;
-            dapos = 0*da ;
-            dapos(da > 0) = da(da > 0) ;
-            daneg = 0*da ;
-            daneg(da < 0) = abs(da(da < 0)) ;
-            pda = cat(3, dapos, 0*da, daneg) ;
-            % plot both
-            fig = figure(1)
-            imshow(pd0) 
-            title(['\langle|t1 - t0|\rangle = ' num2str(100 * mean(pd0(:))) '%'])
-            
-            fig = figure(2)
-            imshow(pda) 
-            title(['\langle|t1 - advected t0|\rangle = ' num2str(100 * mean(pda(:))) '%'])
             
         end
         
@@ -1871,9 +2288,365 @@ else
         clear vxb vyb vzb x123b y123b z123b
         clear datstruct
     end 
-    save(piv3dfn, 'piv3d') ;
+    
+    readme = ['v0, v0n, v0t are in units of um/min, '... 
+            'while v0t2d, g_ab, and jacobian are in pullback pixels'] ;
+    save(piv3dfn, 'piv3d', 'readme') ;
 end
 disp('done')
+
+%% First do very simpleminded averaging of velocities
+do_simpleavg = false
+if do_simpleavg
+    pivSimpleAvgDir = fullfile(pivDir, 'simpleAvg') ;
+    pivSimpleAvgImXDir = fullfile(pivSimpleAvgDir, 'vx') ;
+    pivSimpleAvgImYDir = fullfile(pivSimpleAvgDir, 'vy') ;
+    pivSimpleAvgImZDir = fullfile(pivSimpleAvgDir, 'vz') ;
+    pivSimpleAvgImTDir = fullfile(pivSimpleAvgDir, 'vtH') ;
+    pivSimpleAvgImTBDir = fullfile(pivSimpleAvgDir, 'vtB') ;
+    pivSimpleAvgImQDir = fullfile(pivSimpleAvgDir, 'vtQ') ;
+    pivSimpleAvgImNDir = fullfile(pivSimpleAvgDir, 'vn') ;
+    ensureDir(pivSimpleAvgDir)
+    ensureDir(pivSimpleAvgImXDir)
+    ensureDir(pivSimpleAvgImYDir)
+    ensureDir(pivSimpleAvgImZDir)
+    ensureDir(pivSimpleAvgImTDir)
+    ensureDir(pivSimpleAvgImTBDir)
+    ensureDir(pivSimpleAvgImQDir)
+    ensureDir(pivSimpleAvgImNDir)
+
+    vtscale = 5 ;
+    vnscale = 5 ;
+    alphaVal = 0.5 ;
+
+    first = true ;
+    for i = 1:length(piv3d)
+        if ~isempty(piv3d{i})
+            if first 
+                vM = zeros(length(piv3d), size(piv3d{i}.v0, 1), size(piv3d{i}.v0, 2));
+                nM = zeros(length(piv3d), size(piv3d{i}.normals_rs, 1), size(piv3d{i}.normals_rs, 2));
+                first = false ;
+            end
+            vM(i, :, :) = piv3d{i}.v0_rs ;
+            nM(i, :, :) = piv3d{i}.normals_rs ;
+        end
+    end
+    disp('built v0 matrix')
+    % Filter in time axis
+    tripulse_filt = tripuls(-0.5:0.1:0.5) ;
+    tripulse_filt = tripulse_filt / sum(tripulse_filt) ;
+    % linfilt = 0.1 * ones(10, 1, 1) ;
+    % ellipsoid = fspecial3('ellipsoid', [5, 1, 1]) ;
+    vsmM = imfilter(vM, tripulse_filt,'replicate');
+    nsmM = imfilter(nM, tripulse_filt,'replicate');
+    % renormalize normals
+    for i = 1:size(nsmM, 1)
+        norms = squeeze(nsmM(i, :, :)) ;
+        mags = vecnorm(norms, 2, 2)  ;
+        mags(mags == 0) = 1 ;
+        nsmM(i, :, :) = norms ./ mags ;
+    end
+    clearvars mags norms
+
+    overwrite_autocorrelations = false ;
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    do_acorr = ~exist(fullfile(pivSimpleAvgDir, 'autocorr_velocities.png'), 'file') ;
+    if do_acorr || overwrite_autocorrelations
+        % Get autocorrelation in velocities
+        disp('Obtaining autocorrelation in velocities...')
+        acorr = zeros(size(vsmM, 2), size(vsmM, 3), 21) ;
+        for j = 1:size(vsmM, 2)
+            for k = 1:size(vsmM, 3)
+                acorr(j, k, :) = autocorr(squeeze(vM(:, j, k))) ;
+            end
+        end
+        mean_acorr = squeeze(mean(acorr, 1)) ;
+        std_acorr = squeeze(std(acorr, 1)) ;
+        % plot autocorrelation
+        close all
+        for nn=1:3
+            errorbar(1:21, mean_acorr(nn, :), std_acorr(nn,:))
+            hold on;
+        end
+        legend({'v_x', 'v_y', 'v_z'})
+        title('raw correlations in velocities')
+        xlabel('dt [min]')
+        ylabel('correlation')
+        saveas(gcf, fullfile(pivSimpleAvgDir, 'autocorr_velocities.png'))
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Get autocorrelation in smoothed velocities
+        disp('Obtaining autocorrelation in smoothed velocities...')
+        acorr = zeros(size(vsmM, 2), size(vsmM, 3), 21) ;
+        for j = 1:size(vsmM, 2)
+            for k = 1:size(vsmM, 3)
+                acorr(j, k, :) = autocorr(squeeze(vsmM(:, j, k))) ;
+            end
+        end
+        mean_acorr = squeeze(mean(acorr, 1)) ;
+        std_acorr = squeeze(std(acorr, 1)) ;
+        % plot autocorrelation
+        close all
+        for nn=1:3
+            errorbar(1:21, mean_acorr(nn, :), std_acorr(nn,:))
+            hold on;
+        end
+        legend({'v_x', 'v_y', 'v_z'})
+        title('raw correlations in velocities')
+        xlabel('dt [min]')
+        ylabel('correlation')
+        saveas(gcf, fullfile(pivSimpleAvgDir, 'autocorr_smoothed_velocities.png'))
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Get autocorrelation in normal vectors
+        disp('Obtaining autocorrelation...')
+        acorr = zeros(size(vsmM, 2), size(vsmM, 3), 21) ;
+        for j = 1:size(vsmM, 2)
+            for k = 1:size(vsmM, 3)
+                acorr(j, k, :) = autocorr(squeeze(nM(:, j, k))) ;
+            end
+        end
+        mean_acorr = squeeze(mean(acorr, 1)) ;
+        std_acorr = squeeze(std(acorr, 1)) ;
+        % plot autocorrelation
+        close all
+        for nn=1:3
+            errorbar(1:21, mean_acorr(nn, :), std_acorr(nn,:))
+            hold on;
+        end
+        legend({'v_x', 'v_y', 'v_z'})
+        title('raw correlations in normal vectors')
+        xlabel('dt [min]')
+        ylabel('correlation')
+        saveas(gcf, fullfile(pivSimpleAvgDir, 'autocorr_normals.png'))
+        close all
+    end
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    % get size of images to make
+    gridsz = size(piv.x{1}) ;
+    bottom = round(gridsz(1) * 0.25) ;
+    top = round(gridsz(1) * 0.75) ;
+    % Display the velocities
+    close all
+    fig = figure('visible', 'off') ;
+    plot_vxyz = false ;
+    for i = 1:size(vM, 1)
+        % grab the tangential velocity for this timestep
+        vsm_ii = squeeze(vsmM(i, :, :)) ;
+
+        % grab the normal velocity
+        nv = squeeze(nM(i, :, :)) ;
+
+        % Load the image to put flow on top
+        fileName = split(fns(i).name, '.tif') ;
+        fileName = fileName{1} ;
+        im = imread(fullfile(fns(i).folder, fns(i).name)) ;
+        im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
+
+        if plot_vxyz
+            vx = reshape(vsmM(i, :, 1), gridsz) ;
+            vy = reshape(vsmM(i, :, 2), gridsz) ;
+            vz = reshape(vsmM(i, :, 3), gridsz) ;
+            % x axis
+            imagesc(vx)
+            colormap(bwr)
+            set(gca, 'clim', [-5 5])
+            ylim([bottom top])
+            axis equal
+            axis off
+            saveas(gcf, fullfile(pivSimpleAvgImXDir, [sprintf('%04d', time(i)) '.png']))
+
+            % y axis
+            clf
+            imagesc(vy)
+            colormap(bwr)
+            set(gca, 'clim', [-5 5])
+            ylim([bottom top])
+            axis equal
+            axis off
+            saveas(gcf, fullfile(pivSimpleAvgImYDir, [sprintf('%04d', time(i)) '.png']))
+
+            % z axis
+            clf
+            imagesc(vy)
+            colormap(bwr)
+            set(gca, 'clim', [-5 5])
+            ylim([bottom top])
+            axis equal
+            axis off
+            saveas(gcf, fullfile(pivSimpleAvgImZDir, [sprintf('%04d', time(i)) '.png']))
+        end
+
+        % % Check normals
+        % quiver3(piv3d{i}.pt0(:, 1), piv3d{i}.pt0(:, 2), piv3d{i}.pt0(:, 3), ...
+        %     piv3d{i}.normals(:, 1), piv3d{i}.normals(:, 2), piv3d{i}.normals(:, 3)) ;
+        % 
+        % % Check normals rotated and scaled
+        % pt0_rs = ((rot * piv3d{i}.pt0')' + trans) * resolution  ;
+        % quiver3(pt0_rs(:, 1), pt0_rs(:, 2), pt0_rs(:, 3), ...
+        %     piv3d{i}.normals_rs(:, 1), piv3d{i}.normals_rs(:, 2), piv3d{i}.normals_rs(:, 3)) ;
+        %
+
+        % Rotate velocity by normals to z
+        vsmR = zeros(size(vsm_ii)) ;
+        b = [0, 0, 1] ;
+        for j = 1:length(vsm_ii(:, 1))
+            r = vrrotvec(nv(j, :), b) ;
+            m = vrrotvec2mat(r) ;
+            vsmR(j, :) = (m * vsm_ii(j, :)')' ;
+        end
+        vn = reshape(vsmR(:, 3), gridsz) ;
+        vx = reshape(vsmR(:, 1), gridsz) ;
+        vy = reshape(vsmR(:, 2), gridsz) ;
+
+        % % Check normal velocity and rotations
+        % quiver3(piv.x{i}, piv.y{i}, 0*piv.x{i}, vx, vy, vn, 0)
+
+        % Get lobes for this timepoint
+        foldx = ssfold_frac(i, :) * xesz ;
+
+        close all
+        % Plot the normal velocity on top
+        fig = figure('units', 'normalized', ...
+                'outerposition', [0 0 1 1], 'visible', 'off') ;
+        imshow(im * washout2d + max(im) * (1-washout2d))
+        imshow(im) ; hold on;
+        h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vn) ;
+        plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
+        alpha(alphaVal)
+        caxis(gca, [-vnscale, vnscale])
+        colormap(bwr)
+        c = colorbar();
+        % Manually flush the event queue and force MATLAB to render the colorbar
+        % necessary on some versions
+        drawnow
+        % Get the color data of the object that correponds to the colorbar
+        cdata = c.Face.Texture.CData;
+        % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+        cdata(end,:) = uint8(alphaVal * cdata(end,:));
+        % Ensure that the display respects the alpha channel
+        c.Face.Texture.ColorType = 'truecoloralpha';
+        % Update the color data with the new transparency information
+        c.Face.Texture.CData = cdata;
+        c.Label.String = 'v_n' ;
+        saveas(fig, fullfile(pivSimpleAvgImNDir, [sprintf('%04d', time(i)) '.png'])) ;
+        close all
+
+        % Plot the tangential velocity as quiver on top of the image
+        vangle = reshape(mod(atan2(vy, vx), 2* pi), gridsz) ;
+        speed = reshape(vecnorm([vsmR(:, 1), vsmR(:, 2)], 2, 2), gridsz) / vtscale ;
+        fig = figure('units', 'normalized', ...
+                'outerposition', [0 0 1 1], 'visible', 'off') ;
+        imshow(im * washout2d + max(im) * (1-washout2d)) ;
+        hold on;
+        h2 = quiver(piv.x{i}(:), piv.y{i}(:), vsmR(:, 1) * 10, vsmR(:, 2) * 10, 0) ;
+        plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
+        saveas(fig, fullfile(pivSimpleAvgImQDir, [sprintf('%04d', time(i)) '.png'])) ;    
+        close all
+
+        % Plot the tangential velocity as heatmap on top of the image
+        fig = figure('units', 'normalized', ...
+            'outerposition', [0 0 1 1], 'visible', 'off') ;
+        imshow(im * washout2d + max(im) * (1-washout2d)) ;
+        hold on;
+        h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vangle) ;
+        colormap phasemap
+        phasebar
+        set(h2, 'AlphaData', speed)
+        plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
+        saveas(fig, fullfile(pivSimpleAvgImTDir, [sprintf('%04d', time(i)) '.png'])) ;    
+        close all
+
+        % Gaussian smooth the velocities
+        vxb = imgaussfilt(vx, 4) ;
+        vyb = imgaussfilt(vy, 4) ;
+        vangle = reshape(mod(atan2(vyb, vxb), 2* pi), gridsz) ;
+        speed = reshape(vecnorm([vsmR(:, 1), vsmR(:, 2)], 2, 2), gridsz) / vtscale ;
+        % Plot the coarse-grained tang velocity as heatmap on top of the image
+        fig = figure('units', 'normalized', ...
+            'outerposition', [0 0 1 1], 'visible', 'off') ;
+        imshow(im * washout2d + max(im) * (1-washout2d)) ;
+        hold on;
+        h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vangle) ;
+        colormap phasemap
+        phasebar
+        set(h2, 'AlphaData', speed)
+        plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
+        saveas(fig, fullfile(pivSimpleAvgImTBDir, [sprintf('%04d', time(i)) '.png'])) ;    
+        close all
+
+    end
+
+    % Check the orientation of the phasebar
+    imshow(im)
+    hold on;
+    [xx, yy] = meshgrid(1:size(im, 1), 1:size(im, 2)) ;
+    ucheck = xx ;
+    vcheck = yy ;
+    vangle = reshape(mod(atan2(vcheck, ucheck), 2* pi), size(im)) ;
+    imshow(im * washout2d + max(im) * (1-washout2d)) ;
+    hold on;
+    h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vangle) ; 
+    hold on;
+    quiver(xx, yy, ucheck, vcheck, 0) ;
+    phasebar
+    set(gcf, 'visible', 'on')
+    waitfor(gcf)
+end
+
+
+%% Smooth velocities in time
+% Interpolate velocities on grid to smooth them in time
+piv3dfn = fullfile(pivDir, 'piv3d.mat') ;
+if exist(piv3dfn, 'file')
+    load(piv3dfn)
+else
+    piv3d = cell(length(fns), 1) ;
+    for i=1:length(fns) - 1
+        % Average in time
+        x0 = piv.x{i} ;
+        y0 = piv.y{i} ;
+        uu = piv.u_filtered{i} ;
+        v0 = piv.v_filtered{i} ; 
+        v3d = piv3d{i}.v0 ;
+        v3dgrid = reshape(v3d, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
+        xvel = squeeze(v3dgrid(:, :, 1)) ;
+        yvel = squeeze(v3dgrid(:, :, 2)) ;
+        zvel = squeeze(v3dgrid(:, :, 3)) ;
+        % next timept
+        x1 = piv.x{i+1} ;
+        y1 = piv.y{i+1} ;
+        u1 = piv.u_filtered{i+1} ;
+        v1 = piv.v_filtered{i+1} ; 
+        v3d1 = piv3d{i}.v0 ;
+        v3d1grid = reshape(v3d1, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
+        x1vel = squeeze(v3d1grid(:, :, 1)) ;
+        y1vel = squeeze(v3d1grid(:, :, 2)) ;
+        z1vel = squeeze(v3d1grid(:, :, 3)) ;
+        % Advect 0 -> 1
+        x0ad1 = x0 + u0 ;
+        y0ad1 = y0 + v0 ;
+        Fx = griddedInterpolant(x0', y0', x1vel') ;
+        Fy = griddedInterpolant(x0', y0', y1vel') ;
+        Fz = griddedInterpolant(x0', y0', z1vel') ;
+        v3d1 = [Fx(x0ad1(:), y0ad1(:)), ...
+            Fy(x0ad1(:), y0ad1(:)), Fz(x0ad1(:), y0ad1(:))] ;
+        
+        % Now average with the subsequent frame (t1 advected to t2)
+        % interpolate velocities (x0, y0) onto mesh (mesh0x, mesh0y)
+        uuinterp = griddedInterpolant(x1', y1', u1') ; 
+        vvinterp = griddedInterpolant(x1', y1', v1') ; 
+        % query the velocity at the advected locations for each PIV gridpt
+        uad1 = uuinterp(x0ad1, y0ad1) ; % eval at advected xy
+        vad1 = vvinterp(x0ad1, y0ad1) ;
+        
+        v0avg = 0.5 * (v3d + v3d1) ;
+        
+    end
+end
+
+
 
 %% Check phi0s
 close all

@@ -1,5 +1,5 @@
 function h2 = heatmap_on_alphaimage(im, xfield, yfield, cfield, options)
-% HEATMAP_ON_IMAGE Plot a scalar field as heatmap on image
+% HEATMAP_ON_IMAGE Plot a scalar field as heatmap on image with opacity
 % This function has some unresolved bugs 2019-10-06: please fix
 % Note: xfield increases from top to bottom of image, yfield from L to R
 % 
@@ -105,6 +105,7 @@ end
 % h1 = imshow(im) ;
 h2 = imagesc(qq, pp, vF) ;
 if any(size(options.alpha) > 1)
+    % Use the product of the image and the opacity field F as alpha values
     opacity = double(im) .* opacityF ;
     set(h2, 'AlphaData', uint8(opacity))
 else
@@ -117,11 +118,10 @@ if ~isempty(cmap)
     colormap(cmap);
 end
 
+% Flip the image in Y if flipy is true
 if flipy
     set(gca,'ydir','normal');
 end
-
-
 
 end
 
