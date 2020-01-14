@@ -1,4 +1,4 @@
-function vfield3d = pushVectorField2Dto3DMesh(vfield2d, v2d, v3d, ff, fieldfaces)
+function [vfield3d, jacobian_2d_to_3d] = pushVectorField2Dto3DMesh(vfield2d, v2d, v3d, ff, fieldfaces)
 %PUSHVECTORFIELD2DTO3DMESH(vfield2d, v2d, v3d, ff, fieldfaces)
 % Push a vector field defined on faces of a mesh from a 2d mesh to its 3d
 % embedding.
@@ -20,6 +20,9 @@ function vfield3d = pushVectorField2Dto3DMesh(vfield2d, v2d, v3d, ff, fieldfaces
 % -------
 % vfield2d : #faces x 2 float array
 %   The vector field mapped to the 2d mesh
+% jacobian_2d_to_3d : length(ff) x 1 cell array
+%   A cell array containing the jacobian for each face as each element
+% 
 %
 % Dillon Cislo, Noah Mitchell 2020
 

@@ -481,7 +481,7 @@ else
             % Scale the x axis by a or ar
             uvtx = cutMesh.u ;
             cutMesh.u = [ a .* uvtx(:,1), uvtx(:,2) ];
-            cutMesh.urelax = [ ar .* uvtx(:,1), uvtx(:,2) ];
+            cutMesh.ar = ar ;
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             fprintf('Done flattening cutMesh. Now saving.\n');
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -808,6 +808,13 @@ else
                 spcutMesh.avgpts = avgpts ; % from uniform DV sampling, also stored in centerline
                 spcutMesh.avgpts_ss = avgpts_ss ; % from uniform sampling, also stored in centerline
                 
+                % Define optimal isoareal Affine dilation factor in s
+                tmp = spcutMesh.sphi ;
+                tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1) ;
+                arsp = minimizeIsoarealAffineEnergy( spcutMesh.f, spcutMesh.v, tmp );
+                clearvars tmp
+                spcutMesh.ar = arsp ;
+                
                 % todo: check that u coords have not shifted upon
                 % redefinition of sphi0 -> sphi
 
@@ -831,7 +838,7 @@ else
             fprintf('Create pullback using S,Phi coords \n');
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %--------------------------------------------------------------
-            % Generate Output Image File
+            % Generate Output Image Files
             %--------------------------------------------------------------
             imfn = sprintf( fullfile([imFolder, '/', fileNameBase, '.tif']), t ); 
             imfn_r = sprintf( fullfile([imFolder_r, '/', fileNameBase, '.tif']), t ) ;
@@ -882,18 +889,18 @@ else
             % Save relaxed image
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
             if ~exist(imfn_r, 'file')
-                disp('Generating relaxed image...')
-                aux_generate_orbifold(cutMesh, ar, IV, imfn_r)
+                disp('Generating relaxed image for sphi coords...')
+                aux_generate_orbifold(spcutMesh, spcutMesh.ar, IV, imfn_r)
             end
             
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Save submesh array. Each cell element contains all the 
             % submeshes for that TP, which in this case is just one.
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            meshStack{tidx} = cutMesh ;
-            if generate_sphi_coord
-                spmeshStack{tidx} = spcutMesh ;
-            end
+            % meshStack{tidx} = cutMesh ;
+            % if generate_sphi_coord
+            %     spmeshStack{tidx} = spcutMesh ;
+            % end
             
             clear Options IV
 
@@ -1420,6 +1427,7 @@ for qq = 1:length(xp.fileMeta.timePoints)
         % Resave s,phi and their 3D embedding
         save(sprintf(spcutMeshSmBase, t), 'spcutMeshSm') ;
 
+        % Also save rotated and scaled (RS) copy of the time-smoothed mesh
         spcutMeshSmRS = spcutMeshSm ;
         spcutMeshSmRS.v = vqqrs ;
         spcutMeshSmRS.vn = nqqrs ;
@@ -1444,6 +1452,51 @@ for qq = 1:length(xp.fileMeta.timePoints)
         % anewpt = mean(spcutMeshSmRS.v(1:nV:end, :), 1)
         % pnewpt = mean(spcutMeshSmRS.v(nU:nV:end, :), 1)
         % waitfor(fig)
+    end
+end
+
+%% Redo Pullbacks with time-smoothed meshes
+% todo 
+for qq = 1:length(fileMeta.timePoints)
+    t = fileMeta.timePoints(qq) ;
+    
+    % Load time-smoothed mesh
+    load(sprintf(spcutMeshSmBase, t), 'spcutMeshSm') ;
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    fprintf('Create pullback using S,Phi coords \n');
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %--------------------------------------------------------------
+    % Generate Output Image File
+    %--------------------------------------------------------------
+    imfn_sp = sprintf( fullfile([imFolder_sp, '/smoothed/', fileNameBase, '.tif']), t ) ;
+    imfn_r = sprintf( fullfile([imFolder_r, '/smoothed/', fileNameBase, '.tif']), t ) ;
+    pullbacks_exist1 = exist(imfn_sp, 'file') && exist(imfn_r, 'file') ;
+    pullbacks_exist2 = exist(imfn_r, 'file') && exist(imfn_up, 'file') ;
+    if ~pullbacks_exist1 || ~pullbacks_exist2 || overwrite_pullbacks
+        % Load 3D data for coloring mesh pullback
+        xp.loadTime(t);
+        xp.rescaleStackToUnitAspect();
+
+        % Raw stack data
+        IV = xp.stack.image.apply();
+        IV = imadjustn(IV{1});
+    end
+
+    if ~exist(imfn_sp, 'file') || overwrite_pullbacks
+        fprintf(['Generating SP output image for sm mesh: ' imfn_sp]);
+        % Assigning field spcutMesh.u to be [s, phi] (ringpath
+        % and azimuthal angle)
+        aux_generate_orbifold( spcutMeshSm, a_fixed, IV, imfn_sp)
+    end
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Save relaxed image
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+    if ~exist(imfn_r, 'file')
+        disp('Generating relaxed image for sm mesh...')
+        arspsm = 
+        aux_generate_orbifold(spcutMeshSm, arspsm, IV, imfn_r)
     end
 end
 
@@ -1581,7 +1634,7 @@ else
     piv3d = cell(length(fns), 1) ;
     
     %% Iterate over all images with flow fields
-    for i=1:length(fns) - 1
+    for i=73:length(fns) - 1
         timestr = sprintf('%03d', time(i)) ;
         disp(['t = ' timestr])
         t = time(i) ;
@@ -1632,9 +1685,19 @@ else
         disp('Interpolating 3d vertices for tiled mesh 0')
         tileCount = [2, 2] ;
         mesh0.u = mesh0.sphi ;
+        if any(isnan(mesh0.v))
+            % fill missing x,y,z values in mesh0.v
+            for dim = 1:3
+                dgrid = reshape(mesh0.v(:, dim), [mesh0.nU, mesh0.nV]) ;
+                dgrid = fillmissing(dgrid, 'linear') ;
+                mesh0.v(:, dim) = dgrid(:) ;
+            end
+            clearvars dgrid
+        end
         [ tm0f, tm0v2d, tm0v3d, tm0vn ] = tileAnnularCutMesh( mesh0, tileCount );
         tm0X = x2Xpix(tm0v2d(:, 1), Ysc0, xsc0) ;
         tm0Y = y2Ypix(tm0v2d(:, 2), Ysc0) ;
+        tm0XY = [tm0X, tm0Y] ;
         Xai = scatteredInterpolant(tm0X, tm0Y, tm0v3d(:, 1)) ;
         Yai = scatteredInterpolant(tm0X, tm0Y, tm0v3d(:, 2)) ;
         Zai = scatteredInterpolant(tm0X, tm0Y, tm0v3d(:, 3)) ;
@@ -1642,10 +1705,32 @@ else
         disp('Finding barycentric coordinates')
         % Compute barycentric coordinates for later
         tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
-        [t0_contain, baryc0] = pointLocation(tr0, [x0(:), y0(:)]) ;    
-        % Modulo the vertex IDs: trisa are the triangle vertex IDs
-        tria = tr0.ConnectivityList(t0_contain, :) ;
+        [fieldfaces, baryc0] = pointLocation(tr0, [x0(:), y0(:)]) ;
         
+        % If any fieldfaces are NaN, jitter the points a bit
+        if any(isnan(fieldfaces))
+            % Fill in missing data. Will this work?
+            facegrid = reshape(fieldfaces, size(x0)) ;
+            facegrid = fillmissing(facegrid, 'linear') ;
+            fieldfaces = uint8(facegrid(:)) ;
+            
+            if preview
+                % which are the bad ones?
+                badID = find(isnan(fieldfaces)) ;
+
+                % check it in a plot
+                triplot(tr0.ConnectivityList, tr0.Points(:, 1), tr0.Points(:, 2), 0*tr0.Points(:, 2), 'Edgecolor', 'none')
+                hold on;
+                bd = freeBoundary(tr0) ;
+                plot3(tr0.Points(bd(:, 1), 1), tr0.Points(bd(:, 1), 2), 0*tr0.Points(bd(:,1), 1), '.')
+                hold on;
+                plot3(x0(badID), y0(badID), 0*x0(badID), 'o')
+                xlim([min(x0(badID)) - 1, min(x0(badID)) + 1])
+                title('NaNs in fieldfaces')
+                waitfor(fig)
+            end
+        end
+                
         % Interpolate for next timepoint
         disp('Interpolating 3d vertices for tiled mesh 1')
         tileCount = [2, 2] ;
@@ -1903,188 +1988,57 @@ else
             close all
         end
         
-        %% Obtain normal & tangential components of velocity --------------
-        % Use normal vectors defined on every face by averaging from
-        % vertices
-        normals1 = tm0vn(tria(:, 1), :) ;
-        normals2 = tm0vn(tria(:, 2), :) ;
-        normals3 = tm0vn(tria(:, 3), :) ;
-        normals = normals1 + normals2 + normals3 ;
-        normals = normals ./ sqrt(sum(normals.^2, 2)) ;
-        
-        % Compare with finding normals from vertex positions cross product
-        v21 = tm0v3d(tria(:, 2), :) - tm0v3d(tria(:, 1), :) ;
-        v31 = tm0v3d(tria(:, 3), :) - tm0v3d(tria(:, 1), :) ;
-        nx = -v21(:, 2) .* v31(:, 3) + v21(:, 3) .* v31(:, 2) ;
-        ny = -v21(:, 3) .* v31(:, 1) + v21(:, 1) .* v31(:, 3) ;
-        nz = -v21(:, 1) .* v31(:, 2) + v21(:, 2) .* v31(:, 1) ;
-        norms = [nx, ny, nz] ;
-        norms = norms ./ sqrt(sum(norms.^2, 2)) ;
-        
-        % check normals
-        if preview
-            fig = figure ;
-            h1 = plot(norms(:, 1), normals(:, 1), '.') ;
-            hold on
-            h2 = plot(norms(:, 2), normals(:, 2), '.') ;
-            h3 = plot(norms(:, 3), normals(:, 3), '.') ;
-            legend('nx', 'ny', 'nz')
-            xlabel('triangle normals')
-            ylabel('averaged vertex normals')
-            saveas(gcf, '/Users/npmitchell/Desktop/tmp/normal_smoothing.png')
-            waitfor(fig)
-            
-            % Check each set of normals in 3d
-            close all
-            fig = figure('visible', 'on') ;
-            trisurf(tm0f, tm0v3d(:, 1), tm0v3d(:, 2), tm0v3d(:, 3),...
-                'EdgeColor', 'none', 'FaceAlpha', 1)
-            hold on
-            quiver3(tm0v3d(tria(:, 1), 1) + norms(:, 1), ...
-                tm0v3d(tria(:, 1), 2) + norms(:, 2), ...
-                tm0v3d(tria(:, 1), 3) + norms(:, 3), ...
-                norms(:, 1), norms(:, 2), norms(:, 3))
-            quiver3(tm0v3d(tria(:, 1), 1) + normals(:, 1),...
-                tm0v3d(tria(:, 1), 2) + normals(:, 2), ...
-                tm0v3d(tria(:, 1), 3) + normals(:, 3), ...
-                normals(:, 1), normals(:, 2), normals(:, 3))
-            axis equal
-            waitfor(fig)
-        end
-        
-        % Project the local triangle into the tangent plane as defined by
-        % the smoothed normals
-        % project each triangle containing a velocity evaluation pt onto 
-        % the local smoothed tangent plane
-        % triangle vector 1/2/3 projected:
-        tv1 = tm0v3d(tria(:, 1), :) ;
-        tv2 = tm0v3d(tria(:, 2), :) ;
-        tv3 = tm0v3d(tria(:, 3), :) ;
-        % triangle vertex positions (vertices 1,2,3 of each face)
-        tv1proj = tv1 - dot(tv1 - pt0, normals, 2) .* normals;
-        tv2proj = tv2 - dot(tv2 - pt0, normals, 2) .* normals ;
-        tv3proj = tv3 - dot(tv3 - pt0, normals, 2) .* normals ;
-        % x positions of projected triangles
-        x123ap = [tv1proj(:, 1), tv2proj(:, 1), tv3proj(:, 1)] ;
-        y123ap = [tv1proj(:, 2), tv2proj(:, 2), tv3proj(:, 2)] ;
-        z123ap = [tv1proj(:, 3), tv2proj(:, 3), tv3proj(:, 3)] ;
-        
-        % Check normals
-        if preview
-            % Look at fractional change
-            fig = figure ;
-            plot(sqrt(sum((tv3proj - tv1).^2, 2)) ./ sqrt(sum(tv1.^2, 2)))
-            xlabel('vertex index')
-            ylabel('$|v_p - v| / |v|$', 'Interpreter', 'Latex')
-            title('Change when projecting triangles to smoothed tangent planes')
-            saveas(gcf, '/Users/npmitchell/Desktop/tmp/projection_change.png')
-            waitfor(fig)
-            
-            fig = figure('Visible', 'On')
-            quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
-                normals(:, 1), normals(:, 2), normals(:, 3), 'Color', blue)
-            hold on
-            quiver3(pt0(:, 1), pt0(:, 2), pt0(:, 3), ...
-                norms(:, 1), norms(:, 2), norms(:, 3), 'Color', orange)
-            waitfor(fig)
-            fig = figure;
-            hist(sum(normals.^2, 2))
-            waitfor(fig)
-        end
+        % Option 1
+        facenormals = faceNormal( triangulation(tm0f, tm0v3d) );
+        % Option 2 : project faces onto the already-computed normals
+        % aux_alternate_velocity_projection
         
         %% Take dot product of flow fields with normals
-        v0n = dot(normals, v0, 2) ;
+        v0n = dot(facenormals(fieldfaces, :), v0, 2) ;
         % Subtract the normal velocity to obtain tangential velocity
-        v0t = v0 - v0n .* normals ;
+        v0t = v0 - v0n .* facenormals(fieldfaces, :) ;
         
         %% Compute the tangential velocities in plane
         % u is 3d, w is 2d. jac takes u->w, jjac takes w->u
-        u21 = tv2proj - tv1proj ;
-        u31 = tv3proj - tv1proj ;
-        % to avoid div by zero errors, rotate the square lattice
-        jac_rotangle = pi * 0.1 ;
-        jrot = [cos(jac_rotangle), -sin(jac_rotangle); ...
-            sin(jac_rotangle), cos(jac_rotangle)];
-        jrotinv = [cos(jac_rotangle), sin(jac_rotangle); ...
-            -sin(jac_rotangle), cos(jac_rotangle)];
-        tm0XY = [tm0X, tm0Y] ;
-        tm0XYr = (jrot * tm0XY')' ;
-        w21 = tm0XYr(tria(:, 2), :) - tm0XYr(tria(:, 1), :) ;
-        w31 = tm0XYr(tria(:, 3), :) - tm0XYr(tria(:, 1), :) ;
-        
-        % Build jacobian for each triangle jjac(triangle index, :, :)
-        % jac goes from 3D -> 2D
-        jac = zeros(size(tv2proj, 1), 2, 3) ;
-        jac(:, 1, 1) = w21(:, 1) ./ u21(:, 1) + w31(:, 1) ./ u31(:, 1) ;
-        jac(:, 1, 2) = w21(:, 1) ./ u21(:, 2) + w31(:, 1) ./ u31(:, 2) ;
-        jac(:, 1, 3) = w21(:, 1) ./ u21(:, 3) + w31(:, 1) ./ u31(:, 3) ;
-        jac(:, 2, 1) = w21(:, 2) ./ u21(:, 1) + w31(:, 2) ./ u31(:, 1) ;
-        jac(:, 2, 2) = w21(:, 2) ./ u21(:, 2) + w31(:, 2) ./ u31(:, 2) ;
-        jac(:, 2, 3) = w21(:, 2) ./ u21(:, 3) + w31(:, 2) ./ u31(:, 3) ;
-        
-        % Build jacobian for each triangle jac(triangle index, :, :)
-        % jjac goes from 2D -> 3D
-        jjac = zeros(size(tv2proj, 1), 3, 2) ;
-        jjac(:, 1, 1) = u21(:, 1) ./ w21(:, 1) + u31(:, 1) ./ w31(:, 1) ;
-        jjac(:, 1, 2) = u21(:, 1) ./ w21(:, 2) + u31(:, 1) ./ w31(:, 2) ;
-        jjac(:, 2, 1) = u21(:, 2) ./ w21(:, 1) + u31(:, 2) ./ w31(:, 1) ;
-        jjac(:, 2, 2) = u21(:, 2) ./ w21(:, 2) + u31(:, 2) ./ w31(:, 2) ;
-        jjac(:, 3, 1) = u21(:, 3) ./ w21(:, 1) + u31(:, 3) ./ w31(:, 1) ;
-        jjac(:, 3, 2) = u21(:, 3) ./ w21(:, 2) + u31(:, 3) ./ w31(:, 2) ;
+        [v0t2d, jac] = pullVectorField3Dto2DMesh(v0t, tm0XY, tm0v3d, tm0f, fieldfaces) ;
+
+        % Pullback Tensors to Domain of Parameterization ==================
+        g_ab = zeros(size(fieldfaces, 1), 2, 2);
+        dilation = zeros(size(fieldfaces, 1), 1) ;
+        for f = 1:size(fieldfaces,1)
+            qg = jac{fieldfaces(f)} * jac{fieldfaces(f)}' ;
+            g_ab(f, :, :) =  qg ;
+            dilation(f) = sqrt(det(qg)) ;
+        end
         
         % I have checked that det(jac * jac') = det(jjac * jjac') for a
         % triangle. 
-        
-        % Compute 2D veclocities and metric tensor, also dilation
-        v0t2d = zeros(size(v0t, 1), 2) ;
-        g_ab = zeros(size(v0t, 1), 2, 2) ;
-        dilation = zeros(size(v0t, 1), 1) ;
-        for qq = 1:size(v0t, 1)
-            qjac = squeeze(jac(qq, :, :)) ; 
-            qjjac = squeeze(jjac(qq, :, :)) ; 
-            v0t2d(qq, :) = qjac * v0t(qq, :)' ;
-            qg = qjac * qjac' ;
-            g_ab(qq, :, :) = qg ;
-            dilation(qq) = sqrt(det(qg)) ; 
-            dilation2d3d(qq) = sqrt(det(qjjac * qjjac')) ;
-            % Note that the detJ = sqrt(det g) = area ratio of the triangle
-        end
-        
+                
         % todo: check that the dilation = ratio of areas of triangles2d /
         % triangles3d
         
-        % check that normal.u12 = 0
-        plot(sum(u21 .* normals, 2))
-        xlabel('face index')
-        ylabel('u_{21} \cdot n')
-        title('Normals are perpendicular to face components')
-        saveas(gcf, '/Users/npmitchell/Desktop/tmp/debug1.png')
-        % check that normal.u13 = 0
-        plot(sum(u31 .* normals, 2))
-        xlabel('face index')
-        ylabel('u_{31} \cdot n')
-        title('Normals are perpendicular to face components')
-        saveas(gcf, '/Users/npmitchell/Desktop/tmp/debug2.png')
-        % check that normal.v0t = 0
-        plot(sum(v0t .* normals, 2))
-        xlabel('face index')
-        ylabel('v_t \cdot n')
-        title('Normals are perpendicular to tangential velocity')
-        saveas(gcf, '/Users/npmitchell/Desktop/tmp/debug3.png')
-        
-        % Checking the dilation
-        plot(tm0X, tm0Y, '.')
-        hold on;
-        scatter(x0(:), y0(:), 10, dilation)
-        
-        % Now independently measure the areas of triangles in 3d
-        % Evaluate for every face in tm0
-        fa3d = doublearea(tm0v3d, tm0f) * 0.5 ;
-        % also do 2d areas
-        fa2d = doublearea(tm0XY, tm0f) * 0.5 ;
-        arearatio = fa2d(t0_contain) ./ fa3d(t0_contain) ;
-        plot(dilation, arearatio, '.') ;
-        error('break')
+        if preview
+            % Checking the dilation
+            plot(tm0X, tm0Y, '.')
+            hold on;
+            scatter(x0(:), y0(:), 10, dilation)
+            waitfor(gcf)
+
+            % Now independently measure the areas of triangles in 3d
+            % Evaluate for every face in tm0
+            fa3d = doublearea(tm0v3d, tm0f) * 0.5 ;
+            % also do 2d areas
+            fa2d = doublearea(tm0XY, tm0f) * 0.5 ;
+            arearatio = fa2d(fieldfaces) ./ fa3d(fieldfaces) ;
+            figure;
+            plot(dilation, arearatio, '.') ;
+            hold on; 
+            plot([0, 5], [0, 5], '--')
+            xlabel('dilation from jacobian')
+            ylabel('area ratio of triangles')
+            title('Checking dilation from 3d->2d: should be y=x')
+            waitfor(gcf)
+        end
         
         %% Save the results in datstruct ----------------------------------
         % v0, v0n, v0t are in units of um/min,  
@@ -2094,19 +2048,20 @@ else
         datstruct.v0 = v0 / dt(i) ;
         datstruct.v0n = v0n / dt(i) ;
         datstruct.v0t = v0t / dt(i) ;
-        datstruct.normals = normals ;
+        datstruct.facenormals = facenormals ;
         
         % rotated and scaled velocities
         datstruct.v0_rs = (rot * v0')' * resolution / dt(i) ;
         datstruct.v0n_rs = v0n * resolution / dt(i) ;
         datstruct.v0t_rs = (rot * v0t')' * resolution / dt(i) ;
-        datstruct.normals_rs = (rot * normals')' ;
+        datstruct.normals_rs = (rot * facenormals')' ;
         
         % 2d pullback velocities
         datstruct.v0t2d = v0t2d ;
         datstruct.g_ab = g_ab ;
         datstruct.dilation = dilation ;
-        datstruct.jacobian = jjac ;
+        datstruct.jacobian = jac ;
+        datstruct.fieldfaces = fieldfaces ;
         piv3d{i} = datstruct ;
 
         %% Draw 2D flows
@@ -2247,7 +2202,7 @@ else
             % triplot(tr0, 'Color', blue, 'LineWidth', 0.0001) 
             hold on
             for j = 1:3
-                tritest = tr0.ConnectivityList(t0_contain(j), :); 
+                tritest = tr0.ConnectivityList(fieldfaces(j), :); 
                 btest = baryc0(j, :);
                 triangle = [tritest, tritest(1) ] ;
                 plot(m0xy(triangle, 1), m0xy(triangle, 2), 'g.-')
@@ -2282,7 +2237,7 @@ else
         clear pt0 v0 mesh0x mesh0y 
         clear pt1 v1 mesh1x mesh1y
         clear meshxy meshabove meshbelow 
-        clear m0xy mf0 mf0c tr0 t0_contain baryc0
+        clear m0xy mf0 mf0c tr0 fieldfaces baryc0
         clear m1xy mf1 mf1c tr1 t1_contain baryc1
         clear vxa vya vza x123a y123a z123a
         clear vxb vyb vzb x123b y123b z123b
@@ -2296,6 +2251,7 @@ end
 disp('done')
 
 %% First do very simpleminded averaging of velocities
+!!!here
 do_simpleavg = false
 if do_simpleavg
     pivSimpleAvgDir = fullfile(pivDir, 'simpleAvg') ;

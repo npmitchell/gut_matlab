@@ -78,6 +78,7 @@ L_E = sqrt(sum(L_E.^2, 2));
 
 L_F = L_E(feIDx);
 
+error('break')
 clear L_E
 
 % Calculate internal angles in 3D -----------------------------------------
