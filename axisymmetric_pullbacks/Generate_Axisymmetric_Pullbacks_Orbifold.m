@@ -613,6 +613,10 @@ else
                 [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU)', crude_ringpath_ss, nU, 'linear') ;
                 % ensure that uspace is nU x 1, not 1 x nU
                 uspace = reshape(uspace, [nU, 1]) ; 
+                % hedge the first and last point to avoid NaNs
+                eps = 1e-13 ;
+                uspace(1) = uspace(1) + eps ;
+                uspace(end) = uspace(end) - eps ;
                 clearvars dsuphi curves3d uspace0
                 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1432,13 +1436,14 @@ for qq = 1:length(xp.fileMeta.timePoints)
     end
 end
 
-% Save the smoothed meshes, then smoothed/rotated/scaled meshes
+%% Save the smoothed meshes, then smoothed/rotated/scaled meshes
+overwrite_spcutMeshSm = true;
 for qq = 1:length(xp.fileMeta.timePoints)
     t = xp.fileMeta.timePoints(qq) ;
     smfn = sprintf(spcutMeshSmBase, t) ;
     smrsfn = sprintf(spcutMeshSmRSBase, t) ;
     smrscfn = sprintf(spcutMeshSmRSCBase, t) ;
-    if ~exist(smfn, 'file') || ~exist(smrsfn, 'file') || ~exist(smrscfn, 'file') 
+    if ~exist(smfn, 'file') || ~exist(smrsfn, 'file') || ~exist(smrscfn, 'file') || overwrite_spcutMeshSm
         vqq = squeeze(vsmM(qq, :, :)) ;
         nqq = squeeze(nsmM(qq, :, :)) ;
         nsmM(qq, :, :) = nqq ./ vecnorm(nqq, 2, 2) ;
@@ -1451,8 +1456,10 @@ for qq = 1:length(xp.fileMeta.timePoints)
         spcutMeshSm.v = vqq ;
         spcutMeshSm.vn = nqq ;
         spcutMeshSm.u = spcutMesh.sphi ;
+        spcutMeshSm.pathPairs = spcutMesh.pathPairs ;
 
         % Resave s,phi and their 3D embedding
+        disp(['Saving ' sprintf(spcutMeshSmBase, t)])
         save(sprintf(spcutMeshSmBase, t), 'spcutMeshSm') ;
 
         % Also save rotated and scaled (RS) copy of the time-smoothed mesh
@@ -1482,25 +1489,33 @@ for qq = 1:length(xp.fileMeta.timePoints)
         % waitfor(fig)
     end
 end
+disp('done')
 
 %% Redo Pullbacks with time-smoothed meshes
-% todo 
-for qq = 1:length(fileMeta.timePoints)
-    t = fileMeta.timePoints(qq) ;
+% todo
+if ~exist(fullfile(imFolder_sp, 'smoothed'), 'dir')
+    mkdir(fullfile(imFolder_sp, 'smoothed'))
+end
+if ~exist(fullfile(imFolder_r, 'smoothed'), 'dir')
+    mkdir(fullfile(imFolder_r, 'smoothed'))
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+fprintf('Create pullback using S,Phi coords with time-averaged Meshes \n');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
+for qq = 1:length(xp.fileMeta.timePoints)
+    t = xp.fileMeta.timePoints(qq) ;
+    disp(['t = ' num2str(t)])
     
     % Load time-smoothed mesh
     load(sprintf(spcutMeshSmBase, t), 'spcutMeshSm') ;
     
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    fprintf('Create pullback using S,Phi coords \n');
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %--------------------------------------------------------------
     % Generate Output Image File
     %--------------------------------------------------------------
-    imfn_sp = sprintf( fullfile([imFolder_sp, '/smoothed/', fileNameBase, '.tif']), t ) ;
-    imfn_r = sprintf( fullfile([imFolder_r, '/smoothed/', fileNameBase, '.tif']), t ) ;
-    pullbacks_exist1 = exist(imfn_sp, 'file') && exist(imfn_r, 'file') ;
-    pullbacks_exist2 = exist(imfn_r, 'file') && exist(imfn_up, 'file') ;
+    imfn_spsm = sprintf( fullfile( fullfile(imFolder_sp, 'smoothed'), [fileNameBase, '.tif']), t ) ;
+    imfn_rsm  = sprintf( fullfile( fullfile(imFolder_r, 'smoothed'), [fileNameBase, '.tif']), t ) ;
+    pullbacks_exist1 = exist(imfn_spsm, 'file') ;
+    pullbacks_exist2 = exist(imfn_rsm, 'file') ;
     if ~pullbacks_exist1 || ~pullbacks_exist2 || overwrite_pullbacks
         % Load 3D data for coloring mesh pullback
         xp.loadTime(t);
@@ -1511,22 +1526,22 @@ for qq = 1:length(fileMeta.timePoints)
         IV = imadjustn(IV{1});
     end
 
-    if ~exist(imfn_sp, 'file') || overwrite_pullbacks
-        fprintf(['Generating SP output image for sm mesh: ' imfn_sp]);
+    if ~exist(imfn_spsm, 'file') || overwrite_pullbacks
+        fprintf(['Generating SP output image for sm mesh: ' imfn_spsm]);
         % Assigning field spcutMesh.u to be [s, phi] (ringpath
         % and azimuthal angle)
-        aux_generate_orbifold( spcutMeshSm, a_fixed, IV, imfn_sp)
+        aux_generate_orbifold( spcutMeshSm, a_fixed, IV, imfn_spsm)
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Save relaxed image
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-    if ~exist(imfn_r, 'file')
+    if ~exist(imfn_rsm, 'file')
         disp('Generating relaxed image for sm mesh...')
         tmp = spcutMesh.sphi ;
         tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
         arspsm = minimizeIsoarealAffineEnergy( spcutMeshSm.f, spcutMeshSm.v, tmp );
-        aux_generate_orbifold(spcutMeshSm, arspsm, IV, imfn_r)
+        aux_generate_orbifold(spcutMeshSm, arspsm, IV, imfn_rsm)
     end
 end
 
@@ -2280,28 +2295,28 @@ else
 end
 disp('done')
 
+
 %% First do very simpleminded averaging of velocities
-!!!here
-do_simpleavg = false
+do_simpleavg = true
 if do_simpleavg
     pivSimpleAvgDir = fullfile(pivDir, 'simpleAvg') ;
     pivSimpleAvgImXDir = fullfile(pivSimpleAvgDir, 'vx') ;
     pivSimpleAvgImYDir = fullfile(pivSimpleAvgDir, 'vy') ;
     pivSimpleAvgImZDir = fullfile(pivSimpleAvgDir, 'vz') ;
-    pivSimpleAvgImTDir = fullfile(pivSimpleAvgDir, 'vtH') ;
-    pivSimpleAvgImTBDir = fullfile(pivSimpleAvgDir, 'vtB') ;
-    pivSimpleAvgImQDir = fullfile(pivSimpleAvgDir, 'vtQ') ;
+    pivSimpleAvgImTDir = fullfile(pivSimpleAvgDir, 'vtH') ;  % Heatmap
+    pivSimpleAvgImTGDir = fullfile(pivSimpleAvgDir, 'vtG ') ;  % Gaussian smoothed in space
+    pivSimpleAvgImQDir = fullfile(pivSimpleAvgDir, 'vtQ') ;  % Quiverplot
     pivSimpleAvgImNDir = fullfile(pivSimpleAvgDir, 'vn') ;
     ensureDir(pivSimpleAvgDir)
     ensureDir(pivSimpleAvgImXDir)
     ensureDir(pivSimpleAvgImYDir)
     ensureDir(pivSimpleAvgImZDir)
     ensureDir(pivSimpleAvgImTDir)
-    ensureDir(pivSimpleAvgImTBDir)
+    ensureDir(pivSimpleAvgImTGDir)
     ensureDir(pivSimpleAvgImQDir)
     ensureDir(pivSimpleAvgImNDir)
 
-    vtscale = 5 ;
+    vtscale = 15 ;
     vnscale = 5 ;
     alphaVal = 0.5 ;
 
@@ -2310,11 +2325,13 @@ if do_simpleavg
         if ~isempty(piv3d{i})
             if first 
                 vM = zeros(length(piv3d), size(piv3d{i}.v0, 1), size(piv3d{i}.v0, 2));
-                nM = zeros(length(piv3d), size(piv3d{i}.normals_rs, 1), size(piv3d{i}.normals_rs, 2));
+                vnM = zeros(length(piv3d), size(piv3d{i}.v0n_rs, 1), size(piv3d{i}.v0n_rs, 2));
+                v2dM = zeros(length(piv3d), size(piv3d{i}.v0t2d, 1), size(piv3d{i}.v0t2d, 2));
                 first = false ;
             end
             vM(i, :, :) = piv3d{i}.v0_rs ;
-            nM(i, :, :) = piv3d{i}.normals_rs ;
+            vnM(i, :, :) = piv3d{i}.v0n_rs ;
+            v2dM(i, :, :) = piv3d{i}.v0t2d ;
         end
     end
     disp('built v0 matrix')
@@ -2324,88 +2341,14 @@ if do_simpleavg
     % linfilt = 0.1 * ones(10, 1, 1) ;
     % ellipsoid = fspecial3('ellipsoid', [5, 1, 1]) ;
     vsmM = imfilter(vM, tripulse_filt,'replicate');
-    nsmM = imfilter(nM, tripulse_filt,'replicate');
-    % renormalize normals
-    for i = 1:size(nsmM, 1)
-        norms = squeeze(nsmM(i, :, :)) ;
-        mags = vecnorm(norms, 2, 2)  ;
-        mags(mags == 0) = 1 ;
-        nsmM(i, :, :) = norms ./ mags ;
-    end
-    clearvars mags norms
+    vnsmM = imfilter(vnM, tripulse_filt,'replicate');
+    v2dsmM = imfilter(v2dM, tripulse_filt,'replicate');
 
     overwrite_autocorrelations = false ;
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     do_acorr = ~exist(fullfile(pivSimpleAvgDir, 'autocorr_velocities.png'), 'file') ;
     if do_acorr || overwrite_autocorrelations
-        % Get autocorrelation in velocities
-        disp('Obtaining autocorrelation in velocities...')
-        acorr = zeros(size(vsmM, 2), size(vsmM, 3), 21) ;
-        for j = 1:size(vsmM, 2)
-            for k = 1:size(vsmM, 3)
-                acorr(j, k, :) = autocorr(squeeze(vM(:, j, k))) ;
-            end
-        end
-        mean_acorr = squeeze(mean(acorr, 1)) ;
-        std_acorr = squeeze(std(acorr, 1)) ;
-        % plot autocorrelation
-        close all
-        for nn=1:3
-            errorbar(1:21, mean_acorr(nn, :), std_acorr(nn,:))
-            hold on;
-        end
-        legend({'v_x', 'v_y', 'v_z'})
-        title('raw correlations in velocities')
-        xlabel('dt [min]')
-        ylabel('correlation')
-        saveas(gcf, fullfile(pivSimpleAvgDir, 'autocorr_velocities.png'))
-
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Get autocorrelation in smoothed velocities
-        disp('Obtaining autocorrelation in smoothed velocities...')
-        acorr = zeros(size(vsmM, 2), size(vsmM, 3), 21) ;
-        for j = 1:size(vsmM, 2)
-            for k = 1:size(vsmM, 3)
-                acorr(j, k, :) = autocorr(squeeze(vsmM(:, j, k))) ;
-            end
-        end
-        mean_acorr = squeeze(mean(acorr, 1)) ;
-        std_acorr = squeeze(std(acorr, 1)) ;
-        % plot autocorrelation
-        close all
-        for nn=1:3
-            errorbar(1:21, mean_acorr(nn, :), std_acorr(nn,:))
-            hold on;
-        end
-        legend({'v_x', 'v_y', 'v_z'})
-        title('raw correlations in velocities')
-        xlabel('dt [min]')
-        ylabel('correlation')
-        saveas(gcf, fullfile(pivSimpleAvgDir, 'autocorr_smoothed_velocities.png'))
-
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Get autocorrelation in normal vectors
-        disp('Obtaining autocorrelation...')
-        acorr = zeros(size(vsmM, 2), size(vsmM, 3), 21) ;
-        for j = 1:size(vsmM, 2)
-            for k = 1:size(vsmM, 3)
-                acorr(j, k, :) = autocorr(squeeze(nM(:, j, k))) ;
-            end
-        end
-        mean_acorr = squeeze(mean(acorr, 1)) ;
-        std_acorr = squeeze(std(acorr, 1)) ;
-        % plot autocorrelation
-        close all
-        for nn=1:3
-            errorbar(1:21, mean_acorr(nn, :), std_acorr(nn,:))
-            hold on;
-        end
-        legend({'v_x', 'v_y', 'v_z'})
-        title('raw correlations in normal vectors')
-        xlabel('dt [min]')
-        ylabel('correlation')
-        saveas(gcf, fullfile(pivSimpleAvgDir, 'autocorr_normals.png'))
-        close all
+        aux_autocorrelations
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -2420,6 +2363,8 @@ if do_simpleavg
     for i = 1:size(vM, 1)
         % grab the tangential velocity for this timestep
         vsm_ii = squeeze(vsmM(i, :, :)) ;
+        v2dsm_ii = squeeze(v2dsmM(i, :, :)) ;
+        vnsm_ii = squeeze(vnsmM(i, :, :)) ;
 
         % grab the normal velocity
         nv = squeeze(nM(i, :, :)) ;
@@ -2431,9 +2376,9 @@ if do_simpleavg
         im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
 
         if plot_vxyz
-            vx = reshape(vsmM(i, :, 1), gridsz) ;
-            vy = reshape(vsmM(i, :, 2), gridsz) ;
-            vz = reshape(vsmM(i, :, 3), gridsz) ;
+            vx = reshape(vsm_ii(:, 1), gridsz) ;
+            vy = reshape(vsm_ii(:, 2), gridsz) ;
+            vz = reshape(vsm_ii(:, 3), gridsz) ;
             % x axis
             imagesc(vx)
             colormap(bwr)
@@ -2474,17 +2419,10 @@ if do_simpleavg
         %     piv3d{i}.normals_rs(:, 1), piv3d{i}.normals_rs(:, 2), piv3d{i}.normals_rs(:, 3)) ;
         %
 
-        % Rotate velocity by normals to z
-        vsmR = zeros(size(vsm_ii)) ;
-        b = [0, 0, 1] ;
-        for j = 1:length(vsm_ii(:, 1))
-            r = vrrotvec(nv(j, :), b) ;
-            m = vrrotvec2mat(r) ;
-            vsmR(j, :) = (m * vsm_ii(j, :)')' ;
-        end
-        vn = reshape(vsmR(:, 3), gridsz) ;
-        vx = reshape(vsmR(:, 1), gridsz) ;
-        vy = reshape(vsmR(:, 2), gridsz) ;
+        % Look at smoothed 2d velocity fields
+        vn = reshape(vnsm_ii, gridsz) ;
+        vx = reshape(v2dsm_ii(:, 1), gridsz) ;
+        vy = reshape(v2dsm_ii(:, 2), gridsz) ;
 
         % % Check normal velocity and rotations
         % quiver3(piv.x{i}, piv.y{i}, 0*piv.x{i}, vx, vy, vn, 0)
@@ -2521,12 +2459,12 @@ if do_simpleavg
 
         % Plot the tangential velocity as quiver on top of the image
         vangle = reshape(mod(atan2(vy, vx), 2* pi), gridsz) ;
-        speed = reshape(vecnorm([vsmR(:, 1), vsmR(:, 2)], 2, 2), gridsz) / vtscale ;
+        speed = reshape(vecnorm([v2dsm_ii(:, 1), v2dsm_ii(:, 2)], 2, 2), gridsz) / vtscale ;
         fig = figure('units', 'normalized', ...
                 'outerposition', [0 0 1 1], 'visible', 'off') ;
         imshow(im * washout2d + max(im) * (1-washout2d)) ;
         hold on;
-        h2 = quiver(piv.x{i}(:), piv.y{i}(:), vsmR(:, 1) * 10, vsmR(:, 2) * 10, 0) ;
+        h2 = quiver(piv.x{i}(:), piv.y{i}(:), v2dsm_ii(:, 1), v2dsm_ii(:, 2), 0) ;
         plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
         saveas(fig, fullfile(pivSimpleAvgImQDir, [sprintf('%04d', time(i)) '.png'])) ;    
         close all
@@ -2538,7 +2476,7 @@ if do_simpleavg
         hold on;
         h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vangle) ;
         colormap phasemap
-        phasebar
+        % phasebar
         set(h2, 'AlphaData', speed)
         plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
         saveas(fig, fullfile(pivSimpleAvgImTDir, [sprintf('%04d', time(i)) '.png'])) ;    
@@ -2548,7 +2486,7 @@ if do_simpleavg
         vxb = imgaussfilt(vx, 4) ;
         vyb = imgaussfilt(vy, 4) ;
         vangle = reshape(mod(atan2(vyb, vxb), 2* pi), gridsz) ;
-        speed = reshape(vecnorm([vsmR(:, 1), vsmR(:, 2)], 2, 2), gridsz) / vtscale ;
+        speed = reshape(vecnorm([v2dsm_ii(:, 1), v2dsm_ii(:, 2)], 2, 2), gridsz) / vtscale ;
         % Plot the coarse-grained tang velocity as heatmap on top of the image
         fig = figure('units', 'normalized', ...
             'outerposition', [0 0 1 1], 'visible', 'off') ;
@@ -2556,29 +2494,29 @@ if do_simpleavg
         hold on;
         h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vangle) ;
         colormap phasemap
-        phasebar
+        % phasebar
         set(h2, 'AlphaData', speed)
         plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
-        saveas(fig, fullfile(pivSimpleAvgImTBDir, [sprintf('%04d', time(i)) '.png'])) ;    
+        saveas(fig, fullfile(pivSimpleAvgImTGDir, [sprintf('%04d', time(i)) '.png'])) ;    
         close all
 
     end
 
     % Check the orientation of the phasebar
-    imshow(im)
-    hold on;
-    [xx, yy] = meshgrid(1:size(im, 1), 1:size(im, 2)) ;
-    ucheck = xx ;
-    vcheck = yy ;
-    vangle = reshape(mod(atan2(vcheck, ucheck), 2* pi), size(im)) ;
-    imshow(im * washout2d + max(im) * (1-washout2d)) ;
-    hold on;
-    h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vangle) ; 
-    hold on;
-    quiver(xx, yy, ucheck, vcheck, 0) ;
-    phasebar
-    set(gcf, 'visible', 'on')
-    waitfor(gcf)
+%     imshow(im)
+%     hold on;
+%     [xx, yy] = meshgrid(1:size(im, 1), 1:size(im, 2)) ;
+%     ucheck = xx ;
+%     vcheck = yy ;
+%     vangle = reshape(mod(atan2(vcheck, ucheck), 2* pi), size(im)) ;
+%     imshow(im * washout2d + max(im) * (1-washout2d)) ;
+%     hold on;
+%     h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vangle) ; 
+%     hold on;
+%     quiver(xx, yy, ucheck, vcheck, 0) ;
+%     phasebar
+%     set(gcf, 'visible', 'on')
+%     waitfor(gcf)
 end
 
 
