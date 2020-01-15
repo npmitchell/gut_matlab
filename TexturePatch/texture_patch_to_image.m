@@ -278,6 +278,12 @@ else
 end
 
 % Resize to desired output dimensions
+% disp('texture_path_to_image:')
+% disp('size of patchIm = ')
+% disp(size(patchIm))
+% disp('imSize = ')
+% disp(imSize)
+% disp(size(X))
 patchIm = reshape( patchIm, imSize );
 
 %--------------------------------------------------------------------------

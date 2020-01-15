@@ -25,7 +25,7 @@
 %       v:  nU*nV x 3 float array
 %               3d coordinates of the mesh vertices
 %       u:  nU*nV x 2 float array
-%               2d coordinates in units of (avg centerline pathlength of this DVhoop, 1/2pi radians of hoop angle)
+%               2d coordinates in units of (avg centerline pathlength of this DVhoop, 1/2pi radians of hoop angle)
 %       vn: nU*nV x 3 float array
 %               smoothed vertex normals
 %
@@ -480,8 +480,9 @@ else
       
             % Scale the x axis by a or ar
             uvtx = cutMesh.u ;
-            cutMesh.u = [ a .* uvtx(:,1), uvtx(:,2) ];
+            cutMesh.u = [ a_fixed .* uvtx(:,1), uvtx(:,2) ];
             cutMesh.ar = ar ;
+            cutMesh.umax = a_fixed ;
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             fprintf('Done flattening cutMesh. Now saving.\n');
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -559,7 +560,7 @@ else
                 % Rotate and translate TV3D
                 cutMeshrs.v = ((rot * cutMesh.v')' + trans) * resolution ;
                 cutMeshrs.vn = (rot * cutMesh.vn')' ;
-                [ ~, ~, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount );
+                [ ~, ~, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount );
                 [ TF, TV2D, TV3Drs ] = tileAnnularCutMesh( cutMeshrs, tileCount );
 
                 %----------------------------------------------------------------------
@@ -583,10 +584,10 @@ else
                 % Generate surface curves of constant s
                 %----------------------------------------------------------------------
                 % For lines of constant phi
-                disp('Creating constant y curves')
+                disp('Creating crude uv curves with du=const to define uspace by ds(u)')
                 % Make grid
                 eps = 1e-14 ;
-                uspace0 = linspace( eps, max(TV2D(:, 1)) - eps, nU )' ;
+                uspace0 = linspace( eps, cutMesh.umax - eps, nU )' ;
                 vspace = linspace( eps, 1-eps, nV )' ;
 
                 disp('Casting crude (equal dU) points into 3D...')
@@ -599,33 +600,44 @@ else
                     uv = [uspace0(kk) * ones(size(vspace)), vspace] ;
                     curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uv) ;
                 end 
-
+                
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % Compute ds along the surface from each hoop to the next
                 % The distance from one hoop to another is the
                 % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
-                dsuphi = reshape([vecnorm(diff(curves3d), 2, 2); 0], [nU, nV]) ;
-                crude_ringpath_ds = nanmean(dsuphi(1:(end-1), :), 2) * resolution ;
+                dsuphi = reshape(vecnorm(diff(curves3d), 2, 3), [nU-1, nV]) ;
+                crude_ringpath_ds = nanmean(dsuphi, 2) * resolution ;
                 crude_ringpath_ss = cumsum([0; crude_ringpath_ds]) ;
-                clearvars dsuphi
                 
                 % Resample crude_ringpath_ds
-                [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU), crude_ringpath_ss, nU, 'linear') ;
+                [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU)', crude_ringpath_ss, nU, 'linear') ;
+                % ensure that uspace is nU x 1, not 1 x nU
+                uspace = reshape(uspace, [nU, 1]) ; 
+                clearvars dsuphi curves3d uspace0
                 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                disp('Casting resampled (approx equal ds) points into 3D...')
+                disp('Casting resampled points into 3D (approx equal ds in u dir, but variable ds in v dir)...')
                 % NOTE: first dimension indexes u, second indexes v
                 curves3d = zeros(nU, nV, 3) ;
                 for kk = 1:nU
                     if mod(kk, 50) == 0
                         disp(['u = ' num2str(kk / nU)])
                     end
-                    uv = [uspace(kk) * ones(size(vspace)), vspace] ;
+                    uv = [cutMesh.umax * uspace(kk) * ones(size(vspace)), vspace] ;
                     curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uv) ;
                 end 
+                
+                % Check the 3d curves 
+                if preview
+                    figure ; hold on;
+                    for kk = 1:nU
+                        plot3(curves3d(kk, :, 1), curves3d(kk, :, 2), curves3d(kk, :, 3), '.') 
+                    end
+                    axis equal
+                end
 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                fprintf('Compute s(u) and radius(u), each (0,1) \n');
+                fprintf('Compute s(u) and radius(u) for "uniform"--> evenly sample each DV hoop (0,1) \n');
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % Resample at evenly spaced dphi in embedding space
                 fprintf('Resampling curves...\n')
@@ -646,7 +658,16 @@ else
                     % plot(uv(:, 1), uv(:, 2), '.')
                 end
                 
-                fprintf('Finding s(u) and r(u) of resampled c3ds...\n')
+                % Check the 3d curves 
+                if preview
+                    figure ; hold on;
+                    for kk = 1:nU
+                        plot3(c3ds(kk, :, 1), c3ds(kk, :, 2), c3ds(kk, :, 3), '.') 
+                    end
+                    axis equal
+                end
+                
+                fprintf('Finding s(u) and r(u) of resampled "uniform" c3ds...\n')
                 % mcline is the resampled centerline, with mss
                 % avgpts is the raw Nx3 averaged hoops, with avgpts_ss
                 [mss, mcline, radii_from_mean_uniform_rs, avgpts_ss, avgpts] = srFromDVCurves(c3ds) ;
@@ -669,11 +690,11 @@ else
 
                 % Compute ringpath_ss, the mean distance traveled from one
                 % line of constant u to the next
-                disp('Computing ringpath_ss...')
+                disp('Computing ringpath_ss in "uniform" resampling (equal ds along DV)...')
                 % The distance from one hoop to another is the
                 % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
-                dsuphi = reshape([vecnorm(diff(c3ds), 2, 2); 0], [nU, nV]) ;
-                ringpath_ds = nanmean(dsuphi(1:(end-1), :), 2) * resolution ;
+                dsuphi = reshape(vecnorm(diff(c3ds), 2, 3), [nU-1, nV]) ;
+                ringpath_ds = nanmean(dsuphi, 2) * resolution ;
                 ringpath_ss = cumsum([0; ringpath_ds]) ;
                 clearvars dsuphi ringpath_ds
                 
@@ -686,7 +707,7 @@ else
                 % interpolated hoops, not the actual points
                 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                fprintf('Done making new centerline + using uniformly sampled hoops\n') ;
+                fprintf('Done making new centerline using uniformly sampled hoops\n') ;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 if t == xp.fileMeta.timePoints(1)
                     % Store for next timepoint
@@ -709,7 +730,7 @@ else
 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 onesUV = ones(nU, nV) ;
-                uu = uspace .* onesUV ;
+                uu = uspace * cutMesh.umax .* onesUV ;
                 vv = (vspace .* onesUV')' ;
                 uphi = [uu(:), phiv(:)] ;
                 uv = [uu(:), vv(:)] ;
@@ -720,7 +741,7 @@ else
                 
                 % Recompute radii_from_mean_uniform_rs as radii_from_avgpts 
                 % NOTE: all radius calculations done in microns, not pixels
-                sphi3d_rs = ((rot * prev3d_sphi')' + trans) * resolution ;
+                sphi3d_rs = ((rot * new3d')' + trans) * resolution ;
                 radii_from_avgpts = zeros(size(sphi3d_rs, 1), size(sphi3d_rs, 2)) ;
                 for jj = 1:nU
                     % Consider this hoop
@@ -747,10 +768,10 @@ else
                 % non-Nearest Neighbors.
                 cleantri = cleanBoundaryPath2D(tmptri, [sv(:), phiv(:)], spcutMesh.pathPairs(:), true) ;
 
+                spcutMesh.f = cleantri ;
                 spcutMesh.nU = nU ;
                 spcutMesh.nV = nV ;
                 % First resampling
-                spcutMesh.f0 = cleantri ;
                 spcutMesh.v0 = new3d ;
                 % spcutMesh.vrs0 = ((rot * new3d')' + trans) * resolution ;
                 % Define normals based on the original mesh normals
@@ -784,7 +805,12 @@ else
                 % Tile the spcutMesh
                 tileCount = [2, 2] ;
                 spcutMesh.u = spcutMesh.sphi0 ;
+                spcutMesh.v = spcutMesh.v0 ;
+                spcutMesh.vn = spcutMesh.vn0 ;
                 [ faces, v2d, v3d, vn3d ] = tileAnnularCutMesh( spcutMesh, tileCount );
+                spcutMesh = rmfield(spcutMesh, 'u') ;
+                spcutMesh = rmfield(spcutMesh, 'v') ;
+                spcutMesh = rmfield(spcutMesh, 'vn') ;
                 spv3d = interpolate2Dpts_3Dmesh(faces, v2d, v3d, sp) ;
                 % check the pts
                 % plot3(spv3d(:, 1), spv3d(:, 2), spv3d(:, 3))  
@@ -809,11 +835,11 @@ else
                 spcutMesh.avgpts_ss = avgpts_ss ; % from uniform sampling, also stored in centerline
                 
                 % Define optimal isoareal Affine dilation factor in s
-                tmp = spcutMesh.sphi ;
-                tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1) ;
-                arsp = minimizeIsoarealAffineEnergy( spcutMesh.f, spcutMesh.v, tmp );
-                clearvars tmp
-                spcutMesh.ar = arsp ;
+                % tmp = spcutMesh.sphi ;
+                % tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
+                % arsp = minimizeIsoarealAffineEnergy( spcutMesh.f, spcutMesh.v, tmp );
+                % clearvars tmp
+                spcutMesh.ar = cutMesh.ar ;
                 
                 % todo: check that u coords have not shifted upon
                 % redefinition of sphi0 -> sphi
@@ -890,7 +916,9 @@ else
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
             if ~exist(imfn_r, 'file')
                 disp('Generating relaxed image for sphi coords...')
+                spcutMesh.u = spcutMesh.sphi ;
                 aux_generate_orbifold(spcutMesh, spcutMesh.ar, IV, imfn_r)
+                spcutMesh = rmfield(spcutMesh, 'u') ;
             end
             
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1495,7 +1523,9 @@ for qq = 1:length(fileMeta.timePoints)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
     if ~exist(imfn_r, 'file')
         disp('Generating relaxed image for sm mesh...')
-        arspsm = 
+        tmp = spcutMesh.sphi ;
+        tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
+        arspsm = minimizeIsoarealAffineEnergy( spcutMeshSm.f, spcutMeshSm.v, tmp );
         aux_generate_orbifold(spcutMeshSm, arspsm, IV, imfn_r)
     end
 end

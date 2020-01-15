@@ -43,9 +43,9 @@ addpath_recurse('/mnt/data/code/gptoolbox/')
 cd(odir)
 
 %% Parameters
-adist_thres = 40 ;  % distance threshold for cutting off anterior in pix
-pdist_thres = 30 ;  % distance threshold for cutting off posterior in pix
-overwrite = false ;  % recompute centerline
+adist_thres = 20 ;  % distance threshold for cutting off anterior in pix
+pdist_thres = 15 ;  % distance threshold for cutting off posterior in pix
+overwrite = false ;  % recompute sliced endcaps
 save_figs = true ;  % save images of cntrline, etc, along the way
 preview = false ;  % display intermediate results
 res = 1 ;  % pixels per gridspacing of DT for cntrline extraction
