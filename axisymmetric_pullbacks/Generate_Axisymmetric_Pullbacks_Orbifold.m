@@ -730,15 +730,22 @@ else
                     % Store to save at this timepoint
                     phiv = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
                 end
-                disp('done computing phi0s')
-
+                
+                % NOTE: We have coordinates u,phiv that we associate with
+                % the 3d coordinates already mapped to uv
+                plot(uspace, phiv)
+                xlabel('u')
+                ylabel(
+                
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 onesUV = ones(nU, nV) ;
                 uu = uspace * cutMesh.umax .* onesUV ;
                 vv = (vspace .* onesUV')' ;
                 uphi = [uu(:), phiv(:)] ;
                 uv = [uu(:), vv(:)] ;
-                new3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uphi) ;
+                % Note: here interpolate uv in the TV2D coord system, then
+                % use uphi as the actual 2D coordinates for these vertices
+                new3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
                 % Express the coordinates as a grid
                 % new3drs = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uphi) ;
                 prev3d_sphi = reshape(new3d, [nU, nV, 3]) ; 

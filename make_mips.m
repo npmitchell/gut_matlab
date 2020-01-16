@@ -5,8 +5,9 @@
 
 clear all; close all;
 %%
-if ~exist('mips', 'dir')
-    mkdir mips
+mipoutdir = 'mips' ;
+if ~exist(mipoutdir, 'dir')
+    mkdir(mipoutdir)
 end
 
 addpath('/mnt/data/code');
@@ -15,19 +16,21 @@ scale = 1.; % 0.02
 % Offset for setting what timestep is t=0
 t_off = 0;
 dataDir    = cd;
-
 cd(dataDir)
 
-dataDir         = dataDir;
-filenameFormat  = 'Time_%06d_c1.tif';
+filenameFormat  = 'deconvolved_16bit/Time_%06d_c1.tif';
 msgLevel = 1;
 setpref('ImSAnE', 'msgLevel', msgLevel);
 %%
 timePoints      = [10:169];
 
 % Make the subdirectories for the mips if not already existing
-mipdirs = {'mips/view1/', 'mips/view2/', 'mips/view11/', ...
-    'mips/view12/', 'mips/view21/', 'mips/view22/'} ;
+mipdirs = {fullfile(mipoutdir, 'view1/'), ...
+    fullfile(mipoutdir, 'view2/'), ...
+    fullfile(mipoutdir, 'view11/'), ...
+    fullfile(mipoutdir, 'view12/'),...
+    fullfile(mipoutdir, 'view21/'),...
+    fullfile(mipoutdir, 'view22/')} ;
 for i = 1:length(mipdirs)
     if ~exist(mipdirs{i},'dir')
         mkdir(mipdirs{i})
@@ -64,12 +67,12 @@ for time = timePoints
         mip_12 = squeeze(max(im2(:,1:round(imSize(2)/2),:),[],2));
         mip_22 = squeeze(max(im2(:,round(imSize(2)/2):end,:),[],2));
 
-        imwrite(mip_1,sprintf('mips/view1/mip_1_%03d_c1.tif',time-t_off),'tiff','Compression','none');
-        imwrite(mip_2,sprintf('mips/view2/mip_2_%03d_c1.tif',time-t_off),'tiff','Compression','none');
-        imwrite(mip_11,sprintf('mips/view11/mip_11_%03d_c1.tif',time-t_off),'tiff','Compression','none');
-        imwrite(mip_21,sprintf('mips/view21/mip_21_%03d_c1.tif',time-t_off),'tiff','Compression','none');
-        imwrite(mip_12,sprintf('mips/view12/mip_12_%03d_c1.tif',time-t_off),'tiff','Compression','none');
-        imwrite(mip_22,sprintf('mips/view22/mip_22_%03d_c1.tif',time-t_off),'tiff','Compression','none');
+        imwrite(mip_1, fullfile(mipoutdir, sprintf('view1/mip_1_%03d_c1.tif',  time-t_off)),'tiff','Compression','none');
+        imwrite(mip_2, fullfile(mipoutdir, sprintf('view2/mip_2_%03d_c1.tif',  time-t_off)),'tiff','Compression','none');
+        imwrite(mip_11,fullfile(mipoutdir, sprintf('view11/mip_11_%03d_c1.tif',time-t_off)),'tiff','Compression','none');
+        imwrite(mip_21,fullfile(mipoutdir, sprintf('view21/mip_21_%03d_c1.tif',time-t_off)),'tiff','Compression','none');
+        imwrite(mip_12,fullfile(mipoutdir, sprintf('view12/mip_12_%03d_c1.tif',time-t_off)),'tiff','Compression','none');
+        imwrite(mip_22,fullfile(mipoutdir, sprintf('view22/mip_22_%03d_c1.tif',time-t_off)),'tiff','Compression','none');
     else
         disp(['WARNING: file does not exist, skipping: ', fullFileName])
     end
