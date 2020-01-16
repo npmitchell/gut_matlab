@@ -19,6 +19,9 @@ Options.yLim = [0 1];
 
 % profile on
 % Create texture image
+if any(isnan(TV2D))
+    error('here -- check for NaNs case')
+end
 patchIm = texture_patch_to_image( TF, TV2D, TF, TV3D(:, [2 1 3]), ...
     IV, Options );
 % profile viewer

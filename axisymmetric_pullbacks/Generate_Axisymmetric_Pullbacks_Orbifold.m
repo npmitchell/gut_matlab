@@ -1,4 +1,4 @@
-%% GENERATE_AXISYMMETRIC_PULLBACK =========================================
+sto%% GENERATE_AXISYMMETRIC_PULLBACK =========================================
 % Pipeline for creating 'axisymmetric' pullbacks of the growing Drosophila 
 % midgut about a centerline (previously computed). Uses orbifold method to
 % guarantee conformality except at x=0 and x=L
@@ -609,7 +609,7 @@ else
                 crude_ringpath_ds = nanmean(dsuphi, 2) * resolution ;
                 crude_ringpath_ss = cumsum([0; crude_ringpath_ds]) ;
                 
-                % Resample crude_ringpath_ds
+                % Resample crude_ringpath_ds made from uspace0 (equal du, not equal ds_3D in u direction)
                 [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU)', crude_ringpath_ss, nU, 'linear') ;
                 % ensure that uspace is nU x 1, not 1 x nU
                 uspace = reshape(uspace, [nU, 1]) ; 
@@ -620,7 +620,7 @@ else
                 clearvars dsuphi curves3d uspace0
                 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                disp('Casting resampled points into 3D (approx equal ds in u dir, but variable ds in v dir)...')
+                disp('Casting resampled points into 3D (approx equal ds_3D in u dir, but variable ds_3D in v dir)...')
                 % NOTE: first dimension indexes u, second indexes v
                 curves3d = zeros(nU, nV, 3) ;
                 for kk = 1:nU
@@ -641,18 +641,18 @@ else
                 end
 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                fprintf('Compute s(u) and radius(u) for "uniform"--> evenly sample each DV hoop (0,1) \n');
+                fprintf('Compute s(u) and radius(u) for "uniform"--> evenly sample each DV hoop (0,1) so ds_3D=const \n');
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % Resample at evenly spaced dphi in embedding space
                 fprintf('Resampling curves...\n')
-                c3ds = zeros(size(curves3d)) ;
+                c3d_dsv = zeros(size(curves3d)) ;
                 for i=1:nU
                     % Note: no need to add the first point to the curve
                     % since the endpoints already match exactly in 3d and
                     % curvspace gives a curve with points on either
                     % endpoint (corresponding to the same 3d location).
-                    c3ds(i, :, :) = resampleCurvReplaceNaNs(squeeze(curves3d(i, :, :)), nV, true) ;
-                    if vecnorm(squeeze(c3ds(i, 1, :)) - squeeze(c3ds(i, end, :))) > 1e-7
+                    c3d_dsv(i, :, :) = resampleCurvReplaceNaNs(squeeze(curves3d(i, :, :)), nV, true) ;
+                    if vecnorm(squeeze(c3d_dsv(i, 1, :)) - squeeze(c3d_dsv(i, end, :))) > 1e-7
                         error('endpoints do not join! Exiting')
                     end
 
@@ -666,15 +666,15 @@ else
                 if preview
                     figure ; hold on;
                     for kk = 1:nU
-                        plot3(c3ds(kk, :, 1), c3ds(kk, :, 2), c3ds(kk, :, 3), '.') 
+                        plot3(c3d_dsv(kk, :, 1), c3d_dsv(kk, :, 2), c3d_dsv(kk, :, 3), '.') 
                     end
                     axis equal
                 end
                 
-                fprintf('Finding s(u) and r(u) of resampled "uniform" c3ds...\n')
+                fprintf('Finding s(u) and r(u) of resampled "uniform" c3ds [uniform ds in V dir]...\n')
                 % mcline is the resampled centerline, with mss
                 % avgpts is the raw Nx3 averaged hoops, with avgpts_ss
-                [mss, mcline, radii_from_mean_uniform_rs, avgpts_ss, avgpts] = srFromDVCurves(c3ds) ;
+                [mss, mcline, radii_from_mean_uniform_rs, avgpts_ss, avgpts] = srFromDVCurves(c3d_dsv) ;
                 
                 % Used to find radius using original centerline
                 % [ssv, radii, avgpts, cids] = srFromDVCurvesGivenCenterline(ss, cline, c3ds) ;
@@ -697,7 +697,7 @@ else
                 disp('Computing ringpath_ss in "uniform" resampling (equal ds along DV)...')
                 % The distance from one hoop to another is the
                 % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
-                dsuphi = reshape(vecnorm(diff(c3ds), 2, 3), [nU-1, nV]) ;
+                dsuphi = reshape(vecnorm(diff(c3d_dsv), 2, 3), [nU-1, nV]) ;
                 ringpath_ds = nanmean(dsuphi, 2) * resolution ;
                 ringpath_ss = cumsum([0; ringpath_ds]) ;
                 clearvars dsuphi ringpath_ds
@@ -719,8 +719,7 @@ else
                     phi0s = zeros(size(uspace)) ;
                     phi0_fit = phi0s ;
                 else
-                    % Load previous sphi vertices in 3d if not in RAM
-                    % if ~exist('prev3d_sphi', 'var')
+                    % Load previous sphi vertices in 3d 
                     tmp = load(sprintf(spcutMeshBase, t-1), 'spcutMesh') ;
                     prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
                     
@@ -735,7 +734,8 @@ else
                 % the 3d coordinates already mapped to uv
                 plot(uspace, phiv)
                 xlabel('u')
-                ylabel(
+                ylabel('\phi')
+                waitfor(fig)
                 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 onesUV = ones(nU, nV) ;
@@ -746,6 +746,9 @@ else
                 % Note: here interpolate uv in the TV2D coord system, then
                 % use uphi as the actual 2D coordinates for these vertices
                 new3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
+                
+                assert(all(new3d == curves3d))
+                
                 % Express the coordinates as a grid
                 % new3drs = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uphi) ;
                 prev3d_sphi = reshape(new3d, [nU, nV, 3]) ; 
@@ -2525,6 +2528,27 @@ if do_simpleavg
 %     set(gcf, 'visible', 'on')
 %     waitfor(gcf)
 end
+
+%% Simpleminded streamlines
+% Build 3d grid of positions and velocities
+% Assume that x0, y0 are fixed for all time
+ntimes = length(piv.x) ;
+x0 = piv.x{i} ;
+y0 = piv.y{i} ;
+xlen = size(v2dsmM, 1) ;
+ylen = size(v2dsmM, 2) ;
+vdat = v2dsmM(:) ;
+vxdat = reshape(vdat(:, 1), [ntimes, xlen, ylen]) ;
+vydat = reshape(vdat(:, 2), [ntimes, xlen, ylen]) ;
+vzdat = ones(size(vydat)) ; % we march through time at 1 index / timestep
+% Define positions we track through the streamlines
+startx = x0(1:20:end) ;
+starty = y0(1:20:end) ;
+startz = zeros(size(starty)) ;
+streamline(x0, y0, z0, vxdat, vydat, vzdat, startx, starty, startz)
+view(2)
+save(gcf, fullfile(pivDir, 'streamlines.png')) 
+error('break')
 
 
 %% Smooth velocities in time
