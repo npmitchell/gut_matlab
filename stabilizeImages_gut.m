@@ -46,13 +46,13 @@ disp('done defining options')
 disp('Loading MIP data for all times...')
 NTimes = length(alltimes);
 % preallocate im_1 for speed
-tmp = imread([mipsDir,sprintf(name_1,alltimes(1))]) ;
+tmp = imread([mipsDir, sprintf(name_1,alltimes(1))]) ;
 im_1 = zeros([size(tmp) length(alltimes)]) ;
 % preallocate im_2 for speed
-tmp = imread([mipsDir,sprintf(name_in,alltimes(1))]) ;
+tmp = imread([mipsDir, sprintf(name_in,alltimes(1))]) ;
 im_2 = zeros([size(tmp) length(alltimes)]) ;
-for time_id = 1 : length(alltimes)
-    time = alltimes(time_id);
+for time_id = 1:length(alltimes)
+    time = alltimes(time_id) ;
     im_1(:,:,time_id) = imread([mipsDir,sprintf(name_1,time)])+imread([mipsDir,sprintf(name_11,time)]);
     im_2(:,:,time_id) = imread([mipsDir,sprintf(name_in,time)])+imread([mipsDir,sprintf(name_21,time)]);
 end

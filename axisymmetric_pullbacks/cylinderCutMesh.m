@@ -607,7 +607,13 @@ edge = edges( triangulation( face, vertex ) );
 eulerChi = size(vertex, 1) - size(edge,1) + size(face,1);
 
 if eulerChi ~= 1
-    error('Output mesh is NOT a topological disk!');
+    figure ;
+    trisurf(face, vertex(:, 1), vertex(:, 2), vertex(:, 3), vertex(:, 3),...
+        'EdgeColor', 'none', 'FaceAlpha', 0.4)
+    hold on;
+    plot3(vertex(P, 1), vertex(P, 2), vertex(P, 3), '-', 'linewidth', 4)
+    axis equal
+    error(['Output mesh is NOT a topological disk! EulerChi = ' num2str(eulerChi)]);
 end
 
 

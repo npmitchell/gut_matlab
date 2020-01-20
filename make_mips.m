@@ -5,7 +5,7 @@
 
 clear all; close all;
 %%
-mipoutdir = 'mips' ;
+mipoutdir = 'mips_stab' ;
 if ~exist(mipoutdir, 'dir')
     mkdir(mipoutdir)
 end
@@ -18,7 +18,7 @@ t_off = 0;
 dataDir    = cd;
 cd(dataDir)
 
-filenameFormat  = 'deconvolved_16bit/Time_%06d_c1.tif';
+filenameFormat  = 'deconvolved_16bit/Time_%06d_c1_stab.tif';
 msgLevel = 1;
 setpref('ImSAnE', 'msgLevel', msgLevel);
 %%

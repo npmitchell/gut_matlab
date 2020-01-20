@@ -1,5 +1,7 @@
 function cmesh = closeRectilinearCylMesh(mesh)
 %CLOSERECTILINEARCYLMESH(mesh)
+% Given a cut mesh (topologically, a square with implied periodicity in Y),
+% glue the mesh back together into a topological cylinder.
 %
 % Parameters
 % ----------

@@ -1,4 +1,4 @@
-sto%% GENERATE_AXISYMMETRIC_PULLBACK =========================================
+%% GENERATE_AXISYMMETRIC_PULLBACK =========================================
 % Pipeline for creating 'axisymmetric' pullbacks of the growing Drosophila 
 % midgut about a centerline (previously computed). Uses orbifold method to
 % guarantee conformality except at x=0 and x=L
@@ -311,656 +311,679 @@ spmstckfn = fullfile(meshDir, 'spmeshStack_orbifold.mat') ;
 outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
 outadIDxfn = fullfile(cylCutMeshOutDir, 'adIDx.h5') ;
 outpdIDxfn = fullfile(cylCutMeshOutDir, 'pdIDx.h5') ;
-if exist(mstckfn, 'file') && ~overwrite_meshStack
-    % The cutPaths.h5 is loading here
-    disp(['Not loading meshStack since we can load those one by one'])
-    % disp(['Loading meshStack: ' mstckfn])
-    % load(mstckfn)
-    disp(['Not loading spmeshStack since we load those one by one'])
-    
-    if resave_ims
-        for t = xp.fileMeta.timePoints
-            aux_resave_cutpath_figs
+
+% if exist(mstckfn, 'file') && ~overwrite_meshStack
+%     % The cutPaths.h5 is loading here
+%     disp(['Not loading meshStack since we can load those one by one'])
+%     % disp(['Loading meshStack: ' mstckfn])
+%     % load(mstckfn)
+%     disp(['Not loading spmeshStack since we load those one by one'])
+%     
+%     if resave_ims
+%         for t = xp.fileMeta.timePoints
+%             aux_resave_cutpath_figs
+%         end
+%     end
+% else
+%     disp('meshStack is not on disk or is to be overwritten, compute...')
+%     meshStack = cell( length(xp.fileMeta.timePoints), 1 );
+%     spmeshStack = cell( length(xp.fileMeta.timePoints), 1 );
+
+for t = xp.fileMeta.timePoints
+    disp(['NOW PROCESSING TIME POINT ', num2str(t)]);
+    tidx = xp.tIdx(t);
+
+    % Load the data for the current time point ------------------------
+    xp.setTime(t) ;
+    % Load or compute clean cylindrical mesh
+    mesh3dfn =  sprintf( cylinderMeshCleanBase, t ) ;
+    if ~exist(mesh3dfn, 'file') || overwrite_cleanCylMesh
+        disp('Overwriting/Computing clean cylinderMesh')
+        % Load the cylinder mesh
+        cylmeshfn = sprintf( cylinderMeshBase, t ) ;
+        mesh = read_ply_mod( cylmeshfn );
+        mesh = cleanCylMesh(mesh) ;   
+        [adIDx, pdIDx] = aux_adjust_dIDx(mesh, t, dpFile, ADBase, PDBase, cylinderMeshCleanBase, outadIDxfn, outpdIDxfn, xp) ;
+
+        %% Save the 3d cut mesh with new indices
+        % This is saving the cylinder meshes with no ears. Also adIDx
+        % is saved in h5file.
+        plywrite_with_normals(mesh3dfn, mesh.f, mesh.v, mesh.vn)
+        % Save adIDx with new indices
+        save_to_h5(outadIDxfn, ['/' sprintf('%06d', t) ], adIDx, ['adIDx for t=' num2str(t) ' already exists'])
+        % Save pdIDx with new indices
+        save_to_h5(outpdIDxfn, ['/' sprintf('%06d', t) ], pdIDx, ['pdIDx for t=' num2str(t) ' already exists'])
+        disp('done with cylindermesh cleaning')
+
+         % View results --------------------------------------------------------
+        mesh3dfigfn = sprintf( cylinderMeshCleanFigBase, t ) ;
+        if save_ims
+            aux_plot_cleanCylMesh
+        end
+    else
+        mesh = read_ply_mod(mesh3dfn) ;
+        adIDx = h5read(outadIDxfn, ['/' sprintf('%06d', t)]) ;
+        pdIDx = h5read(outpdIDxfn, ['/' sprintf('%06d', t)]) ;
+
+        % View results --------------------------------------------------------
+        mesh3dfigfn = sprintf( cylinderMeshCleanFigBase, t ) ;
+        if (~exist(mesh3dfigfn, 'file') || overwrite_cleanCylMesh) && save_ims
+            aux_plot_cleanCylMesh
         end
     end
-else
-    disp('meshStack is not on disk or is to be overwritten, compute...')
-    meshStack = cell( length(xp.fileMeta.timePoints), 1 );
-    spmeshStack = cell( length(xp.fileMeta.timePoints), 1 );
-    for t = xp.fileMeta.timePoints
-        disp(['NOW PROCESSING TIME POINT ', num2str(t)]);
-        tidx = xp.tIdx(t);
 
-        % Load the data for the current time point ------------------------
-        xp.setTime(t) ;
-        % Load or compute clean cylindrical mesh
-        mesh3dfn =  sprintf( cylinderMeshCleanBase, t ) ;
-        if ~exist(mesh3dfn, 'file') || overwrite_cleanCylMesh
-            disp('Overwriting/Computing clean cylinderMesh')
-            % Load the cylinder mesh
-            cylmeshfn = sprintf( cylinderMeshBase, t ) ;
-            mesh = read_ply_mod( cylmeshfn );
-            mesh = cleanCylMesh(mesh) ;   
-            [adIDx, pdIDx] = aux_adjust_dIDx(mesh, t, dpFile, ADBase, PDBase, cylinderMeshCleanBase, outadIDxfn, outpdIDxfn, xp) ;
-                        
-            %% Save the 3d cut mesh with new indices
-            % This is saving the cylinder meshes with no ears. Also adIDx
-            % is saved in h5file.
-            plywrite_with_normals(mesh3dfn, mesh.f, mesh.v, mesh.vn)
-            % Save adIDx with new indices
-            save_to_h5(outadIDxfn, ['/' sprintf('%06d', t) ], adIDx, ['adIDx for t=' num2str(t) ' already exists'])
-            % Save pdIDx with new indices
-            save_to_h5(outpdIDxfn, ['/' sprintf('%06d', t) ], pdIDx, ['pdIDx for t=' num2str(t) ' already exists'])
-            disp('done with cylindermesh cleaning')
-            
-             % View results --------------------------------------------------------
-            mesh3dfigfn = sprintf( cylinderMeshCleanFigBase, t ) ;
-            if save_ims
-                aux_plot_cleanCylMesh
-            end
+    %----------------------------------------------------------------------
+    % Create the Cut Mesh
+    %----------------------------------------------------------------------
+    cutMeshfn = sprintf(cutMeshBase, t) ;
+    if ~exist(cutMeshfn, 'file') || overwrite_cutMesh
+        if overwrite_cutMesh
+            fprintf('Generating to overwrite cutMesh...')
         else
-            mesh = read_ply_mod(mesh3dfn) ;
-            adIDx = h5read(outadIDxfn, ['/' sprintf('%06d', t)]) ;
-            pdIDx = h5read(outpdIDxfn, ['/' sprintf('%06d', t)]) ;
-
-            % View results --------------------------------------------------------
-            mesh3dfigfn = sprintf( cylinderMeshCleanFigBase, t ) ;
-            if (~exist(mesh3dfigfn, 'file') || overwrite_cleanCylMesh) && save_ims
-                aux_plot_cleanCylMesh
-            end
+            fprintf('cutMesh not saved. Generating cutMesh... ');
+        end
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        centerline = dlmread(sprintf(centerlineBase, t)) ;
+        % try geodesic if first timepoint
+        if t == xp.fileMeta.timePoints(1)
+            cutOptions.method = 'fastest' ;
+            disp(['Cutting mesh using method ' cutOptions.method])
+            cutMesh = cylinderCutMesh( mesh.f, mesh.v, mesh.vn, adIDx, pdIDx, cutOptions );
+            cutP = cutMesh.pathPairs(:, 1) ;
+            adIDx = cutP(1) ;
+            pdIDx = cutP(end) ;
+            prevTw = twist(mesh.v(cutP, :), centerline) ;
+            compute_pullback = true ;
+        else 
+            % If a previous Twist is not held in RAM, compute it
+            % if ~exist('prevTw', 'var')
+            % Load previous mesh and previous cutP
+            prevcylmeshfn = sprintf( cylinderMeshCleanBase, t-1) ;
+            prevmesh = read_ply_mod( prevcylmeshfn ); 
+            prevcutP = dlmread(sprintf(outcutfn, t-1), ',', 1, 0) ;
+            previousP = prevmesh.v(prevcutP, :) ;
+            % Load previous centerline in raw units
+            prevcntrfn = sprintf(centerlineBase, t-1) ;
+            prevcline = dlmread(prevcntrfn, ',') ;
+            % Compute Twist for this previous timepoint
+            prevTw = twist(previousP, prevcline) ;
+            % end
+            [edgelen, annulusv2d] = DiscreteRicciFlow.EuclideanRicciFlow(mesh.f, mesh.v, ...
+                'BoundaryType', 'fixed', 'BoundaryShape', 'Circles', ...
+                'MaxIter', 25, 'MaxCircIter', 21, ...
+                'Tolerance', 1e-6, 'CircTolerance', 1e-4, 'PCGTolerance', 1e-4) ;
+            findAnnularPathZeroWindingNumber(mesh.f, annulusv2d, adIDx, pdIDx)
+            
+            % Which path to match this one to: choose previous timepoint
+            % Load previous mesh and previous cutP
+            prevcylmeshfn = sprintf( cylinderMeshCleanBase, t-1) ;
+            prevmesh = read_ply_mod( prevcylmeshfn ); 
+            prevcutP = dlmread(sprintf(outcutfn, t-1), ',', 1, 0) ;
+            previousP = prevmesh.v(prevcutP, :) ;
+            
+            [cutMesh, adIDx, pdIDx, cutP, prevTw] = ...
+                generateCutMeshFixedTwist(mesh, adIDx, pdIDx, prevcline,...
+                nsegs4path, prevTw, previousP, ...
+                'MaxTwChange', 0.1, 'MaxJitter', 100, ...
+                'PrevCntrline', prevcline) ;
+            compute_pullback = true ;                
         end
 
+        % Store this path for the next one to be nearby
+        % Limit the number of segments to nsegs4path
+        % previousP = cutMesh.v(cutP, :) ;
+        % pstep = round(length(cutP) / nsegs4path ) ;
+        % previousP = previousP(1:pstep:end, :) ;
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        fprintf('Done with generating initial 3D CutMesh with cutPath\n');
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Save the cutPath to txt file
+        header = 'cutP (path of cut), indexing into vertices' ;
+        write_txt_with_header(sprintf(outcutfn, t), cutP, header)  
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Generate pullback to rectangular domain ---------------------
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % The surface parameterization algorithm (optionally) takes four vertex IDs
+        % as input to specify the corners of the square parameterization domain.
+        % Maddeningly, the order in which these points are specified to not seem to
+        % effect the output. For consistency, we perform a post-hoc correction so
+        % that the final output has the following geometric ordering
+        %
+        %   (AD1)-------(PD1)
+        %     |           |
+        %     |           |
+        %     |           |
+        %     |           |
+        %   (AD2)-------(PD2)
+        %
+        % Note that the pathPairs variable has the following columns:
+        %   [ ( AD1 -> PD1 ), ( AD2 -> PD2 ) ]
+        %--------------------------------------------------------------------------
+
+        % View results --------------------------------------------------------
+        % P = cutMesh.pathPairs(:,1);
+        % 
+        % trisurf( triangulation( mesh.f, mesh.v ) );
+        % 
+        % hold on
+        %
+        % line( mesh.v(P,1), mesh.v(P,2), mesh.v(P,3), ...
+        %     'Color', 'c', 'LineWidth',2);
+        % 
+        % scatter3( mesh.v(adIDx,1), mesh.v(adIDx,2), mesh.v(adIDx,3), ...
+        %     'filled', 'r' );
+        % scatter3( mesh.v(pdIDx,1), mesh.v(pdIDx,2), mesh.v(pdIDx,3), ...
+        %     'filled', 'm' );
+        % 
+        % hold off
+        % 
+        % axis equal
+        % 
+        % clear P
+
         %----------------------------------------------------------------------
-        % Create the Cut Mesh
+        % Generate Pullback to Annular Orbifold Domain
         %----------------------------------------------------------------------
-        cutMeshfn = sprintf(cutMeshBase, t) ;
-        if ~exist(cutMeshfn, 'file') || overwrite_cutMesh
-            if overwrite_cutMesh
-                fprintf('Generating to overwrite cutMesh...')
+        fprintf('Relaxing network via Affine transformation... ');
+        cutMesh = flattenAnnulus( cutMesh );
+
+        % Find lateral scaling that minimizes spring network energy
+        ar = minimizeIsoarealAffineEnergy( cutMesh.f, cutMesh.v, cutMesh.u );
+        % Assign scaling based on options: either a0 or a_fixed
+        % if tidx == 1 && ~a_fixed
+        %     a_fixed = ar ;
+        % end      
+        % a = a_fixed ;
+
+        % Scale the x axis by a or ar
+        uvtx = cutMesh.u ;
+        cutMesh.u = [ a_fixed .* uvtx(:,1), uvtx(:,2) ];
+        cutMesh.ar = ar ;
+        cutMesh.umax = a_fixed ;
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        fprintf('Done flattening cutMesh. Now saving.\n');
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        % Save cutMesh
+        save(cutMeshfn, 'cutMesh', 'adIDx', 'pdIDx', 'cutP')
+        disp('done with plotting & saving cut')
+    else
+        fprintf('Loading Cut Mesh from disk... ');
+        load(cutMeshfn) 
+        cutP = dlmread(sprintf(outcutfn, t), ',', 1, 0) ;
+        compute_pullback = ~isempty(cutP) ;
+    end
+
+    %% Plot the cutPath (cutP) in 3D
+    if save_ims && overwrite_cutMesh 
+        disp('Saving cutP image')
+        aux_plot_cutP
+    end
+
+    %% Compute the pullback if the cutMesh is ok
+    if compute_pullback
+        disp(['Evolving mesh along normal shift for pullback images: shift=' num2str(normal_shift)])
+        % Displace normally ---------------------------------------------------
+        cutMesh.v = cutMesh.v + cutMesh.vn * normal_shift ;
+
+        % todo !!!!
+        % if 
+        % else
+        %     % Load the cutMesh
+        %     load(sprintf(cutMeshBase, t), 'cutMesh')
+        % end
+
+        % View results --------------------------------------------------------
+        % 
+        % patch( 'Faces', cutMesh.f, 'Vertices', cutMesh.u, ...
+        %     'FaceVertexCData', cutMesh.v(:,3), 'FaceColor', 'interp', ...
+        %     'EdgeColor', 'k' );
+        % 
+        % hold on
+        % 
+        % cornerColors = [ 1 0 0; 1 0 1; 0 1 1; 0 1 0 ];
+        % corners = [ adIDx cutMesh.pathPairs(1,2), ...
+        %     cutMesh.pathPairs(end,1) pdIDx ];
+        % 
+        % scatter( cutMesh.u( corners, 1 ), cutMesh.u( corners, 2 ), [], ...
+        %     cornerColors, 'filled' );
+        % 
+        % hold off
+        % 
+        % axis equal
+        % 
+        % clear cornerColors corners
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% Generate s,phi coord system for rotated,scaled mesh (rs)
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        fprintf('Establishing s,phi coord system\n');
+
+        if ~exist(sprintf(spcutMeshBase, t), 'file') || overwrite_spcutMesh
+            if overwrite_spcutMesh
+                disp('Overwriting spcutMesh...')
             else
-                fprintf('cutMesh not saved. Generating cutMesh... ');
+                disp('spcutMesh not on disk. Generating ...')
             end
+
+            % Transform from u,v coordinates to s, phi coordinates
+            % [scoords, phicoords] = generateSPhiFromUV();
+
+            %----------------------------------------------------------------------
+            % Generate tiled orbifold triangulation
+            %----------------------------------------------------------------------
+            tileCount = [1 1];  % how many above, how many below
+            cutMeshrs = cutMesh;
+            % Rotate and translate TV3D
+            cutMeshrs.v = ((rot * cutMesh.v')' + trans) * resolution ;
+            cutMeshrs.vn = (rot * cutMesh.vn')' ;
+            [ ~, ~, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount );
+            [ TF, TV2D, TV3Drs ] = tileAnnularCutMesh( cutMeshrs, tileCount );
+
+            %----------------------------------------------------------------------
+            % Calculate abbreviated centerline from cutMesh boundaries
+            %----------------------------------------------------------------------
+            % Load centerline in raw units
+            cntrfn = sprintf(cntrsFileName, t) ;
+            cline = dlmread(cntrfn, ',') ;
+            ss = cline(:, 1) ;
+            cline = cline(:, 2:end) ;
+
+            % Check it
+            % trisurf(triangulation(TF, TV3D), 'EdgeColor', 'none', 'FaceAlpha', 0.3)
+            % plot3(cline(:, 1), cline(:, 3), cline(:, 2), 'k-')
+            % set(gcf, 'visible', 'on')
+
+            disp('Finding relevant segment of centerline')
+            [cseg, acID, pcID, bdLeft, bdRight] = centerlineSegmentFromCutMesh(cline, TF, TV2D, TV3Drs) ;
+
+            %----------------------------------------------------------------------
+            % Generate surface curves of constant s
+            %----------------------------------------------------------------------
+            % For lines of constant phi
+            disp('Creating crude uv curves with du=const to define uspace by ds(u)')
+            % Make grid
+            eps = 1e-14 ;
+            uspace0 = linspace( eps, cutMesh.umax - eps, nU )' ;
+            vspace = linspace( eps, 1-eps, nV )' ;
+
+            disp('Casting crude (equal dU) points into 3D...')
+            % NOTE: first dimension indexes u, second indexes v
+            curves3d = zeros(nU, nV, 3) ;
+            for kk = 1:nU
+                if mod(kk, 50) == 0
+                    disp(['u = ' num2str(kk / nU)])
+                end
+                uv = [uspace0(kk) * ones(size(vspace)), vspace] ;
+                curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uv) ;
+            end 
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Compute ds along the surface from each hoop to the next
+            % The distance from one hoop to another is the
+            % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
+            dsuphi = reshape(vecnorm(diff(curves3d), 2, 3), [nU-1, nV]) ;
+            crude_ringpath_ds = nanmean(dsuphi, 2) * resolution ;
+            crude_ringpath_ss = cumsum([0; crude_ringpath_ds]) ;
+
+            % Resample crude_ringpath_ds made from uspace0 (equal du, not equal ds_3D in u direction)
+            [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU)', crude_ringpath_ss, nU, 'linear') ;
+            % ensure that uspace is nU x 1, not 1 x nU
+            uspace = reshape(uspace, [nU, 1]) ; 
+            % hedge the first and last point to avoid NaNs
+            eps = 1e-13 ;
+            uspace(1) = uspace(1) + eps ;
+            uspace(end) = uspace(end) - eps ;
+            clearvars dsuphi curves3d uspace0
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            disp('Casting resampled points into 3D (approx equal ds_3D in u dir, but variable ds_3D in v dir)...')
+            % NOTE: first dimension indexes u, second indexes v
+            curves3d = zeros(nU, nV, 3) ;
+            for kk = 1:nU
+                if mod(kk, 50) == 0
+                    disp(['u = ' num2str(kk / nU)])
+                end
+                uv = [cutMesh.umax * uspace(kk) * ones(size(vspace)), vspace] ;
+                curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uv) ;
+            end 
+
+            % Check the 3d curves 
+            if preview
+                figure ; hold on;
+                for kk = 1:nU
+                    plot3(curves3d(kk, :, 1), curves3d(kk, :, 2), curves3d(kk, :, 3), '.') 
+                end
+                axis equal
+            end
+
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            centerline = dlmread(sprintf(centerlineBase, t)) ;
-            % try geodesic if first timepoint
+            fprintf('Compute s(u) and radius(u) for "uniform"--> evenly sample each DV hoop (0,1) so ds_3D=const \n');
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Resample at evenly spaced dphi in embedding space
+            fprintf('Resampling curves...\n')
+            c3d_dsv = zeros(size(curves3d)) ;
+            for i=1:nU
+                % Note: no need to add the first point to the curve
+                % since the endpoints already match exactly in 3d and
+                % curvspace gives a curve with points on either
+                % endpoint (corresponding to the same 3d location).
+                c3d_dsv(i, :, :) = resampleCurvReplaceNaNs(squeeze(curves3d(i, :, :)), nV, true) ;
+                if vecnorm(squeeze(c3d_dsv(i, 1, :)) - squeeze(c3d_dsv(i, end, :))) > 1e-7
+                    error('endpoints do not join! Exiting')
+                end
+
+                % Visualization for Troubleshooting:
+                % triplot(TF, TV2D(:, 1), TV2D(:, 2))
+                % hold on;
+                % plot(uv(:, 1), uv(:, 2), '.')
+            end
+
+            % Check the 3d curves 
+            if preview
+                figure ; hold on;
+                for kk = 1:nU
+                    plot3(c3d_dsv(kk, :, 1), c3d_dsv(kk, :, 2), c3d_dsv(kk, :, 3), '.') 
+                end
+                axis equal
+            end
+
+            fprintf('Finding s(u) and r(u) of resampled "uniform" c3ds [uniform ds in V dir]...\n')
+            % mcline is the resampled centerline, with mss
+            % avgpts is the raw Nx3 averaged hoops, with avgpts_ss
+            [mss, mcline, radii_from_mean_uniform_rs, avgpts_ss, avgpts] = srFromDVCurves(c3d_dsv) ;
+
+            % Used to find radius using original centerline
+            % [ssv, radii, avgpts, cids] = srFromDVCurvesGivenCenterline(ss, cline, c3ds) ;
+            % Could operate just on the centerline segment
+            cseg_ss = ss(acID:pcID) ;
+            % [ssv, radii, avgpts, cids] = srFromDVCurves(cseg_ss, cseg, c3ds) ;
+            % 
+            % Adjust the centerline indices to index into the full
+            % centerline. Note that cseg_ss already does this for ss.
+            % cids = cids + acID ;
+
+            % Plot new centerline
+            aux_plot_clineDVhoop(avgpts, avgpts_ss, cseg, cline, cseg_ss, curves3d, xyzlim, clineDVhoopFigBase, t)
+
+            % Optional: clean curve with polynomial and point match
+            % avgpts onto cleaned curve. Skipping for later.
+
+            % Compute ringpath_ss, the mean distance traveled from one
+            % line of constant u to the next
+            disp('Computing ringpath_ss in "uniform" resampling (equal ds along DV)...')
+            % The distance from one hoop to another is the
+            % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
+            dsuphi = reshape(vecnorm(diff(c3d_dsv), 2, 3), [nU-1, nV]) ;
+            ringpath_ds = nanmean(dsuphi, 2) * resolution ;
+            ringpath_ss = cumsum([0; ringpath_ds]) ;
+            clearvars dsuphi ringpath_ds
+
+            % Save new centerline in rotated translated units
+            fn = sprintf(clineDVhoopBase, t) ;
+            disp(['Saving new centerline to ' fn])
+            save(fn, 'mss', 'mcline', 'avgpts', 'avgpts_ss')
+
+            % Note: radii_from_mean_uniform_rs is the radius of 
+            % interpolated hoops, not the actual points
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            fprintf('Done making new centerline using uniformly sampled hoops\n') ;
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             if t == xp.fileMeta.timePoints(1)
-                cutOptions.method = 'fastest' ;
-                disp(['Cutting mesh using method ' cutOptions.method])
-                cutMesh = cylinderCutMesh( mesh.f, mesh.v, mesh.vn, adIDx, pdIDx, cutOptions );
-                cutP = cutMesh.pathPairs(:, 1) ;
-                adIDx = cutP(1) ;
-                pdIDx = cutP(end) ;
-                prevTw = twist(mesh.v(cutP, :), centerline) ;
-                compute_pullback = true ;
-            else 
-                % If a previous Twist is not held in RAM, compute it
-                % if ~exist('prevTw', 'var')
-                % Load previous mesh and previous cutP
-                prevcylmeshfn = sprintf( cylinderMeshCleanBase, t-1) ;
-                prevmesh = read_ply_mod( prevcylmeshfn ); 
-                prevcutP = dlmread(sprintf(outcutfn, t-1), ',', 1, 0) ;
-                previousP = prevmesh.v(prevcutP, :) ;
-                % Load previous centerline in raw units
-                prevcntrfn = sprintf(centerlineBase, t-1) ;
-                prevcline = dlmread(prevcntrfn, ',') ;
-                % Compute Twist for this previous timepoint
-                prevTw = twist(previousP, prevcline) ;
-                % end
-                [cutMesh, adIDx, pdIDx, cutP, prevTw] = generateCutMeshFixedTwist(mesh, adIDx, pdIDx, centerline, nsegs4path, prevTw, outcutfn, cylinderMeshCleanBase, t) ;
-                compute_pullback = true ;                
-            end
-            
-            % Store this path for the next one to be nearby
-            % Limit the number of segments to nsegs4path
-            % previousP = cutMesh.v(cutP, :) ;
-            % pstep = round(length(cutP) / nsegs4path ) ;
-            % previousP = previousP(1:pstep:end, :) ;
-
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            fprintf('Done with generating initial 3D CutMesh with cutPath\n');
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Save the cutPath to txt file
-            header = 'cutP (path of cut), indexing into vertices' ;
-            write_txt_with_header(sprintf(outcutfn, t), cutP, header)  
-            
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Generate pullback to rectangular domain ---------------------
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % The surface parameterization algorithm (optionally) takes four vertex IDs
-            % as input to specify the corners of the square parameterization domain.
-            % Maddeningly, the order in which these points are specified to not seem to
-            % effect the output. For consistency, we perform a post-hoc correction so
-            % that the final output has the following geometric ordering
-            %
-            %   (AD1)-------(PD1)
-            %     |           |
-            %     |           |
-            %     |           |
-            %     |           |
-            %   (AD2)-------(PD2)
-            %
-            % Note that the pathPairs variable has the following columns:
-            %   [ ( AD1 -> PD1 ), ( AD2 -> PD2 ) ]
-            %--------------------------------------------------------------------------
-
-            % View results --------------------------------------------------------
-            % P = cutMesh.pathPairs(:,1);
-            % 
-            % trisurf( triangulation( mesh.f, mesh.v ) );
-            % 
-            % hold on
-            %
-            % line( mesh.v(P,1), mesh.v(P,2), mesh.v(P,3), ...
-            %     'Color', 'c', 'LineWidth',2);
-            % 
-            % scatter3( mesh.v(adIDx,1), mesh.v(adIDx,2), mesh.v(adIDx,3), ...
-            %     'filled', 'r' );
-            % scatter3( mesh.v(pdIDx,1), mesh.v(pdIDx,2), mesh.v(pdIDx,3), ...
-            %     'filled', 'm' );
-            % 
-            % hold off
-            % 
-            % axis equal
-            % 
-            % clear P
-
-            %----------------------------------------------------------------------
-            % Generate Pullback to Annular Orbifold Domain
-            %----------------------------------------------------------------------
-            fprintf('Relaxing network via Affine transformation... ');
-            cutMesh = flattenAnnulus( cutMesh );
-
-            % Find lateral scaling that minimizes spring network energy
-            ar = minimizeIsoarealAffineEnergy( cutMesh.f, cutMesh.v, cutMesh.u );
-            % Assign scaling based on options: either a0 or a_fixed
-            % if tidx == 1 && ~a_fixed
-            %     a_fixed = ar ;
-            % end      
-            % a = a_fixed ;
-      
-            % Scale the x axis by a or ar
-            uvtx = cutMesh.u ;
-            cutMesh.u = [ a_fixed .* uvtx(:,1), uvtx(:,2) ];
-            cutMesh.ar = ar ;
-            cutMesh.umax = a_fixed ;
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            fprintf('Done flattening cutMesh. Now saving.\n');
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            
-            % Save cutMesh
-            save(cutMeshfn, 'cutMesh', 'adIDx', 'pdIDx', 'cutP')
-            disp('done with plotting & saving cut')
-        else
-            fprintf('Loading Cut Mesh from disk... ');
-            load(cutMeshfn) 
-            cutP = dlmread(sprintf(outcutfn, t), ',', 1, 0) ;
-            compute_pullback = ~isempty(cutP) ;
-        end
-        
-        %% Plot the cutPath (cutP) in 3D
-        if save_ims && overwrite_cutMesh 
-            disp('Saving cutP image')
-            aux_plot_cutP
-        end
-        
-        %% Compute the pullback if the cutMesh is ok
-        if compute_pullback
-            disp(['Evolving mesh along normal shift for pullback images: shift=' num2str(normal_shift)])
-            % Displace normally ---------------------------------------------------
-            cutMesh.v = cutMesh.v + cutMesh.vn * normal_shift ;
-            
-            % todo !!!!
-            % if 
-            % else
-            %     % Load the cutMesh
-            %     load(sprintf(cutMeshBase, t), 'cutMesh')
-            % end
-            
-            % View results --------------------------------------------------------
-            % 
-            % patch( 'Faces', cutMesh.f, 'Vertices', cutMesh.u, ...
-            %     'FaceVertexCData', cutMesh.v(:,3), 'FaceColor', 'interp', ...
-            %     'EdgeColor', 'k' );
-            % 
-            % hold on
-            % 
-            % cornerColors = [ 1 0 0; 1 0 1; 0 1 1; 0 1 0 ];
-            % corners = [ adIDx cutMesh.pathPairs(1,2), ...
-            %     cutMesh.pathPairs(end,1) pdIDx ];
-            % 
-            % scatter( cutMesh.u( corners, 1 ), cutMesh.u( corners, 2 ), [], ...
-            %     cornerColors, 'filled' );
-            % 
-            % hold off
-            % 
-            % axis equal
-            % 
-            % clear cornerColors corners
-
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %% Generate s,phi coord system for rotated,scaled mesh (rs)
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            fprintf('Establishing s,phi coord system\n');
-
-            if ~exist(sprintf(spcutMeshBase, t), 'file') || overwrite_spcutMesh
-                if overwrite_spcutMesh
-                    disp('Overwriting spcutMesh...')
-                else
-                    disp('spcutMesh not on disk. Generating ...')
-                end
-
-                % Transform from u,v coordinates to s, phi coordinates
-                % [scoords, phicoords] = generateSPhiFromUV();
-
-                %----------------------------------------------------------------------
-                % Generate tiled orbifold triangulation
-                %----------------------------------------------------------------------
-                tileCount = [1 1];  % how many above, how many below
-                cutMeshrs = cutMesh;
-                % Rotate and translate TV3D
-                cutMeshrs.v = ((rot * cutMesh.v')' + trans) * resolution ;
-                cutMeshrs.vn = (rot * cutMesh.vn')' ;
-                [ ~, ~, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount );
-                [ TF, TV2D, TV3Drs ] = tileAnnularCutMesh( cutMeshrs, tileCount );
-
-                %----------------------------------------------------------------------
-                % Calculate abbreviated centerline from cutMesh boundaries
-                %----------------------------------------------------------------------
-                % Load centerline in raw units
-                cntrfn = sprintf(cntrsFileName, t) ;
-                cline = dlmread(cntrfn, ',') ;
-                ss = cline(:, 1) ;
-                cline = cline(:, 2:end) ;
-
-                % Check it
-                % trisurf(triangulation(TF, TV3D), 'EdgeColor', 'none', 'FaceAlpha', 0.3)
-                % plot3(cline(:, 1), cline(:, 3), cline(:, 2), 'k-')
-                % set(gcf, 'visible', 'on')
-
-                disp('Finding relevant segment of centerline')
-                [cseg, acID, pcID, bdLeft, bdRight] = centerlineSegmentFromCutMesh(cline, TF, TV2D, TV3Drs) ;
-
-                %----------------------------------------------------------------------
-                % Generate surface curves of constant s
-                %----------------------------------------------------------------------
-                % For lines of constant phi
-                disp('Creating crude uv curves with du=const to define uspace by ds(u)')
-                % Make grid
-                eps = 1e-14 ;
-                uspace0 = linspace( eps, cutMesh.umax - eps, nU )' ;
-                vspace = linspace( eps, 1-eps, nV )' ;
-
-                disp('Casting crude (equal dU) points into 3D...')
-                % NOTE: first dimension indexes u, second indexes v
-                curves3d = zeros(nU, nV, 3) ;
-                for kk = 1:nU
-                    if mod(kk, 50) == 0
-                        disp(['u = ' num2str(kk / nU)])
-                    end
-                    uv = [uspace0(kk) * ones(size(vspace)), vspace] ;
-                    curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uv) ;
-                end 
-                
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % Compute ds along the surface from each hoop to the next
-                % The distance from one hoop to another is the
-                % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
-                dsuphi = reshape(vecnorm(diff(curves3d), 2, 3), [nU-1, nV]) ;
-                crude_ringpath_ds = nanmean(dsuphi, 2) * resolution ;
-                crude_ringpath_ss = cumsum([0; crude_ringpath_ds]) ;
-                
-                % Resample crude_ringpath_ds made from uspace0 (equal du, not equal ds_3D in u direction)
-                [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU)', crude_ringpath_ss, nU, 'linear') ;
-                % ensure that uspace is nU x 1, not 1 x nU
-                uspace = reshape(uspace, [nU, 1]) ; 
-                % hedge the first and last point to avoid NaNs
-                eps = 1e-13 ;
-                uspace(1) = uspace(1) + eps ;
-                uspace(end) = uspace(end) - eps ;
-                clearvars dsuphi curves3d uspace0
-                
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                disp('Casting resampled points into 3D (approx equal ds_3D in u dir, but variable ds_3D in v dir)...')
-                % NOTE: first dimension indexes u, second indexes v
-                curves3d = zeros(nU, nV, 3) ;
-                for kk = 1:nU
-                    if mod(kk, 50) == 0
-                        disp(['u = ' num2str(kk / nU)])
-                    end
-                    uv = [cutMesh.umax * uspace(kk) * ones(size(vspace)), vspace] ;
-                    curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uv) ;
-                end 
-                
-                % Check the 3d curves 
-                if preview
-                    figure ; hold on;
-                    for kk = 1:nU
-                        plot3(curves3d(kk, :, 1), curves3d(kk, :, 2), curves3d(kk, :, 3), '.') 
-                    end
-                    axis equal
-                end
-
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                fprintf('Compute s(u) and radius(u) for "uniform"--> evenly sample each DV hoop (0,1) so ds_3D=const \n');
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % Resample at evenly spaced dphi in embedding space
-                fprintf('Resampling curves...\n')
-                c3d_dsv = zeros(size(curves3d)) ;
-                for i=1:nU
-                    % Note: no need to add the first point to the curve
-                    % since the endpoints already match exactly in 3d and
-                    % curvspace gives a curve with points on either
-                    % endpoint (corresponding to the same 3d location).
-                    c3d_dsv(i, :, :) = resampleCurvReplaceNaNs(squeeze(curves3d(i, :, :)), nV, true) ;
-                    if vecnorm(squeeze(c3d_dsv(i, 1, :)) - squeeze(c3d_dsv(i, end, :))) > 1e-7
-                        error('endpoints do not join! Exiting')
-                    end
-
-                    % Visualization for Troubleshooting:
-                    % triplot(TF, TV2D(:, 1), TV2D(:, 2))
-                    % hold on;
-                    % plot(uv(:, 1), uv(:, 2), '.')
-                end
-                
-                % Check the 3d curves 
-                if preview
-                    figure ; hold on;
-                    for kk = 1:nU
-                        plot3(c3d_dsv(kk, :, 1), c3d_dsv(kk, :, 2), c3d_dsv(kk, :, 3), '.') 
-                    end
-                    axis equal
-                end
-                
-                fprintf('Finding s(u) and r(u) of resampled "uniform" c3ds [uniform ds in V dir]...\n')
-                % mcline is the resampled centerline, with mss
-                % avgpts is the raw Nx3 averaged hoops, with avgpts_ss
-                [mss, mcline, radii_from_mean_uniform_rs, avgpts_ss, avgpts] = srFromDVCurves(c3d_dsv) ;
-                
-                % Used to find radius using original centerline
-                % [ssv, radii, avgpts, cids] = srFromDVCurvesGivenCenterline(ss, cline, c3ds) ;
-                % Could operate just on the centerline segment
-                cseg_ss = ss(acID:pcID) ;
-                % [ssv, radii, avgpts, cids] = srFromDVCurves(cseg_ss, cseg, c3ds) ;
-                % 
-                % Adjust the centerline indices to index into the full
-                % centerline. Note that cseg_ss already does this for ss.
-                % cids = cids + acID ;
-
-                % Plot new centerline
-                aux_plot_clineDVhoop(avgpts, avgpts_ss, cseg, cline, cseg_ss, curves3d, xyzlim, clineDVhoopFigBase, t)
-
-                % Optional: clean curve with polynomial and point match
-                % avgpts onto cleaned curve. Skipping for later.
-
-                % Compute ringpath_ss, the mean distance traveled from one
-                % line of constant u to the next
-                disp('Computing ringpath_ss in "uniform" resampling (equal ds along DV)...')
-                % The distance from one hoop to another is the
-                % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
-                dsuphi = reshape(vecnorm(diff(c3d_dsv), 2, 3), [nU-1, nV]) ;
-                ringpath_ds = nanmean(dsuphi, 2) * resolution ;
-                ringpath_ss = cumsum([0; ringpath_ds]) ;
-                clearvars dsuphi ringpath_ds
-                
-                % Save new centerline in rotated translated units
-                fn = sprintf(clineDVhoopBase, t) ;
-                disp(['Saving new centerline to ' fn])
-                save(fn, 'mss', 'mcline', 'avgpts', 'avgpts_ss')
-                
-                % Note: radii_from_mean_uniform_rs is the radius of 
-                % interpolated hoops, not the actual points
-                
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                fprintf('Done making new centerline using uniformly sampled hoops\n') ;
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                if t == xp.fileMeta.timePoints(1)
-                    % Store for next timepoint
-                    phiv = (vspace .* ones(nU, nV))' ;
-                    phi0s = zeros(size(uspace)) ;
-                    phi0_fit = phi0s ;
-                else
-                    % Load previous sphi vertices in 3d 
-                    tmp = load(sprintf(spcutMeshBase, t-1), 'spcutMesh') ;
-                    prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
-                    
-                    plotfn = sprintf(phi0fitBase, t);
-                    [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
-                        uspace, vspace, prev3d_sphi, -0.5, 0.5, save_ims, plotfn) ;
-                    % Store to save at this timepoint
-                    phiv = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
-                end
-                
-                % NOTE: We have coordinates u,phiv that we associate with
-                % the 3d coordinates already mapped to uv
-                plot(uspace, phiv)
-                xlabel('u')
-                ylabel('\phi')
-                waitfor(fig)
-                
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                onesUV = ones(nU, nV) ;
-                uu = uspace * cutMesh.umax .* onesUV ;
-                vv = (vspace .* onesUV')' ;
-                uphi = [uu(:), phiv(:)] ;
-                uv = [uu(:), vv(:)] ;
-                % Note: here interpolate uv in the TV2D coord system, then
-                % use uphi as the actual 2D coordinates for these vertices
-                new3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
-                
-                assert(all(new3d == curves3d))
-                
-                % Express the coordinates as a grid
-                % new3drs = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uphi) ;
-                prev3d_sphi = reshape(new3d, [nU, nV, 3]) ; 
-                
-                % Recompute radii_from_mean_uniform_rs as radii_from_avgpts 
-                % NOTE: all radius calculations done in microns, not pixels
-                sphi3d_rs = ((rot * new3d')' + trans) * resolution ;
-                radii_from_avgpts = zeros(size(sphi3d_rs, 1), size(sphi3d_rs, 2)) ;
-                for jj = 1:nU
-                    % Consider this hoop
-                    hoop = squeeze(sphi3d_rs(jj, :, :)) ;
-                    radii_from_avgpts(jj, :) = vecnorm(hoop - avgpts(jj, :), 2, 2) ;
-                end
-                
-                % Triangulate the sphigrid and store as its own cutMesh
-                % sphiv = zeros(nU, nV, 2) ;
-                % sphiv(:, :, 1) = sv ;
-                % sphiv(:, :, 2) = phiv ;
-                sv = ringpath_ss .* onesUV ;
-                % Triangulate the mesh
-                tmptri = delaunay(sv(:), phiv(:)) ;
-                disp('orienting faces of delaunay triangulation (s,phi)')
-                tmptri = bfs_orient( tmptri );
-
-                % Define path pairs for tiling the (s,phi) cut mesh
-                spcutP1 = 1:nU;
-                spcutP2 = nU*nV - fliplr(0:(nU-1)) ;
-                spcutMesh.pathPairs = [ spcutP1', spcutP2' ];
-
-                % Check to see if any members of pathPairs connect to
-                % non-Nearest Neighbors.
-                cleantri = cleanBoundaryPath2D(tmptri, [sv(:), phiv(:)], spcutMesh.pathPairs(:), true) ;
-
-                spcutMesh.f = cleantri ;
-                spcutMesh.nU = nU ;
-                spcutMesh.nV = nV ;
-                % First resampling
-                spcutMesh.v0 = new3d ;
-                % spcutMesh.vrs0 = ((rot * new3d')' + trans) * resolution ;
-                % Define normals based on the original mesh normals
-                spvn03d = interpolate2Dpts_3Dmesh(TF, TV2D, TVN3D, uphi) ;
-                spvn03d = spvn03d ./ vecnorm(spvn03d, 2, 2) ;
-                spcutMesh.vn0 = spvn03d ;
-                spcutMesh.sphi0 = [sv(:), phiv(:)] ;
-                spcutMesh.uphi0 = uphi ;
-                % Note: uv has no direct relation with cutMesh, just a grid
-                % for utility and reference, but it does have unequal 
-                % spacing in u in anticipation of building sphi0 as a 
-                % near perfect grid.
-                spcutMesh.uv = uv ;  
-                
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % SECOND RESAMPLING
-                % Make a new grid
-                slin = linspace(0, max(spcutMesh.sphi0(:, 1)), nU) ;
-                plin = linspace(0, 1, nV) ;
-                [ss, pp] = meshgrid(slin, plin) ;
-                % Push the endpoints on each boundary in by epsilon to
-                % avoid NaNs
-                eps = 1e-14 ;
-                ss(:, 1) = eps ;
-                ss(:, end) = ss(:, end) - eps ;
-                % Transpose so that x increases with increasing index first
-                ss = ss' ;
-                pp = pp' ;
-                sp = [ss(:), pp(:)] ;
-                
-                % Tile the spcutMesh
-                tileCount = [2, 2] ;
-                spcutMesh.u = spcutMesh.sphi0 ;
-                spcutMesh.v = spcutMesh.v0 ;
-                spcutMesh.vn = spcutMesh.vn0 ;
-                [ faces, v2d, v3d, vn3d ] = tileAnnularCutMesh( spcutMesh, tileCount );
-                spcutMesh = rmfield(spcutMesh, 'u') ;
-                spcutMesh = rmfield(spcutMesh, 'v') ;
-                spcutMesh = rmfield(spcutMesh, 'vn') ;
-                spv3d = interpolate2Dpts_3Dmesh(faces, v2d, v3d, sp) ;
-                % check the pts
-                % plot3(spv3d(:, 1), spv3d(:, 2), spv3d(:, 3))  
-                
-                % also interpolate the normals
-                spvn3d = interpolate2Dpts_3Dmesh(faces, v2d, vn3d, sp) ;
-                spvn3d = spvn3d ./ vecnorm(spvn3d, 2, 2) ;
-                
-                % Define new faces for second rectilinear resampling
-                spcutMesh.f = defineFacesRectilinearGrid(sp, nU, nV) ;
-                spcutMesh.sphi = sp ;
-                spcutMesh.v = spv3d ;
-                spcutMesh.vn = spvn3d ;
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                
-                spcutMesh.ringpath_ss = ringpath_ss ;
-                spcutMesh.radii_from_mean_uniform_rs = radii_from_mean_uniform_rs ;  % from uniform DV sampling
-                spcutMesh.radii_from_avgpts = radii_from_avgpts ;
-                spcutMesh.mss = mss ;       % from uniform DV sampling, also stored in centerline
-                spcutMesh.mcline = mcline ; % from uniform DV sampling, also stored in centerline
-                spcutMesh.avgpts = avgpts ; % from uniform DV sampling, also stored in centerline
-                spcutMesh.avgpts_ss = avgpts_ss ; % from uniform sampling, also stored in centerline
-                
-                % Define optimal isoareal Affine dilation factor in s
-                % tmp = spcutMesh.sphi ;
-                % tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
-                % arsp = minimizeIsoarealAffineEnergy( spcutMesh.f, spcutMesh.v, tmp );
-                % clearvars tmp
-                spcutMesh.ar = cutMesh.ar ;
-                
-                % todo: check that u coords have not shifted upon
-                % redefinition of sphi0 -> sphi
-
-                % Save s,phi and their 3D embedding
-                spcutMesh.phi0s = phi0s ;
-                spcutMesh.phi0_fit = phi0_fit ;
-                save(sprintf(spcutMeshBase, t), 'spcutMesh') ;
+                % Store for next timepoint
+                phiv = (vspace .* ones(nU, nV))' ;
+                phi0s = zeros(size(uspace)) ;
+                phi0_fit = phi0s ;
             else
-                disp('Loading spcutMesh from disk...')
-                load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
+                % Load previous sphi vertices in 3d 
+                tmp = load(sprintf(spcutMeshBase, t-1), 'spcutMesh') ;
+                prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
 
-                % Load new centerline
-                fn = sprintf(clineDVhoopBase, t) ;
-                disp(['Loading new centerline from ' fn])
-                load(fn, 'mss', 'mcline', 'avgpts', 'avgpts_ss')
-            end
-            fprintf('Done with generating S,Phi coords \n');
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            fprintf('Create pullback using S,Phi coords \n');
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %--------------------------------------------------------------
-            % Generate Output Image Files
-            %--------------------------------------------------------------
-            imfn = sprintf( fullfile([imFolder, '/', fileNameBase, '.tif']), t ); 
-            imfn_r = sprintf( fullfile([imFolder_r, '/', fileNameBase, '.tif']), t ) ;
-            imfn_sp = sprintf( fullfile([imFolder_sp, '/', fileNameBase, '.tif']), t ) ;
-            imfn_up = sprintf( fullfile([imFolder_up, '/', fileNameBase, '.tif']), t ) ;
-            pullbacks_exist1 = exist(imfn, 'file') && exist(imfn_r, 'file') ;
-            pullbacks_exist2 = exist(imfn_sp, 'file') && exist(imfn_up, 'file') ;
-            if ~pullbacks_exist1 || ~pullbacks_exist2 || overwrite_pullbacks
-                % Load 3D data for coloring mesh pullback
-                xp.loadTime(t);
-                xp.rescaleStackToUnitAspect();
-
-                % Raw stack data
-                IV = xp.stack.image.apply();
-                IV = imadjustn(IV{1});
-            end
-            
-            if ~exist(imfn_sp, 'file') || overwrite_pullbacks
-                fprintf(['Generating SP output image: ' imfn_sp]);
-                % Assigning field spcutMesh.u to be [s, phi] (ringpath
-                % and azimuthal angle)
-                spcutMesh.u = spcutMesh.sphi ;
-                aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_sp)
-                spcutMesh = rmfield(spcutMesh, 'u') ;
-            end
-            
-            if (~exist(imfn_up, 'file') || overwrite_pullbacks) && generate_uphi_coord
-                fprintf(['Generating uphi output image: ' imfn_up]);
-                % Assigning field spcutMesh.u to be [s, phi] (ringpath
-                % and azimuthal angle)
-                spcutMesh.u = spcutMesh.uphi ;
-                aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_up)
-                spcutMesh = rmfield(spcutMesh, 'u') ;
+                plotfn = sprintf(phi0fitBase, t);
+                [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
+                    uspace * cutMesh.umax, vspace, prev3d_sphi, -0.5, 0.5, ...
+                    save_ims, plotfn, preview) ;
+                % Store to save at this timepoint
+                phiv = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
             end
 
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Generate Output Image File -- regular UV coordinates
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            if ~exist(imfn, 'file') || overwrite_pullbacks
-                % Generate output image in uv
-                fprintf(['Generating output image: ' imfn]);
-                aux_generate_orbifold(cutMesh, a_fixed, IV, imfn)
-            else
-                disp('Skipping pullback image generation since exists')
-            end
-            
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Save relaxed image
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-            if ~exist(imfn_r, 'file')
-                disp('Generating relaxed image for sphi coords...')
-                spcutMesh.u = spcutMesh.sphi ;
-                aux_generate_orbifold(spcutMesh, spcutMesh.ar, IV, imfn_r)
-                spcutMesh = rmfield(spcutMesh, 'u') ;
-            end
-            
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Save submesh array. Each cell element contains all the 
-            % submeshes for that TP, which in this case is just one.
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % meshStack{tidx} = cutMesh ;
-            % if generate_sphi_coord
-            %     spmeshStack{tidx} = spcutMesh ;
-            % end
-            
-            clear Options IV
+            % NOTE: We have coordinates u,phiv that we associate with
+            % the 3d coordinates already mapped to uv
+            % plot(uspace, phiv, '.')
+            % xlabel('u')
+            % ylabel('\phi')
+            % waitfor(gcf)
 
-            fprintf('Done\n');
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            onesUV = ones(nU, nV) ;
+            uu = uspace * cutMesh.umax .* onesUV ;
+            vv = (vspace .* onesUV')' ;
+            uphi = [uu(:), phiv(:)] ;
+            uv = [uu(:), vv(:)] ;
+            % Note: here interpolate uv in the TV2D coord system, then
+            % use uphi as the actual 2D coordinates for these vertices
+            % NOTE: unlike curves3d, new3d is NOT rotated/translated/scaled
+            new3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
+
+            % Express the coordinates as a grid
+            % new3drs = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uphi) ;
+            prev3d_sphi = reshape(new3d, [nU, nV, 3]) ; 
+
+            % Recompute radii_from_mean_uniform_rs as radii_from_avgpts 
+            % NOTE: all radius calculations done in microns, not pixels
+            sphi3d_rs = ((rot * new3d')' + trans) * resolution ;
+            radii_from_avgpts = zeros(size(sphi3d_rs, 1), size(sphi3d_rs, 2)) ;
+            for jj = 1:nU
+                % Consider this hoop
+                hoop = squeeze(sphi3d_rs(jj, :, :)) ;
+                radii_from_avgpts(jj, :) = vecnorm(hoop - avgpts(jj, :), 2, 2) ;
+            end
+
+            % Triangulate the sphigrid and store as its own cutMesh
+            % sphiv = zeros(nU, nV, 2) ;
+            % sphiv(:, :, 1) = sv ;
+            % sphiv(:, :, 2) = phiv ;
+            sv = ringpath_ss .* onesUV ;
+            % % Triangulate the mesh (topology is already known):
+            % tmptri = defineFacesRectilinearGrid(sp, nU, nV) ;
+            % % Old version did not assume topology as given:
+            % tmptri = delaunay(sv(:), phiv(:)) ;
+            % disp('orienting faces of delaunay triangulation (s,phi)')
+            % tmptri = bfs_orient( tmptri );
+
+            % Define path pairs for tiling the (s,phi) cut mesh
+            spcutP1 = 1:nU;
+            spcutP2 = nU*nV - fliplr(0:(nU-1)) ;
+            spcutMesh.pathPairs = [ spcutP1', spcutP2' ];
+
+            % Check to see if any members of pathPairs connect to
+            % non-Nearest Neighbors. Not necessary now that we assume
+            % known gridded mesh topology
+            % cleantri = cleanBoundaryPath2D(tmptri, [sv(:), phiv(:)], spcutMesh.pathPairs(:), true) ;
+
+            spcutMesh.f = defineFacesRectilinearGrid(uv, nU, nV) ;
+            spcutMesh.nU = nU ;
+            spcutMesh.nV = nV ;
+            % First resampling
+            spcutMesh.v0 = new3d ;
+            % spcutMesh.vrs0 = ((rot * new3d')' + trans) * resolution ;
+            % Define normals based on the original mesh normals
+            spvn03d = interpolate2Dpts_3Dmesh(TF, TV2D, TVN3D, uphi) ;
+            spvn03d = spvn03d ./ vecnorm(spvn03d, 2, 2) ;
+            spcutMesh.vn0 = spvn03d ;
+            spcutMesh.sphi0 = [sv(:), phiv(:)] ;
+            spcutMesh.uphi0 = uphi ;
+            % Note: uv has no direct relation with cutMesh, just a grid
+            % for utility and reference, but it does have unequal 
+            % spacing in u in anticipation of building sphi0 as a 
+            % near perfect grid.
+            spcutMesh.uv = uv ;  
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % SECOND RESAMPLING
+            % Make a new grid
+            slin = linspace(0, max(spcutMesh.sphi0(:, 1)), nU) ;
+            plin = linspace(0, 1, nV) ;
+            [ss, pp] = meshgrid(slin, plin) ;
+            % Push the endpoints on each boundary in by epsilon to
+            % avoid NaNs
+            eps = 1e-14 ;
+            ss(:, 1) = eps ;
+            ss(:, end) = ss(:, end) - eps ;
+            % Transpose so that x increases with increasing index first
+            ss = ss' ;
+            pp = pp' ;
+            sp = [ss(:), pp(:)] ;
+
+            % Tile the spcutMesh
+            tileCount = [2, 2] ;
+            spcutMesh.u = spcutMesh.sphi0 ;
+            spcutMesh.v = spcutMesh.v0 ;
+            spcutMesh.vn = spcutMesh.vn0 ;
+            [ faces, v2d, v3d, vn3d ] = tileAnnularCutMesh( spcutMesh, tileCount );
+            spcutMesh = rmfield(spcutMesh, 'u') ;
+            spcutMesh = rmfield(spcutMesh, 'v') ;
+            spcutMesh = rmfield(spcutMesh, 'vn') ;
+            spv3d = interpolate2Dpts_3Dmesh(faces, v2d, v3d, sp) ;
+            % check the pts
+            % plot3(spv3d(:, 1), spv3d(:, 2), spv3d(:, 3))  
+
+            % also interpolate the normals
+            spvn3d = interpolate2Dpts_3Dmesh(faces, v2d, vn3d, sp) ;
+            spvn3d = spvn3d ./ vecnorm(spvn3d, 2, 2) ;
+
+            % Define new faces for second rectilinear resampling
+            % NOTE: not necessary since we already defined the topology
+            % from the guess [sv(:), phiv(:)] stored as spcutMesh.sphi0
+            % spcutMesh.f = defineFacesRectilinearGrid(sp, nU, nV) ;
+            spcutMesh.sphi = sp ;
+            spcutMesh.v = spv3d ;
+            spcutMesh.vn = spvn3d ;
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+            spcutMesh.ringpath_ss = ringpath_ss ;
+            spcutMesh.radii_from_mean_uniform_rs = radii_from_mean_uniform_rs ;  % from uniform DV sampling
+            spcutMesh.radii_from_avgpts = radii_from_avgpts ;
+            spcutMesh.mss = mss ;       % from uniform DV sampling, also stored in centerline
+            spcutMesh.mcline = mcline ; % from uniform DV sampling, also stored in centerline
+            spcutMesh.avgpts = avgpts ; % from uniform DV sampling, also stored in centerline
+            spcutMesh.avgpts_ss = avgpts_ss ; % from uniform sampling, also stored in centerline
+
+            % Define optimal isoareal Affine dilation factor in s
+            % tmp = spcutMesh.sphi ;
+            % tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
+            % arsp = minimizeIsoarealAffineEnergy( spcutMesh.f, spcutMesh.v, tmp );
+            % clearvars tmp
+            spcutMesh.ar = cutMesh.ar ;
+
+            % todo: check that u coords have not shifted upon
+            % redefinition of sphi0 -> sphi
+
+            % Save s,phi and their 3D embedding
+            spcutMesh.phi0s = phi0s ;
+            spcutMesh.phi0_fit = phi0_fit ;
+            save(sprintf(spcutMeshBase, t), 'spcutMesh') ;
         else
-            disp('Skipping computation of pullback')
+            disp('Loading spcutMesh from disk...')
+            load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
+
+            % Load new centerline
+            fn = sprintf(clineDVhoopBase, t) ;
+            disp(['Loading new centerline from ' fn])
+            load(fn, 'mss', 'mcline', 'avgpts', 'avgpts_ss')
         end
+        fprintf('Done with generating S,Phi coords \n');
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        fprintf('Create pullback using S,Phi coords \n');
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %--------------------------------------------------------------
+        % Generate Output Image Files
+        %--------------------------------------------------------------
+        imfn = sprintf( fullfile([imFolder, '/', fileNameBase, '.tif']), t ); 
+        imfn_r = sprintf( fullfile([imFolder_r, '/', fileNameBase, '.tif']), t ) ;
+        imfn_sp = sprintf( fullfile([imFolder_sp, '/', fileNameBase, '.tif']), t ) ;
+        imfn_up = sprintf( fullfile([imFolder_up, '/', fileNameBase, '.tif']), t ) ;
+        pullbacks_exist1 = exist(imfn, 'file') && exist(imfn_r, 'file') ;
+        pullbacks_exist2 = exist(imfn_sp, 'file') && (exist(imfn_up, 'file') || ~generate_uphi_coord) ;
+        if ~pullbacks_exist1 || ~pullbacks_exist2 || overwrite_pullbacks
+            % Load 3D data for coloring mesh pullback
+            xp.loadTime(t);
+            xp.rescaleStackToUnitAspect();
+
+            % Raw stack data
+            IV = xp.stack.image.apply();
+            IV = imadjustn(IV{1});
+        end
+
+        if ~exist(imfn_sp, 'file') || overwrite_pullbacks
+            fprintf(['Generating SP output image: ' imfn_sp]);
+            % Assigning field spcutMesh.u to be [s, phi] (ringpath
+            % and azimuthal angle)
+            spcutMesh.u = spcutMesh.sphi ;
+            aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_sp)
+            spcutMesh = rmfield(spcutMesh, 'u') ;
+        end
+
+        if (~exist(imfn_up, 'file') || overwrite_pullbacks) && generate_uphi_coord
+            fprintf(['Generating uphi output image: ' imfn_up]);
+            % Assigning field spcutMesh.u to be [s, phi] (ringpath
+            % and azimuthal angle)
+            spcutMesh.u = spcutMesh.uphi ;
+            aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_up)
+            spcutMesh = rmfield(spcutMesh, 'u') ;
+        end
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Generate Output Image File -- regular UV coordinates
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        if ~exist(imfn, 'file') || overwrite_pullbacks
+            % Generate output image in uv
+            fprintf(['Generating output image: ' imfn]);
+            aux_generate_orbifold(cutMesh, a_fixed, IV, imfn)
+        else
+            disp('Skipping pullback image generation since exists')
+        end
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Save relaxed image
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+        if ~exist(imfn_r, 'file')
+            disp('Generating relaxed image for sphi coords...')
+            spcutMesh.u = spcutMesh.sphi ;
+            aux_generate_orbifold(spcutMesh, spcutMesh.ar, IV, imfn_r)
+            spcutMesh = rmfield(spcutMesh, 'u') ;
+        end
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Save submesh array. Each cell element contains all the 
+        % submeshes for that TP, which in this case is just one.
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % meshStack{tidx} = cutMesh ;
+        % if generate_sphi_coord
+        %     spmeshStack{tidx} = spcutMesh ;
+        % end
+
+        clear Options IV
+
+        fprintf('Done\n');
+    else
+        disp('Skipping computation of pullback')
     end
 
-    %% Save SMArr2D (vertex positions in the 2D pullback) -----------------
-    disp(['Saving meshStack to disk: ' mstckfn])
-    save(mstckfn, 'meshStack') ;
-    
-    %% Save SMArr2D (vertex positions in the 2D pullback) -----------------
-    disp(['Saving spmeshStack to disk: ' spmstckfn])
-    if generate_sphi_coord
-        save(spmstckfn, 'spmeshStack') ;
-    end
+%     %% Save SMArr2D (vertex positions in the 2D pullback) -----------------
+%     disp(['Saving meshStack to disk: ' mstckfn])
+%     save(mstckfn, 'meshStack') ;
+%     
+%     %% Save SMArr2D (vertex positions in the 2D pullback) -----------------
+%     disp(['Saving spmeshStack to disk: ' spmstckfn])
+%     if generate_sphi_coord
+%         save(spmstckfn, 'spmeshStack') ;
+%     end
 end
 
 %% Preview results
@@ -1219,6 +1242,7 @@ end
 disp('done')
 
 %% SMOOTH MEAN CENTERLINE RADIUS ==========================================
+% todo: rework this section so that it takes place after smoothing meshes
 redo_smoothed_centerline_and_radius = overwrite_spcutMesh_smoothradii ;
 kk = 1;
 while ~redo_smoothed_centerline_and_radius && kk < (length(xp.fileMeta.timePoints) + 1)
@@ -1398,10 +1422,11 @@ disp('done')
 
 %% Smooth the sphi grid meshes in time 
 % Load all spcutMesh objects 
-vM = zeros(length(xp.fileMeta.timePoints), nU*nV, 3);
-nM = zeros(length(xp.fileMeta.timePoints), nU*nV, 3);
-for i = 1:length(xp.fileMeta.timePoints)
-    t = xp.fileMeta.timePoints(i) ;
+timePoints = xp.fileMeta.timePoints(1:148) ;
+vM = zeros(length(timePoints), nU*nV, 3);
+nM = zeros(length(timePoints), nU*nV, 3);
+for i = 1:length(timePoints)
+    t = timePoints(i) ;
     % Load the spcutMesh for this timepoint
     disp(['Loading spcutMesh from disk... [t = ' num2str(t) ']'])
     load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
@@ -1418,8 +1443,8 @@ tripulse_filt = tripulse_filt ./ sum(tripulse_filt(:)) ;
 vsmM = imfilter(vM, tripulse_filt, 'replicate') ;
 nsmM = imfilter(nM, tripulse_filt, 'replicate') ;
 close all
-for qq = 1:length(xp.fileMeta.timePoints)
-    t = xp.fileMeta.timePoints(qq) ;
+for qq = 1:length(timePoints)
+    t = timePoints(qq) ;
     figfn = fullfile(sphiSmRSImDir, [sprintf('%04d', t ) '.png']) ;
     if ~exist(figfn, 'file')
         fig = figure('visible', 'off') ;

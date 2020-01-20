@@ -93,9 +93,22 @@ for qq = 1:nU
         
     % Visualize the minimization output values
     if visualize
+        % Plot the phi_0s computed thus far
+        figure(1)
         plot(phi0s)
-        title(['computed $phi_0$' num2str(qq) ' / ' num2str(nU)], ...
-            'Interpreter', 'Latex')
+        title(['computed \phi_0: ' num2str(qq) ' / ' num2str(nU)])
+        xlabel('index of uspace')
+        ylabel('\phi_0')
+        
+        % Plot the points being adjusted
+        disp('phiOffsetsFromPrevMesh: casting into 3d')
+        tmp = interpolate2Dpts_3Dmesh(TF, TV2D, ...
+            TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0s(qq), 1)]) ;
+        figure(2)
+        plot3(prev3dvals(:, 1), prev3dvals(:, 2), prev3dvals(:, 3), 'o') ;
+        hold on;
+        plot3(tmp(:, 1), tmp(:, 2), tmp(:, 3), '.-')
+        hold off;
         pause(0.000000001)
     end  
     runtimeIter = toc ;

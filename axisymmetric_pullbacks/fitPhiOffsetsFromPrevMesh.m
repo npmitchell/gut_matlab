@@ -1,12 +1,44 @@
-function [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, uspace, vspace, prev3d_sphi, lowerbound, upperbound, save_im, plotfn)
+function [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D,...
+    uspace, vspace, prev3d_sphi, lowerbound, upperbound, save_im, plotfn, vargin)
 %FITPHIOFFSETSFROMPREVMESH(TF, TV2D, TV3D, uspace, vspace, prev3d_sphi, lowerbound, upperbound, save_im, plotfn) 
 %   Fit the offset phi values to add to V in UV coords to minimize
 %   difference in 3D between current embedding mesh and previous one. This
 %   rotates the hoops of the sphicutMesh.
 %
+% Parameters
+% ----------
+% TF : #faces x 3 int array
+%   connectivity list of the mesh vertices into triangulated faces
+% TV2D : #vertices x 2 float array
+%   the UV mapped coordinates of mesh vertices
+% TV3D : #vertices x 3 float array
+%   the embedding coordinates of mesh vertices
+% uspace : 
+% vspace : 
+% prev3d_sphi
+% lowerbound : float 
+%   lower bound for the fit of phi (offset to v)
+% upperbound : float
+%   upper bound for the fit of phi (offs
+% save_im 
+% plotfn
+% vargin : bool (optional)
+%   preview the progress of phi0
+%
+% Returns
+% -------
+% phi0_fit
+% phi0s : nU x 1 float array 
+%   the additional rotation angles, bounded by (lowerbound, upperbound) 
+% 
 % NPMitchell 2019
 
-                       
+% If a preview input boolean is passed, interpret it
+if nargin > 10
+    preview = vargin ;
+else
+    preview = false ;
+end
 % Consider each value of u in turn
 % Fit for phi0 such that v = phi + phi0, meaning new
 % phi = v - phi0.
@@ -14,7 +46,7 @@ disp('Minimizing phi0s...')
 
 % Using simple offset
 phi0s = phiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
-    uspace, vspace, prev3d_sphi, lowerbound, upperbound, {false}) ;
+    uspace, vspace, prev3d_sphi, lowerbound, upperbound, {preview}) ;
 
 % Using dilation and offset
 % [phi0s, ccoeffs] = phiOffsetsFromPrevMeshWithDilation(TF, TV2D, TV3D, ...

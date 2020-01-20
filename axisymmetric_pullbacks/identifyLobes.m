@@ -79,7 +79,7 @@ for kk = 1:length(timePoints)
     end
     
     % Find the minima in the radius. First make radius 1d
-    rad = mean(spcutMesh.radii_from_mean_uniform, 2) ;
+    rad = mean(spcutMesh.radii_from_mean_uniform_rs, 2) ;
     minidx = islocalmin(rad) ;
     if any(minidx)
         minidx = find(minidx) ;
@@ -194,7 +194,7 @@ for kk = 1:length(timePoints)
     
     % Store maximum radius if desired as output
     if nargout > 4
-        rmax(kk) = max(spcutMesh.radii_from_mean_uniform(:)) ;
+        rmax(kk) = max(spcutMesh.radii_from_mean_uniform_rs(:)) ;
     end
 
     % Plot the indices of the identified folds
