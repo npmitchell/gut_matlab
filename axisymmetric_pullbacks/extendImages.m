@@ -1,4 +1,4 @@
-function extendImages(directory, direc_e, fileNameBase, a_fixed, ntiles)
+function extendImages(directory, direc_e, fileNameBase, a_fixed, ntiles, overwrite)
 % EXTENDIMAGES(directory, direc_e, fileNameBase) Repeat an image above and
 % below
 %
@@ -14,6 +14,8 @@ function extendImages(directory, direc_e, fileNameBase, a_fixed, ntiles)
 %   The number of bins in each dimension for histogram equilization for a
 %   square original image. That is, the extended image will have (a_fixed *
 %   ntiles, 2 * ntiles) bins in (x,y).
+% overwrite : bool
+%   overwrite the existing extended image on disk
 %
 % NPMitchell 2019 
 
@@ -23,8 +25,13 @@ im = imread(fullfile(fns(1).folder, fns(1).name)) ;
 halfsize = round(0.5 * size(im, 1)) ;
 % osize = size(im) ;
 
+% Extend each timepoint's image
 for i=1:length(fns)
-    if ~exist(fullfile(direc_e, fns(i).name), 'file')
+    if ~exist(fullfile(direc_e, fns(i).name), 'file') || overwrite 
+        % Declare if we are overwriting the file
+        if exist(fullfile(direc_e, fns(i).name), 'file') 
+            disp(['Overwriting ' fullfile(direc_e, fns(i).name)])
+        end
         disp(['Reading ' fns(i).name])
         % fileName = split(fns(i).name, '.tif') ;
         % fileName = fileName{1} ;

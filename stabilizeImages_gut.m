@@ -13,7 +13,7 @@ addpath('/mnt/data/code/spimCode/');
 
 workDir = [pwd '/']; 
 
-mipsDir = ['../mips/'];
+mipsDir = ['./mips/'];
 % name of directory to check the stabilization of mips
 mips_stab = [mipsDir 'stab_check/'] ;
 if ~exist(mips_stab, 'dir')
@@ -21,10 +21,10 @@ if ~exist(mips_stab, 'dir')
 end
 
 % Choose reference time for stabilization
-t_ref = 2;  % INDEX, not timestamp, of the reference image
-alltimes = 10:169 ;
-times_todo = [135, 141, 142];  % times to overwrite as tifs
-num2check = 135 ;
+t_ref = 28;  % INDEX, not timestamp, of the reference image
+alltimes = 27:58 ;
+times_todo = [27:58];  % times to overwrite as tifs
+num2check = 50 ;
 % Choose bit depth as typename
 typename = 'uint16' ;
 % Give file names for I/O

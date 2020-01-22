@@ -97,12 +97,12 @@ for kk = 1:length(timePoints)
 
         % Find the average radius over the uniformly sampled hoops. 
         % (make radius 1d)
-        rad = mean(spcutMesh.radii_from_mean_uniform, 2) ;
-        minrad = min(spcutMesh.radii_from_mean_uniform, [], 2) ;
-        maxrad = max(spcutMesh.radii_from_mean_uniform, [], 2) ;
+        rad = mean(spcutMesh.radii_from_mean_uniform_rs, 2) ;
+        minrad = min(spcutMesh.radii_from_mean_uniform_rs, [], 2) ;
+        maxrad = max(spcutMesh.radii_from_mean_uniform_rs, [], 2) ;
         
-        stdradlo = rad - std(spcutMesh.radii_from_mean_uniform, [], 2) ;
-        stdradhi = rad + std(spcutMesh.radii_from_mean_uniform, [], 2) ;
+        stdradlo = rad - std(spcutMesh.radii_from_mean_uniform_rs, [], 2) ;
+        stdradhi = rad + std(spcutMesh.radii_from_mean_uniform_rs, [], 2) ;
 
         if strcmp(method, 'avgpts')
             ss = spcutMesh.avgpts_ss ;

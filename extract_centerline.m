@@ -64,6 +64,8 @@
 %    Generate_Axisymmetric_Pullbacks_Orbifold.m
 %    
 clear ;
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/
+cd data/deconvolved_16bit/msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1
 
 %% First, compile required c code
 % mex ./FastMarching_version3b/shortestpath/rk4
@@ -93,10 +95,11 @@ cd(odir)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 overwrite = false ;  % recompute centerline
 overwrite_apdvcoms = false ;  % recompute APDV coms from training
+overwrite_xyzlim = false ;  % overwrite the limits of xyz if they exist
 save_figs = true ;  % save images of cntrline, etc, along the way
 overwrite_ims = false ;  % overwrite images even if centerlines are not overwritten
 preview = false ;  % display intermediate results, for debugging
-res = 1 ;  % pixels per gridspacing of DT for cntrline extraction, in units of subsampled pixels
+res = 0.3 ;  % pixels per gridspacing of DT for cntrline extraction, in units of subsampled pixels
 resolution = 0.2619 ;  % um per pixel for full resolution (not subsampled)
 dorsal_thres = 0.9 ;  % threshold for extracting Dorsal probability cloud 
 buffer = 5 ;  % extra space in meshgrid of centerline extraction, to ensure mesh contained in volume
@@ -133,7 +136,7 @@ outdir = [fullfile(meshdir, 'centerline') filesep ];
 if ~exist(outdir, 'dir')
     mkdir(outdir) ;
 end
-fns = dir(fullfile(meshdir, 'mesh_apical_stab_0*.ply')) ;
+fns = dir(fullfile(meshdir, 'meshes/mesh_apical_stab_0*.ply')) ;
 % Ensure that PLY files exist
 if isempty(fns)
     error('Found no matching PLY files in ' + meshdir)
@@ -387,7 +390,8 @@ disp('done')
 xminrs = 0 ; xmaxrs = 0;
 yminrs = 0 ; ymaxrs = 0;
 zminrs = 0 ; zmaxrs = 0;
-for ii=1:length(fns)
+first_pass = true ;
+for ii=(length(fns) - 1):length(fns)
     % Pick out the acom and pcom in SUBSAMPLED UNITS from smoothed sequence
     acom = acom_sm(ii, :) ;
     pcom = pcom_sm(ii, :) ; 
@@ -560,8 +564,12 @@ for ii=1:length(fns)
         else
             disp('Loading rotation from disk since already exists...')
             rot = dlmread([rotname '.txt']) ;
-            dcom = dlmread(dcomname) ;
+            dcom = dlmread(dcomname, ',', 1, 0) ;
         end
+    else
+        disp('Loading rotation from disk since already exists...')
+        rot = dlmread([rotname '.txt']) ;
+        dcom = dlmread(dcomname, ',', 1, 0) ;
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Define start point
@@ -643,6 +651,7 @@ for ii=1:length(fns)
         fv.faces = reorient_facets( fv.vertices, fv.faces );
         inside = inpolyhedron(fv, xx, yy, zz) ;
         outside = 1 - inside ;
+        disp('> Computed segmentation:')
         toc ; 
 
         % use the distanceTransform from Yuriy Mishchenko
@@ -655,6 +664,7 @@ for ii=1:length(fns)
         % DD = 1 - DD ;
         DD = DD.^(exponent) ; 
         DD(logical(outside)) = eps ;
+        disp('> Computed DT:')
         toc ; 
 
         if preview
@@ -692,8 +702,8 @@ for ii=1:length(fns)
         %% use Peyre's fast marcher
         msg = strrep(['Computing centerline for ' fns(ii).name], '_', '\_') ;
         waitbar(ii/length(fns), fbar, msg)
+        
         tic
-
         % From example (DD is W, with low values being avoided)
         options.heuristic = weight * DD ;
         % Convert here to the gridspacing of xx,yy,zz
@@ -704,7 +714,8 @@ for ii=1:length(fns)
         % plot_fast_marching_3d(D2, S, path, startpt, endpt);
 
         % Show the intermediate result
-        disp('found skel')        
+        disp('> Found skel via geodesic fast marching')        
+        toc
         if preview
             % Preview D2
             clf ;
@@ -748,6 +759,8 @@ for ii=1:length(fns)
         trans = -(rot * spt')' ;
         disp(['Saving translation vector (post rotation) to txt: ', transname, '.txt'])
         dlmwrite([transname '.txt'], trans)
+    else
+        trans = dlmread([transname '.txt'], ',', 0, 0) ;
     end
     
     %% Rotate and translate vertices and endpoints
@@ -788,7 +801,7 @@ for ii=1:length(fns)
     zmaxrs = max(zmaxrs, max(xyzrs(:, 3))) ;
     
     %% Get axis limits if this is first TP
-    if ii == 1
+    if first_pass
         % Check if already saved. If so, load it. Otherwise, guess.
         fntmp = [xyzlimname_um '.txt'] ;
         if exist(fntmp, 'file')
@@ -811,6 +824,7 @@ for ii=1:length(fns)
         xmaxrs_plot = xmaxrs + plot_buffer ;
         ymaxrs_plot = ymaxrs + plot_buffer ;
         zmaxrs_plot = zmaxrs + plot_buffer ;    
+        first_pass = false ;
     end
     
     %% Check the rotation
@@ -1148,20 +1162,56 @@ for ii=1:length(fns)
 end
 
 % Save xyzlimits 
-disp('Saving rot/trans mesh xyzlimits for plotting')
-header = 'xyzlimits for rotated translated meshes in units of full resolution pixels' ;
 fn = [xyzlimname '.txt'] ;
-dat = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] / resolution;
-write_txt_with_header(fn, dat, header) ;
+if ~exist(fn, 'file') || overwrite_xyzlim
+    disp('Saving rot/trans mesh xyzlimits for plotting')
+    header = 'xyzlimits for rotated translated meshes in units of full resolution pixels' ;
+    dat = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] / resolution;
+    write_txt_with_header(fn, dat, header) ;
+end
 
 % Save xyzlimits in um
-disp('Saving rot/trans mesh xyzlimits for plotting, in microns')
-header = 'xyzlimits for rotated translated meshes in microns' ;
 fn = [xyzlimname_um '.txt'] ;
-dat = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] ;
-write_txt_with_header(fn, dat, header) ;
+if ~exist(fn, 'file') || overwrite_xyzlim
+    disp('Saving rot/trans mesh xyzlimits for plotting, in microns')
+    header = 'xyzlimits for rotated translated meshes in microns' ;
+    dat = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] ;
+    write_txt_with_header(fn, dat, header) ;
+end
 
 if isvalid(fbar)
     close(fbar)
 end
 disp('done')
+
+
+%% Check specific timepoints if we have a different resolution 
+% This shows that resolution does not affect the overall scale of the
+% centerline.
+check = res < 1.0 ;
+if check
+    for ii = 149
+        % Load the filename
+        name_split = strsplit(fns(ii).name, '.ply') ;
+        name = name_split{1} ; 
+        expstr = strrep(num2str(exponent, '%0.1f'), '.', 'p') ;
+        resstr = strrep(num2str(res, '%0.1f'), '.', 'p') ;
+        extenstr = ['_exp' expstr '_res' resstr] ;
+        outname = [fullfile(outdir, name) '_centerline' extenstr] ;
+        xyz = dlmread([outname '.txt']) ;
+        
+        % Load the filename
+        name_split = strsplit(fns(ii).name, '.ply') ;
+        name = name_split{1} ; 
+        expstr = strrep(num2str(exponent, '%0.1f'), '.', 'p') ;
+        resstr = strrep(num2str(1.0, '%0.1f'), '.', 'p') ;
+        extenstr = ['_exp' expstr '_res' resstr] ;
+        outname = [fullfile(outdir, name) '_centerline' extenstr] ;   
+        xyz2 = dlmread([outname '.txt']) ;
+        
+        figure; hold on;
+        plot3(xyz(:, 1), xyz(:, 2), xyz(:, 3))
+        hold on;
+        plot3(xyz2(:, 1), xyz2(:, 2), xyz2(:, 3))
+    end
+end

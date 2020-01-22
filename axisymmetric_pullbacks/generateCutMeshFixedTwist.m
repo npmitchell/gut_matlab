@@ -160,7 +160,6 @@ disp(['Cutting mesh using method ' cutOptions.method])
         % end
     end
     disp('Twist within range. Continuing...')
-    error('break')
 % catch
 %     disp('Could not cut this timepoint: Input mesh probably NOT a cylinder')
 %     success = false ;
