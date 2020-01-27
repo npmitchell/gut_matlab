@@ -48,6 +48,8 @@ function ax = phasebar(varargin)
 % colormap selection. Oceanography 29(3):9?13. 
 % http://dx.doi.org/10.5670/oceanog.2016.66
 % 
+% Edits and improvements by NPMitchell 2020 
+%
 % See also colorbar and phasemap. 
 
 
@@ -57,8 +59,9 @@ usedegrees = false;
 axsize = 0.3; 
 location = 'northeast'; 
 
-% Try to automatically determine if current displayed data exist and are in radians or degrees: 
-if max(abs(caxis))>pi
+% Try to automatically determine if current displayed data exist and are
+% in radians or degrees: 
+if max(abs(caxis))>(2 * pi + 1e-14)
    usedegrees = true;
 else
    usedegrees = false; 
@@ -162,21 +165,26 @@ end
 
 %% Set position of colorwheel: 
 
-switch lower(location)
-   case {'ne','northeast'} 
-      set(ax,'position',[pos(1)+(1-axsize)*pos(3) pos(2)+(1-axsize)*pos(4) axsize*pos(3) axsize*pos(4)]); 
+try
+    switch lower(location)
+       case {'ne','northeast'} 
+          set(ax,'position',[pos(1)+(1-axsize)*pos(3) pos(2)+(1-axsize)*pos(4) axsize*pos(3) axsize*pos(4)]); 
 
-   case {'se','southeast'} 
-      set(ax,'position',[pos(1)+(1-axsize)*pos(3) pos(2) axsize*pos(3) axsize*pos(4)]); 
-      
-   case {'nw','northwest'} 
-      set(ax,'position',[pos(1) pos(2)+(1-axsize)*pos(4) axsize*pos(3) axsize*pos(4)]); 
-      
-   case {'sw','southwest'} 
-      set(ax,'position',[pos(1) pos(2) axsize*pos(3) axsize*pos(4)]); 
-      
-   otherwise
-      error('Unrecognized axis location.') 
+       case {'se','southeast'} 
+          set(ax,'position',[pos(1)+(1-axsize)*pos(3) pos(2) axsize*pos(3) axsize*pos(4)]); 
+
+       case {'nw','northwest'} 
+          set(ax,'position',[pos(1) pos(2)+(1-axsize)*pos(4) axsize*pos(3) axsize*pos(4)]); 
+
+       case {'sw','southwest'} 
+          set(ax,'position',[pos(1) pos(2) axsize*pos(3) axsize*pos(4)]); 
+
+       otherwise
+          error('Unrecognized axis location.') 
+    end
+catch
+    % location is given as 1 x 4 array
+    set(ax,'position',location); 
 end
       
 %% Clean up 
@@ -184,13 +192,14 @@ end
 set(ax,'tag','phasebar')
 
 % Make starting axes current again: 
-axes(currentAx); 
+% axes(currentAx); 
+set(gcf,'CurrentAxes',currentAx)
 
 uistack(ax,'top'); 
 
-if nargout==0 
-   clear ax
-end
+% if nargout==0 
+%    clear ax
+% end
 
 end
 
@@ -285,7 +294,6 @@ else
 end
 
 % Convert plot box position to the units used by the axis
-
 temp = axes('Units', 'Pixels', 'Position', pos, 'Visible', 'off', 'parent', get(h, 'parent'));
 set(temp, 'Units', currunit);
 pos = get(temp, 'position');

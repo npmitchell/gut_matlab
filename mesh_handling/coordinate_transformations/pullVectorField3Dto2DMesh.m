@@ -19,7 +19,7 @@ function [vfield2d, jac3d_to_2d] = pullVectorField3Dto2DMesh(vfield3d, v2d, v3d,
 %
 % Returns
 % -------
-% vfield2d : #faces x 2 float array
+% vfield2d : #fieldfaces x 2 float array
 %   The vector field mapped to the 2d mesh
 % jac3d_to_2d : length(ff) x 1 cell array
 %   A cell array containing the jacobian for each face as each element

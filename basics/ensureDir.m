@@ -1,4 +1,4 @@
-function ensureDir(dirpath)
+function dirpath = ensureDir(dirpath)
 %ENSUREDIR(dirpath) create a directory if it does not exist already
 %
 % Parameters
@@ -6,6 +6,10 @@ function ensureDir(dirpath)
 % dirpath : str
 %   The path to create if it does not exist
 %
+% Returns
+% -------
+% dirpath : str
+%   Returns the input, for convenience
 % 
 % NPMitchell 2019
 

@@ -153,9 +153,9 @@ if ~ismember(cp1, bdyIDx) || ~ismember(cp2, bdyIDx)
     hold on
     axis equal
     scatter3(vertexIn(cp1, 1), vertexIn(cp1, 2), vertexIn(cp1, 3), ...
-        '-r', 'filled');
+        'r', 'filled');
     scatter3(vertexIn(cp2, 1), vertexIn(cp2, 2), vertexIn(cp2, 3), ...
-        '-r', 'filled');
+        'r', 'filled');
     hold off
     
     error('One or more input point does not lie on the mesh boundary!');

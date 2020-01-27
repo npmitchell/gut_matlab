@@ -44,6 +44,7 @@ function texture_patch_3d( FF, VV, TF, TV, IV, Options)
 %   by Dillon Cislo 08/14/2019
 %   NPMitchell added Rotation, Translation, & Dilation options 09/2019
 %   NPMitchell grouped surfaces into a Parent container for speedup 09/2019
+%   NPMitchell added colorize to options
 
 %--------------------------------------------------------------------------
 % INPUT PROCESSING

@@ -1,0 +1,242 @@
+%%
+clear; close all; clc;
+
+% Add the path of Ricci Flow
+addpath('/mnt/data/code/DiscreteRicciFlow/')
+
+% Load the test mesh
+mesh = read_ply_mod('./mesh_apical_stab_000258_cylindercut_clean.ply') ;
+
+% Grab the indices to connect via the cut path
+cp1 = h5read('./adIDx.h5', sprintf('/%06d', 258)) ;
+cp2 = h5read('./pdIDx.h5', sprintf('/%06d', 258)) ;
+
+% preview it
+trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
+    'FaceAlpha', 0.5, 'EdgeColor', 'none') ;
+hold on
+scatter3(mesh.v(cp1, 1), mesh.v(cp1, 2), mesh.v(cp1, 3), ...
+    'r', 'filled');
+scatter3(mesh.v(cp2, 1), mesh.v(cp2, 2), mesh.v(cp2, 3), ...
+    'r', 'filled');
+hold off
+axis equal
+
+% Statistics
+% distribution of internal angles and vertex valency
+figure
+angles = internalangles(mesh.v, mesh.f) ;
+histogram(angles(:) * 180 / pi)
+xlabel('angles [deg]')
+ylabel('occurence')
+title('Angle distribution')
+
+% Also check vertex valence
+figure
+vtxValence = zeros(size(mesh.v,1), 1);
+eIDx = edges( triangulation( mesh.f, mesh.v ) );
+for v = 1:size(mesh.v,1)
+    vtxValence(v) = sum(any(eIDx==v, 2)) ;
+end
+histogram(vtxValence)
+xlabel('valence')
+ylabel('occurence')
+title('Vertex valence distribution')
+
+%% Generate a cut mesh with ricci option
+cutOptions.method = 'ricci' ;
+cutOptions.ricciShape = 'polygon' ;
+cutmesh = cylinderCutMesh(mesh.f, mesh.v, mesh.vn, cp1, cp2, cutOptions) ;
+
+% Plot the result
+path = cutmesh.pathPairs(:, 1) ;
+trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
+    'FaceAlpha', 0.5, 'EdgeColor', 'none') ;
+hold on
+scatter3(mesh.v(cp1, 1), mesh.v(cp1, 2), mesh.v(cp1, 3), ...
+    'r', 'filled');
+scatter3(mesh.v(cp2, 1), mesh.v(cp2, 2), mesh.v(cp2, 3), ...
+    'r', 'filled');
+plot3(mesh.v(path, 1), mesh.v(path, 2), mesh.v(path, 3))
+hold off
+axis equal
+
+
+%% Now repeat with Ricci Flow
+
+[L, V2D] = DiscreteRicciFlow.EuclideanRicciFlow(mesh.f, mesh.v, ...
+    'BoundaryType', 'Fixed');
+
+%%
+
+triplot(triangulation(bfs_orient(mesh.f), V2D));
+axis equal
+
+
+%% Run the Procedure Again With a Cleaned Mesh
+
+% Run isotropic remeshing
+eIDx = edges(triangulation(mesh.f, mesh.v));
+L3D = mesh.v(eIDx(:,2),:) - mesh.v(eIDx(:,1),:);
+L3D = sqrt(sum(L3D.^2, 2));
+
+target_edge_length = median(L3D);
+num_iter = 5;
+protect_border = 0;
+
+[cleanF, cleanV, ~, cleanVN] = isotropic_remeshing( mesh.f, mesh.v, ...
+    target_edge_length, num_iter, protect_border );
+
+cleanMesh = struct( 'f', cleanF, 'v', cleanV, 'vn', cleanVN );
+
+clear target_edge_length num_iter protect_border cleanF cleanV cleanVN L3D
+
+% Point match the dorsal points to the clean mesh
+cleanCP1 = pointMatch( mesh.v(cp1,:), cleanMesh.v );
+cleanCP2 = pointMatch( mesh.v(cp2,:), cleanMesh.v );
+
+bdyIDx = unique(freeBoundary(triangulation(cleanMesh.f, cleanMesh.v)));
+if ~ismember( cleanCP1, bdyIDx )
+    warning( 'CP1 is not a member of the new boundary' );
+end
+
+if ~ismember( cleanCP2, bdyIDx )
+    warning( 'CP2 is not a member of the new boundary' );
+end
+
+% View results ------------------------------------------------------------
+trisurf(triangulation(cleanMesh.f, cleanMesh.v), ...
+    'FaceAlpha', 0.5, 'EdgeColor', 'k') ;
+hold on
+
+scatter3(cleanMesh.v(cleanCP1, 1), cleanMesh.v(cleanCP1, 2), ...
+    cleanMesh.v(cleanCP1, 3), ...
+    'r', 'filled');
+scatter3(cleanMesh.v(cleanCP2, 1), cleanMesh.v(cleanCP2, 2), ...
+    cleanMesh.v(cleanCP2, 3), ...
+    'm', 'filled');
+hold off
+axis equal
+
+%% View statistics
+
+% The internal angles of the clean mesh
+angles = internalangles( cleanMesh.v, cleanMesh.f );
+angles = 180 .* angles(:) ./ pi;
+
+% The vertex valency of the clean mesh
+vtxValence = zeros(size(cleanMesh.v,1), 1);
+eIDx = edges( triangulation( cleanMesh.f, cleanMesh.v ) );
+for v = 1:size(cleanMesh.v,1)
+    vtxValence(v) = sum(any(eIDx==v, 2)) ;
+end
+
+figure
+
+subplot(1,2,1)
+histogram(angles);
+xlabel('angles [deg]')
+ylabel('occurence')
+title('Angle distribution')
+
+subplot(1,2,2)
+histogram(vtxValence)
+xlabel('valence')
+ylabel('occurence')
+title('Vertex valence distribution')
+
+%% Calculate an embedding of the clean mesh with Ricci Flow
+
+% [L, V2D] = DiscreteRicciFlow.EuclideanRicciFlow( cleanMesh.f, ...
+%     cleanMesh.v, 'BoundaryType', 'Fixed', 'BoundaryShape', 'Circles', ...
+%     'CircTolerance', 1e-5);
+
+% [L, V2D] = DiscreteRicciFlow.EuclideanRicciFlow( cleanMesh.f, ...
+%     cleanMesh.v, 'BoundaryType', 'Fixed', ...
+%     'Embedding', 'CircIntersect' );
+
+[L, V2D] = DiscreteRicciFlow.EuclideanRicciFlow( cleanMesh.f, ...
+    cleanMesh.v, 'ScaleMetric', false );
+
+%% Use a Different Embedding Method
+
+V2D = DiscreteRicciFlow.embedMetric2D_CircleQueue(L, cleanMesh.f);
+
+
+%% Find a cut path --------------------------------------------------------
+
+% Find the IDs of the edges on the mesh boundary
+bdyIDx = freeBoundary(triangulation(cleanMesh.f, cleanMesh.v));
+bdyE = ismember( sort(eIDx,2), sort(bdyIDx,2), 'rows' );
+
+% Set boundary edge lengths to +Inf - this will prevent any cut path
+% generated by a shortest path method from wandering along the input
+% mesh boundary
+LGraph = L;
+LGraph(bdyE) = Inf;
+
+% Generate the graph structure used to determine the cut path -------------
+
+
+% Construct an #V x #V vertex adjacency matrix
+A = sparse( [ eIDx(:,1); eIDx(:,2) ], ...
+    [ eIDx(:,2), eIDx(:,1) ], ...
+    [ LGraph; LGraph ], size(cleanMesh.v, 1), size(cleanMesh.v, 1) );
+
+% A MATLAB-style weighted, undirected graph representation of the mesh
+% triangulation.
+G = graph(A);
+
+% The cut path
+cutPath = shortestpath( G, cleanCP1, cleanCP2 )';
+
+% Generate a cut mesh with ricci option
+% cutOptions.method = 'ricci' ;
+% cutOptions.ricciShape = 'circles' ;
+% cutOptions.ricciDisp = true ;
+% cleanCutMesh = cylinderCutMesh(cleanMesh.f, cleanMesh.v, cleanMesh.vn, ...
+%     cleanCP1, cleanCP2, cutOptions) ;
+%
+% cutPath = cleanCutMesh.pathPairs(:,1);
+
+%% View Results -----------------------------------------------------------
+
+% Many times faster than the ImSAnE version
+bdy = DiscreteRicciFlow.compute_boundaries(cleanMesh.f);
+
+figure
+
+subplot(1,2,1);
+trisurf(triangulation(cleanMesh.f, cleanMesh.v), ...
+    'FaceAlpha', 0.5, 'EdgeColor', 'none') ;
+hold on
+for i = 1:numel(bdy)
+    plot3(cleanMesh.v(bdy{i},1), cleanMesh.v(bdy{i},2), ...
+    cleanMesh.v(bdy{i},3), '-g', 'LineWidth', 2);
+end
+scatter3(cleanMesh.v(cleanCP1, 1), cleanMesh.v(cleanCP1, 2), ...
+    cleanMesh.v(cleanCP1, 3), ...
+    'r', 'filled');
+scatter3(cleanMesh.v(cleanCP2, 1), cleanMesh.v(cleanCP2, 2), ...
+    cleanMesh.v(cleanCP2, 3), ...
+    'm', 'filled');
+plot3(cleanMesh.v(cutPath,1), cleanMesh.v(cutPath,2), ...
+    cleanMesh.v(cutPath,3), '-r', 'LineWidth', 2 );
+hold off
+axis equal
+
+subplot(1,2,2);
+triplot(triangulation(cleanMesh.f, V2D));
+hold on
+for i = 1:numel(bdy)
+    plot(V2D(bdy{i},1), V2D(bdy{i},2), '-g', 'LineWidth', 2);
+end
+scatter(V2D(cleanCP1, 1), V2D(cleanCP1, 2), 'r', 'filled');
+scatter(V2D(cleanCP2, 1), V2D(cleanCP2, 2), 'r', 'filled');
+plot( V2D(cutPath,1), V2D(cutPath,2), '-r', 'LineWidth', 2 );
+hold off
+axis equal
+title('Cut Path Embedding');
+
+
+
