@@ -16,12 +16,15 @@ function [phi0s] = phiOffsetsFromPrevMesh(TF, TV2D, TV3Drs, uspace, ...
 %   The mesh vertex locations in 3d
 % uspace : nU float array
 %   The values of u for each line of constant v in pullback space
-% vspace : nV float array
-%   The values of v for each line of constant u in pullback space
+% vspace : nV float array OR nU x nV float array as grid
+%   If nV x 1 float array, the values of v for each line of constant u in 
+%   pullback space, otherwise the values for the whole grid
 % prev3d_sphi : nU x nV x 3 float array
 %   The 3D coordinates of the embedding for the reference timepoint
 %   (previous timepoint, for ex) at the 2D locations given by uspace and 
-%   vspace. Note that uspace is not used explicitly, only nU = length(uspace) 
+%   vspace. Note that uspace is not used explicitly, only nU is used to 
+%   extract the strips over which we iterate, minimizing for phi0 for each
+%   strip.
 % 
 % Returns
 % -------
@@ -55,14 +58,30 @@ end
 % Consider each value of u in turn
 % Fit for phi0 such that v = phi - phi0
 nU = length(uspace) ;
-nV = length(vspace) ;
+if any(size(vspace) == 1)
+    % we find that vspace has been passed as a 1d array, as in linspace
+    nV = length(vspace) ;
+    input_v_is_function_of_u = false ;
+else
+    % we find that vspace has been passed as a grid, as in meshgrid
+    nV = size(vspace, 1) ;
+    input_v_is_function_of_u = true ;
+end
+
 phi0s = zeros(nU, 1) ;
-% The V values here are (0...1)
-vqq = vspace ;
 
 prog = repmat('.', [1 floor(nU/10)]) ;
 for qq = 1:nU
     tic 
+    
+    % Define vqq, the input v values for this u=const strip of the pullback
+    if input_v_is_function_of_u
+        vqq = vspace(qq, :)' ;
+    else
+        % The V values here are linspace as given, typically (0...1)
+        vqq = vspace ;
+    end
+    
     % curve = curves3d(qq, :) ;
     % The previous 3d embedding values are stored 
     prev3dvals = squeeze(prev3d_sphi(qq, :, :)) ;
@@ -88,7 +107,7 @@ for qq = 1:nU
     phi0s(qq) = fminbnd(@(phi0)...
         sum(vecnorm(...
         interpolate2Dpts_3Dmesh(TF, TV2D, ...
-            TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)]) ...
+            TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)] ) ...
             - prev3dvals, 2, 2) .^ 2), lowerbound, upperbound, options);
         
     % Visualize the minimization output values

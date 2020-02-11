@@ -41,7 +41,11 @@ vxa = v3d(:, 1) ;
 vya = v3d(:, 2) ;
 vza = v3d(:, 3) ;
 
-assert(size(vxa, 1) == size(v2d, 1))
+if size(vxa, 1) ~= size(v2d, 1)
+    disp(['size of v3d supplied = ' num2str(size(v3d))])
+    disp(['size of v2d supplied = ' num2str(size(v2d))])
+    error('Length of v3d and v2d must match (same #pts)')
+end
 
 % Map to the faces
 tria = tr0.ConnectivityList(fieldfaces, :) ;

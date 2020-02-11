@@ -1,7 +1,8 @@
-function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, xx, yy, vx, vy, vscale, ...
+function [h1, h2] = vectorFieldQuiverOnImage(im, xx, yy, vx, vy, vscale, ...
     options)
-%VECTORFIELDHEATPHASEONIMAGE(im, xx, yy, vx, vy, vscale, options)
-%   Plot a vector field (vx,vy) evaluated at grid[xx, yy] on an image im
+%VECTORFIELDQUIVERONIMAGE(im, xx, yy, vx, vy, vscale, options)
+%   Plot a vector field (vx,vy) evaluated at grid[xx, yy] on an image im as
+%   quiverplot (subsampled quiver)
 %
 % xx : N x 1 float array
 %   x values of PIV grid evaluation points
@@ -20,19 +21,14 @@ function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, xx, yy, vx
 %       colorbar label. Default is '$|v|$ [$\mu$m / min]' 
 %   qsubsample : int
 %       subsampling factor of the quiver field
-%   overlay_quiver : bool (default=true)
-%       whether to show the quiverplot overlay
 %   qscale : float
 %       overall scale of the quivers
 %   outfn : str
 %       output filename for figure as png 
-%   ylim : [miny, maxy]
-%       minimimum and maximum y values in main axis
 %
 % Returns
 % -------
 % h1 : handle for imshow
-% h2 : handle for imagesc
 % h3 : handle for quiverplot
 %
 % NPMitchell 2020
@@ -64,11 +60,11 @@ end
 ww = length(xx) ;
 hh = length(yy) ;
 vangle = mod(atan2(vy, -vx), 2* pi) ;
-speed = reshape(vecnorm([vx(:), vy(:)], 2, 2), [hh, ww]);
+speed = reshape(vecnorm([vx(:), vy(:)], 2, 2), [ww, hh]);
 
 % Compute angle of the velocity vector
-if ~all(size(vangle) == [hh, ww])
-    vangle = reshape(vangle, [hh, ww]) ;
+if ~all(size(vangle) == [ww, hh])
+    vangle = reshape(vangle, [ww, hh]) ;
 end
 
 % Set up the figure
@@ -77,58 +73,27 @@ fig = figure('units', 'normalized', ...
     'outerposition', [0 0 1 1], 'visible', 'off') ;
 h1 = imshow(im) ;
 hold on;
-h2 = imagesc(xx, yy, vangle) ;
-set(h2, 'AlphaData', speed / vscale)
-ax = gca() ;
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % QUIVER 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if overlay_quiver    
-    vx = reshape(vx, [hh, ww]) ;
-    vy = reshape(vy, [hh, ww]) ;
-    QX = imresize(vx, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
-    QY = imresize(vy, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
-    xq = 1:qsubsample:ww ;
-    yq = 1:qsubsample:hh ;
-    [xg, yg] = meshgrid(xx(xq), yy(yq)) ;
+vx = reshape(vx, [ww, hh]) ;
+vy = reshape(vy, [ww, hh]) ;
+QX = imresize(vx, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
+QY = imresize(vy, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
+xq = 1:qsubsample:ww ;
+yq = 1:qsubsample:hh ;
+[xg, yg] = meshgrid(xx(xq), yy(yq)) ;
 
-    h3 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, 'k', 'LineWidth', 1.2) ;
-else
-    h3 = [] ;
-end
+h2 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, 'k', 'LineWidth', 1.2) ;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Phasemap
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-colormap phasemap
-caxis([0, 2*pi])
-if isfield(options, 'ylim')
-    ylim(ylim)  % [size(im, 2) * 0.25, size(im, 2) * 0.75]
-end
-set(gca, 'Position', [0 0.11 0.85 0.8]) ;
-% Add phasebar
-phasebar('location', [0.87, 0.7, 0.1, 0.1]) ;
-ax2 = gca() ;
-% Add colorbar
-cax = axes('Position',[.9 .3 .02 .3]) ;
-[~, yyq] = meshgrid(0:4, 0:100) ;
-imshow(fliplr(yyq/max(yyq(:))))
-axis on
-yyaxis right
-ylabel(labelstr, 'color', 'k', ...
-    'Interpreter', 'Latex')
-yticks([0 1])
-yticklabels({'0', num2str(vscale)})
-xticks([])
-yyaxis left
-yticks([])
-cax.YAxis(1).Color = 'k';
-cax.YAxis(2).Color = 'k';
+error('finish this function: make arrow to show scale')
 
-% folds
-% plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
 if isfield(options, 'outfn')
     saveas(fig, options.outfn) ;   
     close all

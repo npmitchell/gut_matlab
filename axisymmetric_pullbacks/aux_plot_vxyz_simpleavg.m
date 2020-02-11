@@ -26,7 +26,7 @@ vz = reshape(vsm_ii(:, 3), gridsz) ;
 close all
 fig = figure('units', 'normalized', ...
     'outerposition', [0 0 1 1], 'visible', 'off') ;
-scalarFieldOnImage(im, xx, yy, vx, alphaVal, vscale, 'v_x [\mum/min]')
+scalarFieldOnImage(im, xx, yy, vx, alphaVal, vscale, '$v_x$ [$\mu$m/min]') ;
 ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
 axis off
 saveas(gcf, fullfile(pivSimpleAvgImXDir, [sprintf('%04d', time_ii) '.png']))
@@ -35,7 +35,7 @@ saveas(gcf, fullfile(pivSimpleAvgImXDir, [sprintf('%04d', time_ii) '.png']))
 close all
 fig = figure('units', 'normalized', ...
     'outerposition', [0 0 1 1], 'visible', 'off') ;
-scalarFieldOnImage(im, xx, yy, vy, alphaVal, vscale, 'v_y [\mum/min]')
+scalarFieldOnImage(im, xx, yy, vy, alphaVal, vscale, '$v_y$ [$\mu$m/min]') ;
 ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
 axis off
 saveas(gcf, fullfile(pivSimpleAvgImYDir, [sprintf('%04d', time_ii) '.png']))
@@ -44,7 +44,7 @@ saveas(gcf, fullfile(pivSimpleAvgImYDir, [sprintf('%04d', time_ii) '.png']))
 close all
 fig = figure('units', 'normalized', ...
     'outerposition', [0 0 1 1], 'visible', 'off') ;
-scalarFieldOnImage(im, xx, yy, vz, alphaVal, vscale, 'v_z [\mum/min]')
+scalarFieldOnImage(im, xx, yy, vz, alphaVal, vscale, '$v_z$ [$\mu$m/min]') ;
 ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
 axis off
 saveas(gcf, fullfile(pivSimpleAvgImZDir, [sprintf('%04d', time_ii) '.png']))

@@ -62,7 +62,7 @@ end
 
 % Verify input cut mesh
 if ~isfield( cutMesh, 'u' )
-    error('Cut mesh must contain 2D pullback coordinates');
+    error("Cut mesh must contain 2D pullback coordinates as field 'u'");
 end
 
 pathPairs = cutMesh.pathPairs;

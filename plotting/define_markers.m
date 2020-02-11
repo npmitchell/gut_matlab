@@ -1,5 +1,6 @@
 function markers = define_markers(nmarkers)
-%DEFINE_MARKERS return cell array of markerstyles
+%DEFINE_MARKERS(nmarkers)
+%   Return cell array of markerstyles (cyclic if nmarkers is large)
 %   
 % Parameters
 % ----------
@@ -13,9 +14,24 @@ function markers = define_markers(nmarkers)
 %
 % NPMitchell 2019
 
-markers = {'+','o','*','x','v','d','^','s','>','<'} ;
-markers = markers(1:nmarkers) ;
-% todo: if nmarkers > length(markers), set up a cycle here
+markers_avail = {'o', 's', '^', '+', 'd', '*',  'v', 'x', '>', 'p', '<', 'h'} ;
+
+% if nmarkers > number of markers available, set up a cycle here
+if nmarkers < length(markers_avail)
+    markers = markers_avail(1:nmarkers) ;
+else
+    disp('Warning: number of markers requested exceeds distinct built-in markers available, cycling...')
+    % preallocate
+    markers = cell(1, nmarkers) ;
+    navail = length(markers_avail) ;
+    for qq = 1:nmarkers
+        idx = mod(qq, navail) ;
+        if idx == 0
+            idx = navail ;
+        end
+        markers{qq} = markers_avail{idx} ;
+    end
+end
 
 end
 

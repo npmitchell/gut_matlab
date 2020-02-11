@@ -21,10 +21,10 @@ if ~exist(mips_stab, 'dir')
 end
 
 % Choose reference time for stabilization
-t_ref = 28;  % INDEX, not timestamp, of the reference image
-alltimes = 27:58 ;
-times_todo = [27:58];  % times to overwrite as tifs
-num2check = 50 ;
+t_ref = 12;  % INDEX, not timestamp, of the reference image
+alltimes = 12:47 ;
+times_todo = [12:47];  % times to overwrite as tifs
+num2check = 35 ;
 % Choose bit depth as typename
 typename = 'uint16' ;
 % Give file names for I/O

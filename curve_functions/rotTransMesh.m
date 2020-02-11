@@ -1,4 +1,4 @@
-function [ssdiff] = rotTransMesh(vars, mesh1, mesh2)
+function [ssdiff] = rotTransMesh(vars, curmesh, refmesh)
 % Given two meshes, find Euler angles and translation vector from first
 % mesh to second mesh using point matching
 %
@@ -38,7 +38,7 @@ zoff = vars(6); % z-component of tranlational vector
 
 % Creating Proper Euler transformation matrix (X1.Z2.X3)
 
-Eul = zeros(3,3) ;
+Eul = zeros(4,4) ;
 Eul(1,1) = cos(eul2);
 Eul(1,2) = -cos(eul3)*sin(eul2);
 Eul(1,3) = sin(eul2)*sin(eul3);
@@ -48,9 +48,16 @@ Eul(2,3) = -cos(eul3)*sin(eul1)-cos(eul1)*cos(eul2)*sin(eul3);
 Eul(3,1) = sin(eul1)*sin(eul2);
 Eul(3,2) = cos(eul1)*sin(eul3)+cos(eul2)*cos(eul3)*sin(eul1);
 Eul(3,3) = cos(eul1)*cos(eul3)-cos(eul2)*sin(eul1)*sin(eul3);
+Eul(1,4) = xoff;
+Eul(2,4) = yoff;
+Eul(3,4) = zoff;
+Eul(4,4) = 1;
+
+tranrot = inv(Eul);
 
 % Apply transforms
 
-mesh1 = Eul*mesh1 + Trans;
+curmesh = curmesh * tranrot ;
+
 end
 

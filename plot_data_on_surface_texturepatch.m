@@ -1,6 +1,7 @@
 %% Plot surfaces with intensity data
 % Plot data on a surface using texturepatch for a dataset. This is a good
-% script, but it is slow. 
+% script, but it is slow. Currently the main script used for
+% publication-quality gut videos.
 %
 % todo: improve speed by using ray tracing approach: for given view,
 % draw a line at the mesh for each pixel, find intersections and color

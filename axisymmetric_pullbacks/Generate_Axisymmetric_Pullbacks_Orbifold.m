@@ -48,7 +48,7 @@ overwrite_cleanCylMesh = false ;
 overwrite_cutMesh = false ;
 overwrite_spcutMesh = false ;
 overwrite_SmRSIms = false ;
-overwrite_spcutMeshSm = true ;
+overwrite_spcutMeshSm = false ;
 overwrite_folds = false ;
 overwrite_lobedynamics = false ;
 overwrite_foldims = false ;
@@ -56,22 +56,35 @@ overwrite_lobeims = false ;
 overwrite_spcutMesh_smoothradii = false ;
 overwrite_piv = false ;
 % Other options for what to do
+phi_method = 'texture' ; % options are 'texture' and 'curves3d'
 generate_sphi_coord = true ;
 generate_uphi_coord = false ;
-resave_ims = false ;
 save_ims = true ;
-debug = false ;
-nsegs4path = 5 ;
 nV = 100 ;
 nU = 100 ;
 dvexten = sprintf('_nU%04d_nV%04d', nU, nV) ;
 nCurves_yjitter = 100 ;
 nCurves_sphicoord = 1000 ;
-normal_shift = 10 ;
-a_fixed = 2 ;
+% Plotting params
 preview = false ;
 washout2d = 0.5 ;
 washout3d = 0.5 ;
+% Parameters for cutMesh creation
+maxJitter = 100 ;
+maxTwChange = 0.15 ;
+nsegs4path = 5 ;
+a_fixed = 2 ;
+% Parameters for spcutMesh creation
+normal_shift = 10 ;
+maxJitter = 100 ;
+maxTwChange = 0.15 ;
+% for phi0 calculation via texture matching
+lowerboundy = -350 ;
+upperboundy = 350 ;
+step_phi0tile = 25 ;
+width_phi0tile = 150 ;
+potential_sigmay = 350 ;
+
 
 %% Add paths
 % Add some necessary code to the path (ImSAnE should also be setup!) ------
@@ -110,6 +123,7 @@ addpath_recurse(fullfile(gutpath, 'plotting/')) ;
 addpath_recurse(fullfile(gutpath, 'mesh_handling/')) ;
 addpath_recurse(fullfile(gutpath, 'h5_handling/')) ;
 addpath_recurse(fullfile(gutpath, 'curve_functions/')) ;
+addpath(fullfile(gutpath, 'ExtPhaseCorrelation/')) ;
 addpath(fullfile(gutpath, 'savgol')) ;
 % addpath(genpath('/mnt/crunch/djcislo/MATLAB/TexturePatch'));
 
@@ -278,10 +292,11 @@ imFolder_up_e = [imFolder '_uphi' dvexten '_extended'] ;
 % time-averaged meshes
 imFolder_spsm = fullfile(imFolder_sp, 'smoothed') ;
 imFolder_spsm_e = fullfile(imFolder_sp_e, 'smoothed') ;
+imFolder_spsm_e2 = fullfile(imFolder_sp_e, 'LUT_smoothed') ;  % raw LUT, no histeq
 imFolder_rsm = fullfile(imFolder_r, 'smoothed') ;
 imFolder_rsm_e = fullfile(imFolder_re, 'smoothed') ;
 % For streadying the images via phi0
-phi0fitBase = fullfile(sphiDir, 'phi0s_%06d.png') ; 
+phi0fitBase = fullfile(sphiDir, 'phi0s_%06d_%02d.png') ; 
 
 % The file containg the AD/PD points
 dpFile = fullfile( cylCutDir, 'ap_boundary_dorsalpts.h5' );
@@ -317,6 +332,7 @@ if resolution(:) == resolution(1)
 else
     error('Have not handled case for anisotropic resolution')
 end
+clearvars buff
 
 %% Identify anomalies in centerline data
 ssr_thres = 15 ;
@@ -359,6 +375,7 @@ for kk = 1:length(timePoints)
     ssrs(kk) = ssr * resolution ;
     anomalous(kk) = anomal ;
 end
+clearvars kk cline
 
 % Now adjust the anomalous ones to fix them up
 ssrfix = zeros(length(anomalous), 1) ;
@@ -389,6 +406,7 @@ for qq = find(anomalous)
     idx = pointMatch(cline, prevcline) ;
     ssrfix(qq) = sum(vecnorm(cline - prevcline(idx, :), 2, 2)) / length(idx) ;
 end
+clearvars cl1 cl2 qq
 
 % Plot the anomalous determination
 close all; figure('visible', 'off')
@@ -423,6 +441,7 @@ for qq = timePoints
     title('Visualizing the corrected centerlines')
     pause(0.001)
 end
+clearvars cl
 
 % View the corrected centerlines
 for qq = timePoints
@@ -440,6 +459,7 @@ for qq = timePoints
     title('Visualizing the corrected RS centerlines')
     pause(0.001)
 end
+clearvars cl
 close all
 disp('done')
 clearvars ssrs ssr anomal anomalous
@@ -459,7 +479,7 @@ outpdIDxfn = fullfile(cylCutMeshOutDir, 'pdIDx.h5') ;
 %     % load(mstckfn)
 %     disp(['Not loading spmeshStack since we load those one by one'])
 %     
-%     if resave_ims
+%     if resave_imswhile
 %         for t = xp.fileMeta.timePoints
 %             aux_resave_cutpath_figs
 %         end
@@ -469,7 +489,7 @@ outpdIDxfn = fullfile(cylCutMeshOutDir, 'pdIDx.h5') ;
 %     meshStack = cell( length(xp.fileMeta.timePoints), 1 );
 %     spmeshStack = cell( length(xp.fileMeta.timePoints), 1 );
 
-for t = xp.fileMeta.timePoints(end:end)
+for t = xp.fileMeta.timePoints(110:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(t)]);
     tidx = xp.tIdx(t);
     
@@ -566,9 +586,9 @@ for t = xp.fileMeta.timePoints(end:end)
                 generateCutMeshFixedTwist(mesh, adIDx, pdIDx, ...
                 cntrlines{t},...  % supply the current corrected centerline
                 nsegs4path, prevTw, previousP, ...
-                'MaxTwChange', 0.15, 'MaxJitter', 100, ...
+                'MaxTwChange', maxTwChange, 'MaxJitter', maxJitter, ...
                 'PrevCntrline', prevcline) ;
-            compute_pullback = true ;                
+            compute_pullback = true ;  
         end
 
         % Store this path for the next one to be nearby
@@ -583,6 +603,7 @@ for t = xp.fileMeta.timePoints(end:end)
         % Save the cutPath to txt file
         header = 'cutP (path of cut), indexing into vertices' ;
         write_txt_with_header(sprintf(outcutfn, t), cutP, header)  
+        clearvars header
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % Generate pullback to rectangular domain ---------------------
@@ -653,18 +674,18 @@ for t = xp.fileMeta.timePoints(end:end)
         disp('done with plotting & saving cut')
     else
         fprintf('Loading Cut Mesh from disk... ');
-        load(cutMeshfn) 
+        load(cutMeshfn, 'cutMesh') 
         cutP = dlmread(sprintf(outcutfn, t), ',', 1, 0) ;
         compute_pullback = ~isempty(cutP) ;
     end
 
-    %% Plot the cutPath (cutP) in 3D
+    % Plot the cutPath (cutP) in 3D
     if save_ims && overwrite_cutMesh 
         disp('Saving cutP image')
         aux_plot_cutP
     end
 
-    %% Compute the pullback if the cutMesh is ok
+    % Compute the pullback if the cutMesh is ok
     if compute_pullback
         disp(['Evolving mesh along normal shift for pullback images: shift=' num2str(normal_shift)])
         % Displace normally ---------------------------------------------------
@@ -699,7 +720,7 @@ for t = xp.fileMeta.timePoints(end:end)
         % clear cornerColors corners
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        %% Generate s,phi coord system for rotated,scaled mesh (rs)
+        % Generate s,phi coord system for rotated,scaled mesh (rs)
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         fprintf('Establishing s,phi coord system\n');
 
@@ -733,13 +754,6 @@ for t = xp.fileMeta.timePoints(end:end)
             cline = cntrlines_rs{t} ; 
             ss = cline(:, 1) ;
             cline = cline(:, 2:end) ;
-            
-
-            % Check it
-            % trisurf(triangulation(TF, TV3D), 'EdgeColor', 'none', 'FaceAlpha', 0.3)
-            % plot3(cline(:, 1), cline(:, 3), cline(:, 2), 'k-')
-            % set(gcf, 'visible', 'on')
-
             disp('Finding relevant segment of centerline')
             [cseg, acID, pcID, bdLeft, bdRight] = centerlineSegmentFromCutMesh(cline, TF, TV2D, TV3Drs) ;
 
@@ -754,23 +768,7 @@ for t = xp.fileMeta.timePoints(end:end)
             vspace = linspace( eps, 1-eps, nV )' ;
 
             disp('Casting crude (equal dU) points into 3D...')
-            % NOTE: first dimension indexes u, second indexes v
-            curves3d = zeros(nU, nV, 3) ;
-            for kk = 1:nU
-                if mod(kk, 20) == 0
-                    disp(['u = ' num2str(kk / nU)])
-                end
-                uv = [uspace0(kk) * ones(size(vspace)), vspace] ;
-                curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uv) ;
-            end 
-
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Compute ds along the surface from each hoop to the next
-            % The distance from one hoop to another is the
-            % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
-            dsuphi = reshape(vecnorm(diff(curves3d), 2, 3), [nU-1, nV]) ;
-            crude_ringpath_ds = nanmean(dsuphi, 2) * resolution ;
-            crude_ringpath_ss = cumsum([0; crude_ringpath_ds]) ;
+            crude_ringpath_ss = ringpathsGridSampling(uspace0, vspace, TF, TV2D, TV3Drs) ;
 
             % Resample crude_ringpath_ds made from uspace0 (equal du, not equal ds_3D in u direction)
             [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU)', crude_ringpath_ss, nU, 'linear') ;
@@ -785,7 +783,7 @@ for t = xp.fileMeta.timePoints(end:end)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             disp('Casting resampled points into 3D (approx equal ds_3D in u dir, but variable ds_3D in v dir)...')
             % NOTE: first dimension indexes u, second indexes v
-            curves3d = zeros(nU, nV, 3) ;
+            curves3d = zeros(nU, nV, 3) ;  % in units of um
             for kk = 1:nU
                 if mod(kk, 50) == 0
                     disp(['u = ' num2str(kk / nU)])
@@ -806,9 +804,9 @@ for t = xp.fileMeta.timePoints(end:end)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             fprintf('Compute s(u) and radius(u) for "uniform"--> evenly sample each DV hoop (0,1) so ds_3D=const \n');
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Resample at evenly spaced dphi in embedding space
+            % Resample at evenly spaced dphi in embedding space (rs, in um)
             fprintf('Resampling curves...\n')
-            c3d_dsv = zeros(size(curves3d)) ;
+            c3d_dsv = zeros(size(curves3d)) ;  % in units of um
             for i=1:nU
                 % Note: no need to add the first point to the curve
                 % since the endpoints already match exactly in 3d and
@@ -861,7 +859,7 @@ for t = xp.fileMeta.timePoints(end:end)
             % The distance from one hoop to another is the
             % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
             dsuphi = reshape(vecnorm(diff(c3d_dsv), 2, 3), [nU-1, nV]) ;
-            ringpath_ds = nanmean(dsuphi, 2) * resolution ;
+            ringpath_ds = nanmean(dsuphi, 2) ;
             ringpath_ss = cumsum([0; ringpath_ds]) ;
             clearvars dsuphi ringpath_ds
 
@@ -876,6 +874,18 @@ for t = xp.fileMeta.timePoints(end:end)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             fprintf('Done making new centerline using uniformly sampled hoops\n') ;
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            fprintf('Create new3d, the regridded pts at UV, moved to sphi')
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            onesUV = ones(nU, nV) ;
+            uu = uspace * cutMesh.umax .* onesUV ;
+            vv = (vspace .* onesUV')' ;
+            uv = [uu(:), vv(:)] ;
+            % Note: here interpolate uv in the TV2D coord system, then
+            % use uphi as the actual 2D coordinates for these vertices
+            % NOTE: unlike curves3d, new3d is NOT rotated/translated/scaled
+            new3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
+            
+            IVloaded = false ;
             if t == xp.fileMeta.timePoints(1)
                 % Store for next timepoint
                 phiv = (vspace .* ones(nU, nV))' ;
@@ -883,39 +893,190 @@ for t = xp.fileMeta.timePoints(end:end)
                 phi0_fit = phi0s ;
             else
                 % Load previous sphi vertices in 3d 
-                tmp = load(sprintf(spcutMeshBase, t-1), 'spcutMesh') ;
-                prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
+                plotfn = sprintf(phi0fitBase, t, 0);
+                if strcmp(phi_method, '3dcurves')
+                    % Load the previous spcutMesh and call it prev3d_sphi
+                    % Also note the previous spcutMesh pullback image's fn
+                    tmp = load(sprintf(spcutMeshBase, ...
+                        xp.fileMeta.timePoints(tidx-1)), 'spcutMesh') ;
+                    prevf = tmp.spcutMesh.f ;
+                    prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
+                    imfn_sp_prev = sprintf( ...
+                        fullfile([imFolder_sp, '/', fileNameBase, '.tif']), ...
+                        xp.fileMeta.timePoints(tidx-1) ) ;
 
-                plotfn = sprintf(phi0fitBase, t);
-                [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
-                    uspace * cutMesh.umax, vspace, prev3d_sphi, -0.5, 0.5, ...
-                    save_ims, plotfn, preview) ;
+                    % fit the shifts in the y direction
+                    dmyk = 0 ;
+                    phi0_fit = zeros(size(uspace)) ;
+                    phi0s = zeros(size(uspace)) ;
+                    phi0_fit_kk = 1 ; % for first pass                
+                    phiv_kk = (vspace .* ones(nU, nV))' ;
+                    ensureDir([sphiDir, '/phi0_correction/'])
+                    while any(phi0_fit_kk > 0.002) && dmyk < 6
+                        disp(['Iteration ' num2str(dmyk)])
+                        plotfn = sprintf(phi0fitBase, t, dmyk);
+                        
+                        % Will we save check pullbacks to preview the algo?
+                        if save_phi0patch
+                            patchImFn = sprintf( ...
+                                fullfile(sphiDir, 'phi0_correction', [fileNameBase, '_prephi0_' num2str(dmyk) '.tif']), ...
+                                xp.fileMeta.timePoints(tidx-1) )  ;
+                            geomImFn = sprintf( ...
+                                fullfile(sphiDir, 'phi0_correction', ['3d' fileNameBase '_prephi0_' num2str(dmyk) '.tif']), ...
+                                xp.fileMeta.timePoints(tidx-1) )  ;
+
+                            % Load the intensity data for this timepoint
+                            if ~IVloaded
+                                % (3D data for coloring mesh pullback)
+                                xp.loadTime(t);
+                                xp.rescaleStackToUnitAspect();
+
+                                % Raw stack data
+                                IV = xp.stack.image.apply();
+                                IV = imadjustn(IV{1});         
+                                IVloaded = true ;
+                            end
+                            
+                            % Texture patch options
+                            Options.PSize = 5;
+                            Options.EdgeColor = 'none';
+                            % Texture image options
+                            Options.imSize = ceil( 1000 .* [ 1 a_fixed ] );
+                            Options.yLim = [0 1];
+                            
+                            % Roll options into a struct
+                            patchOpts.patchImFn = patchImFn ;
+                            patchOpts.imfn_sp_prev = imfn_sp_prev ;
+                            patchOpts.IV = IV ;
+                            patchOpts.ringpath_ss = ringpath_ss ;
+                            patchOpts.Options = Options ;
+                            patchOpts.v3d = new3d ;
+                        else
+                            patchOpts = [] ;
+                        end
+                        
+                        % Minimize difference in DV hoop positions wrt
+                        % previous pullback mesh                        
+                        [phi0_fit_kk, phi0s_kk] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
+                            uspace * cutMesh.umax, phiv_kk, prev3d_sphi, -0.45, 0.45, ...
+                            save_ims, plotfn, save_phi0patch, preview, patchOpts) ;
+                                              
+                        % Update the result
+                        dmyk = dmyk + 1;
+                        phi0_fit = phi0_fit + phi0_fit_kk ;
+                        phi0s = phi0s + phi0s_kk ;
+                        phiv_kk = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
+                        
+                        
+                        % plot mesh colored by the phase phi 
+                        % previous timepoint
+                        xtmp = prev3d_sphi(:, :, 1) ;
+                        ytmp = prev3d_sphi(:, :, 2) ;
+                        ztmp = prev3d_sphi(:, :, 3) ;
+                        phitmp = (vspace .* ones(nU, nV))' ;
+                        colormap parula ;
+                        % cmap = parula ;
+                        % colors = cmap(max(1, uint8(colortmp(:) * length(parula))), :) ;
+                        trisurf(prevf, xtmp(:), ytmp(:), ztmp(:), phitmp(:), ...
+                            'FaceColor', 'interp',...
+                            'EdgeColor', 'none', 'FaceAlpha', 0.25)
+                        axis equal
+                        % freezeColors
+                        
+                        % before fitting
+                        hold on;
+                        pe0 = find(phitmp(:) < 1e-4 | phitmp(:) > 0.99) ;
+                        plot3(new3d(pe0, 1), new3d(pe0, 2), ...
+                            new3d(pe0, 3), '.')
+                        % colormap copper
+                        % trimesh(prevf, new3d(inds, 1), new3d(:, 2), new3d(:, 3),...
+                        %     phitmp(:), 'FaceColor', 'interp', 'FaceAlpha', 0.3, 'EdgeColor', 'none')
+                        % freezeColors
+
+                        % after fitting
+                        hold on;                   
+                        pekk = find(mod(phiv_kk(:), 1) < 1e-4 | mod(phiv_kk(:), 1) > 0.99) ;
+                        plot3(new3d(pekk, 1), new3d(pekk, 2), ...
+                            new3d(pekk, 3), '^')                        
+                        % colormap summer
+                        % trimesh(prevf, new3d(:, 1), new3d(:, 2), new3d(:, 3),...
+                        %     mod(phiv_kk(:), 1), 'FaceColor', 'interp', 'FaceAlpha', 0.3, 'EdgeColor', 'none')
+                        % freezeColors
+                        xlabel('x [\mum]')
+                        ylabel('y [\mum]')
+                        zlabel('z [\mum]')
+                        view(2)
+                        saveas(gcf, geomImFn)
+                    end
+                    
+                elseif strcmp(phi_method, 'texture')
+                    imfn_sp_prev = sprintf( ...
+                        fullfile([imFolder_sp, '/', fileNameBase, '.tif']), ...
+                        xp.fileMeta.timePoints(tidx-1) ) ;
+                    
+                    % Load the intensity data            
+                    % Load 3D data for coloring mesh pullback
+                    xp.loadTime(t);
+                    xp.rescaleStackToUnitAspect();
+
+                    % Raw stack data
+                    IV = xp.stack.image.apply();
+                    IV = imadjustn(IV{1});         
+                    IVloaded = true ;
+            
+                    % Texture patch options
+                    Options.PSize = 5;
+                    Options.EdgeColor = 'none';
+                    % Texture image options
+                    Options.imSize = ceil( 1000 .* [ 1 a_fixed ] );
+                    Options.yLim = [0 1];
+
+                    % fit the shifts in the y direction
+                    % todo: save uncorrected patchIms,
+                    % could try tiling twice...
+                    dmyk = 0 ;
+                    phi0_fit = zeros(size(uspace)) ;
+                    phi0s = zeros(size(uspace)) ;
+                    phi0_fit_kk = 1 ; % for first pass                
+                    phiv_kk = (vspace .* ones(nU, nV))' ;
+                    ensureDir([sphiDir, '/phi0_correction/'])
+                    while any(phi0_fit_kk > 0.002) && dmyk < 6
+                        disp(['Iteration ' num2str(dmyk)])
+                        plotfn = sprintf(phi0fitBase, t, dmyk);
+                        patchImFn = sprintf( ...
+                            fullfile([sphiDir, '/phi0_correction/', fileNameBase, '_prephi0_' num2str(dmyk) '.tif']), ...
+                            xp.fileMeta.timePoints(tidx-1) )  ;
+                        [phi0_fit_kk, phi0s_kk] = fitPhiOffsetsFromPrevPullback(IV, ...
+                            new3d, cutMesh.umax, uspace * cutMesh.umax, phiv_kk, ...
+                            ringpath_ss, imfn_sp_prev, lowerboundy, upperboundy, ...
+                            save_ims, plotfn, Options, ...
+                            step_phi0tile, width_phi0tile, potential_sigmay, 'integer', ...
+                            patchImFn) ;
+                        
+                        % Update the result
+                        dmyk = dmyk + 1;
+                        phi0_fit = phi0_fit + phi0_fit_kk ;
+                        phi0s = phi0s + phi0s_kk ;
+                        phiv_kk = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
+                    end
+                else
+                    error("Could not recognize phi_method: must be 'texture' or '3dcurves'")
+                end
+                close all
+
                 % Store to save at this timepoint
                 phiv = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
             end
 
             % NOTE: We have coordinates u,phiv that we associate with
             % the 3d coordinates already mapped to uv
-            % plot(uspace, phiv, '.')
+            uphi = [uu(:), phiv(:)] ;
+            
+            % plot(uphi(:, 1), uphi(:, 2), '.')
             % xlabel('u')
             % ylabel('\phi')
             % waitfor(gcf)
-
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            onesUV = ones(nU, nV) ;
-            uu = uspace * cutMesh.umax .* onesUV ;
-            vv = (vspace .* onesUV')' ;
-            uphi = [uu(:), phiv(:)] ;
-            uv = [uu(:), vv(:)] ;
-            % Note: here interpolate uv in the TV2D coord system, then
-            % use uphi as the actual 2D coordinates for these vertices
-            % NOTE: unlike curves3d, new3d is NOT rotated/translated/scaled
-            new3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
-
-            % Express the coordinates as a grid
-            % new3drs = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uphi) ;
-            prev3d_sphi = reshape(new3d, [nU, nV, 3]) ; 
-
+            
             % Recompute radii_from_mean_uniform_rs as radii_from_avgpts 
             % NOTE: all radius calculations done in microns, not pixels
             sphi3d_rs = ((rot * new3d')' + trans) * resolution ;
@@ -1033,6 +1194,7 @@ for t = xp.fileMeta.timePoints(end:end)
         else
             disp('Loading spcutMesh from disk...')
             load(sprintf(spcutMeshBase, t), 'spcutMesh') ;
+            IVloaded = false ;
 
             % Load new centerline
             fn = sprintf(clineDVhoopBase, t) ;
@@ -1054,7 +1216,7 @@ for t = xp.fileMeta.timePoints(end:end)
         imfn_up = sprintf( fullfile([imFolder_up, '/', fileNameBase, '.tif']), t ) ;
         pullbacks_exist1 = exist(imfn, 'file') && exist(imfn_r, 'file') ;
         pullbacks_exist2 = exist(imfn_sp, 'file') && (exist(imfn_up, 'file') || ~generate_uphi_coord) ;
-        if ~pullbacks_exist1 || ~pullbacks_exist2 || overwrite_pullbacks
+        if (~pullbacks_exist1 || ~pullbacks_exist2 || overwrite_pullbacks) && ~IVloaded
             % Load 3D data for coloring mesh pullback
             xp.loadTime(t);
             xp.rescaleStackToUnitAspect();
@@ -1111,13 +1273,11 @@ for t = xp.fileMeta.timePoints(end:end)
         % if generate_sphi_coord
         %     spmeshStack{tidx} = spcutMesh ;
         % end
-
-        clear Options IV
-
         fprintf('Done\n');
     else
         disp('Skipping computation of pullback')
     end
+    clear Options IV
 
 %     %% Save SMArr2D (vertex positions in the 2D pullback) -----------------
 %     disp(['Saving meshStack to disk: ' mstckfn])
@@ -1129,12 +1289,16 @@ for t = xp.fileMeta.timePoints(end:end)
 %         save(spmstckfn, 'spmeshStack') ;
 %     end
 end
+clearvars t cutP spcutMesh spvn3d ss pp uv tileCount slin plin plotfn
+clearvars IVloaded IV uphi sphi
+disp('Done with generating spcutMeshes and cutMeshes')
 
 %% Preview results ========================================================
 check = false ;
 if check
     aux_preview_results
 end
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TILE IMAGES IN Y AND RESAVE ============================================
@@ -1145,7 +1309,11 @@ ntiles = 50 ;   %   The number of bins in each dimension for histogram equilizat
                 %   square original image. That is, the extended image will have (a_fixed *
                 %   ntiles, 2 * ntiles) bins in (x,y).
 for qq = 1:2
-    extendImages(imDirs{qq}, imDirs_e{qq}, fileNameBase, a_fixed, ntiles, overwrite_pullbacks)
+    options.histeq = true ;
+    options.a_fixed = a_fixed ;
+    options.ntiles = ntiles ;
+    options.overwrite = overwrite_pullbacks;
+    extendImages(imDirs{qq}, imDirs_e{qq}, fileNameBase, options)
     disp(['done ensuring extended tiffs for ' imDirs{qq} ' in ' imDirs_e{qq}])
 end
 disp('done')
@@ -1153,34 +1321,16 @@ disp('done')
 %% FIND THE FOLDS SEPARATING COMPARTMENTS =================================
 % First compute using the avgpts (DVhoop means)
 guess123 = [0.2, 0.5, 0.8] ;
-max_wander = 20 ;
+max_wander = 20 ; % max amount that DV hoop id can wander per timepoint
 disp('Identifying lobes...')
 foldfn = fullfile(lobeDir, ['fold_locations_sphi' dvexten '_avgpts.mat']) ;
 if exist(foldfn, 'file') && ~overwrite_folds
     disp('Loading lobes')
     % Save the fold locations as a mat file
     load(foldfn, 'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset', ...
-        'rssfold', 'rssfold_frac', 'rssmax')
+        'rssfold', 'rssfold_frac', 'rssmax', 'rmax')
     
-    fold_ofn = dir(fullfile(lobeDir, ['radii_folds' dvexten '_avgpts*.png'])) ;
-    if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
-        % Plot results as both avgpts and ringpath distances
-        if save_ims
-            disp('Plotting ss folds...')
-            aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
-                xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
-                'avgpts', overwrite_foldims)
-        end
-    end
-    fold_ofn = dir(fullfile(lobeDir, ['radii_folds' dvexten '_avgpts*.png'])) ;
-    if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
-        if save_ims
-            disp('Plotting rss folds...')
-            aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
-                xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
-                'ringpath', overwrite_foldims)
-        end
-    end
+else
     [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = identifyLobes(xp.fileMeta.timePoints,...
             spcutMeshBase, guess123, max_wander, preview, 'avgpts') ;
     
@@ -1189,20 +1339,41 @@ if exist(foldfn, 'file') && ~overwrite_folds
     [rssfold, rssfold_frac, rssmax] = rssFromFoldID(folds, xp.fileMeta.timePoints, spcutMeshBase) ;
 
     % Save the fold locations as a mat file
-    save(foldfn, 'rssfold', 'rssfold_frac', 'rssmax', ...
+    save(foldfn, 'rssfold', 'rssfold_frac', 'rssmax', 'rmax', ...
         'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset')
+end
+clearvars guess123 maxwander
 
+fold_ofn = dir(fullfile(lobeDir, ['radii_folds' dvexten '_avgpts*.png'])) ;
+if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
     % Plot results as both avgpts and ringpath distances
     if save_ims
         disp('Plotting ss folds...')
         aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
             xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
             'avgpts', overwrite_foldims)
+    end
+end
+fold_ofn = dir(fullfile(lobeDir, ['radii_folds' dvexten '_avgpts*.png'])) ;
+if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
+    if save_ims
         disp('Plotting rss folds...')
         aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
             xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
             'ringpath', overwrite_foldims)
     end
+end
+
+% Plot results as both avgpts and ringpath distances
+if save_ims
+    disp('Plotting ss folds...')
+    aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
+        xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
+        'avgpts', overwrite_foldims)
+    disp('Plotting rss folds...')
+    aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
+        xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
+        'ringpath', overwrite_foldims)
 end
 disp('done')
 
@@ -1220,6 +1391,7 @@ else
     save(fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']), ...
         'length_lobes', 'area_lobes', 'volume_lobes')
 end
+clearvars fold_ofn
 
 %% plot length, area, and volume for each lobe ============================
 lobe_dynamics_figfn = fullfile(lobeDir, ['lobe_dynamics' dvexten '.png']) ;
@@ -1234,6 +1406,7 @@ if save_ims && (~fig1exist || ~fig2exist || overwrite_lobeims)
 else
     disp('Skipping lobe dynamics plot since it exists...')
 end
+clearvars volume_lobes area_lobes length_lobes
 
 %% Plot motion of avgpts at lobes in yz plane over time ===================
 aux_plot_avgptcline_lobes(folds, fold_onset, lobeDir, dvexten, save_ims, ...
@@ -1365,7 +1538,7 @@ if redo_meshsmooth
         end
     end
 else
-    disp('Mesh smoothing already exists on file, loading')
+    disp('Mesh smoothing already exists on file, loading...')
     timePoints = xp.fileMeta.timePoints ;
     vsmM = zeros(length(timePoints), nU*nV, 3);
     nsmM = zeros(length(timePoints), nU*nV, 3) ;
@@ -1378,7 +1551,7 @@ else
         nsmM(qq, :, :) = spcutMeshSm.vn ;
     end
 end
-disp('done')
+disp('done smoothing meshes in time')
 
 %% Plot the time-smoothed meshes
 pdir = ensureDir(fullfile(sphiSmRSPhiImDir, 'perspective')) ;
@@ -1391,7 +1564,7 @@ for qq = 1:length(timePoints)
     disp(['t = ' num2str(t)])
     % prep directories
     fig1fn = fullfile(sphiSmRSImDir, [sprintf('%04d', t ) '.png']) ;
-    fp0fn = fullfile(sphiSmRSPhiImDir, [sprintf('%04d', t ) '.png']) ;
+    fp0fn = fullfile(pdir, [sprintf('%04d', t ) '.png']) ;
     fp1fn = fullfile(ddir, ['dorsal_' sprintf('%04d', t ) '.png']) ;
     fp2fn = fullfile(vdir, ['ventral_' sprintf('%04d', t ) '.png']) ;
     fp3fn = fullfile(ldir, ['latL_' sprintf('%04d', t ) '.png']) ;
@@ -1461,7 +1634,7 @@ for qq = 1:length(timePoints)
     end
 end
 disp('done')
-clearvars fig vqq nqqrs e0 e1 e2 e3
+clearvars fig vqq nqqrs e0 e1 e2 e3 pdir ddir vdir rdir ldir
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Redo Pullbacks with time-smoothed meshes ===============================
@@ -1498,7 +1671,7 @@ for qq = 1:length(xp.fileMeta.timePoints)
         % and azimuthal angle)
         aux_generate_orbifold( spcutMeshSm, a_fixed, IV, imfn_spsm)
     end
-
+    
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Save relaxed image
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
@@ -1514,16 +1687,71 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TILE SMOOTHED IMAGES IN Y AND RESAVE ===================================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-imDirs = {imFolder_spsm, imFolder_rsm} ;
-imDirs_e = {imFolder_spsm_e, imFolder_rsm_e} ;
+imDirs = {imFolder_spsm, imFolder_rsm, } ;
+imDirs_e = {imFolder_spsm_e, imFolder_rsm_em, } ;
 ntiles = 50 ;   %   The number of bins in each dimension for histogram equilization for a
                 %   square original image. That is, the extended image will have (a_fixed *
                 %   ntiles, 2 * ntiles) bins in (x,y).
-for qq = 1:2
-    extendImages(imDirs{qq}, imDirs_e{qq}, fileNameBase, a_fixed, ntiles, overwrite_pullbacks)
+for qq = 1:length(imDirs)
+    options.histeq = true ;
+    options.a_fixed = a_fixed ;
+    options.ntiles = ntiles ;
+    options.overwrite = overwrite_pullbacks;
+    extendImages(imDirs{qq}, imDirs_e{qq}, fileNameBase, options)
     disp(['done ensuring extended tiffs for ' imDirs{qq} ' in ' imDirs_e{qq}])
 end
+clearvars qq ntiles imDirs_e imDirs
 disp('done')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% MEASURE THICKNESS ======================================================
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Measure thickness from images of imFolder_spsm_e2 (extendedLUT_smoothed)
+fprintf('Create pullback nstack using S,Phi coords with time-averaged Meshes \n');
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+for qq = 1:length(xp.fileMeta.timePoints)
+    t = xp.fileMeta.timePoints(qq) ;
+    disp(['t = ' num2str(t)])
+    
+    % Load time-smoothed mesh
+    load(sprintf(spcutMeshSmBase, t), 'spcutMeshSm') ;
+    
+    %--------------------------------------------------------------
+    % Generate Output Image File
+    %--------------------------------------------------------------
+    imfn_spsm = sprintf( fullfile( imFolder_spsm_e2, [fileNameBase, '.tif']), t ) ;
+    if ~exist(imfn_spsm, 'file') || overwrite_pullbacks
+        % Load 3D data for coloring mesh pullback
+        xp.loadTime(t);
+        xp.rescaleStackToUnitAspect();
+
+        % Raw stack data
+        IV = xp.stack.image.apply();
+        IV = imadjustn(IV{1});
+        
+        fprintf(['Generating SP output image for sm mesh: ' imfn_spsm]);
+        % Assigning field spcutMesh.u to be [s, phi] (ringpath
+        % and azimuthal angle)
+        Options.nLayers = 10 ;
+        Options.numLayers = [15, 15] ;
+        Options.layerSpacing = 1 ;
+        Options.smoothIter = 1 ;
+        Options.yLim = [-0.5, 1.5] ;
+        aux_generate_orbifold( spcutMeshSm, a_fixed, IV, imfn_spsm, Options)
+    end
+    
+end
+
+%% TRAIN IN ILASTIK ON MIDGUT TISSUE TO GET THICKNESS
+% Read thickness training output
+
+
+%% DUMP OR LOAD HERE [break]
+clearvars fold_ofn fig1exist fig2exist id idx mcline nsmM prevcline tmp
+dumpfn = fullfile(meshDir, 'orbifold_dump_before_piv.mat') ;
+save(dumpfn)
+load(dumpfn)
+clearvars dumpfn
 
 %% PERFORM PIV ============================================================
 % Select all frames in PullbackImages_extended_shifted/ 
@@ -1645,15 +1873,33 @@ else
     shifty = [] ;
 end
 
-piv3dfn = fullfile(pivDir, 'piv3d.mat') ;
-if exist(piv3dfn, 'file') && ~overwrite_piv
+% piv3d name base for loading each timepoint separately
+piv3dfn = fullfile(fullfile(pivDir, 'piv3d'), 'piv3d_%04d.mat') ;
+ensureDir(fullfile(pivDir, 'piv3d')) ;
+
+% Check if all timepoints' piv3d exist already
+redo_piv3d = overwrite_piv ; 
+i = 1 ;
+while ~redo_piv3d && i < length(time)
+    redo_piv3d = ~exist(sprintf(piv3dfn, time(i)), 'file') ;
+    i = i + 1 ;
+end
+if ~redo_piv3d
     disp(['Loading piv3d from ' piv3dfn])
-    load(piv3dfn)
+    piv3d = cell(length(fns)) ;
+    for i=1:(length(fns)-1)
+        if mod(time(i), 10) == 0
+            disp(['loading piv3d for time t=' num2str(time(i))])
+        end
+        load(sprintf(piv3dfn, time(i)), 'piv3dstruct')
+        piv3d{i} = piv3dstruct ;
+    end
 else
+    disp('Overwriting/computing piv3d data...')
     piv3d = cell(length(fns), 1) ;
     
     % Iterate over all images with flow fields ----------------------------
-    for i=1:length(fns) - 1
+    for i=1:(length(fns) - 1)
         timestr = sprintf('%03d', time(i)) ;
         disp(['t = ' timestr])
         t = time(i) ;
@@ -1712,7 +1958,7 @@ else
             end
             clearvars dgrid
         end
-        [ tm0f, tm0v2d, tm0v3d, tm0vn ] = tileAnnularCutMesh( mesh0, tileCount );
+        [ tm0f, tm0v2d, tm0v3d, ~ ] = tileAnnularCutMesh( mesh0, tileCount );
         tm0X = x2Xpix(tm0v2d(:, 1), Ysc0, xsc0) ;
         tm0Y = y2Ypix(tm0v2d(:, 2), Ysc0) ;
         tm0XY = [tm0X, tm0Y] ;
@@ -1880,32 +2126,32 @@ else
         end
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
-        if save_ims
-            disp('visualize 2d triangulation')
-            % Check out the triangulation    
-            close all
-            fig = figure('Visible', 'Off');
-            
-            % second option
-            % tr0 = triangulation(tm0f, tm0v2d) ;
-            tr0_orig = triangulation(mesh0.f, [mesh0x, mesh0y]) ;
-            
-            hc = triplot(tr0, 'Color', blue) ;
-            % hold on
-            ho = triplot(tr0_orig, 'Color', orange) ;
-            axis equal
-            title('Triangulation in pullback image space')
-            ylim([0 yesz])
-            xlabel('x [pix]')
-            ylabel('y [pix]')
-            legend({'tiled', 'original'})
-            saveas(fig, fullfile(pivOutDir, ['tri_' timestr '.png']))
-            if preview
-                set(fig, 'Visible', 'On')
-                waitfor(fig)
-            end
-            close all
-        end
+        % if save_ims
+        %     disp('visualize 2d triangulation')
+        %     % Check out the triangulation    
+        %     close all
+        %     fig = figure('Visible', 'Off');
+        % 
+        %     % second option
+        %     % tr0 = triangulation(tm0f, tm0v2d) ;
+        %     tr0_orig = triangulation(mesh0.f, [mesh0x, mesh0y]) ;
+        % 
+        %     hc = triplot(tr0, 'Color', blue) ;
+        %     % hold on
+        %     ho = triplot(tr0_orig, 'Color', orange) ;
+        %     axis equal
+        %     title('Triangulation in pullback image space')
+        %     ylim([0 yesz])
+        %     xlabel('x [pix]')
+        %     ylabel('y [pix]')
+        %     legend({'tiled', 'original'})
+        %     saveas(fig, fullfile(pivOutDir, ['tri_' timestr '.png']))
+        %     if preview
+        %         set(fig, 'Visible', 'On')
+        %         waitfor(fig)
+        %     end
+        %     close all
+        % end
         
         %% Take the difference to get the velocity field ------------------
         v0 = (pt1 - pt0) / dt(i) ;
@@ -1973,8 +2219,10 @@ else
         datstruct.v0t2d = v0t2d ;           % in pullback pix / min
         datstruct.g_ab = g_ab ;             % pullback metric
         datstruct.dilation = dilation ;     % dilation of face from 3d to 2d
+        datstruct.dilation_rs = dilation / resolution ;     % dilation of face from 3d to 2d
         datstruct.jacobian = jac ;          % jacobian of 3d->2d transformation
         datstruct.fieldfaces = fieldfaces ; % faces where v defined
+        readme = struct ;
         readme.XY0 = "Nx2 float: velocity evaluation coordinates in pullback image pixel space" ;
         readme.pt0 = "Nx3 float: 3d location of evaluation points [mesh pix]" ;
         readme.pt1 = "Nx3 float: 3d location of advected point in next mesh [mesh pix]" ;
@@ -2207,11 +2455,13 @@ else
         clear vxa vya vza x123a y123a z123a
         clear vxb vyb vzb x123b y123b z123b
         clear datstruct
+        
+        % Save this timepoint's piv3d
+        disp(['Saving to file: ' sprintf(piv3dfn, time(i))])
+        piv3dstruct = piv3d{i} ;
+        save(sprintf(piv3dfn, time(i)), 'piv3dstruct')
+        
     end 
-    
-    readme = ['v0, v0n, v0t are in units of um/min, '... 
-            'while v0t2d, g_ab, and jacobian are in pullback pixels'] ;
-    save(piv3dfn, 'piv3d', 'readme') ;
 end
 disp('done')
 
@@ -2228,8 +2478,12 @@ if do_simpleavg
     pivSimAvgImZDir = fullfile(pivSimAvgDir, 'vz') ;
     pivSimAvgImTDir = fullfile(pivSimAvgDir, 'vtH') ;  % Heatmap
     pivSimAvgImGDir = fullfile(pivSimAvgDir, 'vtG ') ;  % Gaussian smoothed in space
+    pivSimAvgImSDir = fullfile(pivSimAvgDir, 'vmag ') ;  % speed |v_3D|
     pivSimAvgImQDir = fullfile(pivSimAvgDir, 'vtQ') ;  % Quiverplot
     pivSimAvgImNDir = fullfile(pivSimAvgDir, 'vn') ;
+    pivSimAvgImDvgDir = fullfile(pivSimAvgDir, 'dvg') ;
+    pivSimAvgImCurlDir = fullfile(pivSimAvgDir, 'curl') ;
+    pivSimAvgImShearDir = fullfile(pivSimAvgDir, 'shear_dvphi_ds') ;
     dilDir = fullfile(pivDir, 'dilation') ;
     vxyorigDir = fullfile(pivDir, 'vxyorig') ;
     ensureDir(pivSimAvgDir)
@@ -2239,7 +2493,8 @@ if do_simpleavg
         ensureDir(pivSimAvgImZDir)
     end
     dirs2make = {pivSimAvgImTDir, pivSimAvgImGDir,...
-        pivSimAvgImNDir, dilDir, vxyorigDir} ;
+        pivSimAvgImNDir, dilDir, vxyorigDir, ...
+        pivSimAvgImSDir, pivSimAvgImShearDir} ;
     for pp = 1:length(dirs2make)
         ensureDir(dirs2make{pp}) ;
     end
@@ -2286,6 +2541,7 @@ if do_simpleavg
                 v2dMum(i, :, 2) = piv3d{i}.v0t2d(:, 2) ./ piv3d{i}.dilation ;
             end
         end
+        clearvars first 
         disp('built v0 matrix')
         % Filter in time axis
         % linfilt = 0.1 * ones(10, 1, 1) ;
@@ -2318,7 +2574,7 @@ if do_simpleavg
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % VELOCITY PLOTS
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    overwrite_vsm_plots = true ;
+    overwrite_vsm_plots = false ;
     
     % get size of images to make
     gridsz = size(piv.x{1}) ;
@@ -2327,17 +2583,21 @@ if do_simpleavg
     % Display the velocities
     close all
     fig = figure('visible', 'off') ;
-    for i = 1:size(vM, 1)
+    for i = 1:size(vsmM, 1)
         % Check if normal velocity plot exists
         vnfn = fullfile(pivSimAvgImNDir, [sprintf('%04d', time(i)) '.png']) ;
         vthfn = fullfile(pivSimAvgImTDir, [sprintf('%04d', time(i)) '.png']) ;
-        vtgfn = fullfile(pivSimAvgImTGDir, [sprintf('%04d', time(i)) '.png']) ;
+        vtgfn = fullfile(pivSimAvgImGDir, [sprintf('%04d', time(i)) '.png']) ;
         dilfn = fullfile(dilDir, [sprintf('%04d', time(i)) '.png']) ;
         vxyorigfn = fullfile(vxyorigDir, [sprintf('%04d', time(i)) '.png']) ;
+        speedfn = fullfile(pivSimAvgImSDir, [sprintf('%04d', time(i)) '.png']) ;
+        dvgfn = fullfile(pivSimAvgImDvgDir, [sprintf('%04d', time(i)) '.png']) ;
+        curlfn = fullfile(pivSimAvgImCurlDir, [sprintf('%04d', time(i)) '.png']) ;
+        shearfn = fullfile(pivSimAvgImShearDir, [sprintf('%04d', time(i)) '.png']) ;
         
         % grab the tangential velocity for this timestep
         vsm_ii = squeeze(vsmM(i, :, :)) ;
-        v2dsm_ii = squeeze(v2dsmMum(i, :, :)) ;
+        v2dsmum_ii = squeeze(v2dsmMum(i, :, :)) ;
         vnsm_ii = squeeze(vnsmM(i, :, :)) ;
 
         % Load the image to put flow on top
@@ -2350,11 +2610,38 @@ if do_simpleavg
         xx = piv.x{i}(1, :) ;
         yy = piv.y{i}(:, 1) ;
         
+        % Define the proper coordinates (approx)
+        % if ~exist(dvgfn, 'file') || ~exist(curlfn, 'file') || overwrite_vsm_plots || true
+        %     dilation_allfaces = zeros(length(jac), 1) ;
+        %     for f = 1:length(jac)
+        %         qg = jac{f} * jac{f}' ;
+        %         dilation_allfaces(f) = sqrt(det(qg)) ;
+        %     end
+        % end
+        %     % load the spcutMesh
+        %     load(sprintf(spcutMeshBase, time(i)), 'spcutMesh')
+        %     ss = spcutMesh.sphi(:, 1) ;
+        %     pp = spcutMesh.sphi(:, 1) ;
+        %     [ss, pp] = gridDistancesInterpMesh3D() ;
+        % end
+        
         if plot_vxyz
             aux_plot_vxyz_simpleavg(im, vsm_ii, xx, yy, time(i), vscale, ...
-                pivSimpleAvgImXDir, pivSimpleAvgImYDir, pivSimpleAvgImZDir)
+                pivSimAvgImXDir, pivSimAvgImYDir, pivSimAvgImZDir) ;
         end
 
+        % Plot the magnitude of the velocity 
+        if ~exist(speedfn, 'file') || overwrite_vsm_plots
+            disp(['Saving ' speedfn])
+            close all
+            fig = figure('units', 'normalized', ...
+                    'outerposition', [0 0 1 1], 'visible', 'off') ;
+            scalarFieldOnImage(im, xx, yy, vecnorm(vsm_ii, 2, 3), alphaVal, vtscale, '$|v|$ [$\mu$m/min]') ;
+            ylim([0.25 * size(im, 1), 0.75 * size(im, 1)])
+            saveas(fig, speedfn) ;
+            close all
+        end
+        
         % % Check normals
         % quiver3(piv3d{i}.pt0(:, 1), piv3d{i}.pt0(:, 2), piv3d{i}.pt0(:, 3), ...
         %     piv3d{i}.normals(:, 1), piv3d{i}.normals(:, 2), piv3d{i}.normals(:, 3)) ;
@@ -2367,8 +2654,8 @@ if do_simpleavg
 
         % Look at smoothed 2d velocity fields
         vn = reshape(vnsm_ii, gridsz) ;
-        vx = reshape(v2dsm_ii(:, 1), gridsz) ;
-        vy = reshape(v2dsm_ii(:, 2), gridsz) ;
+        vx = reshape(v2dsmum_ii(:, 1), gridsz) ;
+        vy = reshape(v2dsmum_ii(:, 2), gridsz) ;
 
         % % Check normal velocity and rotations
         % quiver3(piv.x{i}, piv.y{i}, 0*piv.x{i}, vx, vy, vn, 0)
@@ -2382,7 +2669,8 @@ if do_simpleavg
             close all
             fig = figure('units', 'normalized', ...
                     'outerposition', [0 0 1 1], 'visible', 'off') ;
-            scalarFieldOnImage(im, xx, yy, vn, alphaVal, vnscale, 'v_n [\mum/min]')
+            scalarFieldOnImage(im, xx, yy, vn, alphaVal, vnscale, '$v_n$ [$\mu$m/min]') ;
+            ylim([0.25 * size(im, 1), 0.75 * size(im, 1)])
             saveas(fig, vnfn) ;
             close all
         end
@@ -2391,11 +2679,11 @@ if do_simpleavg
         if ~exist(vthfn, 'file') || overwrite_vsm_plots
             disp(['Saving ' vthfn])
             imw = im * washout2d + max(im) * (1-washout2d) ;
-            xx = piv.x{i}(1, :)' ;
-            yy = piv.y{i}(:, 1);
             qopts.overlay_quiver = false ;
-            qopts.label = vthfn ;
-            vectorFieldHeatPhaseOnImage(imw, xx, yy, vx, vy, vtscale, qopts)
+            qopts.label = '$v_t$ [$\mu$m/min]' ;
+            qopts.outfn = vthfn ;
+            vectorFieldHeatPhaseOnImage(imw, xx, yy, vx, vy, vtscale, qopts) ;
+            clear qopts 
         end
 
         % Gaussian smooth the velocities
@@ -2407,9 +2695,11 @@ if do_simpleavg
             qopts.qsubsample = qsubsample ;
             qopts.overlay_quiver = true ;
             qopts.qscale = 10 ;
-            qopts.label = vtgfn ;
+            qopts.label = '$v_t$ [$\mu$m/min]' ;
+            qopts.outfn = vtgfn ;
             % Plot the coarse-grained tang velocity as heatmap on top of the image
             vectorFieldHeatPhaseOnImage(imw, xx, yy, vxb, vyb, vtscale, qopts) ;    
+            clearvars qopts
         end
         
         % Check dilation field
@@ -2419,9 +2709,10 @@ if do_simpleavg
                     'outerposition', [0 0 1 1], 'visible', 'off') ;
             %imagesc(piv.x{i}(:), piv.y{i}(:), piv3d{i}.dilation)
             scalarFieldOnImage(im, xx, yy, ...
-                reshape(piv3d{i}.dilation, [ww, hh]),...
-                alphaVal, 8,...
-                'dilation, $||J||$', 'style', 'positive')
+                reshape(log10(piv3d{i}.dilation), [length(xx), length(yy)]),...
+                alphaVal, 0.5,...
+                'dilation, $\log_{10}||J||$', 'style', 'diverging') ;
+            ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
             saveas(gcf, dilfn)
             close all
         end
@@ -2429,16 +2720,103 @@ if do_simpleavg
         % Find hyperbolic fixed points
         %
         
-        % Plot original velocity
+        % Plot original velocity -- note no smoothing done here ;)
         if ~exist(vxyorigfn, 'file') || overwrite_vsm_plots
             imw = im * washout2d + max(im) * (1-washout2d) ;
-            xx = piv.x{i}(1, :)' ;
-            yy = piv.y{i}(:, 1);
             opts.label = '$\tilde{v}$ [pix/min]' ;
-            aux_plot_piv_on_pullback(imw, xx, yy, ...
-                piv.u_filtered{i}, piv.v_filtered{i}, vtscale,...
-                vxyorigfn, opts)
+            opts.outfn = vxyorigfn ;
+            opts.qscale = 15 ;
+            vectorFieldHeatPhaseOnImage(imw, xx, yy, ...
+                piv.u_filtered{i}, piv.v_filtered{i}, 15, opts) ;
+            clearvars opts
         end
+        
+        % Plot divergence
+        if ~exist(dvgfn, 'file') || overwrite_vsm_plots || true
+            
+            vxb = imgaussfilt(vx, 10) ;
+            vyb = imgaussfilt(vy, 10) ;
+            
+            % Interpolate dilation onto locations where curl is defined
+            % Di = scatteredInterpolant(tm0X, tm0Y, dilation_allfaces) ;
+            % tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
+            % [subfieldfaces, ~] = pointLocation(tr0, [xx(:), yy(:)]) ;
+            % dilv = dilation_allfaces(subfieldfaces) ;
+            
+            dilum = reshape(piv3d{i}.dilation / resolution, size(vxb)) ;
+            dvg = divergence(piv.x{i}, piv.y{i}, vxb, vyb) .* dilum;
+            opts.label = '$\nabla \cdot v_t$ [min$^{-1}$]' ;
+            opts.title = [ '$t=$' num2str(time(i)) ' min' ] ;
+            opts.outfn = dvgfn ;
+            opts.qscale = 10 ;
+            opts.sscale = 1.0 ;
+            opts.alpha = 0.8 ;
+            opts.ylim = [size(im, 2) * 0.25, size(im, 2) * 0.75] ;
+            scalarVectorFieldsOnImage(im, xx, yy, ...
+                dvg, xx, yy, vxb, vyb, opts) ;
+            clearvars opts
+        end
+        
+        % Plot curl
+        if ~exist(curlfn, 'file') || overwrite_vsm_plots || true
+            % xd = xx(1:10:end) ;
+            % yd = yy(1:10:end) ;
+            % xdgrid = xd .* ones(length(xd), length(yd)) ; 
+            % ydgrid = (xd .* ones(length(yd), length(xd)))' ; 
+            % check it
+            % scatter(xdgrid(:), ydgrid(:), 10, xdgrid(:))
+            
+            % Interpolate dilation onto locations where curl is defined
+            % Di = scatteredInterpolant(tm0X, tm0Y, dilation_allfaces) ;
+            % tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
+            % [subfieldfaces, ~] = pointLocation(tr0, [xx(:), yy(:)]) ;
+            % dilv = dilation_allfaces(subfieldfaces) ;
+            
+            dilum = reshape(piv3d{i}.dilation / resolution, size(vxb)) ;
+            curlv = curl(piv.x{i}, piv.y{i}, vxb, vyb) ;
+            curlv = curlv .* dilum ;
+            opts.title = [ '$t=$' num2str(time(i)) ' min' ] ;
+            opts.label = '$\nabla \times v_t$ [min$^{-1}$]' ;
+            opts.outfn = curlfn ;
+            opts.qscale = 10 ;
+            opts.sscale = 0.5 ;
+            opts.alpha = 0.8 ;
+            opts.ylim = [size(im, 2) * 0.25, size(im, 2) * 0.75] ;
+            scalarVectorFieldsOnImage(im, xx, yy, ...
+                curlv, xx, yy, vxb, vyb, opts) ;
+            clearvars opts
+        end
+        
+        % Plot strain dv_phi/ds on image
+        if ~exist(shearfn, 'file') || overwrite_vsm_plots || true
+            % xd = xx(1:10:end) ;
+            % yd = yy(1:10:end) ;
+            % xdgrid = xd .* ones(length(xd), length(yd)) ; 
+            % ydgrid = (xd .* ones(length(yd), length(xd)))' ; 
+            % check it
+            % scatter(xdgrid(:), ydgrid(:), 10, xdgrid(:))
+            
+            % Interpolate dilation onto locations where curl is defined
+            % Di = scatteredInterpolant(tm0X, tm0Y, dilation_allfaces) ;
+            % tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
+            % [subfieldfaces, ~] = pointLocation(tr0, [xx(:), yy(:)]) ;
+            % dilv = dilation_allfaces(subfieldfaces) ;
+            
+            dilum = reshape(piv3d{i}.dilation / resolution, size(vxb)) ;
+            dvphidX = gradient(vyb, xx(2) - xx(1), yy(2) - yy(1)) ;
+            dvphids = dvphidX .* dilum ;
+            opts.title = [ '$t=$' num2str(time(i)) ' min' ] ;
+            opts.label = '$\nabla_s v_{\phi}$ [min$^{-1}$]' ;
+            opts.outfn = shearfn ;
+            opts.qscale = 10 ;
+            opts.sscale = 0.5 ;
+            opts.alpha = 0.8 ;
+            opts.ylim = [size(im, 2) * 0.25, size(im, 2) * 0.75] ;
+            scalarVectorFieldsOnImage(im, xx, yy, ...
+                dvphids, xx, yy, vxb, vyb, opts) ;
+            clearvars opts
+        end
+        
         
     end
     
@@ -2458,6 +2836,9 @@ if do_simpleavg
         if ~exist(vtqfn0, 'file') || overwrite_vsm_plots
             disp(['Creating ' vtqfn])
             tic
+            
+            v2dsmum_ii = squeeze(v2dsmMum(i, :, :)) ;
+            vnsm_ii = squeeze(vnsmM(i, :, :)) ;
 
             % Load the data for the current time point ------------------------
             xp.setT=ime(t) ;
@@ -2493,8 +2874,8 @@ if do_simpleavg
             yy = piv.y{i}(:, 1) ;
             ww = length(xx) ;
             hh = length(yy) ;
-            vx = reshape(v2dsm_ii(:, 1), [ww, hh]) ;
-            vy = reshape(v2dsm_ii(:, 2), [ww, hh]) ;
+            vx = reshape(v2dsmum_ii(:, 1), [ww, hh]) ;
+            vy = reshape(v2dsmum_ii(:, 2), [ww, hh]) ;
             QX = imresize(vx, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
             QY = imresize(vy, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
             xq = 1:qsubsample:ww ;

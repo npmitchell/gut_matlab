@@ -1,6 +1,6 @@
-function extendImages(directory, direc_e, fileNameBase, a_fixed, ntiles, overwrite)
+function extendImages(directory, direc_e, fileNameBase, options)
 % EXTENDIMAGES(directory, direc_e, fileNameBase) Repeat an image above and
-% below
+% below, and equilize histograms in ntiles in each dimension
 %
 % directory : str
 %   path to the existing images
@@ -8,16 +8,34 @@ function extendImages(directory, direc_e, fileNameBase, a_fixed, ntiles, overwri
 %   path to the place where extended images are to be saved
 % fileNameBase : str
 %   The file name of the images to load and save
-% a_fixed : float
-%   The aspect ratio of the pullback image: Lx / Ly
-% ntiles : int 
-%   The number of bins in each dimension for histogram equilization for a
-%   square original image. That is, the extended image will have (a_fixed *
-%   ntiles, 2 * ntiles) bins in (x,y).
-% overwrite : bool
-%   overwrite the existing extended image on disk
+% options : struct with fields (default is no histeq, overwrite==true)
+%     histeq : bool
+%         whether to equilize the LUT in tiles across the image
+%     a_fixed : float
+%         The aspect ratio of the pullback image: Lx / Ly
+%     ntiles : int 
+%         The number of bins in each dimension for histogram equilization for a
+%         square original image. That is, the extended image will have (a_fixed *
+%         ntiles, 2 * ntiles) bins in (x,y).
+%     overwrite : bool
+%         overwrite the existing extended image on disk
 %
 % NPMitchell 2019 
+
+if nargin > 2 
+    if isfield(options, 'histeq')
+        histeq = options.histeq ;
+    else
+        histeq = false ;
+    end
+    if isfield(options, 'overwrite')
+        overwrite = options.overwrite ;
+    else
+        overwrite = true ;
+    end
+else
+    histeq = false ;
+end
 
 fns = dir(strrep(fullfile([directory, '/', fileNameBase, '.tif']), '%06d', '*')) ;
 % Get original image size
@@ -51,7 +69,12 @@ for i=1:length(fns)
         im2(1:halfsize, :) = im(end-halfsize + 1:end, :);
         im2(halfsize + 1:halfsize + size(im, 1), :) = im ;
         im2(halfsize + size(im, 1) + 1:end, :) = im(1:halfsize, :);
-        im2 = adapthisteq(im2, 'NumTiles', [round(a_fixed * ntiles), round(2 * ntiles)]) ;
+        
+        % Histogram equilize (LUT tiled into bits)
+        if histeq
+            im2 = adapthisteq(im2, 'NumTiles', ...
+                [round(options.a_fixed * options.ntiles), round(2 * options.ntiles)]) ;
+        end
         imwrite( im2, fullfile(direc_e, fns(i).name), 'TIFF' );
     else
         disp('already exists')
