@@ -26,6 +26,8 @@ function [ patchIm, imref, zeroID, MIP, SIP ] = ...
 %       - I:        The texture image volume. This function supports:
 %                   Grayscale:  [I1 x I2] (2D)
 %                   Grayscale:  [I1 x I2 x I3] (3D)
+%                   RGB:    [I1 x I2 x 3] (2D)
+%                   RGB:    { [I1 x I2 x I3] } x 3 cell array (3D)
 %
 %       - Options:  Structure containing the standard options for a
 %                   textured surface patch, such as EdgeColor, EdgeAlpha,
@@ -52,6 +54,14 @@ function [ patchIm, imref, zeroID, MIP, SIP ] = ...
 %       - Options.vertexNormal: User supplied vertex unit normals to the
 %                               texture triangulation
 %       - Options.Interpolant:  A pre-made texture image volume interpolant
+%                               For RGB images the interpolant must be a
+%                               three-element cell array with a separate
+%                               interpolant for each color channel
+%       - Options.isRGB:        A boolean indicating if the input image
+%                               texture volume is RGB
+%       - Options.scaleData:    A boolean indicating if the ouput image
+%                               data should be scaled or left with their
+%                               raw values (true)
 %
 %   Output Parameters:
 %       - patchIm:  The output image stack
@@ -87,14 +97,10 @@ if( size(VV,2) ~= 2 )
         'Real-space vertex coordinates must be 2D');
 end
 
-% Check the dimensions of the texture vertices/image
-if ~isempty(I) % Allow users to supply pre-made interpolant
-    if ~( (size(TV,2) == 3) && (ndims(I) == 3) )
-        if ~( (size(TV,2) == 2) && ismatrix(I) )
-            error('texture_patch_to_image:inputs',...
-                'Invalid texture vertex/image input');
-        end
-    end
+% Check the dimensions of the texture vertices
+if ~( (size(TV,2) == 3) || (size(TV,2) == 2) )
+    error('texture_patch_to_image:inputs', ...
+        'Texture-space coordinates are improperly sized');
 end
 
 % Re-scale texture vertices to true pixel positions if necessary
@@ -215,11 +221,100 @@ else
     vN = [];
 end
 
+% Determine if input is RGB or grayscale
+if isfield( Options, 'isRGB' )
+    isRGB = Options.isRGB;
+else
+    if ( iscell(I) || ( (size(TV,2) == 2) && (size(I,3) == 3) ) )
+        isRGB = true;
+    else
+        isRGB = false;
+    end
+end
+
+% Determine if output data should be scaled
+if isfield( Options, 'scaleData' )
+    scaleData = Options.scaleData;
+else
+    scaleData = true;
+end
+
+% Validate the input texture image volume ---------------------------------
+if ~isempty(I) % Allow users to supply pre-made interpolant by skipping here
+    
+    if isRGB
+        
+        if size(TV,2) == 2 % 2D
+            
+            if ~( (ndims(I) == 3) && (size(I,3) == 3) )
+                error('texture_patch_to_image:inputs', ...
+                    'Invalid texture image input');
+            end
+            
+        else % 3D
+            
+            if ~( iscell(I) && (numel(I) == 3) )
+                error('texture_patch_to_image:inputs', ...
+                    'Invalid texture image input');
+            else
+                
+               goodI = (ndims(I{1}) == 3) && ...
+                    isequal(size(I{1}), size(I{2})) && ...
+                    isequal(size(I{1}), size(I{3})) && ...
+                    isequal(size(I{2}), size(I{3}));
+                
+                if ~goodI
+                    error('texture_patch_to_image:inputs', ...
+                        'Invalid texture image input');
+                end
+                
+            end
+            
+        end
+        
+    else
+        
+        if ~( (size(TV,2) == 3) && (ndims(I) == 3) )
+            if ~( (size(TV,2) == 2) && ismatrix(I) )
+                error('texture_patch_to_image:inputs', ...
+                    'Invalid texture vertex/image input');
+            end
+        end
+        
+    end
+    
+end
+
 % Create the interpolant object from the input image object ---------------
 if isfield( Options, 'Interpolant' )
-    II = Options.Interpolant;
+    
+    IIr = Options.Interpolant;
+    
+    if isRGB
+        
+        if ~( iscell(IIr) && (numel(IIr) == 3) )
+            error('texture_patch_to_image:inputs', ...
+                'Invalid texture image interpolation object');
+        end
+        
+        IIg = IIr{2}; IIb = IIr{3}; IIr = IIr{1};
+        
+    end
+        
 else
-    II = griddedInterpolant(single(I), 'cubic');
+    
+    if isRGB
+        
+        IIr = griddedInterpolant(single(I{1}), 'cubic');
+        IIg = griddedInterpolant(single(I{2}), 'cubic');
+        IIb = griddedInterpolant(single(I{3}), 'cubic');
+        
+    else
+    
+        IIr = griddedInterpolant(single(I), 'cubic');
+        
+    end
+    
 end
 
 %--------------------------------------------------------------------------
@@ -262,29 +357,87 @@ else
 end
 
 % Find the texture coordinates of the pixel centers -----------------------
-pixTexture = nan( size(XY,1), ndims(I) );
+pixTexture = nan( size(XY,1), size(TV,2) );
 pixTexture(~isnan(pixFaces), :) = barycentricToCartesian( textureTri, ...
     pixFaces(~isnan(pixFaces)), pixBaryReal(~isnan(pixFaces), :) );
 
 % Interpolate to find the texture intensity at the pixel center -----------
-patchIm = zeros( size(XY,1), 1 );
 
-if ismatrix(I)
-    patchIm(~isnan(pixFaces)) = II(pixTexture(~isnan(pixFaces), 1), ...
-        pixTexture(~isnan(pixFaces), 2));
-else
-    patchIm(~isnan(pixFaces)) = II(pixTexture(~isnan(pixFaces), 1), ...
-        pixTexture(~isnan(pixFaces), 2), pixTexture(~isnan(pixFaces), 3 ));
+if isRGB % RGB
+    
+    PIR = zeros( size(XY,1), 1 );
+    PIG = PIR; PIB = PIR;
+    
+    if (size(TV,2) == 2) % 2D
+        
+        % Red channel
+        PIR(~isnan(pixFaces)) = IIr( ...
+            pixTexture(~isnan(pixFaces), 1), ...
+            pixTexture(~isnan(pixFaces), 2) );
+        
+        % Green channel
+        PIG(~isnan(pixFaces)) = IIg( ...
+            pixTexture(~isnan(pixFaces), 1), ...
+            pixTexture(~isnan(pixFaces), 2) );
+        
+        % Blue channel
+        PIB(~isnan(pixFaces)) = IIb( ...
+            pixTexture(~isnan(pixFaces), 1), ...
+            pixTexture(~isnan(pixFaces), 2) );
+        
+    else % 3D
+        
+        % Red channel
+        PIR(~isnan(pixFaces)) = IIr( ...
+            pixTexture(~isnan(pixFaces), 1), ...
+            pixTexture(~isnan(pixFaces), 2), ...
+            pixTexture(~isnan(pixFaces), 3) );
+        
+        % Green channel
+        PIG(~isnan(pixFaces)) = IIg( ...
+            pixTexture(~isnan(pixFaces), 1), ...
+            pixTexture(~isnan(pixFaces), 2), ...
+            pixTexture(~isnan(pixFaces), 3) );
+        
+        % Blue channel
+        PIB(~isnan(pixFaces)) = IIb( ...
+            pixTexture(~isnan(pixFaces), 1), ...
+            pixTexture(~isnan(pixFaces), 2), ...
+            pixTexture(~isnan(pixFaces), 3) );
+        
+    end
+    
+    % Resize to desired output dimensions
+    PIR = reshape( PIR, imSize );
+    PIG = reshape( PIG, imSize );
+    PIB = reshape( PIB, imSize );
+    
+    % Construct RGB image
+    patchIm = cat( 3, PIR, PIG, PIB );
+    
+else % Grayscale
+    
+    patchIm = zeros( size(XY,1), 1 );
+    
+    if (size(TV,2) == 2) % 2D
+        
+        patchIm(~isnan(pixFaces)) = IIr( ...
+            pixTexture(~isnan(pixFaces), 1), ...
+            pixTexture(~isnan(pixFaces), 2) );
+        
+    else % 3D
+        
+        patchIm(~isnan(pixFaces)) = IIr( ...
+            pixTexture(~isnan(pixFaces), 1), ...
+            pixTexture(~isnan(pixFaces), 2), ...
+            pixTexture(~isnan(pixFaces), 3 ));
+        
+    end
+    
+    % Resize to desired output dimensions
+    patchIm = reshape( patchIm, imSize );
+    
 end
-
-% Resize to desired output dimensions
-% disp('texture_path_to_image:')
-% disp('size of patchIm = ')
-% disp(size(patchIm))
-% disp('imSize = ')
-% disp(imSize)
-% disp(size(X))
-patchIm = reshape( patchIm, imSize );
 
 %--------------------------------------------------------------------------
 % GENERATE ONION LAYERS
@@ -306,19 +459,26 @@ if makeOnion
     % Calculate the vertex unit normals of the texture triangulation
     if isempty(vN)
         % Default is angle weighted vertex normals
+
+        % Note the minus sign - it is necessary to preserve a notion of
+        % 'outward pointing' for the (row, column, page) format of the
+        % texture vertices
+
         try
-            mesh = struct() ;
-            mesh.f = TF ;
-            mesh.v = smoothV ;
-            mesh.vn = per_vertex_normals(smoothV, TF, 'Weighting', 'angle') ;
-            % Average normals with neighboring normals
-            disp('Averaging normals with neighboring normals')
-            vN = average_normals_with_neighboring_vertices(mesh, 0.5) ;
+
+            mesh = struct();
+            mesh.f = TF;
+            mesh.v = smoothV;
+            mesh.vn = -per_vertex_normals(smoothV, TF, 'Weighting', 'angle');
+            vN = average_normals_with_neighboring_vertices(mesh, 0.5);
         catch
+
             % Alternative is uniform weighting of faces incident to each
             % vertex.
-            vN = vertexNormal( triangulation( TF, smoothV ) );
+            vN = -vertexNormal( triangulation( TF, smoothV ) );
+
         end
+        
     end
     
     %----------------------------------------------------------------------
@@ -328,7 +488,11 @@ if makeOnion
     if makeNegLayers
         
         % The stack holding the negative layers
-        mStack = zeros( [ imSize abs(numLayers(2)) ] );
+        if isRGB
+            mStack = zeros( [ imSize 3 abs(numLayers(2)) ] );
+        else
+            mStack = zeros( [ imSize abs(numLayers(2)) ] );
+        end
         
         for i = 1:abs(numLayers(2))
             
@@ -339,49 +503,122 @@ if makeOnion
             smoothTri = triangulation( TF, OV );
             
             % Find the texture coordinates of the pixel centers
-            pixTexture = nan( size(XY,1), ndims(I) );
+            pixTexture = nan( size(XY,1), size(TV,2) );
             pixTexture(~isnan(pixFaces), :) = barycentricToCartesian( ...
                 smoothTri, pixFaces(~isnan(pixFaces)), ...
                 pixBaryReal(~isnan(pixFaces), :) );
             
             % Interpolate to find the texture intensity at the pixel center
-            layerIm = zeros( size(XY,1), 1 );
             
-            if ismatrix(I)
+            if isRGB % Color
                 
-                layerIm(~isnan(pixFaces)) = ...
-                    II( pixTexture(~isnan(pixFaces), 1), ...
-                    pixTexture(~isnan(pixFaces), 2) );
+                LIR = zeros( size(XY,1), 1 );
+                LIG = LIR; LIB = LIR;
                 
-            else
+                if (size(TV,2) == 2) % 2D
+                    
+                    % Red channel
+                    LIR(~isnan(pixFaces)) = IIr( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2) );
+                    
+                    % Green channel
+                    LIG(~isnan(pixFaces)) = IIg( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2) );
+                    
+                    % Blue channel
+                    LIB(~isnan(pixFaces)) = IIb( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2) );
+                    
+                else % 3D
+                    
+                    % Red channel
+                    LIR(~isnan(pixFaces)) = IIr( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2), ...
+                        pixTexture(~isnan(pixFaces), 3) );
+                    
+                    % Green channel
+                    LIG(~isnan(pixFaces)) = IIg( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2), ...
+                        pixTexture(~isnan(pixFaces), 3) );
+                    
+                    % Blue channel
+                    LIB(~isnan(pixFaces)) = IIb( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2), ...
+                        pixTexture(~isnan(pixFaces), 3) );
+                    
+                end
                 
-                layerIm(~isnan(pixFaces)) = ...
-                    II( pixTexture(~isnan(pixFaces), 1), ...
-                    pixTexture(~isnan(pixFaces), 2), ...
-                    pixTexture(~isnan(pixFaces), 3) );
+                % Resize to desired output dimensions
+                LIR = reshape( LIR, imSize );
+                LIG = reshape( LIG, imSize );
+                LIB = reshape( LIB, imSize );
+                
+                % Add the current layer to the image stack
+                mStack(:,:,:,i) = cat( 3, LIR, LIG, LIB );
+                
+            else % Grayscale
+                
+                layerIm = zeros( size(XY,1), 1 );
+                
+                if size(TV,2) == 2 % 2D
+                    
+                    layerIm(~isnan(pixFaces)) = IIr( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2) );
+                    
+                else % 3D
+                    
+                    layerIm(~isnan(pixFaces)) = IIr( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2), ...
+                        pixTexture(~isnan(pixFaces), 3) );
+                    
+                end
+                
+                % Resize to desired output dimensions
+                layerIm = reshape( layerIm, imSize );
+                
+                % Add the current layer image to the stack
+                mStack(:,:,i) = layerIm;
                 
             end
             
-            % Resize to desired output dimensions
-            layerIm = reshape( layerIm, imSize );
-            
-            % Add the current layer image to the stack
-            mStack(:,:,i) = layerIm;
-            
         end
         
-        % Flip stack to reflect proper spatial ordering
-        mStack = flip( mStack, 3 );
-        
-        % Concatenate the negative layers and data layer zero
-        patchIm = cat(3, mStack, patchIm);
+        if isRGB
+            
+            % Flip stack to reflect proper spatial ordering
+            mStack = flip( mStack, 4 );
+            
+            % Concatenate the negative layers and data layer zero
+            patchIm = cat( 4, mStack, patchIm );
+            
+        else
+            
+            % Flip stack to reflect proper spatial ordering
+            mStack = flip( mStack, 3 );
+            
+            % Concatenate the negative layers and data layer zero
+            patchIm = cat( 3, mStack, patchIm );
+            
+        end
         
     end
     
     if makePosLayers
         
-        % The stack holding the negative layers
-        pStack = zeros( [ imSize abs(numLayers(1)) ] );
+        % The stack holding the positive layers
+        if isRGB
+            pStack = zeros( [ imSize 3 abs(numLayers(1)) ] );
+        else
+            pStack = zeros( [ imSize abs(numLayers(1)) ] );
+        end
         
         for i = 1:abs(numLayers(1))
             
@@ -392,39 +629,100 @@ if makeOnion
             smoothTri = triangulation( TF, OV );
             
             % Find the texture coordinates of the pixel centers
-            pixTexture = nan( size(XY,1), ndims(I) );
+            pixTexture = nan( size(XY,1), size(TV,2) );
             pixTexture(~isnan(pixFaces), :) = barycentricToCartesian( ...
                 smoothTri, pixFaces(~isnan(pixFaces)), ...
                 pixBaryReal(~isnan(pixFaces), :) );
             
             % Interpolate to find the texture intensity at the pixel center
-            layerIm = zeros( size(XY,1), 1 );
             
-            if ismatrix(I)
+            if isRGB % Color
                 
-                layerIm(~isnan(pixFaces)) = ...
-                    II( pixTexture(~isnan(pixFaces), 1), ...
-                    pixTexture(~isnan(pixFaces), 2) );
+                LIR = zeros( size(XY,1), 1 );
+                LIG = LIR; LIB = LIR;
                 
-            else
+                if (size(TV,2) == 2) % 2D
+                    
+                    % Red channel
+                    LIR(~isnan(pixFaces)) = IIr( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2) );
+                    
+                    % Green channel
+                    LIG(~isnan(pixFaces)) = IIg( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2) );
+                    
+                    % Blue channel
+                    LIB(~isnan(pixFaces)) = IIb( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2) );
+                    
+                else % 3D
+                    
+                    % Red channel
+                    LIR(~isnan(pixFaces)) = IIr( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2), ...
+                        pixTexture(~isnan(pixFaces), 3) );
+                    
+                    % Green channel
+                    LIG(~isnan(pixFaces)) = IIg( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2), ...
+                        pixTexture(~isnan(pixFaces), 3) );
+                    
+                    % Blue channel
+                    LIB(~isnan(pixFaces)) = IIb( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2), ...
+                        pixTexture(~isnan(pixFaces), 3) );
+                    
+                end
                 
-                layerIm(~isnan(pixFaces)) = ...
-                    II( pixTexture(~isnan(pixFaces), 1), ...
-                    pixTexture(~isnan(pixFaces), 2), ...
-                    pixTexture(~isnan(pixFaces), 3) );
+                % Resize to desired output dimensions
+                LIR = reshape( LIR, imSize );
+                LIG = reshape( LIG, imSize );
+                LIB = reshape( LIB, imSize );
+                
+                % Add the current layer to the image stack
+                pStack(:,:,:,i) = cat( 3, LIR, LIG, LIB );
+                
+            else % Grayscale
+                
+                layerIm = zeros( size(XY,1), 1 );
+                
+                if size(TV,2) == 2
+                    
+                    layerIm(~isnan(pixFaces)) = IIr( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2) );
+                    
+                else
+                    
+                    layerIm(~isnan(pixFaces)) = IIr( ...
+                        pixTexture(~isnan(pixFaces), 1), ...
+                        pixTexture(~isnan(pixFaces), 2), ...
+                        pixTexture(~isnan(pixFaces), 3) );
+                    
+                end
+                
+                % Resize to desired output dimensions
+                layerIm = reshape( layerIm, imSize );
+                
+                % Add the current layer image to the stack
+                pStack(:,:,i) = layerIm;
                 
             end
             
-            % Resize to desired output dimensions
-            layerIm = reshape( layerIm, imSize );
-            
-            % Add the current layer image to the stack
-            pStack(:,:,i) = layerIm;
-            
         end
         
-        % Concatenate the negative layers and data layer zero
-        patchIm = cat(3, patchIm, pStack);
+        % Concatenate the positive layers and data layer zero
+        if isRGB
+            patchIm = cat( 4, patchIm, pStack );
+        else
+        	patchIm = cat( 3, patchIm, pStack );
+        end
         
     end
     
@@ -436,26 +734,87 @@ end
 
 % Calculate output stack MIP ----------------------------------------------
 if nargin > 3
-    MIP = mat2gray(max( patchIm, [], 3 ));
+    if isRGB
+        if scaleData
+            MIP = cat( 3, ...
+                mat2gray( max( squeeze(patchIm(:,:,1,:)), [], 3 ) ), ...
+                mat2gray( max( squeeze(patchIm(:,:,2,:)), [], 3 ) ), ...
+                mat2gray( max( squeeze(patchIm(:,:,3,:)), [], 3 ) ) );
+        else
+            MIP = cat( 3, ...
+                max( squeeze(patchIm(:,:,1,:)), [], 3 ), ...
+                max( squeeze(patchIm(:,:,2,:)), [], 3 ), ...
+                max( squeeze(patchIm(:,:,3,:)), [], 3 ) );
+        end
+    else
+        if scaleData
+            MIP = mat2gray(max( patchIm, [], 3 ));
+        else
+            MIP = max( patchIm, [], 3 );
+        end
+    end
 end
 
 % Calculate output stack SIP ----------------------------------------------
 if nargin > 4
-    SIP = mat2gray(sum( patchIm, 3 ));
+    if isRGB
+        if scaleData
+            SIP = cat( 3, ...
+                mat2gray( sum( squeeze(patchIm(:,:,1,:)), 3 ) ), ...
+                mat2gray( sum( squeeze(patchIm(:,:,2,:)), 3 ) ), ...
+                mat2gray( sum( squeeze(patchIm(:,:,3,:)), 3 ) ) );
+        else
+            SIP = cat( 3, ...
+                sum( squeeze(patchIm(:,:,1,:)), 3 ), ...
+                sum( squeeze(patchIm(:,:,2,:)), 3 ), ...
+                sum( squeeze(patchIm(:,:,3,:)), 3 ) );
+        end
+    else
+        if scaleData
+            SIP = mat2gray(sum( patchIm, 3 ));
+        else
+            SIP = sum( patchIm, 3 );
+        end
+    end
 end
 
 % Re-scale output image stack ---------------------------------------------
-limits = [ min(patchIm(:)) max(patchIm(:)) ];
 
-if limits(2) ~= limits(1)
-    delta = 1 / (limits(2) - limits(1));
-    patchIm = delta .* ( patchIm - limits(1) );
+if scaleData
+    
+    % Re-scale each channel separately
+    if isRGB
+        
+        for c = 1:3
+            
+            PIC = patchIm(:,:,c,:);
+            
+            limits = [ min(PIC(:)) max(PIC(:)) ];
+            
+            if limits(2) ~= limits(1)
+                delta = 1 / (limits(2)-limits(1));
+                patchIm(:,:,c,:) = delta .* ( PIC - limits(1) );
+            end
+            
+        end
+        
+    else
+        
+        limits = [ min(patchIm(:)) max(patchIm(:)) ];
+        
+        if limits(2) ~= limits(1)
+            delta = 1 / (limits(2) - limits(1));
+            patchIm = delta .* ( patchIm - limits(1) );
+        end
+        
+    end
+    
+    % Make sure all values are on the range [0, 1]
+    patchIm( patchIm < 0 ) = 0;
+    patchIm( patchIm > 1 ) = 1;
+    
 end
 
-% Make sure all values are on the range [0, 1]
-patchIm( patchIm < 0 ) = 0;
-patchIm( patchIm > 1 ) = 1;
-    
 
 end
 

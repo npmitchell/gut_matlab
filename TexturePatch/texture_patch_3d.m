@@ -25,6 +25,7 @@ function texture_patch_3d( FF, VV, TF, TV, IV, Options)
 %                   (row, column, page) format!
 %       - IV:        The 3D texture image volume.This function supports:
 %                   Grayscale:  [I1 x I2 x I3]
+%                   RGB:    { [I1 x I2 x I3] } x 3 cell array (3D)
 %       - Options:  Structure containing the standard options for a
 %                   textured surface patch, such as EdgeColor, EdgeAlpha,
 %                   etc.  See MATLAB documentation for more information.
@@ -40,11 +41,15 @@ function texture_patch_3d( FF, VV, TF, TV, IV, Options)
 %                           applied to all surfaces after rotation and 
 %                           translation. 
 %
+% See also
+% --------
+% texture_patch_to_image.m
 %
-%   by Dillon Cislo 08/14/2019
+%   by Dillon Cislo 08/14/2019 & NPMichell 8/19-2/20
 %   NPMitchell added Rotation, Translation, & Dilation options 09/2019
 %   NPMitchell grouped surfaces into a Parent container for speedup 09/2019
-%   NPMitchell added colorize to options
+%   NPMitchell added colorize to options 12/2019
+%   NPMitchell added capability for RGB color input images
 
 %--------------------------------------------------------------------------
 % INPUT PROCESSING
@@ -88,13 +93,28 @@ else
     dilate = false ;
 end
 
-% Also get color if bright pixels should be a color for all patches
-if isfield( Options, 'FaceScalarField' )
-    heat = Options.Color ;
-    Options = rmfield(Options, 'FaceScalarField');
-    colorize = true ;
+% Determine if input is RGB or grayscale
+if isfield( Options, 'isRGB' )
+    isRGB = Options.isRGB;
 else
+    if ( iscell(I) || ( (size(TV,2) == 2) && (size(I,3) == 3) ) )
+        isRGB = true;
+    else
+        isRGB = false;
+    end
+end
+
+% Also get color if bright pixels should be a color for all patches
+if isRGB
     colorize = false ;
+else
+    if isfield( Options, 'FaceScalarField' )
+        heat = Options.Color ;
+        Options = rmfield(Options, 'FaceScalarField');
+        colorize = true ;
+    else
+        colorize = false ;
+    end
 end
 
 % Check that the number of faces is consistent
@@ -134,7 +154,37 @@ if ( max(TV(:)) < 2 )
 end
 
 % Create the interpolant object from the input image object
-IVI = griddedInterpolant(single(IV), 'cubic');
+% Create the interpolant object from the input image object ---------------
+if isfield( Options, 'Interpolant' )
+    
+    IVIr = Options.Interpolant;
+    
+    if isRGB
+        
+        if ~( iscell(IVIr) && (numel(IVIr) == 3) )
+            error('texture_patch_to_image:inputs', ...
+                'Invalid texture image interpolation object');
+        end
+        
+        IVIg = IVIr{2}; IVIb = IVIr{3}; IVIr = IVIr{1};
+        
+    end
+        
+else
+    
+    if isRGB
+        
+        IVIr = griddedInterpolant(single(IV{1}), 'cubic');
+        IVIg = griddedInterpolant(single(IV{2}), 'cubic');
+        IVIb = griddedInterpolant(single(IV{3}), 'cubic');
+        
+    else
+    
+        IVI = griddedInterpolant(single(IV), 'cubic');
+        
+    end
+    
+end
 
 %--------------------------------------------------------------------------
 % FIND PATCH INTERPOLATION VALUES
@@ -144,7 +194,11 @@ IVI = griddedInterpolant(single(IV), 'cubic');
 % For simplicity these will be the same for each triangle regardless of
 % size in either the physical or texture space. A smarter algorithm would
 % probably take these features into account
-J = zeros( (sizep+1), (sizep+1), class(IV) );
+if isRGB
+    J = zeros( (sizep+1), (sizep+1), 3, class(IV) );
+else
+    J = zeros( (sizep+1), (sizep+1), class(IV) );
+end
 
 % Linear indices of the 2D image associated with the triangle patch
 jind = (sizep+1)^2:-1:1;
@@ -186,7 +240,13 @@ for i = 1:size(FF,1)
     pos(:,3) = xyz(1,3)*lambda1 + xyz(2,3)*lambda2 + xyz(3,3)*lambda3;
     
     % Map texture to surface image ----------------------------------------
-    J(jind) = IVI( pos(:,1), pos(:,2), pos(:,3) ) ;
+    if isRGB
+        J(jind) = IVIr( pos(:,1), pos(:,2), pos(:,3) ) ; 
+        J((sizep+1)^2 + jind) = IVIg( pos(:,1), pos(:,2), pos(:,3) ) ; 
+        J(2 * (sizep+1)^2 + jind) = IVIb( pos(:,1), pos(:,2), pos(:,3) ) ; 
+    else
+        J(jind) = IVI( pos(:,1), pos(:,2), pos(:,3) ) ; 
+    end
     
     % Show the surface ----------------------------------------------------
     if rotate

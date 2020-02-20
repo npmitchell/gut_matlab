@@ -63,7 +63,7 @@ if ~isfield(Options, 'EdgeColor')
     Options.EdgeColor = 'none';
 end
 if ~isfield(Options, 'imSize')
-    Options.imSize = ceil( 1000 .* [ 1 a ] );
+    Options.imSize = ceil( 1000 .* [ 1 a ] ) ;
 end
 if ~isfield(Options, 'yLim')
     Options.yLim = [0 1];
@@ -74,6 +74,7 @@ end
 if any(isnan(TV2D))
     error('here -- check for NaNs case')
 end
+
 patchIm = texture_patch_to_image( TF, TV2D, TF, TV3D(:, [2 1 3]), ...
     IV, Options );
 % profile viewer
@@ -86,7 +87,15 @@ fprintf('Done\n');
 
 % Write figure to file
 disp(['Writing ' imfn]) 
-imwrite( patchIm, imfn, 'TIFF' );            
+if length(size(patchIm)) < 3
+    imwrite( patchIm, imfn, 'TIFF' );            
+else
+    disp('Saving using saveastiff()')
+    tiffoptions.overwrite = true ;
+    max(patchIm(:))
+    dat = uint8(255 * patchIm) ;
+    saveastiff( dat, imfn, tiffoptions) ;
+end
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % % Save extended relaxed image

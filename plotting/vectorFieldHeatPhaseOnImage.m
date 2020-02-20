@@ -16,9 +16,9 @@ function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, xx, yy, vx
 % qopts : struct with fields
 %   outfn : str
 %       path to save image if given
-%   label : str
+%   label : str (default='$|v|$ [$\mu$m / min]')
 %       colorbar label. Default is '$|v|$ [$\mu$m / min]' 
-%   qsubsample : int
+%   qsubsample : int (default=10)
 %       subsampling factor of the quiver field
 %   overlay_quiver : bool (default=true)
 %       whether to show the quiverplot overlay
@@ -26,6 +26,8 @@ function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, xx, yy, vx
 %       overall scale of the quivers
 %   outfn : str
 %       output filename for figure as png 
+%   xlim : [minx, maxx]
+%       minimum and maximum x values in main axis
 %   ylim : [miny, maxy]
 %       minimimum and maximum y values in main axis
 %
@@ -106,6 +108,9 @@ colormap phasemap
 caxis([0, 2*pi])
 if isfield(options, 'ylim')
     ylim(ylim)  % [size(im, 2) * 0.25, size(im, 2) * 0.75]
+end
+if isfield(options, 'xlim')
+    ylim(xlim)  
 end
 set(gca, 'Position', [0 0.11 0.85 0.8]) ;
 % Add phasebar

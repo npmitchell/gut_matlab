@@ -1,7 +1,7 @@
-function [v0n, v0t, v0t2d, jac, facenormals] = ...
+function [v0n, v0t, v0t2d, jac, facenormals, g_ab, dilation] = ...
     resolveTangentNormalVelocities(faces, vertices, v0, vertices2d, ...
     fieldfaces, varargin)
-%RESOLVETANGENTNORMALVELOCITIES
+%RESOLVETANGENTNORMALVELOCITIES(faces, vertices, v0, vertices2d, fieldfaces, varargin)
 % Resolve a 3d vector field into the tangential and normal components of a
 % 2d mesh in its embedding and in its 2d image (flattened mesh)
 %
@@ -22,14 +22,22 @@ function [v0n, v0t, v0t2d, jac, facenormals] = ...
 %
 % Returns
 % -------
-% v0n : 
-% v0t : 
-%   original scale velocities in tangent plane
-% vfield2d : #fieldfaces x 2 float array
-%   The vector field mapped to the 2d mesh
+% v0n : N x 1 float array
+%   normal velocities at each evaluation point
+% v0t : N x 3 float array
+%   original scale velocities in tangent plane (as 3d vectors)
+% v0t2d : #fieldfaces x 2 float array
+%   The vector field mapped to the 2d mesh, scaled + distorted by jacobian
 % jac : length(ff) x 1 cell array
 %   A cell array containing the jacobian for each face as each element -- 
 %   transformation from 3d to 2d
+% facenormals #fieldfaces x 3 float array
+%   the normal vectors on each face where the vector field is defined
+% g_ab : #fieldfaces x 2 x 2 
+%   the metric tensor on each field face
+% dilation : #fieldfaces x 1 float array
+%   dilation factor that maps the magnitude of vf in 3d to the
+%   magnitude of the vf in 2d pullback
 %
 % NPMitchell 2020
 
@@ -61,5 +69,21 @@ v0n = dot(facenormals(fieldfaces, :), v0, 2) ;
 v0t = v0 - v0n .* facenormals(fieldfaces, :) ;
 
 %% Compute the tangential velocities in plane
-% u is 3d, w is 2d. jac takes u->w, jjac takes w->u
-[v0t2d, jac] = pullVectorField3Dto2DMesh(v0t, vertices2d, vertices, faces, fieldfaces) ;
+if nargout > 2
+    % u is 3d, w is 2d. jac takes u->w, jjac takes w->u
+    [v0t2d, jac] = pullVectorField3Dto2DMesh(v0t, vertices2d, vertices, faces, fieldfaces) ;
+end
+
+if nargout > 4
+    % Compute dilation factor that maps the magnitude of vf in 3d to the
+    % magnitude of the vf in 2d pullback
+    g_ab = zeros(size(fieldfaces, 1), 2, 2);
+    dilation = zeros(size(fieldfaces, 1), 1) ;
+    for f = 1:length(fieldfaces)
+        qg = jac{fieldfaces(f)} * jac{fieldfaces(f)}' ;
+        g_ab(f, :, :) =  qg ;
+        dilation(f) = sqrt(det(qg)) ;
+    end
+end
+
+
