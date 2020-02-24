@@ -1,5 +1,6 @@
 %% Extract the writhe using Gauss integral from a series of meshes (PLY files)
-% Note: this is outdated. Use extract_segment_writhe.m instead
+% Note: this is outdated. Use extract_segment_writhe.m instead > ACTUALLY
+% USE Generate_Axisymmetric_Pullbacks_Orbifold.m INSTEAD!
 % Run from meshDir, where msls_output is
 %
 % Prerequisites

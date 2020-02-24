@@ -48,5 +48,9 @@ end
 Wr = nansum(wr .* ds) / (4 * pi) ;
 wr = wr / (4 * pi) ;
 
+% For some reason divide by 2pi
+Wr = Wr / (2 * pi) ;
+wr = wr / (2 * pi) ;
+
 end
 

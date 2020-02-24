@@ -10,7 +10,7 @@ function [cutMeshClosed, glue2cut] = glueCylinderCutMeshSeam(cutMesh)
 %       nV : int
 %       v : (nU*nV) x 3 float array
 %       f : (nU-1)*(nV-1) x 3 int array
-%       vn : (nU*nV) x 3 float array
+%       vn : (nU*nV) x 3 float array [optional]
 %       u : nU*nV
 % 
 % Returns
@@ -30,11 +30,13 @@ nV = cutMesh.nV ;
 
 cutMeshClosed.v = cutMesh.v(1:end-nU, :) ;
 cutMeshClosed.f = mod(cutMesh.f, (nV-1)*nU + 1) ;
-cutMeshClosed.f(cutMesh.f > (nV-1)*nU) = cutMeshC.f(cutMesh.f > (nV-1)*nU) + 1 ;
-cutMeshClosed.vn = cutMesh.vn(1:end-nU, :) ;
+cutMeshClosed.f(cutMesh.f > (nV-1)*nU) = cutMeshClosed.f(cutMesh.f > (nV-1)*nU) + 1 ;
+if isfield(cutMesh, 'vn')
+    cutMeshClosed.vn = cutMesh.vn(1:end-nU, :) ;
+end
 cutMeshClosed.u = cutMesh.u(1:end-nU, :) ;
 
-if length(varargout) > 1
+if nargout > 1
     % produce a map from the glued mesh back to the cut mesh indices, 
     % so that cutVtx = glueVtx(glue2cut)
     glue2cut = [ 1:(length(cutMesh.u(:, 1))-nU), 1:nU ] ;

@@ -1,6 +1,8 @@
 %% Extract the polar Writhe from a series of meshes (PLY files)
 % Uses approach taken by Berger & Prior, J. Phys. A, 2006
 % Run from meshDir, where msls_output is
+% UPDATE: USE MEANCURVES FROM DV HOOPS INSTEAD:
+% Generate_Axisymmetric_Pullbacks_Orbifold.m 
 %
 % Prerequisites
 % -------------

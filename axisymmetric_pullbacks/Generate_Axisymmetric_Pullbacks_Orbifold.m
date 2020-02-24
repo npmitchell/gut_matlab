@@ -48,6 +48,7 @@ overwrite_pullbacks = false ;
 overwrite_cleanCylMesh = false ;
 overwrite_cutMesh = false ;
 overwrite_spcutMesh = false ;
+overwrite_writhe = false ;
 overwrite_SmRSIms = false ;
 overwrite_spcutMeshSm = false ;
 overwrite_folds = false ;
@@ -266,6 +267,9 @@ clineDVhoopFigBase = fullfile(clineDVhoopImDir, 'clineDVhoop_%06d.png') ;
 radiusDir = fullfile(meshDir, ['radiusDVhoops' shiftstr dvexten]) ;
 radiusImDir = fullfile(radiusDir, 'images') ;
 
+% Writhe dir for DV hoops
+writheDir = fullfile(clineDVhoopDir, 'writhe') ;
+
 % The file name base for the cylinder meshes
 cylinderMeshBase = fullfile( cylCutDir, ...
     'mesh_apical_stab_%06d_cylindercut.ply' );
@@ -306,7 +310,7 @@ dpFile = fullfile( cylCutDir, 'ap_boundary_dorsalpts.h5' );
 
 tomake = {imFolder, imFolder_e, imFolder_r, imFolder_re,...
     pivDir, cutFolder, cutMeshImagesDir, cylCutMeshOutDir,...
-    cylCutMeshOutImDir, clineDVhoopDir, clineDVhoopImDir, ...
+    cylCutMeshOutImDir, clineDVhoopDir, clineDVhoopImDir, writheDir, ...
     sphiDir, imFolder_sp, imFolder_sp_e, imFolder_sp, imFolder_sp_e,  ...
     lobeDir, radiusDir, radiusImDir, ...
     sphiSmDir, sphiSmRSImDir, sphiSmRSDir, sphiSmRSCDir, ...
@@ -1383,6 +1387,31 @@ if save_ims
     aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
         xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
         'ringpath', overwrite_foldims)
+end
+disp('done')
+
+%% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
+% First compute using the avgpts (DVhoop means)
+disp('Computing/Loading writhe...')
+omit_endpts = 4 ;
+wrfn = fullfile(lobeDir, ['writhe_sphi' dvexten '_avgpts.mat']) ;
+if ~exist(wrfn, 'file') || overwrite_writhe || true
+    [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
+        aux_compute_writhe(clineDVhoopBase, xp.fileMeta.timePoints, true, omit_endpts, preview) ;
+    
+    % Save the fold locations as a mat file
+    save(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
+else
+    load(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
+end
+if true
+    % Compute ringpath pathlength for results found using centerline
+    area_volume_fn = fullfile(meshDir, 'surfacearea_volume_stab.mat') ;
+    aux_plot_writhe(xp.fileMeta.timePoints, clines_resampled, ...
+        Wr, Wr_density, dWr, Length_t, writheDir, area_volume_fn, ...
+        fold_onset, 'Levitt', xyzlim, clineDVhoopBase, ...
+        cylinderMeshCleanBase, rot, trans, resolution, omit_endpts)
+    
 end
 disp('done')
 

@@ -1,4 +1,5 @@
-function [ssx, xp, yp, zp] = smooth_curve_via_fit_3d(ss, skelrs, polyorder, framelen)
+function [ssx, xp, yp, zp, coeffs] = ...
+    smooth_curve_via_fit_3d(ss, skelrs, polyorder, framelen, fitorder)
 %SMOOTH_CURVE_VIA_FIT Smooth a curve by fitting it to a ploynomial. 
 %   Assumes reasonably uniform spacing in s for the fit (so equal weight 
 %   for savgol filter).
@@ -17,6 +18,10 @@ function [ssx, xp, yp, zp] = smooth_curve_via_fit_3d(ss, skelrs, polyorder, fram
 % 
 % NPMitchell 2019 
 
+if nargin < 5
+    fitorder = 10 ;
+end
+
 xskel = skelrs(:, 1) ;
 yskel = skelrs(:, 2) ;
 zskel = skelrs(:, 3) ;
@@ -28,13 +33,23 @@ scz = savgol(zskel, polyorder, framelen)' ;
 % sc = [scx, scy, scz] ;
 
 % Fit the smoothed curve
-xcoeffs = polyfit(ss, scx, 7) ;
-ycoeffs = polyfit(ss, scy, 7) ;
-zcoeffs = polyfit(ss, scz, 7) ;
+[xcoeffs, ~, Mux] = polyfit(ss, scx, fitorder) ;
+[ycoeffs, ~, Muy] = polyfit(ss, scy, fitorder) ;
+[zcoeffs, ~, Muz] = polyfit(ss, scz, fitorder) ;
 ssx = linspace(min(ss), max(ss), 100) ;
-xp = polyval(xcoeffs, ssx);
-yp = polyval(ycoeffs, ssx);
-zp = polyval(zcoeffs, ssx);
+xp = polyval(xcoeffs, (ssx - Mux(1)) / Mux(2));
+yp = polyval(ycoeffs, (ssx - Muy(1)) / Muy(2));
+zp = polyval(zcoeffs, (ssx - Muz(1)) / Muz(2));
+
+% If requested, return coefficients in struct
+if nargout > 4
+    coeffs.xcoeffs = xcoeffs ;
+    coeffs.ycoeffs = ycoeffs ;
+    coeffs.zcoeffs = zcoeffs ;
+    coeffs.Mux = Mux ;
+    coeffs.Muy = Muy ;
+    coeffs.Muz = Muz ;
+end
 
 end
 
