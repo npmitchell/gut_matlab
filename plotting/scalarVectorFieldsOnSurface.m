@@ -31,6 +31,10 @@ function [h1, h2, h3] = scalarVectorFieldsOnSurface(faces, vertices, sf, ...
 %       (then plotted at true value, "scale=0" in quiver())
 %   outfn : str
 %       output filename for figure as png 
+%   figWidth : int (optional, default = 16) 
+%       figure width in cm
+%   figHeight : int (optional, default = 10) 
+%       figure height in cm
 %
 % Returns
 % -------
@@ -52,6 +56,12 @@ xlabelstr = '' ;
 ylabelstr = '' ;
 zlabelstr = '' ;
 titlestr = '' ;
+% figure parameters
+figWidth = 16 ;  % cm
+figHeight = 10 ; % cm
+lw = 1.2 ;       % linewidth
+axposition = [0 0.11 0.85 0.8] ;
+axisOff = true ;
 
 % Unpack options
 if isfield(options, 'style') 
@@ -63,6 +73,9 @@ end
 if isfield(options, 'label')
     labelstr = options.label ;
 end
+if isfield(options, 'title')
+    titlestr = options.title ;
+end
 if isfield(options, 'qscale') 
     qscale = options.qscale ;
 end
@@ -72,7 +85,21 @@ end
 if isfield(options, 'alpha') 
     alphaVal = options.alpha ;
 end
-
+if isfield(options, 'figWidth') 
+    figWidth = options.figWidth ;
+end
+if isfield(options, 'figHeight') 
+    figHeight = options.figHeight ;
+end
+if isfield(options, 'linewidth') 
+    lw = options.linewidth ;
+end
+if isfield(options, 'axPosition') 
+    axposition = options.axPosition ;
+end
+if isfield(options, 'axisOff') 
+    axisOff = options.axisOff ;
+end
 
 % Set up the figure
 close all
@@ -94,7 +121,8 @@ if qsubsample > 1
     error('have not implemented here')
 end
 h3 = quiver3(xxv(:), yyv(:), zzv(:), ...
-    qscale * vx(:), qscale * vy(:), qscale * vz(:), 0, 'k', 'LineWidth', 1.2) ;
+    qscale * vx(:), qscale * vy(:), qscale * vz(:), 0, 'k',...
+    'LineWidth', lw) ;
 
 % View and axis limits
 if isfield(options, 'view') 
@@ -120,16 +148,12 @@ end
 if ~isempty(zlabelstr)
     zlabel(zlabel, 'Interpreter', interpreter)
 end
+% Add title (optional)
 if ~isempty(titlestr)
     title(titlestr, 'Interpreter', interpreter) 
 end
 hold on;
 
-
-% Add title (optional)
-if isfield(options, 'title')
-    title(options.title, 'Interpreter', interpreter)
-end
 
 % Add the colorbar in the style set in options struct
 if strcmp(style, 'phase')
@@ -139,7 +163,7 @@ if strcmp(style, 'phase')
     %%%%%%%%%%%%%%%%%%%
     colormap phasemap
     caxis([0, 2*pi])
-    set(gca, 'Position', [0 0.11 0.85 0.8]) ;
+    set(gca, 'Position', axposition) ;
     % Add phasebar
     phasebar('location', [0.87, 0.7, 0.1, 0.1]) ;
     % Add colorbar
@@ -149,7 +173,7 @@ if strcmp(style, 'phase')
     axis on
     yyaxis right
     ylabel(labelstr, 'color', 'k', ...
-        'Interpreter', 'Latex')
+        'Interpreter', interpreter)
     yticks([0 1])
     yticklabels({'0', num2str(sscale)})
     xticks([])
@@ -163,7 +187,10 @@ elseif strcmp(style, 'diverging')
     if isfield(options, 'ylim')
         ylim(options.ylim)
     end
-    set(gca, 'Position', [0 0.11 0.85 0.8]) ;
+    set(gca, 'Position', axposition) ;
+    if axisOff
+        axis off
+    end
     
     % Set color axis limits
     if sscale > 0
@@ -173,7 +200,7 @@ elseif strcmp(style, 'diverging')
     % Add colorbar
     c = colorbar('Position',[.9 .333 .02 .333]) ;
     % ylabel(cax, labelstr, 'color', 'k', ...
-    %     'Interpreter', 'Latex')
+    %     'Interpreter', interpreter)
     
     % Make colorbar share the alpha of the image
     % Manually flush the event queue and force MATLAB to render the colorbar
@@ -187,8 +214,8 @@ elseif strcmp(style, 'diverging')
     c.Face.Texture.ColorType = 'truecoloralpha';
     % Update the color data with the new transparency information
     c.Face.Texture.CData = cdata;
+    c.Label.Interpreter = interpreter ;
     c.Label.String = labelstr ;
-    c.Label.Interpreter = 'latex' ;
 
 else
     error('have not coded for this style yet')
@@ -198,6 +225,8 @@ end
 % Save the image if outfn is supplied
 if isfield(options, 'outfn')
     disp(['scalarVectorFieldsOnImage: saving ' options.outfn])
+    set(gcf, 'PaperUnits', 'centimeters');
+    set(gcf, 'PaperPosition', [0 0 figWidth figHeight]);  
     saveas(fig, options.outfn) ;   
     close all
 end

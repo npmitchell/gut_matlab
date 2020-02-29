@@ -79,3 +79,5 @@ if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobeims)
 else
     disp(['Skipping constriction dynamics plots since they exist (' fold_dynamics_figfn ')...'])
 end
+
+

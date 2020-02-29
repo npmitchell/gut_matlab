@@ -249,6 +249,8 @@ imFolder_e = [imFolder '_extended'] ;
 imFolder_r = [imFolder '_relaxed'] ;
 imFolder_re = [imFolder '_relaxed_extended'] ;
 pivDir = fullfile(meshDir, 'piv') ;
+meshBase = fullfile(fullfile(meshDir, 'meshes'), 'mesh_apical_stab_%06d.ply') ;
+alignedMeshBase = fullfile(fullfile(meshDir, 'aligned_meshes'), 'mesh_apical_stab_%06d_APDV_um.ply') ;
 cutFolder = fullfile(meshDir, 'cutMesh') ;
 cutMeshBase = fullfile(cutFolder, [fileNameBase, '_cutMesh.mat']) ;
 cutMeshImagesDir = fullfile(cutFolder, 'images') ;
@@ -280,6 +282,7 @@ cylinderMeshCleanFigBase = fullfile( cylCutMeshOutImDir, ...
 
 % Lobe identification paths
 lobeDir = fullfile(meshDir, 'lobes') ;
+foldHoopImDir = fullfile(lobeDir, 'constriction_hoops/') ;
 
 % Define cutMesh directories
 sphiDir = fullfile(meshDir, ['sphi_cutMesh' shiftstr dvexten]) ;
@@ -315,7 +318,8 @@ tomake = {imFolder, imFolder_e, imFolder_r, imFolder_re,...
     lobeDir, radiusDir, radiusImDir, ...
     sphiSmDir, sphiSmRSImDir, sphiSmRSDir, sphiSmRSCDir, ...
     sphiSmRSPhiImDir, ...
-    imFolder_spsm, imFolder_rsm, imFolder_spsm_e} ;
+    imFolder_spsm, imFolder_rsm, imFolder_spsm_e, ...
+    foldHoopImDir} ;
 for i = 1:length(tomake)
     dir2make = tomake{i} ;
     if ~exist( dir2make, 'dir' )
@@ -1357,9 +1361,9 @@ else
 end
 clearvars guess123 maxwander
 
+% Plot results as both avgpts and ringpath distances
 fold_ofn = dir(fullfile(lobeDir, ['radii_folds' dvexten '_avgpts*.png'])) ;
 if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
-    % Plot results as both avgpts and ringpath distances
     if save_ims
         disp('Plotting ss folds...')
         aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
@@ -1375,18 +1379,6 @@ if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
             xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
             'ringpath', overwrite_foldims)
     end
-end
-
-% Plot results as both avgpts and ringpath distances
-if save_ims
-    disp('Plotting ss folds...')
-    aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
-        xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
-        'avgpts', overwrite_foldims)
-    disp('Plotting rss folds...')
-    aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
-        xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
-        'ringpath', overwrite_foldims)
 end
 disp('done')
 
@@ -1445,9 +1437,15 @@ else
     disp('Skipping lobe dynamics plot since it exists...')
 end
 
-%% Plot motion of avgpts at lobes in yz plane over time ===================
+%% Plot motion of avgpts at folds in yz plane over time ===================
 aux_plot_avgptcline_lobes(folds, fold_onset, lobeDir, dvexten, save_ims, ...
     overwrite_lobeims, tp, timePoints, spcutMeshBase, clineDVhoopBase)
+disp('done')
+
+%% Plot motion of DVhoop at folds in yz plane over time ===================
+aux_plot_constriction_DVhoops(folds, fold_onset, foldHoopImDir, dvexten, save_ims, ...
+    overwrite_lobeims, tp, timePoints, spcutMeshBase, alignedMeshBase, ...
+    normal_shift, rot, trans, resolution, colors, xyzlim)
 disp('done')
 
 %% SMOOTH MEAN CENTERLINE RADIUS ==========================================
@@ -2836,17 +2834,25 @@ end
 %% Divergence and Curl (Helmholtz-Hodge)
 qsubU = 5 ; 
 qsubV = 10 ;
+niter_smoothing = [4, 10] ;
+plot_dec_pullback = true ;
+plot_dec_texturepatch = false ;
 
 
 % define the output dirs
+decDir = fullfile(pivSimAvgDir, 'dec') ;
 dvgDir2d = fullfile(pivSimAvgDir, 'dec_div2D') ;
 dvgDir3d = fullfile(pivSimAvgDir, 'dec_div3D') ;
+dvgDir3dt = fullfile(pivSimAvgDir, 'dec_div3Dt') ;
 curlDir2d = fullfile(pivSimAvgDir, 'dec_curl2D') ;
 curlDir3d = fullfile(pivSimAvgDir, 'dec_curl3D') ;
+curlDir3dt = fullfile(pivSimAvgDir, 'dec_curl3Dt') ;
 harmDir2d = fullfile(pivSimAvgDir, 'dec_harm2D') ;
 harmDir3d = fullfile(pivSimAvgDir, 'dec_harm3D') ;
 % create the output dirs
-dirs2do = {dvgDir2d, dvgDir3d, curlDir2d, curlDir3d, harmDir2d, harmDir3d} ;
+dirs2do = {decDir, dvgDir2d, dvgDir3d, dvgDir3dt, ...
+    curlDir2d, curlDir3d, curlDir3dt, ...
+    harmDir2d, harmDir3d} ;
 for i = 1:length(dirs2do)
     ensureDir(dirs2do{i}) ;
 end
@@ -2858,13 +2864,16 @@ for i = 1:length(piv3d)
         % Prepare filenames
         div2dfn = fullfile(dvgDir2d, [sprintf(fileNameBase, t) '_div2d.png']) ; 
         div3dfn = fullfile(dvgDir3d, [sprintf(fileNameBase, t) '_div3d.png']) ;
+        div3dtfn = fullfile(dvgDir3dt, [sprintf(fileNameBase, t) '_divt3d.png']) ;
         curl2dfn = fullfile(curlDir2d, [sprintf(fileNameBase, t) '_curl2d.png']) ;
         curl3dfn = fullfile(curlDir3d, [sprintf(fileNameBase, t) '_curl3d.png']) ;
+        curl3dtfn = fullfile(curlDir3dt, [sprintf(fileNameBase, t) '_curlt3d.png']) ;
         harm2dfn = fullfile(harmDir2d, [sprintf(fileNameBase, t) '_harm2d.png']) ; 
         harm3dfn = fullfile(harmDir3d, [sprintf(fileNameBase, t) '_harm3d.png']) ;
         
         % Obtain smoothed velocities on all faces
         vfsm = squeeze(vfsmM(i, :, :)) ;
+        v2dsmum_ii = squeeze(v2dsmMum(i, :, :)) ;
         
         % Use current time's tiled smoothed mesh
         % Note: vfsmM is in um/min rs
@@ -2875,15 +2884,66 @@ for i = 1:length(piv3d)
         cutM.u = V2D ;
         cutM.v = v3drs ;
         cutM.nU = nU ;
-        cutM.nV = nV ;        
-        helmHodgeDECRectGridPullback(cutM, vfsm)
+        cutM.nV = nV ;
+        disp('Decomposing flow into div/curl...')
+        [divs, rots, harms, glueMesh] = ...
+            helmHodgeDECRectGridPullback(cutM, vfsm, ...
+            'niterSmoothing', niter_smoothing, ...
+            'clipDiv', [-5, 5], 'clipRot', [-0.5, 0.5], ...
+            'preview', preview, 'method', 'both') ;
         
-        im = imread(fullfile(fns(i).folder, fns(i).name)) ;
-        im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
-        addTitleStr = ['$t=$', num2str(t)] ;
-        Options.addTitleStr = addTitleStr ;
-        plotHelmHodgeDECPullback(im, Options)
+        % save divs, rots, and harms
+        save(fullfile(decDir, [sprintf(fileNameBase, t) '_dec.mat']), ...
+            'divs', 'rots', 'harms')
         
+        % Plot results
+        disp('Plotting div/curl...')
+        if plot_dec_pullback
+            im = imread(fullfile(fns(i).folder, fns(i).name)) ;
+            im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
+            addTitleStr = ['$t=$', num2str(t - min(fold_onset))] ;
+            Options.addTitleStr = addTitleStr ;
+            Options.div2dfn = div2dfn ;
+            Options.div3dfn = div3dfn ;
+            Options.rot2dfn = curl2dfn ;
+            Options.rot3dfn = curl3dfn ;
+            Options.qsubU = 5 ; 
+            Options.qsubV = 5 ;
+            Options.sscaleDiv = 0.5 ;
+            Options.sscaleRot = 0.2 ;
+            Options.qscaleDiv = 50 ;
+            Options.qscaleRot = 50 ;
+            Options.xyzlim = xyzlim ;
+            opts2d.xlim = [0, size(im, 1)] ;
+            opts2d.ylim = [0.25 * size(im, 2), 0.75 * size(im, 2) ] ;
+            xy = {piv3d{i}.x0, piv3d{i}.y0} ;
+            plotHelmHodgeDECPullback(im, cutM, vfsm, xy, v2dsmum_ii, ...
+                divs, rots, Options, opts2d)
+        end
+        if plot_dec_texturepatch
+            % load current timepoint
+            % (3D data for coloring mesh pullback)
+            xp.loadTime(t);
+            xp.rescaleStackToUnitAspect();
+
+            % Raw stack data
+            IV = xp.stack.image.apply();
+            IV = imadjustn(IV{1});     
+            IV = max(IV(:)) - IV ;
+
+            addTitleStr = ['$t=$', num2str(t)] ;
+            Options.addTitleStr = addTitleStr ;
+            Options.div3dfn = div3dtfn ;
+            Options.rot3dfn = curl3dtfn ;
+            Options.sscaleDiv = 0.5 ;
+            Options.sscaleRot = 0.2 ;
+            Options.xyzlim = xyzlim ;
+            
+            % Load the cutmesh vertices and normals
+            cutM.v = piv3d{i}.m0v3d ;
+            cutM.v3drs = ((rot * cutM.v')' + trans) * resolution ;
+            plotHelmHodgeDECTexture3d(IV, cutM, divs, rots, rot, trans, Options)
+        end
     end
 end
 

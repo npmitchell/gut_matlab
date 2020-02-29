@@ -45,7 +45,8 @@ halfsize = round(0.5 * size(im, 1)) ;
 
 % Extend each timepoint's image
 for i=1:length(fns)
-    if ~exist(fullfile(direc_e, fns(i).name), 'file') || overwrite 
+    outfn = fullfile(direc_e, fns(i).name) ;
+    if ~exist(outfn, 'file') || overwrite 
         % Declare if we are overwriting the file
         if exist(fullfile(direc_e, fns(i).name), 'file') 
             disp(['Overwriting ' fullfile(direc_e, fns(i).name)])
@@ -75,9 +76,9 @@ for i=1:length(fns)
             im2 = adapthisteq(im2, 'NumTiles', ...
                 [round(options.a_fixed * options.ntiles), round(2 * options.ntiles)]) ;
         end
-        imwrite( im2, fullfile(direc_e, fns(i).name), 'TIFF' );
+        imwrite( im2, outfn, 'TIFF' );
     else
-        disp('already exists')
+        disp(['already exists: ' outfn])
     end
 
 end

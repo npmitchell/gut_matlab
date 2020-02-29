@@ -29,9 +29,29 @@ function texture_patch_2d( FF, VV, TF, TV, I, Options)
 %                   textured surface patch, such as EdgeColor, EdgeAlpha,
 %                   etc.  See MATLAB documentation for more information.
 %
-%       - Options.PSize:    Special option, defines the image texture size
-%                           for each individual polygon.  A lower number
-%                           gives a more pixelated texture. Defaults to 64.
+%       - Options.PSize:	Special option, defines the image texture size
+%       for each individual polygon.  A lower number gives a more 
+%       pixelated texture {64}
+%
+%       - Options.ApplyAmbientOcclusion:    Determines if the texture
+%       colors should be modified by the ambient occlusion of the 
+%       underlying triangulation {'false'}
+%
+%       - Options.AmbientOcclusion:    #Vx1 list of ambient occlusion
+%       values {[]}
+%
+%       - Options.AmbientOcculsionFactor:   A scalar between [0,1]
+%       determining how strongly the ambient occlusion modifies the 
+%       texture mapping {1}
+%
+%       - Options.AmbientOcculsionSamples:  The number of samples to use
+%       when computing the ambient occlusion {1000}
+%
+%       - Options.Unoriented:   Treat the surface as unoriented when
+%       applying ambient occlusion {'false'}
+%
+%       - Options.AddLights:    Will add lighting to the plot {'false'}
+%
 %
 %   by Dillon Cislo 08/13/2019
 
@@ -42,14 +62,6 @@ function texture_patch_2d( FF, VV, TF, TV, I, Options)
 
 % Patch FaceColor MUST be a texture.
 Options.FaceColor = 'texturemap';
-
-% Size of the texture image used for each triangle
-if isfield( Options, 'PSize' )
-    sizep = round(Options.PSize(1));
-    Options = rmfield(Options, 'PSize');
-else
-    sizep = 64;
-end
 
 % Check that the number of faces is consistent
 if ( size(FF,2) ~= size(TF,2) )
@@ -97,6 +109,81 @@ end
 % indexing
 Ir = I(:,:,1);
 if iscolor, Ig = I(:,:,2); Ib = I(:,:,3); end
+
+% Validate Optional Inputs ------------------------------------------------
+
+% Size of the texture image used for each triangle
+if isfield( Options, 'PSize' )
+    sizep = round(Options.PSize(1));
+    Options = rmfield(Options, 'PSize');
+else
+    sizep = 64;
+end
+
+if isfield( Options, 'ApplyAmbientOcclusion' )
+    applyAO = Options.ApplyAmbientOcclusion;
+    Options =rmfield(Options, 'ApplyAmbientOcclusion');
+else
+    applyAO = false;
+end
+
+if isfield( Options, 'AmbientOcclusion' )
+    AO = Options.AmbientOcclusion;
+    Options = rmfield( Options, 'AmbientOcclusion' );
+    if ~isempty(AO), applyAO = true; end
+else
+    AO = [];
+end
+
+if isfield( Options, 'AmbientOcclusionFactor' )
+    AOFactor = Options.AmbientOcclusionFactor;
+    Options = rmfield( Options, 'AmbientOcclusionFactor' );
+else
+    AOFactor = 1;
+end
+
+if isfield( Options, 'AmbientOcclusionSamples' )
+    AOSamples = Options.AmbientOcclusionSamples;
+    Options = rmfield( Options, 'AmbientOcclusionSamples' );
+else
+    AOSamples = 1000;
+end
+
+if isfield( Options, 'Unoriented' )
+    unoriented = Options.Unoriented;
+    Options = rmfield( Options, 'Unoriented' );
+else
+    unoriented = false;
+end
+
+if isfield( Options, 'AddLights' )
+    addLights = Options.AddLights;
+    Options = rmfield( Options, 'AddLights' );
+else
+    addLights = false;
+end
+
+%--------------------------------------------------------------------------
+% AMBIENT OCCLUSION HANDLING
+%--------------------------------------------------------------------------
+
+if applyAO
+    
+    if isempty(AO)
+        
+        % Calculate physical mesh vertex normals
+        % NOTE: MATLAB uses backwards normals for graphics...
+        VN = per_vertex_normals( VV, FF, 'Weighting', 'angle' );
+        
+        % Calculate ambient occulsion
+        AO = ambient_occlusion(VV, FF, VV, -VN, AOSamples);
+        if unoriented
+            AO = min( AO, ambient_occlusion(VV, FF, VV, VN, AOSamples) );
+        end
+        
+    end
+    
+end
 
 %--------------------------------------------------------------------------
 % FIND PATCH INTERPOLATION VALUES
@@ -163,6 +250,37 @@ for i = 1:size(FF,1)
         J(:,:,3) = Jb;
     end
     
+    % Apply ambient occlusion ---------------------------------------------
+    if applyAO
+        
+        % Interpolate the ambient occlusion values on vertices
+        AOMat = AO(FF(i,1))*lambda1 + AO(FF(i,2))*lambda2 + ...
+            AO(FF(i,3))*lambda3;
+        
+        % Reshape to the size of the surface image
+        AOMat = reshape(AOMat, sizep+1, sizep+1);
+        
+        % Change data type if necessary
+        if isa( I, 'uint8' )
+            J = double(J);
+            Jr = double(Jr) ./ 255;
+            if iscolor
+                Jg = double(Jg) ./ 255;
+                Jb = double(Jb) ./ 255;
+            end
+        end
+        
+        Jr = (1-AOFactor) .* Jr + AOFactor .* (Jr .* (1-AOMat));
+        J(:,:,1) = Jr;
+        if iscolor
+            Jg = (1-AOFactor) .* Jg + AOFactor .* (Jg .* (1-AOMat));
+            Jb = (1-AOFactor) .* Jb + AOFactor .* (Jb .* (1-AOMat));
+            J(:,:,2) = Jg;
+            J(:,:,3) = Jb;
+        end
+        
+    end
+    
     % Show the surface ----------------------------------------------------
     surface( x, y, z, J, Options );
     
@@ -170,6 +288,28 @@ end
 
 hold off
 
+%--------------------------------------------------------------------------
+% Lighting Handling
+%--------------------------------------------------------------------------
+
+if addLights
+    
+    % Extract the center of the current axis bounding box
+    XLim = get(gca, 'XLim');
+    YLim = get(gca, 'YLim');
+    ZLim = get(gca, 'ZLim');
+    
+    cen = [ mean(XLim) mean(YLim) mean(ZLim) ];
+    
+    light( 'Position', [cen(1) cen(2) 10*(max(ZLim)-min(ZLim))+cen(3)], ...
+        'Style', 'local', 'Color', [1 1 1]/3 );
+    light( 'Position', [cen(1) 10*(max(ZLim)-min(ZLim))+cen(2) cen(3)], ...
+        'Style', 'local', 'Color', [1 1 1]/3 );
+    light( 'Position', [cen(1) 10*(min(ZLim)-max(ZLim))+cen(2) cen(3)], ...
+        'Style', 'local', 'Color', [1 1 1]/3 );
+    
+end
+ 
 end
 
 %==========================================================================
@@ -194,6 +334,7 @@ x3 = 0; y3 = sizep;
 [x,y] = ndgrid(0:sizep,0:sizep); % NOTE THE USE OF NDGRID
 x = x(:); y = y(:);
 
+% detT is MINUS twice the area of the abstract triangle
 detT = (x1-x3)*(y2-y3) - (x2-x3)*(y1-y3);
 lambda1 = ( (y2-y3).*(x-x3) + (x3-x2).*(y-y3) ) ./ detT;
 lambda2 = ( (y3-y1).*(x-x3) + (x1-x3).*(y-y3) ) ./ detT;

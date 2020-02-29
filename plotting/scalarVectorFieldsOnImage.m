@@ -35,6 +35,10 @@ function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
 %       (then plotted at true value, "scale=0" in quiver())
 %   outfn : str
 %       output filename for figure as png 
+%   figWidth : int (optional, default = 16) 
+%       figure width in cm
+%   figHeight : int (optional, default = 10) 
+%       figure height in cm
 %
 % Returns
 % -------
@@ -52,6 +56,9 @@ qscale = 10 ;
 sscale = 0 ;
 alphaVal = 0.8 ;
 style = 'diverging' ;
+% figure parameters
+figWidth = 16 ; % cm
+figHeight = 10 ; % cm
 
 % Unpack options
 if isfield(options, 'style') 
@@ -75,6 +82,12 @@ end
 if isfield(options, 'alpha') 
     alphaVal = options.alpha ;
 end
+if isfield(options, 'figWidth') 
+    figWidth = options.figWidth ;
+end
+if isfield(options, 'figHeight') 
+    figHeight = options.figHeight ;
+end
 
 % 
 % vangle = reshape(mod(atan2(vy, -vx), 2* pi), gridsz) ;
@@ -97,8 +110,9 @@ end
 if sf_on_faces
     % Plot sf on faces
     disp('scalarVectorFieldsOnImage: plotting sf on faces')
-    h2 = patch( 'Faces', options.faces, 'Vertices', [xxs(:), yys(:)], 'FaceVertexCData', sf, ...
-         'FaceColor', 'flat', 'EdgeColor', 'none') ;    
+    h2 = patch( 'Faces', options.faces, 'Vertices', [xxs(:), yys(:)],...
+            'FaceVertexCData', sf, ...
+            'FaceColor', 'flat', 'EdgeColor', 'none') ;    
      
      if strcmp(style, 'phase')
         set(h2, 'AlphaData', sf / sscale)
@@ -106,6 +120,8 @@ if sf_on_faces
         alpha(alphaVal) ;
         if sscale > 0
             caxis([-sscale, sscale])
+        else
+            caxis([-max(abs(sf(:))), max(abs(sf(:)))])
         end
     end
 else
@@ -148,6 +164,9 @@ if overlay_quiver
 
         h3 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, 'k', 'LineWidth', 1.2) ;
     else
+        size(xxv)
+        size(vx)
+        size(vy)
         h3 = quiver(xxv(:), yyv(:), qscale * vx(:), qscale * vy(:), 0, 'k', 'LineWidth', 1.2) ;
     end
 else
@@ -208,9 +227,8 @@ elseif strcmp(style, 'diverging')
     c.Face.Texture.ColorType = 'truecoloralpha';
     % Update the color data with the new transparency information
     c.Face.Texture.CData = cdata;
-    c.Label.String = labelstr ;
     c.Label.Interpreter = 'latex' ;
-
+    c.Label.String = labelstr ;
 else
     error('have not coded for this style yet')
 end
@@ -218,6 +236,8 @@ end
 % Save the image if outfn is supplied
 if isfield(options, 'outfn')
     disp(['scalarVectorFieldsOnImage: saving ' options.outfn])
+    set(gcf, 'PaperUnits', 'centimeters');
+    set(gcf, 'PaperPosition', [0 0 figWidth figHeight]);  
     saveas(fig, options.outfn) ;   
     close all
 end
