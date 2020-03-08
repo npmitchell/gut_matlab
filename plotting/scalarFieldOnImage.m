@@ -1,4 +1,5 @@
-function [h1, h2] = scalarFieldOnImage(im, xx, yy, field, alphaVal, scale, label, varargin)
+function [h1, h2] = scalarFieldOnImage(im, xx, yy, field, alphaVal, ...
+    scale, label, varargin)
 %SCALARFIELDONIMAGE(im, xx, yy, field, alphaVal, scale, label)
 % Plot a scalar field over an image, colored by magnitude, with const alpha
 %

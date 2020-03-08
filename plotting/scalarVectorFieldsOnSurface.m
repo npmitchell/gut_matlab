@@ -1,7 +1,8 @@
 function [h1, h2, h3] = scalarVectorFieldsOnSurface(faces, vertices, sf, ...
     xxv, yyv, zzv, vx, vy, vz, options)
 %SCALARVECTORFIELDSONIMAGE(im, xx, yy, vx, vy, options)
-%   Plot both a scalar field (sf) and vector field (vx,vy) on an image im
+%   Plot both a scalar field (sf) as heatmap and vector field (vx,vy) as 
+%   quiver arrows.
 %
 % xx : N x 1 float array
 %   x values of PIV grid evaluation points
@@ -124,6 +125,7 @@ h3 = quiver3(xxv(:), yyv(:), zzv(:), ...
     qscale * vx(:), qscale * vy(:), qscale * vz(:), 0, 'k',...
     'LineWidth', lw) ;
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % View and axis limits
 if isfield(options, 'view') 
     view(options.view(1), options.view(2)) ;
@@ -162,6 +164,9 @@ if strcmp(style, 'phase')
     % Phasemap
     %%%%%%%%%%%%%%%%%%%
     colormap phasemap
+    if isfield(options, 'ylim')
+        ylim(options.ylim)
+    end
     caxis([0, 2*pi])
     set(gca, 'Position', axposition) ;
     % Add phasebar

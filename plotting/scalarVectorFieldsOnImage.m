@@ -3,8 +3,9 @@ function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
 %SCALARVECTORFIELDSONIMAGE(im, xx, yy, vx, vy, options)
 %   Plot both a scalar field (sf) and vector field (vx,vy) on an image im
 %
-% im : Q*R float or int array
-%   the image onto which we overlay the scalar and vector fields
+% im : QxRx3 RGB float or int array
+%   the image onto which we overlay the scalar and vector fields.
+%   If not RGB, the image will adopt the current colormap.
 % xx : N x 1 float array
 %   x values of PIV grid evaluation points
 % yy : M x 1 float array
@@ -18,8 +19,14 @@ function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
 %       connectivity list of vertices xxs,yys if sf is defined on faces
 %   style : str ('diverging' 'phase')
 %       style of overlaid scalar field, default is diverging
+%       If 'phase', use 'options.angle' to pass vector angles.
+%   angle : #faces x 3 (optional, if style == 'phase')
+%       scalar field for phasemap. Note that sf signals opacity if style ==
+%       'phase' and angle will replace sf for color if supplied.
+%       Otherwise, sf is used for both.
 %   sscale : float (optional, used only if style == 'phase')
-%       scalar field maximum for opacity/alpha
+%       scalar field maximum for opacity/alpha. If zero, color limits are
+%       set to min(sf) and max(sf)
 %   alpha : float (optional, used if style ~= 'phase')
 %       opacity of overlaid scalar field
 %   outfn : str
@@ -48,6 +55,8 @@ function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
 %
 % NPMitchell 2020
 
+
+debug = false ;
 % Default options
 labelstr = '' ;
 overlay_quiver = true ;
@@ -100,6 +109,12 @@ fig = figure('units', 'normalized', ...
 h1 = imshow(im) ;
 hold on;
 
+if debug
+    set(gcf, 'visible', 'on')
+    pause(1)
+end
+
+% Determine if the given scalar field is defined on vertices or faces
 sf_on_faces = false ;
 if isfield(options, 'faces')
     if length(sf) == size(options.faces, 1) 
@@ -113,8 +128,10 @@ if sf_on_faces
     h2 = patch( 'Faces', options.faces, 'Vertices', [xxs(:), yys(:)],...
             'FaceVertexCData', sf, ...
             'FaceColor', 'flat', 'EdgeColor', 'none') ;    
-     
-     if strcmp(style, 'phase')
+    
+    % If we use a phase style, then we obtain alpha info from sf
+    % Otherwise, we apply a uniform alpha given by alphaVal
+    if strcmp(style, 'phase')
         set(h2, 'AlphaData', sf / sscale)
     elseif strcmp(style, 'diverging')
         alpha(alphaVal) ;
@@ -125,6 +142,7 @@ if sf_on_faces
         end
     end
 else
+    % The scalar field is defined on VERTICES (same as #pts given)
     % check that size of sf is compatible with xxs and yys
     same_size = length(sf(:)) == length(xxs(:)) && length(sf(:)) == length(yys(:)) ;
     commensurate = length(sf(:)) == (length(xxs(:)) * length(yys(:))) ;
@@ -135,15 +153,26 @@ else
     
     % Plot on vertices
     disp('scalarVectorFieldsOnImage: plotting sf on vertices')
-    h2 = imagesc(xxs, yys, sf) ;
+    if isfield(options, 'angle')
+        sfangle = options.angle ;
+    else
+        sfangle = sf ;
+    end
+    h2 = imagesc(xxs, yys, sfangle) ;
     if strcmp(style, 'phase')
         set(h2, 'AlphaData', sf / sscale)
     elseif strcmp(style, 'diverging')
-        alpha(alphaVal) ;
+        set(h2, 'alphaData', 0.5)
         if sscale > 0
             caxis([-sscale, sscale])
         end
     end
+end
+
+
+if debug
+    set(gcf, 'visible', 'on')
+    pause(1)
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -173,6 +202,11 @@ else
     h3 = [] ;
 end
 
+if debug
+    set(gcf, 'visible', 'on')
+    pause(1)
+end
+
 % Add title (optional)
 if isfield(options, 'title')
     title(options.title, 'Interpreter', 'latex')
@@ -185,7 +219,10 @@ if strcmp(style, 'phase')
     %%%%%%%%%%%%%%%%%%%
     colormap phasemap
     caxis([0, 2*pi])
-    ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
+    if isfield(options, 'ylim')
+        ylim(options.ylim)
+        % ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
+    end
     set(gca, 'Position', [0 0.11 0.85 0.8]) ;
     % Add phasebar
     phasebar('location', [0.87, 0.7, 0.1, 0.1]) ;
@@ -231,6 +268,12 @@ elseif strcmp(style, 'diverging')
     c.Label.String = labelstr ;
 else
     error('have not coded for this style yet')
+end
+
+
+if debug
+    set(gcf, 'visible', 'on')
+    pause(1)
 end
 
 % Save the image if outfn is supplied

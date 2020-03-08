@@ -148,20 +148,36 @@ else
 end
 
 %% Label: 
+% Option 1: use inner radius 
+% [xt,yt] = pol2cart((-1:2)*pi/2+pi/2,innerRadius); 
+% 
+% if usedegrees
+%    text(xt(1),yt(1),'0\circ','horiz','right','vert','middle'); 
+%    text(xt(2),yt(2),'90\circ','horiz','center','vert','top'); 
+%    text(xt(3),yt(3),'180\circ','horiz','left','vert','middle'); 
+%    text(xt(4),yt(4),'-90\circ','horiz','center','vert','bottom'); 
+% else
+%    text(xt(1),yt(1),'0','horiz','right','vert','middle'); 
+%    text(xt(2),yt(2),'\pi/2','horiz','center','vert','top'); 
+%    text(xt(3),yt(3),'\pi','horiz','left','vert','middle'); 
+%    text(xt(4),yt(4),'-\pi/2','horiz','center','vert','bottom'); 
+% end
 
-[xt,yt] = pol2cart((-1:2)*pi/2+pi/2,innerRadius); 
+% Option 2: use outer radius 
+[xt,yt] = pol2cart((-1:2)*pi/2+pi/2,outerRadius); 
 
 if usedegrees
-   text(xt(1),yt(1),'0\circ','horiz','right','vert','middle'); 
-   text(xt(2),yt(2),'90\circ','horiz','center','vert','top'); 
-   text(xt(3),yt(3),'180\circ','horiz','left','vert','middle'); 
-   text(xt(4),yt(4),'-90\circ','horiz','center','vert','bottom'); 
+   text(xt(1),yt(1),'0\circ','horiz','left','vert','middle'); 
+   text(xt(2),yt(2),'90\circ','horiz','center','vert','bottom'); 
+   text(xt(3),yt(3),'180\circ','horiz','right','vert','middle'); 
+   text(xt(4),yt(4),'-90\circ','horiz','center','vert','top'); 
 else
-   text(xt(1),yt(1),'0','horiz','right','vert','middle'); 
-   text(xt(2),yt(2),'\pi/2','horiz','center','vert','top'); 
-   text(xt(3),yt(3),'\pi','horiz','left','vert','middle'); 
-   text(xt(4),yt(4),'-\pi/2','horiz','center','vert','bottom'); 
+   text(xt(1),yt(1),'0','horiz','left','vert','middle'); 
+   text(xt(2),yt(2),'\pi/2','horiz','center','vert','bottom'); 
+   text(xt(3),yt(3),'\pi','horiz','right','vert','middle'); 
+   text(xt(4),yt(4),'-\pi/2','horiz','center','vert','top'); 
 end
+
 
 %% Set position of colorwheel: 
 
