@@ -15,7 +15,8 @@ function sfsm = laplacian_smooth_faces(sf, mesh, varargin)
 %   options for how to perform smoothing
 %       'Weight': 'areas'
 %       'Method': 'smooth' or 'denoise'
-%       'Epsilon': 1e-16
+%       'Epsilon': threshold for finding peaks (optional, default = 1e-16).
+%		 A vertex must be within eps of a local maximum to be denoised 
 % 
 % Returns  
 % -------
