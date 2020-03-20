@@ -1,117 +1,30 @@
-%% Extract the centerlines from a series of meshes (PLY files) 
-% Noah Mitchell 2019
-% Saves scaled meshes with AP along x and DV along y, centered at A=0.
-%
-% Run from the msls_output directory
-% Run this code only after training on anterior (A), posterior (P), and 
-% dorsal anterior (D) points in different iLastik channels.
-% anteriorChannel, posteriorChannel, and dorsalChannel specify the iLastik
-% training channel that is used for each specification.
-% Name the h5 file output from iLastik as ..._Probabilities_apcenterline.h5
-% Train for anterior dorsal (D) only at the first time point, because
-% that's the only one that's used.
-%
-% OUTPUTS
-% -------
-% xyzlim.txt 
-%   xyzlimits of raw meshes in units of full resolution pixels (ie not
-%   downsampled)
-% xyzlim_APDV.txt 
-%   xyzlimits of rotated and translated meshes in units of full resolution 
-%   pixels (ie not downsampled)
-% xyzlim_APDV_um.txt 
-%   xyz limits of rotated and translated meshes in microns
-% rotation_APDV.txt
-%   rotation matrix to align mesh to APDV frame
-% translation_APDV.txt
-%   translation vector to align mesh to APDV frame
-% xyzlim.txt 
-%   raw bounding box in original frame (not rotated), in full res pixels
-% xyzlim_APDV.txt
-%   bounding box in rotated frame, in full resolution pixels
-% xyzlim_APDV_um.txt
-%   bounding box in rotated frame, in microns
-% apdv_coms_rs.h5
-%   Centers of mass for A, P, and D in microns in rotated APDV coord system
-% 
-% Notes
-% -----
-% vertices are in units of pixels (at full resolution)
-% To take mesh to rotated + translated mesh in physical units, apply:
-%         xs = mesh.vertex.z ;
-%         ys = mesh.vertex.y ;
-%         zs = mesh.vertex.x ;
-%         vtx_rs = (rot * vtx' + trans)' * resolution
-%         
-% See also
-% --------
-% To run first:
-%    Gut_Pipeline.m
-% To run after:
-%    extract_centerline.m
-%    slice_mesh_endcaps.m
-%    extract_chirality_writhe.m
-%    Generate_Axisymmetric_Pullbacks_Orbifold.m
-%    
-% NPMitchell 2019
-%
-clear all ;
-clc ;
-
-%% First, compile required c code
-% mex ./FastMarching_version3b/shortestpath/rk4
-close all ;
-odir = pwd ;
-codepath = '/mnt/data/code/gut_matlab/' ;
-if ~exist(codepath, 'dir')
-    codepath = [pwd filesep] ;
-end
-addpath(codepath)
-addpath([codepath 'addpath_recurse' filesep]) ;
-addpath_recurse([codepath 'mesh_handling' filesep]);
-addpath([codepath 'inpolyhedron' filesep]);
-addpath([codepath 'savgol' filesep])
-addpath_recurse('/mnt/data/code/gptoolbox/')
-% addpath_recurse([codepath 'gptoolbox' filesep])
-
-toolbox_path = [codepath 'toolbox_fast_marching/toolbox_fast_marching/'];
-dtpath = [codepath 'distanceTransform/'] ;
-addpath_recurse(toolbox_path)
-addpath(dtpath)
-% compile_c_files
-cd(odir)
+function alignMeshesAPDV(opts)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parameters
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-overwrite = true ;  % recompute APDV rotation, translation
-overwrite_apdvcoms = false ;  % recompute APDV coms from training
-save_figs = true ;  % save images of cntrline, etc, along the way
-overwrite_ims = true ;  % overwrite images even if centerlines are not overwritten
-preview = false ;  % display intermediate results, for debugging
-resolution = 0.2619 ;  % um per pixel for full resolution (not subsampled)
-dorsal_thres = 0.5 ;  % threshold for extracting Dorsal probability cloud 
-buffer = 5 ;  % extra space in meshgrid of centerline extraction, to ensure mesh contained in volume
-plot_buffer = 40;  % extra space in plots, in um
-ssfactor = 4;  % subsampling factor for the h5s used to train for mesh/acom/pcom/dcom
-weight = 0.1;  % for speedup of centerline extraction. Larger is less precise
-normal_step = 0.5 ;  % how far to move normally from ptmatched vtx if a/pcom is not inside mesh
-eps = 0.01 ;  % value for DT outside of mesh in centerline extraction
-meshorder = 'zyx' ;  % ordering of axes in loaded mesh wrt iLastik output
-anteriorChannel = 1;  % which channel of APD training is anterior
-posteriorChannel = 2;  % which channel of APD training is posterior 
-dorsalChannel = 4 ;  % which channel of APD training is dorsal
-axorder = [2, 1, 3] ;  % axis order for APD training output
+
+overwrite = opts.overwrite  ;
+overwrite_ims = opts.overwrite_ims ;
+resolution = opts.resolution ;
+dorsal_thres = opts.dorsal_thres ;
+buffer = opts.buffer ;
+plot_buffer = opts.plot_buffer ;
+ssfactor = opts.ssfactor ;
+weight = opts.weight ;
+normal_step = opts.normal_step ;
+eps = opts.eps ;
+meshorder = opts.meshorder ;
+anteriorChannel = opts.anteriorChannel ;
+posteriorChannel = opts.posteriorChannel ;
+dorsalChannel = opts.dorsalChannel ;
+axorder = opts.axorder ;
 % figure parameters
 xwidth = 16 ; % cm
 ywidth = 10 ; % cm
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Find all meshes to consider
-meshdir = pwd ;
-cd ../
-rootdir = pwd ;
-cd(meshdir)
 % rootpath = '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/' ;
 % rootpath = [rootpath 'Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/'] ;
 % if ~exist(rootpath, 'dir')

@@ -21,9 +21,9 @@ if ~exist(mips_stab, 'dir')
 end
 
 % Choose reference time for stabilization
-t_ref = 12;  % INDEX, not timestamp, of the reference image
-alltimes = 12:47 ;
-times_todo = [12:47];  % times to overwrite as tifs
+t_ref = 11;  % timestamp of the reference image
+alltimes = [11, 135, 141, 142] ;
+times_todo = [135, 141, 142];  % times to overwrite as tifs
 num2check = 35 ;
 % Choose bit depth as typename
 typename = 'uint16' ;
@@ -56,16 +56,18 @@ for time_id = 1:length(alltimes)
     im_1(:,:,time_id) = imread([mipsDir,sprintf(name_1,time)])+imread([mipsDir,sprintf(name_11,time)]);
     im_2(:,:,time_id) = imread([mipsDir,sprintf(name_in,time)])+imread([mipsDir,sprintf(name_21,time)]);
 end
+t_ref_ind = find( alltimes == t_ref ) ;
+
 disp('done loading data into im_1 and im_2')
 %% Define shifts for each time point ======================================
 disp('Defining shifts...')
 shifts = struct('x_1',[],'y_1',[],'x_2',[],'y_2',[]);
 for time = 1 :NTimes
-    [shiftx,shifty,~] = xcorr2fft(im_1(:,:,time), im_1(:,:,t_ref));
+    [shiftx,shifty,~] = xcorr2fft(im_1(:,:,time), im_1(:,:,t_ref_ind));
     shifts(time).x_1 = shiftx;
     shifts(time).y_1 = shifty; 
     
-    [shiftx,shifty,~] = xcorr2fft(im_2(:,:,time), im_2(:,:,t_ref));
+    [shiftx,shifty,~] = xcorr2fft(im_2(:,:,time), im_2(:,:,t_ref_ind));
     shifts(time).x_2 = shiftx;
     shifts(time).y_2 = shifty; 
 end
@@ -99,7 +101,7 @@ close('all')
 disp('defining stackSize...')
 done = false ;
 stackSize = 0 ;
-name_ref = sprintf(dummyName,alltimes(t_ref));
+name_ref = sprintf(dummyName, t_ref);
 while ~done
     stackSize = stackSize + 1 ;
     try
@@ -111,7 +113,7 @@ end
 stackSize = stackSize - 1 ;
 
 disp('building reference MIP...')
-name_ref = sprintf(dummyName,alltimes(t_ref));
+name_ref = sprintf(dummyName, t_ref);
 % preallocate im_ref3D for speed
 im_ref3D = zeros([size(tmp) stackSize]) ;
 for z = 1 : stackSize
@@ -209,7 +211,7 @@ disp('done checking, see Figure')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% check on the first images; 
 disp('Check on each time point for first mips...')
-for time = 1:num2check
+for time = 1:min(num2check, size(im_1, 3))
     im = im_1(:,:,time);
     rgb = zeros(size(im,1),size(im,2),3,'uint8');
 
@@ -240,7 +242,7 @@ disp('Done checking each timepoint MIP #1')
 
 %% check on the second images; 
 disp('Check on each time point for second mips...')
-for time = 1:num2check
+for time = 1:min(num2check, size(im_2, 3))
     im = im_2(:,:,time);
     rgb = zeros(size(im,2),size(im,1),3,'uint8');
 

@@ -1382,12 +1382,34 @@ if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
 end
 disp('done')
 
+%% COMPUTE MEAN AND GAUSSIAN CURVATURES
+getderivatives=0;
+disp('Computing/Loading writhe...')
+for t = xp.fileMeta.timePoints
+    KHfn = fullfile(KHDir, ['writhe_sphi' dvexten '_avgpts.mat']) ;
+    if ~exist(KHfn, 'file') || overwrite_curvatures
+        spcutMesh = load(sprintf(spcutMeshBase, t)) ;
+        fv.faces = spcutMesh.f ;
+        fv.vertices = spcutMesh.vrs ;
+        PrincipalCurvatures = GetCurvatures( fv ,getderivatives);
+        gaussCurv = PrincipalCurvatures(1,:).*PrincipalCurvatures(2,:);
+        meanCurv = 0.5 * (PrincipalCurvatures(1,:) + PrincipalCurvatures(2,:));
+
+        trisurf(
+        % Save the fold locations as a mat file
+        save(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
+    else
+        disp('Curvatures already computed & saved on disk')
+    end
+end
+
+
 %% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
 % First compute using the avgpts (DVhoop means)
 disp('Computing/Loading writhe...')
 omit_endpts = 4 ;
 wrfn = fullfile(lobeDir, ['writhe_sphi' dvexten '_avgpts.mat']) ;
-if ~exist(wrfn, 'file') || overwrite_writhe || true
+if ~exist(wrfn, 'file') || overwrite_writhe
     [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
         aux_compute_writhe(clineDVhoopBase, xp.fileMeta.timePoints, true, omit_endpts, preview) ;
     
@@ -1402,7 +1424,7 @@ if true
     aux_plot_writhe(xp.fileMeta.timePoints, clines_resampled, ...
         Wr, Wr_density, dWr, Length_t, writheDir, area_volume_fn, ...
         fold_onset, 'Levitt', xyzlim, clineDVhoopBase, ...
-        cylinderMeshCleanBase, rot, trans, resolution, omit_endpts)
+        cylinderMeshCleanBase, rot, trans, resolution, omit_endpts, false)
     
 end
 disp('done')
@@ -2209,7 +2231,7 @@ else
         
         % Resolve tangential and normal velocities, obtain jacobian =======
         [v0n, v0t, v0t2d, jac, facenormals, g_ab, dilation] = ...
-            resolveTangentNormalVelocities(tm0f, tm0v3d, v0, tm0XY, fieldfaces) ;
+            resolveTangentNormalVelocities(tm0f, tm0v3d, v0, fieldfaces, tm0XY) ;
         
         % I have checked that det(jac * jac') = det(jjac * jjac') for a
         % triangle. 
