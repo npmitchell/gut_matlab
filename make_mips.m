@@ -1,30 +1,40 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % script to read 16 bit images and output the mips 
 % NPMitchell 2019
+% view1 = along third dimension, near half
+% view2 = along third dimension, far half
+% view11 = along first dimension, near half
+% view12 = along first dimension, far half
+% view21 = along second dimension, near half
+% view22 = along second dimension, far half
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-clear all; close all;
-%%
-mipoutdir = 'mips_stab' ;
+clearvars; close all;
+%% OPTIONS
+overwrite_mips = false ;
+mipoutdir = 'mips_stab' ; %_stab
+% tiff filenames of which to make mips 
+filenameFormat  = 'Time_%06d_c1_stab.tif';  %_stab
+scale = 1.; % 0.02
+% Offset for setting what timestep is t=0
+t_off = 0;
+% Where the data lives
+dataDir = cd;
+% which timepoints to make mips of
+timePoints = [0:169];
+
+%% Create directories & add paths
 if ~exist(mipoutdir, 'dir')
     mkdir(mipoutdir)
 end
 
 addpath('/mnt/data/code');
 addpath('/mnt/data/code/imsaneV1/external/bfmatlab/');
-scale = 1.; % 0.02
-% Offset for setting what timestep is t=0
-t_off = 0;
-dataDir    = cd;
 cd(dataDir)
-
-filenameFormat  = 'deconvolved_16bit/Time_%06d_c1_stab.tif';
 msgLevel = 1;
 setpref('ImSAnE', 'msgLevel', msgLevel);
-%%
-timePoints      = [10:169];
 
-% Make the subdirectories for the mips if not already existing
+%% Make the subdirectories for the mips if not already existing
 mipdirs = {fullfile(mipoutdir, 'view1/'), ...
     fullfile(mipoutdir, 'view2/'), ...
     fullfile(mipoutdir, 'view11/'), ...
@@ -37,12 +47,23 @@ for i = 1:length(mipdirs)
     end
 end
 
+%% Cycle through timepoints to make mips
 for time = timePoints
     disp(['Considering time=' num2str(time)])
     fileName = sprintf(filenameFormat, time);
     fullFileName = fullfile(dataDir, fileName);
+    m1fn = fullfile(mipoutdir, sprintf('view1/mip_1_%03d_c1.tif',  time-t_off)) ;
+    m2fn = fullfile(mipoutdir, sprintf('view2/mip_2_%03d_c1.tif',  time-t_off)) ;
+    m11fn = fullfile(mipoutdir, sprintf('view11/mip_11_%03d_c1.tif',time-t_off)) ;
+    m21fn = fullfile(mipoutdir, sprintf('view21/mip_21_%03d_c1.tif',time-t_off)) ;
+    m12fn = fullfile(mipoutdir, sprintf('view12/mip_12_%03d_c1.tif',time-t_off)) ;
+    m22fn = fullfile(mipoutdir, sprintf('view22/mip_22_%03d_c1.tif',time-t_off)) ;
+    mexist = exist(m1fn, 'file') && exist(m2fn, 'file') && ...
+        exist(m11fn, 'file') && exist(m21fn, 'file') && ...
+        exist(m12fn, 'file') && exist(m22fn, 'file') ;
     
-    if exist(fullFileName, 'file')
+    % Only consider this timepoint if mips don't exist, or overwrite
+    if exist(fullFileName, 'file') && (~mexist || overwrite_mips)
         disp([ 'reading ' fullFileName]) 
         % data = readSingleTiff(fullFileName);
         data = bfopen(fullFileName) ;
@@ -66,15 +87,20 @@ for time = timePoints
         mip_21 = squeeze(max(im2(round(imSize(1)/2):end,:,:),[],1));
         mip_12 = squeeze(max(im2(:,1:round(imSize(2)/2),:),[],2));
         mip_22 = squeeze(max(im2(:,round(imSize(2)/2):end,:),[],2));
-
-        imwrite(mip_1, fullfile(mipoutdir, sprintf('view1/mip_1_%03d_c1.tif',  time-t_off)),'tiff','Compression','none');
-        imwrite(mip_2, fullfile(mipoutdir, sprintf('view2/mip_2_%03d_c1.tif',  time-t_off)),'tiff','Compression','none');
-        imwrite(mip_11,fullfile(mipoutdir, sprintf('view11/mip_11_%03d_c1.tif',time-t_off)),'tiff','Compression','none');
-        imwrite(mip_21,fullfile(mipoutdir, sprintf('view21/mip_21_%03d_c1.tif',time-t_off)),'tiff','Compression','none');
-        imwrite(mip_12,fullfile(mipoutdir, sprintf('view12/mip_12_%03d_c1.tif',time-t_off)),'tiff','Compression','none');
-        imwrite(mip_22,fullfile(mipoutdir, sprintf('view22/mip_22_%03d_c1.tif',time-t_off)),'tiff','Compression','none');
+        imwrite(mip_1, m1fn,'tiff','Compression','none');
+        imwrite(mip_2, m2fn,'tiff','Compression','none');
+        imwrite(mip_11,m11fn,'tiff','Compression','none');
+        imwrite(mip_21,m21fn,'tiff','Compression','none');
+        imwrite(mip_12,m12fn,'tiff','Compression','none');
+        imwrite(mip_22,m22fn,'tiff','Compression','none');
     else
-        disp(['WARNING: file does not exist, skipping: ', fullFileName])
+        if ~exist(fullFileName, 'file') 
+            disp(['WARNING: file does not exist, skipping: ', fullFileName])
+        elseif mexist
+            disp(['MIPS already exist for ' fullFileName, ' -- skipping'])
+        else 
+            error('Somehow the file exists and mips do not, but failed to execute. Investigate here.')
+        end
     end
 end
 disp('done')

@@ -1,23 +1,37 @@
-%%
-% initialize
-%%
 %% GUT_PIPELINE_20190415: GUT CONFORMAL MAPPING PIPELINE
-% by Dillon Cislo & NPMitchell
+% by NPMitchell & Dillon Cislo
 %
 % This is a pipeline to take the surface of the growing Drosophila gut and
 % conformally map patches of it to the unit disk
 
-%% INITIALIZE ImSAnE PROJECT ==============================================
-%
+%% -III. 32to16bit.m
+%% -II. make_mips.m for 16bit images
+%% -I. stabilizeImages_gut.m
+%% 
+
+% -- 
+
+%% I. INITIALIZE
+
+%% Global options
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
+% change this path, for convenience
+cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/deconvolved_16bit
+% Decide whether to change previously stored detection Opts, if they exist
+overwrite_detOpts = true ;
+run_full_dataset_ms = true ;
+
+%% INITIALIZE ImSAnE PROJECT ==============================================
+
 addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
 
 % Setup a working directory for the project, where extracted surfaces,
 % metadata and debugging output will be stored.  Also specifiy the
 % directory containing the data.
 dataDir    =  cd; 
-[ projectDir, ~, ~ ] = fileparts(matlab.desktop.editor.getActiveFilename); 
+projectDir = dataDir ;
+% [ projectDir, ~, ~ ] = fileparts(matlab.desktop.editor.getActiveFilename); 
 cd(projectDir);
 if projectDir(end) ~= '/'
     projectDir = [projectDir '/'];
@@ -118,12 +132,16 @@ mlxprogram = 'surface_rm_resample20k_reconstruct_LS3_ssfactor4.mlx';
 msls_axis_order = 'yxzc';
 % Mesh marching options
 normal_step = 10;
-run_full_dataset = projectDir ; % 'none' ;
+if run_full_dataset_ms
+    run_full_dataset = projectDir ; 
+else
+    run_full_dataset = 'none' ;
+end
 
 % Load/define the surface detection parameters
 msls_detOpts_fn = fullfile(projectDir, 'msls_detectOpts.mat') ;
-if exist(msls_detOpts_fn, 'file')
-    load(detectOpts)
+if exist(msls_detOpts_fn, 'file') || overwrite_detOpts
+    load(msls_detOpts_fn)
 else
     channel = 1;
     foreGroundChannel = 1;
@@ -203,21 +221,6 @@ mslsDir = [mslsDir msls_exten '/'] ;
 % The dimension to use to grab extremal seeds
 seeddim = 3;
 
-% Onion Options
-nLayers = 3 ;  % nLayers must be an odd int
-layerDistance = 5 ;  % layerDistance is in pix
-sigma = 10 ;  % Sigma smooths
-makeIP = 'MIP' ;  % SIP, MIP are options for makeIP
-IPonly = false ;
-onionOpts = struct('nLayers', nLayers, 'layerDistance', layerDistance,...
-                   'sigma', sigma, 'makeIP', makeIP, 'IPonly', IPonly);
-% SOI saving options
-imwriteOptions = {'tif'};
-soiDir = fullfile(projectDir, ['gut_apical_conformal_msls' msls_exten]);
-soiDir = [soiDir '_' num2str(nLayers) 'layer/']; 
-soi_save_options = struct('dir',soiDir,'imwriteOptions',{imwriteOptions},...
-                    'make8bit',false);
-                
 %% DETECT THE SURFACE =====================================================
 % Surface detection parameters --------------------------------------------
 detectOptions = struct( 'channel', channel, ...
@@ -267,7 +270,6 @@ xp.setDetectOptions( detectOptions );
 % skip if already done
 
 for t = xp.fileMeta.timePoints
-    
     if ~exist(fullfile(projectDir, [sprintf(fn, t) '.h5']), 'file')
         disp(['Did not find file: ', fullfile(projectDir, [sprintf(fn, t) '.h5'])])
         xp.loadTime(t);
@@ -299,17 +301,24 @@ disp('Open with ilastik if not already done')
 %% Create MorphoSnakesLevelSet from the Probabilities from ilastik ========
 fileMeta = xp.fileMeta ;
 if strcmp(detectOptions.run_full_dataset, projectDir)
-    disp(['Running dataset mode'])
+    assert(run_full_dataset_ms)
+    disp('Running dataset mode')
     xp.detectSurface();
 else
+    assert(~run_full_dataset_ms)
+    assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = fileMeta.timePoints(100:end)
+    for tp = fileMeta.timePoints(124:end)
         xp.setTime(tp);
+        % xp.loadTime(tp) ;
         % xp.rescaleStackToUnitAspect();
-        detectOptions.timepoint = xp.currentTime ;
-        detectOptions.fileName = sprintf( fn, xp.currentTime );
-        detectOptions.init_ls_fn = 'none' ;
-        xp.setDetectOptions( detectOptions );
+        
+        % make a copy of the detectOptions and change the fileName
+        detectOpts2 = detectOptions ;
+        detectOpts2.timepoint = xp.currentTime ;
+        detectOpts2.fileName = sprintf( fn, xp.currentTime );
+        detectOpts2.init_ls_fn = sprintf( fn, xp.currentTime-1 ) ;
+        xp.setDetectOptions( detectOpts2 );
         xp.detectSurface();
     end
 end
