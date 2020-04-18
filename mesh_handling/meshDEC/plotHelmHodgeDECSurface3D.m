@@ -151,12 +151,6 @@ for divcurl = 1:2
     opts.outfn = fnstrs3dt{divcurl} ;
     opts.sscale = sscales(divcurl) ;
     
-    tMapOpts.ScalarCLim = [-sscales(divcurl), sscales(divcurl)] ;
-    tMapOpts.ScalarColorMap = bwr ;
-    if isfield(mesh, 'vn')
-        tMapOpts.VertexNormals = mesh.vn ;
-    end
-    
     scalarVectorFieldsOnSurface(faces, vertices, sfs{divcurl},...
         xxv, yyv, zzv, vx, vy, vz, opts)
     

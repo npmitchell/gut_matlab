@@ -66,7 +66,7 @@ ssfactor = QS.xp.detector.options.ssfactor ;
 [~, ~, xyzlim_um] = QS.getXYZLims() ;
 
 % Name output directory
-outdir = QS.dirs.cylinderMesh ;
+outdir = QS.dir.cylinderMesh ;
 figoutdir = fullfile(outdir, 'images') ;
 if ~exist(figoutdir, 'dir')
     mkdir(figoutdir) ;
@@ -97,7 +97,14 @@ for ii=1:length(timePoints)
     
     % Compute the endcaps if not already saved
     if overwrite || ~exist(outfn, 'file') || ~exist(keepfn, 'file')
+        if exist(outfn, 'file')
+            disp(['Overwriting cylinder mesh: ' outfn])
+        end
+        if exist(keepfn, 'file')
+            disp(['Overwriting keep indices: ' keepfn])
+        end
         disp(['Computing endcaps for ' name])
+        error('dfdd')
         mesh = read_ply_mod(sprintf(meshfn, tt));
         % subsample the mesh to match acom, pcom
         vtx = mesh.v / ssfactor ;

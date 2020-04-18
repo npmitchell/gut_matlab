@@ -38,6 +38,7 @@ dataDir = cd ;
 
 % Decide whether to change previously stored detection Opts, if they exist
 overwrite_masterSettings = false ;
+overwrite_mips = false ;
 overwrite_detOpts = false ;
 run_full_dataset_ms = false ;
 overwrite_alignAPDVOpts = false ;
@@ -47,7 +48,7 @@ overwrite_alignedMeshIms = false ;
 overwrite_centerlines = false ;
 overwrite_centerlineIms = false ;
 overwrite_TextureMeshOpts = false ;
-overwrite_mips = false ;
+overwrite_endcapOpts = false ;
 overwrite_idAnomClines = false ;
 overwrite_cleanCylMesh = false ;
 overwrite_cutMesh = true ;
@@ -82,10 +83,26 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'fn_prestab', fn_prestab, ...
         'set_preilastikaxisorder', set_preilastikaxisorder); 
     disp('Saving masterSettings to ./masterSettings.mat')
-    save('./masterSettings.mat', 'masterSettings')
+    if exist('./masterSettings.mat', 'file')
+        ui = userinput('This will overwrite the masterSettings. Proceed (Y/n)?');
+        if ~isempty(ui) && (strcmp(ui(1), 'Y') || strcmp(ui(1), 'y'))
+            save('./masterSettings.mat', 'masterSettings')
+            loadMaster = false ;
+        else
+            disp('Loading masterSettings from disk instead of overwriting')
+            loadMaster = true ;
+        end
+    else
+        save('./masterSettings.mat', 'masterSettings')
+        loadMaster = false ;
+    end
 else
+    loadMaster = true ;
+end
+
+if loadMaster
     % LOAD EXISTING MASTER SETTINGS
-    disp('Loading masterSettings to ./masterSettings.mat')
+    disp('Loading masterSettings from ./masterSettings.mat')
     load('./masterSettings.mat', 'masterSettings')
     % Unpack existing master settings
     stackResolution = masterSettings.stackResolution ;
@@ -102,9 +119,13 @@ else
     fn_prestab = masterSettings.fn_prestab ;
     set_preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
 end
+dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
+dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
+dir16bit_prestab = fullfile(dir16bit, 'data_pre_stabilization') ;
 
 %% PATHS ==================================================================
 disp('Adding paths')
+ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/' ;
 codepath = '/mnt/data/code/' ;
 gutpath = fullfile(codepath, 'gut_matlab') ;
 meshlabCodeDir = fullfile(codepath, 'meshlab_codes') ;
@@ -127,6 +148,7 @@ addpath_recurse(fullfile(gutpath, ['curve_functions' filesep])) ;
 addpath(fullfile(gutpath, ['ExtPhaseCorrelation' filesep])) ;
 addpath(fullfile(gutpath, 'savgol')) ;
 addpath(fullfile(codepath, 'DEC')) ;
+addpath(fullfile(codepath, 'TexturePatch_for_git', 'TexturePatch')) ;
 % addpath(genpath('/mnt/crunch/djcislo/MATLAB/TexturePatch'));
 disp('done')
 
@@ -149,9 +171,6 @@ disp('done adding colors')
 % =========================================================================
 % =========================================================================
 %% -IIV. make MIPs for 32bit images
-dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
-dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
-dir16bit_prestab = fullfile(dir16bit, 'data_pre_stabilization') ;
 mipDir = fullfile(dir32bit, 'mips32bit') ;
 Options.overwrite_mips = overwrite_mips ;
 Options.scale = scale ;
@@ -193,15 +212,17 @@ stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     mipDir, mipoutdir, mips_stab_check, overwrite_mips, overwrite_tiffs)
 
 %%   -I. master_gut_timeseries_prestab_for_training.m
-cd deconvolved_16bit
+cd(dir16bit)
 dataDir = cd ;
 makeH5SeriesPrestabForTraining(fn_prestab(1:end-4), nChannels, timePoints, ...
     ssfactor, stackResolution, dir16bit_prestab, set_preilastikaxisorder)
+cd(dir16bit)
 
 %% I. INITIALIZE ImSAnE PROJECT ===========================================
 % Setup a working directory for the project, where extracted surfaces,
 % metadata and debugging output will be stored.  Also specifiy the
 % directory containing the data.
+cd(dir16bit)
 dataDir = cd ;
 projectDir = dataDir ;
 % [ projectDir, ~, ~ ] = fileparts(matlab.desktop.editor.getActiveFilename); 
@@ -292,10 +313,11 @@ xp.initNew();
 clear fileMeta expMeta
 
 %% LOAD THE FIRST TIME POINT ==============================================
-xp.loadTime(xp.fileMeta.timePoints(first_tp));
-xp.rescaleStackToUnitAspect();
+xp.setTime(xp.fileMeta.timePoints(1)) ;
+% xp.loadTime(xp.fileMeta.timePoints(first_tp));
+% xp.rescaleStackToUnitAspect();
 
-%% DETECT THE SURFACE =====================================================
+%% SET DETECT OPTIONS =====================================================
 % Mesh extraction options
 if run_full_dataset_ms
     run_full_dataset = projectDir ; 
@@ -306,8 +328,7 @@ end
 % Load/define the surface detection parameters
 msls_detOpts_fn = fullfile(projectDir, 'msls_detectOpts.mat') ;
 if exist(msls_detOpts_fn, 'file') && ~overwrite_detOpts
-    load(msls_detOpts_fn)
-    disp('WARNING: preilastikaxisorder is overwritten by saved value')
+    load(msls_detOpts_fn, 'detectOptions')
 else
     channel = 1;
     foreGroundChannel = 1;
@@ -317,7 +338,6 @@ else
     ofn_ply = 'mesh_apical_ms_stab_' ; 
     ofn_ls = 'msls_apical_stab_' ;
     ofn_smoothply = 'mesh_apical_stab_' ;
-    ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/' ;
     lambda1 = 1 ;
     lambda2 = 1 ;
     exit_thres = 0.0001 ;
@@ -343,99 +363,84 @@ else
     imsaneaxisorder = 'xyzc'; ... % axis order relative to mesh axis order by which to process the point cloud prediction. To keep as mesh coords, use xyzc
     include_boundary_faces = true ;
     
-    % save is
+    % Name the output mesh directory ------------------------------------------
+    % msls_exten = ['_prnu' strrep(strrep(num2str(pre_nu, '%d'), '.', 'p'), '-', 'n')];
+    % msls_exten = [msls_exten '_prs' strrep(num2str(pre_smoothing, '%d'), '.', 'p') ];
+    % msls_exten = [msls_exten '_nu' strrep(num2str(nu, '%0.2f'), '.', 'p') ];
+    % msls_exten = [msls_exten '_s' strrep(num2str(smoothing, '%0.2f'), '.', 'p') ];
+    % msls_exten = [msls_exten '_pn' num2str(post_nu, '%d') '_ps',...
+    %     num2str(post_smoothing)];
+    % msls_exten = [msls_exten '_l' num2str(lambda1) '_l' num2str(lambda2) ];
+    meshDir = [projectDir 'msls_output'];
+    % meshDir = [meshDir msls_exten '/'] ;
+
+    % Surface detection parameters --------------------------------------------
+    detectOptions = struct( 'channel', channel, ...
+        'ssfactor', ssfactor, ...
+        'niter', niter,...
+        'niter0', niter0, ...
+        'lambda1', lambda1, ...
+        'lambda2', lambda2, ...
+        'nu', nu, ...
+        'smoothing', smoothing, ...
+        'post_nu', post_nu, ...
+        'post_smoothing', post_smoothing, ...
+        'exit_thres', exit_thres, ...
+        'foreGroundChannel', foreGroundChannel, ...
+        'fileName', sprintf( fn, xp.currentTime ), ...
+        'mslsDir', meshDir, ...
+        'ofn_ls', ofn_ls, ...
+        'ofn_ply', ofn_ply,...
+        'ofn_smoothply', ofn_smoothply, ...
+        'ms_scriptDir', ms_scriptDir, ...
+        'timepoint', xp.currentTime, ...
+        'zdim', zdim, ...
+        'pre_nu', pre_nu, ...
+        'pre_smoothing', pre_smoothing, ...
+        'mlxprogram', mlxprogram, ...
+        'init_ls_fn', init_ls_fn, ... % set to none to load prev tp
+        'run_full_dataset', run_full_dataset,... % projectDir, ... % set to 'none' for single tp
+        'radius_guess', radius_guess, ...
+        'dset_name', 'exported_data',...
+        'center_guess', center_guess,... % xyz of the initial guess sphere ;
+        'save', false, ... % whether to save images of debugging output
+        'plot_mesh3d', false, ...
+        'dtype', dtype,...
+        'mask', mask,...
+        'mesh_from_pointcloud', false, ...
+        'prob_searchstr', prob_searchstr, ...
+        'preilastikaxisorder', preilastikaxisorder, ... 
+        'ilastikaxisorder', ilastikaxisorder, ... 
+        'physicalaxisorder', imsaneaxisorder, ... 
+        'include_boundary_faces', include_boundary_faces, ...
+        'smooth_with_matlab', true) ;
+
+    % save options
+    if exist(msls_detOpts_fn, 'file')
+        disp('Overwriting detectOptions --> renaming existing as backup')
+        backupfn1 = [msls_detOpts_fn '_backup1'] ;
+        if exist(backupfn1, 'file')
+            backupfn2 = [msls_detOpts_fn '_backup2'] ; 
+            system(['mv ' backupfn1 ' ' backupfn2])
+        end
+        system(['mv ' msls_detOpts_fn ' ' backupfn1])
+    end
     disp('Saving detect Options to disk')
-    save(msls_detOpts_fn, 'channel', ...
-    'foreGroundChannel', ...
-    'ssfactor', ...
-    'niter', ...
-    'niter0', ...
-    'ofn_ply', ...
-    'ofn_ls', ...
-    'ofn_smoothply', ...
-    'ms_scriptDir', ...
-    'lambda1', ...
-    'lambda2', ...
-    'exit_thres', ...
-    'smoothing', ...
-    'nu', ...
-    'pre_nu', ...
-    'pre_smoothing', ...
-    'post_nu', ...
-    'post_smoothing', ...
-    'zdim', ...
-    'init_ls_fn', ...
-    'mlxprogram', ...
-    'radius_guess', ...
-    'center_guess', ...
-    'dtype', ...
-    'mask', ...
-    'prob_searchstr', ...
-    'imsaneaxisorder', ...
-    'preilastikaxisorder', ...
-    'ilastikaxisorder', ...
-    'include_boundary_faces') ;
+    save(msls_detOpts_fn, 'detectOptions') ;
 end
 
-% Name the output mesh directory ------------------------------------------
-msls_exten = ['_prnu' strrep(strrep(num2str(pre_nu, '%d'), '.', 'p'), '-', 'n')];
-msls_exten = [msls_exten '_prs' strrep(num2str(pre_smoothing, '%d'), '.', 'p') ];
-msls_exten = [msls_exten '_nu' strrep(num2str(nu, '%0.2f'), '.', 'p') ];
-msls_exten = [msls_exten '_s' strrep(num2str(smoothing, '%0.2f'), '.', 'p') ];
-msls_exten = [msls_exten '_pn' num2str(post_nu, '%d') '_ps',...
-    num2str(post_smoothing)];
-msls_exten = [msls_exten '_l' num2str(lambda1) '_l' num2str(lambda2) ];
-meshDir = [projectDir 'msls_output'];
-meshDir = [meshDir msls_exten '/'] ;
-
+% Overwrite certain parameters for script structure
+detectOptions.fileName = sprintf( fn, xp.currentTime ) ;
+detectOptions.run_full_dataset = run_full_dataset ;
+detectOptions.ms_scriptDir = ms_scriptDir ;
+meshDir = detectOptions.mslsDir ;
 % These are now in QS.
 % meshFileBase = [ofn_smoothply '%06d'] ;
 % alignedMeshBase = [ofn_smoothply '%06d_APDV_um'] ;
 
-% Surface detection parameters --------------------------------------------
-detectOptions = struct( 'channel', channel, ...
-    'ssfactor', ssfactor, ...
-    'niter', niter,...
-    'niter0', niter0, ...
-    'lambda1', lambda1, ...
-    'lambda2', lambda2, ...
-    'nu', nu, ...
-    'smoothing', smoothing, ...
-    'post_nu', post_nu, ...
-    'post_smoothing', post_smoothing, ...
-    'exit_thres', exit_thres, ...
-    'foreGroundChannel', foreGroundChannel, ...
-    'fileName', sprintf( fn, xp.currentTime ), ...
-    'mslsDir', meshDir, ...
-    'ofn_ls', ofn_ls, ...
-    'ofn_ply', ofn_ply,...
-    'ofn_smoothply', ofn_smoothply, ...
-    'ms_scriptDir', ms_scriptDir, ...
-    'timepoint', xp.currentTime, ...
-    'zdim', zdim, ...
-    'pre_nu', pre_nu, ...
-    'pre_smoothing', pre_smoothing, ...
-    'mlxprogram', mlxprogram, ...
-    'init_ls_fn', init_ls_fn, ... % set to none to load prev tp
-    'run_full_dataset', run_full_dataset,... % projectDir, ... % set to 'none' for single tp
-    'radius_guess', radius_guess, ...
-    'dset_name', 'exported_data',...
-    'center_guess', center_guess,... % xyz of the initial guess sphere ;
-    'save', false, ... % whether to save images of debugging output
-    'plot_mesh3d', false, ...
-    'dtype', dtype,...
-    'mask', mask,...
-    'mesh_from_pointcloud', false, ...
-    'prob_searchstr', prob_searchstr, ...
-    'preilastikaxisorder', preilastikaxisorder, ... 
-    'ilastikaxisorder', ilastikaxisorder, ... 
-    'physicalaxisorder', imsaneaxisorder, ... 
-    'include_boundary_faces', include_boundary_faces, ...
-    'smooth_with_meshlab', true) ;
-
-
 % Set detect options ------------------------------------------------------
 xp.setDetectOptions( detectOptions );
+disp('done')
 
 %% CREATE THE SUBSAMPLED H5 FILE FOR INPUT TO ILASTIK =====================
 % skip if already done
@@ -490,19 +495,25 @@ else
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
     for tp = xp.fileMeta.timePoints
-        xp.setTime(tp);
-        % xp.loadTime(tp) ;
-        % xp.rescaleStackToUnitAspect();
-        
-        % make a copy of the detectOptions and change the fileName
-        detectOpts2 = detectOptions ;
-        detectOpts2.timepoint = xp.currentTime ;
-        detectOpts2.fileName = sprintf( fn, xp.currentTime );
-        if tp > xp.fileMeta.timePoints(1)
+        try
+            xp.setTime(tp);
+            % xp.loadTime(tp) ;
+            % xp.rescaleStackToUnitAspect();
+
+            % make a copy of the detectOptions and change the fileName
+            detectOpts2 = detectOptions ;
+            detectOpts2.timepoint = xp.currentTime ;
+            detectOpts2.fileName = sprintf( fn, xp.currentTime );
+            xp.setDetectOptions( detectOpts2 );
+            xp.detectSurface();
+            % For next time, use the output mesh as an initial mesh
             detectOpts2.init_ls_fn = 'none' ;
+        catch
+            disp('Could not create mesh -- skipping for now')
+            % On next timepoint, use the tp previous to current time
+            detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
+                    num2str(tp - 1, '%06d' ) '.' detectOptions.dtype]
         end
-        xp.setDetectOptions( detectOpts2 );
-        xp.detectSurface();
     end
 end
 
@@ -585,6 +596,13 @@ opts.meshDir = meshDir ;
 opts.flipy = flipy ;
 opts.timeinterval = timeinterval ;
 opts.timeunits = timeunits ;
+opts.nV = 100 ;
+opts.nU = 100 ;
+opts.normalShift = 10 ;
+opts.a_fixed = 2.0 ;
+opts.adjustlow = 1.00 ;                  %  floor for intensity adjustment
+opts.adjusthigh = 99.9 ;                 % ceil for intensity adjustment (clip)
+opts.phiMethod = 'curves3d' ;
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
@@ -717,12 +735,18 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     % Align the meshes APDV & plot them
     opts.overwrite_ims = overwrite_alignedMeshIms ;  % overwrite images even if centerlines are not overwritten
     opts.overwrite = overwrite_APDVCOMs || overwrite_APDVMeshAlignment ; % recompute APDV rotation, translation
-    [rot, trans, xyzlim_raw, xyzlim, xyzlim_um] = alignMeshesAPDV(QS, acom_sm, pcom_sm, opts) ;
+    [rot, trans, xyzlim_raw, xyzlim, xyzlim_um] = QS.alignMeshesAPDV(acom_sm, pcom_sm, opts) ;
 else
     disp('Already done')
 end
 disp('done')
 clearvars normal_step 
+
+%% MAKE MASKED DATA FOR PRETTY VIDEO ==================================
+QS.generateMaskedData()
+
+%% MAKE ORIENTED MASKED DATA FOR PRETTY VIDEO ==================================
+QS.alignMaskedDataAPDV()
 
 %% PLOT ALL TEXTURED MESHES IN 3D =========================================
 % Get limits and create output dir
@@ -802,7 +826,7 @@ cntrlineOpts.dilation = 1 ;              % how many voxels to dilate the segment
 
 % Note: this takes about 400s per timepoint for res=2.0
 %
-extractCenterlineSeries(QS, cntrlineOpts)
+QS.extractCenterlineSeries(cntrlineOpts)
 disp('done with centerlines')
 
 %% Fix flip in Y for centerlines
@@ -811,7 +835,7 @@ disp('done with centerlines')
 %% Surface area and volume calc
 
 %% Cylinder cut mesh
-if overwriteEndcapOpts
+if overwrite_endcapOpts
     endcapOpts = ...
         struct( 'adist_thres', 20, ...  % distance threshold for cutting off anterior in pix
                 'pdist_thres', 25);     % distance threshold for cutting off posterior in pix
@@ -821,10 +845,11 @@ if overwriteEndcapOpts
 else
     % load endcapOpts
     QS.loadEndcapOptions() ;
+    endcapOpts = QS.endcapOptions ;
 end
 
 clearvars methodOpts
-methodOpts.overwrite = true ;  % recompute sliced endcaps
+methodOpts.overwrite = overwrite_endcapOpts ;  % recompute sliced endcaps
 methodOpts.save_figs = true ;   % save images of cntrline, etc, along the way
 methodOpts.preview = false ;     % display intermediate results
 sliceMeshEndcaps(QS, endcapOpts, methodOpts) ;
@@ -835,9 +860,9 @@ sliceMeshEndcaps(QS, endcapOpts, methodOpts) ;
 
 %% Parameters
 % Overwriting options
-overwrite_pullbacks = false ;
+overwrite_pullbacks = true ;
 overwrite_cutMesh = false ;
-overwrite_spcutMesh = false ;
+overwrite_spcutMesh = true ;
 overwrite_writhe = false ;
 overwrite_SmRSIms = false ;
 overwrite_spcutMeshSm = false ;
@@ -848,12 +873,7 @@ overwrite_lobeims = false ;
 overwrite_spcutMesh_smoothradii = false ;
 overwrite_piv = false ;
 % Other options for what to do
-phi_method = 'texture' ; % options are 'texture' and 'curves3d'
-generate_sphi_coord = true ;
-generate_uphi_coord = false ;
 save_ims = true ;
-nV = 100 ;
-nU = 100 ;
 nCurves_yjitter = 100 ;
 nCurves_sphicoord = 1000 ;
 % Plotting params
@@ -876,73 +896,6 @@ step_phi0tile = 25 ;
 width_phi0tile = 150 ;
 potential_sigmay = 350 ;
 
-%% PATHS
-
-% fileNameBase = fn ;
-% 
-% % The folder where the pullback images will be saved
-% nshift = strrep(sprintf('%03d', normal_shift), '-', 'n') ;
-% shiftstr = ['_' nshift 'step'] ;
-% imFolder = fullfile(meshDir, ['PullbackImages' shiftstr] ) ;
-% imFolder_e = [imFolder '_extended'] ;
-% imFolder_r = [imFolder '_relaxed'] ;
-% imFolder_re = [imFolder '_relaxed_extended'] ;
-% pivDir = fullfile(meshDir, 'piv') ;
-% meshBase = fullfile(fullfile(meshDir, 'meshes'), 'mesh_apical_stab_%06d.ply') ;
-% alignedMeshFullBase = fullfile(fullfile(meshDir, 'aligned_meshes'), 'mesh_apical_stab_%06d_APDV_um.ply') ;
-% cutFolder = fullfile(meshDir, 'cutMesh') ;
-% cutMeshBase = fullfile(cutFolder, [fileNameBase, '_cutMesh.mat']) ;
-% cutMeshImagesDir = fullfile(cutFolder, 'images') ;
-% cylCutDir = fullfile(meshDir, 'cylindercut') ;
-% cylCutMeshOutDir = fullfile(cylCutDir, 'cleaned') ;
-% cylCutMeshOutImDir = fullfile(cylCutMeshOutDir, 'images') ;
-% % centerlineDir = fullfile(meshDir, 'centerline') ;
-% % centerlineBase = fullfile(centerlineDir, 'mesh_apical_stab_%06d_centerline_exp1p0_res*.txt') ;
-% % cntrsFileName = fullfile(centerlineDir, 'mesh_apical_stab_%06d_centerline_scaled_exp1p0_res*.txt') ;
-% 
-% % centerline from DV hoops
-% clineDVhoopDir = fullfile(centerlineDir, ['centerline_from_DVhoops' shiftstr dvexten]) ;
-% clineDVhoopBase = fullfile(clineDVhoopDir, 'centerline_from_DVhoops_%06d.mat');
-% clineDVhoopImDir = fullfile(clineDVhoopDir, 'images') ;
-% clineDVhoopFigBase = fullfile(clineDVhoopImDir, 'clineDVhoop_%06d.png') ;
-% radiusDir = fullfile(meshDir, ['radiusDVhoops' shiftstr dvexten]) ;
-% radiusImDir = fullfile(radiusDir, 'images') ;
-% 
-% % Writhe dir for DV hoops
-% writheDir = fullfile(clineDVhoopDir, 'writhe') ;
-% 
-% % The file name base for the cylinder meshes
-% cylinderMeshBase = fullfile( cylCutDir, ...
-%     'mesh_apical_stab_%06d_cylindercut.ply' );
-% cylinderMeshCleanBase = fullfile( cylCutMeshOutDir, ...
-%     'mesh_apical_stab_%06d_cylindercut_clean.ply' );
-% cylinderMeshCleanFigBase = fullfile( cylCutMeshOutImDir, ...
-%     'mesh_apical_stab_%06d_cylindercut_clean.png' );
-
-% For steadying the images via phi0
-phi0fitBase = fullfile(sphiDir, 'phi0s_%06d_%02d.png') ; 
-
-tomake = {imFolder, imFolder_e, imFolder_r, imFolder_re,...
-    pivDir, cutFolder, cutMeshImagesDir, cylCutMeshOutDir,...
-    cylCutMeshOutImDir, clineDVhoopDir, clineDVhoopImDir, writheDir, ...
-    sphiDir, imFolder_sp, imFolder_sp_e, imFolder_sp, imFolder_sp_e,  ...
-    lobeDir, radiusDir, radiusImDir, ...
-    sphiSmDir, sphiSmRSImDir, sphiSmRSDir, sphiSmRSCDir, ...
-    sphiSmRSPhiImDir, ...
-    imFolder_spsm, imFolder_rsm, imFolder_spsm_e, ...
-    foldHoopImDir, KHSmDir, KSmDir, HSmDir, ...
-    fullfile(KSmDir, 'dorsal'), fullfile(KSmDir, 'ventral'), ...
-    fullfile(KSmDir, 'latleft'), fullfile(KSmDir, 'latleft'), ...
-    fullfile(HSmDir, 'dorsal'), fullfile(HSmDir, 'ventral'), ...
-    fullfile(HSmDir, 'latleft'), fullfile(HSmDir, 'latleft')} ;
-for i = 1:length(tomake)
-    dir2make = tomake{i} ;
-    if ~exist( dir2make, 'dir' )
-        mkdir(dir2make);
-    end
-end
-clearvars tomake dir2make i nshift 
-
 
 %% Identify anomalies in centerline data
 idOptions.ssr_thres = 15 ;  % distance of sum squared residuals in um as threshold
@@ -956,45 +909,55 @@ QS.cleanCylMeshes(cleanCylOptions)
     
 %% Iterate Through Time Points to Create Pullbacks ========================
 % outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
-for tt = xp.fileMeta.timePoints
+for tt = xp.fileMeta.timePoints(142:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
     
     % Load the data for the current time point ------------------------
-    QS.setTime(tt) 
+    QS.setTime(tt) ;
     
     %----------------------------------------------------------------------
     % Create the Cut Mesh
     %----------------------------------------------------------------------
     cutMeshfn = sprintf(QS.fullFileBase.cutMesh, tt) ;
-    if ~exist(cutMeshfn, 'file') || overwrite_cutMesh
-        if overwrite_cutMesh
-            fprintf('Generating to overwrite cutMesh...')
+    cutPathfn = sprintf(QS.fullFileBase.cutPath, tt) ;
+    if ~exist(cutMeshfn, 'file') || ~exist(cutPathfn, 'file') || overwrite_cutMesh
+        error('here')
+        if exist(cutMeshfn, 'file')
+            disp('Overwriting cutMesh...') ;
         else
-            fprintf('cutMesh not saved. Generating cutMesh... ');
+            disp('cutMesh not found on disk. Generating cutMesh... ');
         end
         QS.generateCurrentCutMesh()
+        disp('Saving cutP image')
+        % Plot the cutPath (cutP) in 3D
+        QS.plotCutPath(QS.currentMesh.cutMesh, QS.currentMesh.cutPath)
         compute_pullback = true ;
     else
         fprintf('Loading Cut Mesh from disk... ');
         QS.loadCurrentCutMesh()
-        compute_pullback = ~isempty(QS.currentMesh.cutP) ;
+        compute_pullback = ~isempty(QS.currentMesh.cutPath) ;
     end
 
-    % Plot the cutPath (cutP) in 3D
-    if overwrite_cutMesh 
-        disp('Saving cutP image')
-        QS.plotCutPath(QS.currentMesh.cutMesh, QS.currentMesh.cutPath)
-    end
-
+    spcutMeshOptions.overwrite = overwrite_spcutMesh ;
+    spcutMeshOptions.save_phi0patch = true ;
+    spcutMeshOptions.iterative_phi0 = true ;
+    spcutMeshOptions.smoothingMethod = 'none' ;
+    QS.plotting.preview = true ;
+    QS.generateCurrentSPCutMesh([], spcutMeshOptions) ;
+    
     % Compute the pullback if the cutMesh is ok
     if compute_pullback
-        QS.generateCurrentSPCutMesh([], overwrite_spcutMesh)
-        QS.generateCurrentPullbacks()
+        pbOptions.overwrite = overwrite_pullbacks ;
+        pbOptions.generate_uv = false ;
+        pbOptions.generate_uphi = false ;
+        pbOptions.generate_relaxed = false ;
+        QS.generateCurrentPullbacks([], [], pbOptions) ;
     else
         disp('Skipping computation of pullback')
     end
     clear Options IV
+    error('here')
 
     % %% Save SMArr2D (vertex positions in the 2D pullback) -----------------
     % disp(['Saving meshStack to disk: ' mstckfn])
@@ -1016,6 +979,8 @@ if check
     aux_preview_results
 end
 
+%% Phase correlation to get x shift
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TILE IMAGES IN Y AND RESAVE ============================================
@@ -1034,6 +999,8 @@ for qq = 1:2
     disp(['done ensuring extended tiffs for ' imDirs{qq} ' in ' imDirs_e{qq}])
 end
 disp('done')
+
+%% Estimate cell density
 
 %% FIND THE FOLDS SEPARATING COMPARTMENTS =================================
 % First compute using the avgpts (DVhoop means)
@@ -1423,7 +1390,7 @@ error('here after curvature calc')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Redo Pullbacks with time-smoothed meshes ===============================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fprintf('Create pullback using S,Phi coords with time-averaged Meshes \n');
+disp('Create pullback using S,Phi coords with time-averaged Meshes')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for qq = 1:length(xp.fileMeta.timePoints)
     tt = xp.fileMeta.timePoints(qq) ;
@@ -1440,13 +1407,8 @@ for qq = 1:length(xp.fileMeta.timePoints)
     pullbacks_exist1 = exist(imfn_spsm, 'file') ;
     pullbacks_exist2 = exist(imfn_rsm, 'file') ;
     if ~pullbacks_exist1 || ~pullbacks_exist2 || overwrite_pullbacks
-        % Load 3D data for coloring mesh pullback
-        xp.loadTime(tt);
-        xp.rescaleStackToUnitAspect();
-
-        % Raw stack data
-        IV = xp.stack.image.apply();
-        IV = imadjustn(IV{1});
+        QS.getCurrentData()
+        IV = QS.currentData.IV ;
     end
 
     if ~exist(imfn_spsm, 'file') || overwrite_pullbacks
@@ -1487,54 +1449,25 @@ end
 clearvars qq ntiles imDirs_e imDirs
 disp('done')
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% MEASURE THICKNESS ======================================================
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Measure thickness from images of imFolder_spsm_e2 (extendedLUT_smoothed)
+%% CREATE PULLBACK STACKS =================================================
 fprintf('Create pullback nstack using S,Phi coords with time-averaged Meshes \n');
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-layer_spacing = 1 / resolution ;
-n_outward = 10 ;
-n_inward = 8 ;
-for qq = 1:length(xp.fileMeta.timePoints)
-    tt = xp.fileMeta.timePoints(qq) ;
-    disp(['t = ' num2str(tt)])
-    
-    % Load time-smoothed mesh
-    load(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
-    
-    %--------------------------------------------------------------
-    % Generate Output Image File
-    %--------------------------------------------------------------
-    spacingstr = strrep(sprintf('%0.2fum', layer_spacing * resolution), '.', 'p') ;
-    imfn_spsm = sprintf( fullfile( imFolder_spsm_e2, ...
-        [fileNameBase, '_%02d_%02d_' spacingstr '.tif']), tt, n_outward, n_inward ) ;
-    
-    if ~exist(imfn_spsm, 'file') || overwrite_pullbacks
-        % Load 3D data for coloring mesh pullback
-        xp.loadTime(tt);
-        xp.rescaleStackToUnitAspect();
-
-        % Raw stack data
-        IV = xp.stack.image.apply();
-        IV = imadjustn(IV{1});
-        
-        fprintf(['Generating SP output image for sm mesh: ' imfn_spsm]);
-        % Assigning field spcutMesh.u to be [s, phi] (ringpath
-        % and azimuthal angle)
-        Options.numLayers = [n_outward, n_inward] ;
-        Options.layerSpacing = layer_spacing ;
-        Options.smoothIter = 1 ;
-        Options.yLim = [-0.5, 1.5] ;
-        % Note that we pass a_fixed * 0.5 since the image is extended by a
-        % factor of two
-        aux_generate_orbifold( spcutMeshSm, a_fixed * 0.5, IV, imfn_spsm, Options)
-    end
-    clear Options
+% Load options
+if ~exist(optionfn, 'file') || overwriteSmSPCutMeshStackOptions
+    spcutMeshSmStackOptions.layer_spacing = 1 / resolution ; % pixel resolution matches xy
+    spcutMeshSmStackOptions.n_outward = 10 ;
+    spcutMeshSmStackOptions.n_inward = 8 ;
+else
+    load(optionfn, 'smSPCutMeshStackOptions')
 end
+spcutMeshSmStackOptions.overwrite = overwrite_spcutMeshSmStackOptions ;
+QS.generateSPCutMeshSmStack(spcutMeshSmStackOptions)
 
 %% TRAIN IN ILASTIK ON MIDGUT TISSUE TO GET THICKNESS
 % Read thickness training output
+
+%% MEASURE THICKNESS ======================================================
+% Measure thickness from images of imFolder_spsm_e2 (extendedLUT_smoothed)
+QS.measureThickness(thicknessOptions)
 
 %% DUMP OR LOAD HERE [break]
 clearvars fold_ofn fig1exist fig2exist id idx mcline nsmM prevcline tmp

@@ -3,3 +3,5 @@ alecjacobson-gptoolbox-95392a8/*.m
 tissueAnalysisSuite/*
 *.m~
 *backup*
+Activecontour3D-master/*
+*.mat

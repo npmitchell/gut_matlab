@@ -104,8 +104,7 @@ xp.initNew();
 clear fileMeta expMeta
 
 %% LOAD THE FIRST TIME POINT ==============================================
-xp.loadTime(xp.fileMeta.timePoints(1));
-xp.rescaleStackToUnitAspect();
+xp.setTime(xp.fileMeta.timePoints(1));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %% Other options
@@ -202,7 +201,8 @@ xp.setDetectOptions( detectOptions );
 
 %% CREATE THE SUBSAMPLED H5 FILE FOR INPUT TO ILASTIK =====================
 for t = xp.fileMeta.timePoints
-    if ~exist(fullfile(projectDir, [sprintf(fn, t) '.h5']), 'file')
+    if ~exist(fullfile(projectDir, [sprintf(fn, t) '.h5']), 'file') && ...
+            ~exist(fullfile(projectDir, ['../' sprintf(fn, t) '.h5']), 'file')
         disp(['Did not find file: ', fullfile(projectDir, [sprintf(fn, t) '.h5'])])
         xp.loadTime(t);
         xp.rescaleStackToUnitAspect();

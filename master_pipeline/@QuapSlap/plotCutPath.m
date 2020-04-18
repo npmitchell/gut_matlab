@@ -11,6 +11,10 @@ if nargin < 2 || isempty(cutMesh)
 end
 if nargin < 3 || isempty(cutP)
     cutP = QS.currentMesh.cutPath ;
+    if isempty(cutP)
+        QS.loadCurrentCutMesh()
+    end
+    cutP = QS.currentMesh.cutPath ;
 end
 
 outdir = fullfile(QS.dir.cutMesh, 'images') ;
@@ -26,7 +30,10 @@ xyzrs = QS.xyz2APDV(cutMesh.v) ;
 fig = figure('Visible', 'Off')  ;
 fig.PaperUnits = 'centimeters';
 [~, ~, xyzlim_um] = QS.getXYZLims() ;
+xyzlim_um(:, 1) = xyzlim_um(:, 1) - QS.normalShift ;
+xyzlim_um(:, 1) = xyzlim_um(:, 1) + QS.normalShift ;
 
+% Figure generation
 fig.PaperPosition = [0 0 12 12];
 sh = trimesh(cutMesh.f, ...
     xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), xyzrs(:, 2), ...

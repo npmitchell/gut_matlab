@@ -1,24 +1,66 @@
-function generateCurrentCutMesh(QS)
+function generateCurrentCutMesh(QS, cutMeshOptions)
+% generateCurrentCutMesh(QS, cutMeshOptions)
 %
+% Parameters
+% ----------
+% QS : QuapSlap class instance
+%   The object for which we generate the currentTime's cutMesh
+% cutMeshOptions : struct with fields
+%   nsegs4path (int, optional, default=5)
+%       How many segments of piecewise geodesics to draw to cut the
+%       axisymmetric surface so that the cut does not change winding
+%       number with respect to the previous timepoint's cut around the
+%       centerline
+%   maxJitter (float, optional, default=100)
+%       maximum displacement in mesh units to randomly displace nodes of
+%       the path in a brute-force search for topologically connected path
+%   maxTwChange (float, optional, default=0.15)
+%       maximum allowed change in the value of the twist of the cutPath
+%       with respect to the centerline, as compared to the previous
+%       timepoint's cutPath twist about the centerline. This is a soft
+%       proxy for the topology change, but in practice it is superior to
+%       the error-prone methods of measuring the (discrete-valued) winding
+%       number explored thus far
+%
+% NPMitchell 2020
+
+% Parameters for cutMesh creation
+nsegs4path = 5 ;
+maxJitter = 100 ;
+maxTwChange = 0.15 ;
+nargin
+if nargin > 1
+    if isfield(cutMeshOptions, 'nsegs4path')
+        nsegs4path = cutMeshOptions.nsegs4path ;
+    end
+    if isfield(cutMeshOptions, 'maxJitter')
+        maxJitter = cutMeshOptions.maxJitter ;
+    end
+    if isfield(cutMeshOptions, 'maxTwChange')
+        maxTwChange = cutMeshOptions.maxTwChange ;
+    end
+end
 
 % Unpack parameters
 tt = QS.currentTime ;
 cutMeshfn = sprintf(QS.fullFileBase.cutMesh, tt) ;
 QS.getCleanCntrlines() ;
-mesh = QS.currentMesh.cylinderMesh ;
+mesh = QS.currentMesh.cylinderMeshClean ;
 if isempty(mesh)
-    QS.loadCurrentCylinderMesh() ;
-    mesh = QS.currentMesh.cylinderMesh ;
+    QS.loadCurrentCylinderMeshClean() ;
+    mesh = QS.currentMesh.cylinderMeshClean ;
 end
+cylinderMeshCleanBase = QS.fullFileBase.cylinderMeshClean ;
+outcutfn = QS.fullFileBase.cutPath ;
+% centerlines from QS
+QS.getCleanCntrlines ;
+cleanCntrlines = QS.cleanCntrlines ;
 
 % Grab ad and pd indices for cylinder mesh
 adIDx = h5read(QS.fileName.aBoundaryDorsalPtsClean,...
     ['/' sprintf('%06d', tt)]) ;
 pdIDx = h5read(QS.fileName.pBoundaryDorsalPtsClean,...
     ['/' sprintf('%06d', tt)]) ;
-
-% Output names
-outcutfn = sprintf(QS.fullFileBase.cutPath, tt) ;
 
 % try geodesic if first timepoint
 if tt == QS.xp.fileMeta.timePoints(1)
@@ -33,11 +75,15 @@ else
     % if ~exist('prevTw', 'var')
     % Load previous mesh and previous cutP
     prevcylmeshfn = sprintf( cylinderMeshCleanBase, tt-1) ;
+    disp(['Loading previous cylinderMeshClean: ' prevcylmeshfn])
     prevmesh = read_ply_mod( prevcylmeshfn ); 
+    
+    disp(['Loading previous cutPath: ' sprintf(outcutfn, tt-1)])
     prevcutP = dlmread(sprintf(outcutfn, tt-1), ',', 1, 0) ;
     previousP = prevmesh.v(prevcutP, :) ;
     % Load previous centerline in raw units
-    prevcline = cntrlines{tt-1} ; % use previous CORRECTED centerline (non-anomalous)
+    prevcline = cleanCntrlines{QS.xp.tIdx(tt-1)} ; % use previous CORRECTED centerline (non-anomalous)
+    prevcline = prevcline(:, 2:4) ;
     % Compute Twist for this previous timepoint
     prevTw = twist(previousP, prevcline) ;
 
@@ -54,9 +100,13 @@ else
     prevcutP = dlmread(sprintf(outcutfn, tt-1), ',', 1, 0) ;
     previousP = prevmesh.v(prevcutP, :) ;
 
+    % Current centerline: chop off ss to make Nx3
+    cntrline = cleanCntrlines{QS.xp.tIdx(tt)} ;
+    cntrline = cntrline(:, 2:4) ;
+    
     [cutMesh, adIDx, pdIDx, cutP, ~] = ...
         generateCutMeshFixedTwist(mesh, adIDx, pdIDx, ...
-        cntrlines{tt},...  % supply the current corrected centerline
+        cntrline,...  % supply the current corrected centerline
         nsegs4path, prevTw, previousP, ...
         'MaxTwChange', maxTwChange, 'MaxJitter', maxJitter, ...
         'PrevCntrline', prevcline) ;
@@ -131,11 +181,22 @@ ar = minimizeIsoarealAffineEnergy( cutMesh.f, cutMesh.v, cutMesh.u );
 % end      
 % a = a_fixed ;
 
-% Scale the x axis by a or ar
+% Scale the x axis by a or ar, also flip u if flipy is true
 uvtx = cutMesh.u ;
-cutMesh.u = [ QS.a_fixed .* uvtx(:,1), uvtx(:,2) ];
+if QS.flipy
+    cutMesh.u = [ QS.a_fixed .* uvtx(:,1), 1.0 - uvtx(:,2) ];
+else
+    cutMesh.u = [ QS.a_fixed .* uvtx(:,1), uvtx(:,2) ];
+end
 cutMesh.ar = ar ;
 cutMesh.umax = QS.a_fixed ;
+
+% preview the pullback mesh uv coords
+% plot(cutMesh.u(:, 1), cutMesh.u(:, 2), '.')
+% title(['generateCurrentCutMesh(): showing cutMesh.u for t= ' num2str(tt)])
+% pause(2)
+% close all
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('Done flattening cutMesh. Now saving.\n');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

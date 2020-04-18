@@ -1,29 +1,78 @@
 %% Stabilize images by removing jitter taken from MIPs. 
 % NPM 2019-2020
-
-% A directory 'mipsDir' should already exist and have the non-stab mips in
-% there. We compute the shifts to stabilize all volumes and write the 16
-% bit stabilized volumes to disk
-
-% NOTE 
+% 
+% We compute the shifts to stabilize all volumes and write the 16
+% bit stabilized volumes to disk. We generate the stabilized MIPs and show
+% an RGB overlay of the reference timepoint data and stabilized data in
+% cyan/magenta.
+% 
+% NOTE:
 % view1 = along third dimension, near half
 % view2 = along third dimension, far half
 % view11 = along first dimension, near half
 % view12 = along first dimension, far half
 % view21 = along second dimension, near half
 % view22 = along second dimension, far half
+%
+% Requirements
+% ------------
+% MIPs of the data specified by dataFileName must exist in:
+%    mipsDir/view1/mip_1_%03d_c1.tif
+%    mipsDir/view2/mip_2_%03d_c1.tif
+%    mipsDir/view11/mip_11_%03d_c1.tif
+%    mipsDir/view21/mip_21_%03d_c1.tif
+%    mipsDir/view12/mip_12_%03d_c1.tif
+%    mipsDir/view22/mip_22_%03d_c1.tif
+% This is accomplished by running make_mips.m
+%
+% Parameters
+% ----------
+% mipsDir : where MIPs are stored
+% mips_stab_check : output dir for the stabilized RGB overlays 
+% mipoutdir : output dir for the stabilized MIPs
+% im_intensity : scale for MIP output intensity
+% imref_intensity : scale for reference MIP intensity in RGB overlay
+% t_ref : timestamp of reference, matches other timepoints to this one
+% alltimes : all timestamps to consider in the sequence
+% times_todo : timestamps to correct/make output
+% typename : output volume datatype, as string ('uint8', 'uint16')
+% dataFileName : input filename format string for data to stabilize
+% dataFileNameOut : output filename format string for stabilized volumes
+% previewName : RGB overlay filename format string
+%
+% Returns
+% -------
+% - jitter/drift-corrected 3D volumes 
+% - MIPs of the jitter/drift-corrected volumes within mipoutdir
+% - colored overlays of one view with the reference time. 
 
 %%
-clc
-clear all
+clc ; clearvars
 disp('defining options...')
-addpath('/mnt/data/code/spimCode/');
+overwrite = false ;
+% addpath('/mnt/data/code/spimCode/');
 
-workDir = [pwd filesep]; 
-mipsDir = './mips/';
+%% Define directory structure
+mipsDir = fullfile(cd, ['mips' filesep]) ;
 % name of directory to check the stabilization of mips
 mips_stab_check = [mipsDir 'stab_check' filesep] ;
 mipoutdir = [mipsDir 'mips_stab' filesep] ;
+
+%% Options for scaling the image intensity
+im_intensity = 1 ; % 0.01 ;
+imref_intensity = 1 ; % 0.005 ;
+% Choose reference time for stabilization
+t_ref = 11;  % timestamp (not index) of the reference image
+alltimes = [0:169] ;
+times_todo = [0:169];  % times to overwrite as tifs
+% Choose bit depth as typename
+typename = 'uint16' ;
+% Give file names for I/O
+dataFileName = 'Time_%06d_c1.tif';
+dataFileNameOut = 'Time_%06d_c1_stab.tif';
+previewName = 'Time_%06d_c1_stab.png' ;
+
+disp('done defining options')
 
 %% Make the subdirectories for the mips if not already existing
 mipdirs = {mipoutdir, mips_stab_check, ...
@@ -38,38 +87,12 @@ for i = 1:length(mipdirs)
         mkdir(mipdirs{i})
     end
 end
-
-% Choose reference time for stabilization
-t_ref = 7;  % timestamp (not index) of the reference image
-alltimes = [1:14] ;
-times_todo = [1:14];  % times to overwrite as tifs
-num2check = 20 ;
-% Choose bit depth as typename
-typename = 'uint16' ;
-% Give file names for I/O
-dummyName = 'Time_%06d_c1.tif';
-dummyNameOut = 'Time_%06d_c1_stab.tif';
-previewName = 'Time_%06d_c1_stab.png' ;
-
 name1  = fullfile('view1', 'mip_1_%03d_c1.tif');
 name2  = fullfile('view2', 'mip_2_%03d_c1.tif');
 name11 = fullfile('view11', 'mip_11_%03d_c1.tif');
 name21 = fullfile('view21', 'mip_21_%03d_c1.tif');
 name12 = fullfile('view12', 'mip_12_%03d_c1.tif');
 name22 = fullfile('view22', 'mip_22_%03d_c1.tif');
-
-% Note that the associations were originally swapped here, confusingly.
-% I have renamed everything in the script to match this old convention
-% while retaining the logical naming
-% name_1  <--> 'mip_1_%03d_c1.tif';
-% name_11  <--> 'mip_2_%03d_c1.tif';
-% name_2  <--> 'mip_11_%03d_c1.tif';
-% name_21  <--> 'mip_21_%03d_c1.tif';
-
-im_intensity = 1 % 0.01 ;
-imref_intensity = 1 % 0.005 ;
-
-disp('done defining options')
 
 %% Load MIP data into im_1 and im_2 for all times
 disp('Loading MIP data for all times...')
@@ -151,7 +174,7 @@ close('all')
 disp('defining stackSize...')
 done = false ;
 stackSize = 0 ;
-name_ref = sprintf(dummyName, t_ref);
+name_ref = sprintf(dataFileName, t_ref);
 while ~done
     stackSize = stackSize + 1 ;
     try
@@ -164,7 +187,7 @@ stackSize = stackSize - 1 ;
 
 %% Build reference MIP for RGB overlay
 disp('building reference MIP...')
-name_ref = sprintf(dummyName, t_ref);
+name_ref = sprintf(dataFileName, t_ref);
 % preallocate im_ref3D for speed
 im_ref3D = zeros([size(tmp) stackSize]) ;
 for z = 1 : stackSize
@@ -180,12 +203,16 @@ for tid = 1 : length(alltimes)
     time = alltimes(tid);
     if ismember(time, times_todo)
         % The original image in 3d
-        im0fn = sprintf(dummyName, time);
+        im0fn = sprintf(dataFileName, time);
 
         % Check that we're not appending to an existing file
-        name_out = sprintf(dummyNameOut,time) ;
+        name_out = sprintf(dataFileNameOut,time) ;
         if exist(name_out, 'file')
-            disp(['Output file already exists: ' name_out ])
+            if overwrite
+                disp(['Output file already exists: ' name_out ])
+            else
+                error(['Output file already exists: ' name_out ])
+            end
             overwrite_dat = true ;
         else
             overwrite_dat = false ;
@@ -257,7 +284,7 @@ for tid = 1 : length(alltimes)
                     'Compression','none','WriteMode','append') ;
             end
         end
-        disp(['saved image ' sprintf(dummyNameOut,time)])
+        disp(['saved image ' sprintf(dataFileNameOut,time)])
 
         % Make a color of the current mip wrt the reference
         mip_1   = squeeze(max(im,[],3));
@@ -321,6 +348,5 @@ rgb = zeros(size(mip_ref,1),size(mip_ref,2),3,'uint8');
 rgb(:,:,1)= uint8(mip_1 * im_intensity);
 rgb(:,:,2)= uint8(mip_ref * imref_intensity);
 imshow(rgb,[])
-waitfor(gcf)
-disp('done checking, see Figure')
+set(gcf, 'visible', 'on')
 

@@ -65,17 +65,7 @@ for t = xp.fileMeta.timePoints
 
         disp('Applying image...')
         IV = xp.stack.image.apply();
-        if adjustlow == 0 && adjusthigh == 0
-            disp('Using default limits for imadjustn')
-            IV = imadjustn(IV{1});
-        else
-            disp('Taking custom limits for imadjustn')
-            IV = IV{1} ;
-            vlo = double(prctile( IV(:) , adjustlow )) / double(max(IV(:))) ;
-            vhi = double(prctile( IV(:) , adjusthigh)) / double(max(IV(:))) ;
-            disp(['--> ' num2str(vlo) ', ' num2str(vhi)])
-            IV = imadjustn(IV, [double(vlo); double(vhi)]) ;
-        end
+        IV = QS.adjustIV(IV, adjustlow, adjusthigh) ;
 
         % Read in the mesh file -----------------------------------------------
         disp('Reading mesh...')

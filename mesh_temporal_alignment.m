@@ -135,7 +135,7 @@ for mi = 1:length(markers)
             svss = (scalfac*vvs) / vvs(tva) ; % scaled normed volume array (over time)
             
             % Minimization
-            if mi == 1 & j == 1
+            if mi == 1 && j == 1
                 P{mi,j} = P{mi,j}(30:110);
             else
                 P{mi,j} = vertcat((P{mi,j}(2)+zeros(length(P{1,1})-length(P{mi,j}),1)),P{mi,j},(P{mi,j}(end-2)+zeros(1,1)));

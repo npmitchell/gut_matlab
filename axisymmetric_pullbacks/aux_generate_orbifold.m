@@ -1,5 +1,6 @@
-function aux_generate_orbifold(cutMesh, a, IV, imfn, Options)
+function aux_generate_orbifold(cutMesh, a, IV, imfn, Options, axisorder)
 %AUX_GENERATE_ORBIFOLD(cutMesh, a, IV, imfn)
+% called by QuapSlap.generateCurrentPullbacks()
 %
 % Parameters
 % ----------
@@ -38,9 +39,8 @@ function aux_generate_orbifold(cutMesh, a, IV, imfn, Options)
 %                               texture triangulation
 %       - Options.Interpolant:  A pre-made texture image volume interpolant
 %
-% NPMitchell 2020, based on Dillon Cislo's code
-
-
+% NPMitchell 2020, wrapper for texture_patch_to_image() -- credit to Dillon
+% Cislo for building the concepts in this code and for edits.
 
 % Generate Tiled Orbifold Triangulation ------------------------------
 tileCount = [1 1];  % how many above, how many below
@@ -54,6 +54,9 @@ tileCount = [1 1];  % how many above, how many below
 if nargin < 5
     Options = struct ;
 end
+if nargin < 6
+    axisorder = [1 2 3] ;
+end
 
 % Texture image options
 if ~isfield(Options, 'PSize')
@@ -63,11 +66,13 @@ if ~isfield(Options, 'EdgeColor')
     Options.EdgeColor = 'none';
 end
 if ~isfield(Options, 'imSize')
-    Options.imSize = ceil( 1000 .* [ 1 a ] ) ;
+    disp("WARNING: Options.imSize is overwritten by parameter 'a'")
 end
 if ~isfield(Options, 'yLim')
     Options.yLim = [0 1];
 end
+
+Options.imSize = ceil( 1000 .* [ 1 a ] ) ;
 
 % profile on
 % Create texture image
@@ -75,8 +80,16 @@ if any(isnan(TV2D))
     error('here -- check for NaNs case')
 end
 
-patchIm = texture_patch_to_image( TF, TV2D, TF, TV3D(:, [2 1 3]), ...
-    IV, Options );
+% IMPORTANT: we want the pullback to be an unwrapping of the surface that
+%   respects APDV as viewed from the OUTSIDE of the mesh.
+% This has implications in the direction that phi0 runs in real space, so
+%   if we adjust phi0 as in phiOffsetsFromPrevMesh() or 
+%   fitPhiOffsetsFromPrevMesh(), then we need to ensure the sign is
+%   correct. To do that, we set the direction of v earlier based on flipy.
+
+% Now use the axis orders specified
+patchIm = texture_patch_to_image( TF, TV2D,...
+    TF, TV3D(:, axisorder), IV, Options );
 % profile viewer
 
 fprintf('Done\n');

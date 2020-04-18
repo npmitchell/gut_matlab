@@ -1,4 +1,4 @@
-function [cseg, acID, pcID, bdLeft, bdRight] = centerlineSegmentFromCutMesh(cline, TF, TV2D, TV3D, eps)
+function [cseg, acID, pcID, bLeft, bRight] = centerlineSegmentFromCutMesh(cline, TF, TV2D, TV3D, eps)
 %CENTERLINESEGMENTFROMCUTMESH Calculate abbreviated centerline from cutMesh boundaries
 %   Find the start and endpoints of a centerline closest to the 3D
 %   positions of the boundaries corresponding to u=0 and u=1 of the 2D
@@ -29,25 +29,25 @@ meshTri = triangulation( TF, TV2D );
 % The vertex IDs of vertices on the mesh boundary
 bdyIDx = meshTri.freeBoundary;
 % Consider all points on the left free boundary between y=(0, 1)
-bdLeft = bdyIDx(TV2D(bdyIDx(:, 1), 1) < eps, 1) ;
-bdLeft = bdLeft(TV2D(bdLeft, 2) < 1+eps & TV2D(bdLeft, 2) > -eps) ;
+bLeft = bdyIDx(TV2D(bdyIDx(:, 1), 1) < eps, 1) ;
+bLeft = bLeft(TV2D(bLeft, 2) < 1+eps & TV2D(bLeft, 2) > -eps) ;
 % Find matching endpoint on the right
 rightmost = max(TV2D(:, 1));
-bdRight = bdyIDx(TV2D(bdyIDx(:, 1), 1) > rightmost - eps) ;
+bRight = bdyIDx(TV2D(bdyIDx(:, 1), 1) > rightmost - eps) ;
 
 % Find segment of centerline to use
-% grab "front"/"start" of centerline nearest to bdLeft
-% distance from each point in bdLeft to this point in cntrline
-Adist = zeros(length(cline), 1) ;
-for kk = 1:length(cline)
-    Adist(kk) = mean(vecnorm(TV3D(bdLeft, :) - cline(kk, :), 2, 2)) ;
+% grab "front"/"start" of centerline nearest to bLeft
+% distance from each point in bLeft to this point in cntrline
+Adist = zeros(size(cline, 1), 1) ;
+for kk = 1:size(cline, 1)
+    Adist(kk) = mean(vecnorm(TV3D(bLeft, :) - cline(kk, :), 2, 2)) ;
 end
 [~, acID] = min(Adist) ; 
 
-% grab "back"/"end" of centerline nearest to bdRight
+% grab "back"/"end" of centerline nearest to bRight
 Pdist = zeros(length(cline), 1) ;
 for kk = 1:length(cline)
-    Pdist(kk) = mean(vecnorm(TV3D(bdRight, :) - cline(kk, :), 2, 2)) ;
+    Pdist(kk) = mean(vecnorm(TV3D(bRight, :) - cline(kk, :), 2, 2)) ;
 end
 [~, pcID] = min(Pdist) ;
 cseg = cline(acID:pcID, :) ;

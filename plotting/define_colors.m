@@ -4,6 +4,7 @@ function [colors, names] = define_colors(varargin)
 
 if length(varargin) > 1
     ncolors = varargin{1} ;
+    disp(['Defining ' num2str(ncolors) ' colors...'])
 else
     ncolors = 7 ;
 end

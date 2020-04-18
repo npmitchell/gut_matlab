@@ -85,6 +85,7 @@ for t = QS.xp.fileMeta.timePoints
             close all
         end
     else
+        disp('Loading from disk')
         mesh = read_ply_mod(mesh3dfn) ;
         adIDx = h5read(outadIDxfn, ['/' sprintf('%06d', t)]) ;
         pdIDx = h5read(outpdIDxfn, ['/' sprintf('%06d', t)]) ;

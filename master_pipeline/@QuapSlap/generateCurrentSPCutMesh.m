@@ -1,8 +1,20 @@
-function generateCurrentSPCutMesh(QS, cutMesh, overwrite)
+function generateCurrentSPCutMesh(QS, cutMesh, spcutMeshOptions)
+% generateCurrentSPCutMesh(QS, cutMesh, spcutMeshOptions)
 %
+% Parameters
+% ----------
+% QS : QuapSlap class instance
+%   
+% cutMesh : cutMesh struct, optional
+%   
+% spcutMesh : spcutMesh struct, optional
 %
+% Returns
+% -------
+% spcutMesh : struct with fields
+%   sphi: equal dv, resampled 3d points based on spcutMesh.sphi0
 %
-%
+% NPMitchell 2020
 
 % Unpack options
 if nargin < 2 || isempty(cutMesh)
@@ -10,19 +22,38 @@ if nargin < 2 || isempty(cutMesh)
         QS.loadCurrentCutMesh()
     end
     cutMesh = QS.currentMesh.cutMesh ;
-    overwrite = false ;
 end
-if nargin < 3
-    overwrite = false ;
+
+overwrite = false ;
+save_phi0patch = false ;
+iterative_phi0 = false ;
+smoothingMethod = 'none' ;
+if nargin > 2
+    disp('Unpacking options')
+    if isfield(spcutMeshOptions, 'overwrite')
+        overwrite = spcutMeshOptions.overwrite ;
+    end
+    if isfield(spcutMeshOptions, 'save_phi0patch')
+        save_phi0patch = spcutMeshOptions.save_phi0patch ;
+    end
+    if isfield(spcutMeshOptions, 'iterative_phi0')
+        iterative_phi0 = spcutMeshOptions.iterative_phi0 ;
+    end
+    if isfield(spcutMeshOptions, 'smoothingMethod')
+        smoothingMethod = spcutMeshOptions.smoothingMethod ;
+    end
 end
 
 % Unpack QS
 tt = QS.currentTime ;
 nU = QS.nU ;
 nV = QS.nV ;
+a_fixed = QS.a_fixed ;
+phi_method = QS.phiMethod ;
 spcutMeshfn = sprintf(QS.fullFileBase.spcutMesh, tt) ;
 fileNameBase = QS.fileBase.name ; 
 phi0fitBase = QS.fullFileBase.phi0fit ;
+spcutMeshBase = QS.fullFileBase.spcutMesh ;
 [rot, trans] = getRotTrans(QS) ;
 resolution = QS.APDV.resolution ;
 QS.getCleanCntrlines ;
@@ -31,6 +62,20 @@ cleanCntrline = cleanCntrlines{QS.xp.tIdx(tt)} ;
 preview = QS.plotting.preview ;
 [~, ~, xyzlim_um] = QS.getXYZLims() ;
 clineDVhoopDir = QS.dir.clineDVhoop ;
+clineDVhoopBase = QS.fullFileBase.clineDVhoop ;
+sphiDir = QS.dir.spcutMesh ;
+save_ims = QS.plotting.save_ims ;
+axisorder = QS.data.axisOrder ;
+phi0_sign = QS.flipy ;  % NOTE: our convention is that new phi = v - phi_0 but for
+                        % some reason when flipy is true even though we have
+                        % flipped cutMesh, we must add a minus sign so that phiv_kk
+                        % becomes phi_kk = v + phi0. 
+
+% Check that options are consistent
+if strcmp(phi_method, '3dcurves') && strcmp(smoothingMethod, 'none') && iterative_phi0 
+    % error(['smoothingMethod for phi0 is none, so iterating phi0 will ', ...
+    %    'do no good when phi_method is geometric (not texture)'])
+end
 
 % Expand dirs for images
 clineDVhoopImDir = fullfile(clineDVhoopDir, 'images') ;
@@ -64,6 +109,12 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     [ ~, ~, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount );
     [ TF, TV2D, TV3Drs ] = tileAnnularCutMesh( cutMeshrs, tileCount );
 
+    % check tiled mesh coords in uv space
+    % plot(TV2D(:, 1), TV2D(:, 2), '.')
+    % title('tiled cutMesh')
+    % pause(2)
+    % close all
+    
     %----------------------------------------------------------------------
     % Calculate abbreviated centerline from cutMesh boundaries
     %----------------------------------------------------------------------
@@ -87,7 +138,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     disp('Casting crude (equal dU) points into 3D...')
     crude_ringpath_ss = ringpathsGridSampling(uspace0, vspace, TF, TV2D, TV3Drs) ;
 
-    % Resample crude_ringpath_ds made from uspace0 (equal du, not equal ds_3D in u direction)
+    % Resample crude_ringpath_ds made from uspace0 (uspace0 had equal du, not equal ds_3D in u direction)
     [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU)', crude_ringpath_ss, nU, 'linear') ;
     % ensure that uspace is nU x 1, not 1 x nU
     uspace = reshape(uspace, [nU, 1]) ; 
@@ -95,14 +146,15 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     eps = 1e-13 ;
     uspace(1) = uspace(1) + eps ;
     uspace(end) = uspace(end) - eps ;
-    clearvars dsuphi curves3d uspace0
+    clearvars dsuphi curves3d 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    disp('Casting resampled points into 3D (approx equal ds_3D in u dir, but variable ds_3D in v dir)...')
+    disp(['Casting resampled points into 3D (approx equal ', ...
+        'ds_3D in u dir, but variable ds_3D in v dir)...'])
     % NOTE: first dimension indexes u, second indexes v
     curves3d = zeros(nU, nV, 3) ;  % in units of um
     for kk = 1:nU
-        if mod(kk, 50) == 0
+        if mod(kk, 20) == 0
             disp(['u = ' num2str(kk / nU)])
         end
         uv = [cutMesh.umax * uspace(kk) * ones(size(vspace)), vspace] ;
@@ -152,7 +204,8 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     fprintf('Finding s(u) and r(u) of resampled "uniform" c3ds [uniform ds in V dir]...\n')
     % mcline is the resampled centerline, with mss
     % avgpts is the raw Nx3 averaged hoops, with avgpts_ss
-    [mss, mcline, radii_from_mean_uniform_rs, avgpts_ss, avgpts] = srFromDVCurves(c3d_dsv) ;
+    [mss, mcline, radii_from_mean_uniform_rs, avgpts_ss, avgpts] = ...
+        srFromDVCurves(c3d_dsv) ;
 
     % Used to find radius using original centerline
     % [ssv, radii, avgpts, cids] = srFromDVCurvesGivenCenterline(ss, cline, c3ds) ;
@@ -182,7 +235,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     clearvars dsuphi ringpath_ds
 
     % Save new centerline in rotated translated units
-    fn = sprintf(clineDVhoopBase, t) ;
+    fn = sprintf(clineDVhoopBase, tt) ;
     disp(['Saving new centerline to ' fn])
     save(fn, 'mss', 'mcline', 'avgpts', 'avgpts_ss')
 
@@ -197,64 +250,73 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     onesUV = ones(nU, nV) ;
     uu = uspace * cutMesh.umax .* onesUV ;
     vv = (vspace .* onesUV')' ;
+    % uv is UNequally spaced in ss, equally spaced in uu
     uv = [uu(:), vv(:)] ;
     % Note: here interpolate uv in the TV2D coord system, then
     % use uphi as the actual 2D coordinates for these vertices
     % NOTE: unlike curves3d, new3d is NOT rotated/translated/scaled
     new3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
 
-    IVloaded = false ;
-    if t == xp.fileMeta.timePoints(1)
+    if tt == QS.xp.fileMeta.timePoints(1)
         % Store for next timepoint
         phiv = (vspace .* ones(nU, nV))' ;
         phi0s = zeros(size(uspace)) ;
         phi0_fit = phi0s ;
     else
         % Load previous sphi vertices in 3d 
-        plotfn = sprintf(phi0fitBase, tt, 0);
+        tidx = QS.xp.tIdx(tt) ;
         if strcmp(phi_method, '3dcurves')
+            disp('Computing phi(v) via 3dcurve matching (geometric method)')
             % Load the previous spcutMesh and call it prev3d_sphi
             % Also note the previous spcutMesh pullback image's fn
             tmp = load(sprintf(spcutMeshBase, ...
-                xp.fileMeta.timePoints(tidx-1)), 'spcutMesh') ;
+                QS.xp.fileMeta.timePoints(tidx-1)), 'spcutMesh') ;
             prevf = tmp.spcutMesh.f ;
             prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
-            imfn_sp_prev = sprintf( ...
-                fullfile([imFolder_sp, '/', fileNameBase, '.tif']), ...
-                xp.fileMeta.timePoints(tidx-1) ) ;
+            % prev2d_uphi = reshape(tmp.spcutMesh.uphi, [nU, nV, 2]) ;
+            imfn_sp_prev = sprintf( QS.fullFileBase.im_sp, ...
+                QS.xp.fileMeta.timePoints(tidx-1) ) ;
 
             % fit the shifts in the y direction
             dmyk = 0 ;
             phi0_fit = zeros(size(uspace)) ;
             phi0s = zeros(size(uspace)) ;
-            phi0_fit_kk = 1 ; % for first pass                
+            phi0_fit_kk = 1 ; % for first pass, so that we enter loop              
             phiv_kk = (vspace .* ones(nU, nV))' ;
-            ensureDir([sphiDir, '/phi0_correction/'])
-            while any(phi0_fit_kk > 0.002) && dmyk < 6
+            ensureDir(fullfile(sphiDir, 'phi0_correction'))
+            % Note: the last boolean ensures that if iterative_phi0 is
+            % false, we only do one pass. 
+            do_iteration = true ;
+            while any(phi0_fit_kk > 0.002) && dmyk < 3 && do_iteration
+                % Make sure we do only one pass if not iterative
+                if ~iterative_phi0 
+                    do_iteration = false ;
+                end
                 disp(['Iteration ' num2str(dmyk)])
                 plotfn = sprintf(phi0fitBase, tt, dmyk);
 
                 % Will we save check pullbacks to preview the algo?
+                % If so, create a struct to pass visualization options
                 if save_phi0patch
+                    if dmyk == 0 
+                        % first pass --> vvals4plot is same as vvals
+                        phi4plot = (vspace .* ones(nU, nV))' ;
+                    end
                     patchImFn = sprintf( ...
-                        fullfile(sphiDir, 'phi0_correction', [fileNameBase, '_prephi0_' num2str(dmyk) '.tif']), ...
-                        xp.fileMeta.timePoints(tidx-1) )  ;
+                        fullfile(sphiDir, 'phi0_correction',...
+                        [fileNameBase, '_prephi0_' num2str(dmyk) '.tif']), ...
+                        QS.xp.fileMeta.timePoints(tidx-1) )  ;
                     geomImFn = sprintf( ...
-                        fullfile(sphiDir, 'phi0_correction', ['3d' fileNameBase '_prephi0_' num2str(dmyk) '.tif']), ...
-                        xp.fileMeta.timePoints(tidx-1) )  ;
+                        fullfile(sphiDir, 'phi0_correction', ...
+                        ['3d' fileNameBase '_prephi0_' num2str(dmyk) '.tif']), ...
+                        QS.xp.fileMeta.timePoints(tidx-1) )  ;
 
                     % Load the intensity data for this timepoint
-                    if ~IVloaded
-                        % (3D data for coloring mesh pullback)
-                        xp.loadTime(t);
-                        xp.rescaleStackToUnitAspect();
-
-                        % Raw stack data
-                        IV = xp.stack.image.apply();
-                        IV = imadjustn(IV{1});         
-                        IVloaded = true ;
+                    if isempty(QS.currentData.IV)
+                        QS.getCurrentData()
                     end
-
+                    IV = QS.currentData.IV ;
+                    
                     % Texture patch options
                     Options.PSize = 5;
                     Options.EdgeColor = 'none';
@@ -266,134 +328,130 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                     patchOpts.patchImFn = patchImFn ;
                     patchOpts.imfn_sp_prev = imfn_sp_prev ;
                     patchOpts.IV = IV ;
+                    patchOpts.axisorder = axisorder ;
                     patchOpts.ringpath_ss = ringpath_ss ;
-                    patchOpts.Options = Options ;
                     patchOpts.v3d = new3d ;
+                    patchOpts.vvals4plot = phi4plot ;
+                    patchOpts.Options = Options ;
+                    patchOpts.phi0_sign = phi0_sign ;
                 else
                     patchOpts = [] ;
                 end
 
                 % Minimize difference in DV hoop positions wrt
-                % previous pullback mesh                        
-                [phi0_fit_kk, phi0s_kk] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
-                    uspace * cutMesh.umax, phiv_kk, prev3d_sphi, -0.45, 0.45, ...
-                    save_ims, plotfn, save_phi0patch, preview, patchOpts) ;
+                % previous pullback mesh   
+                % Outputs are raw phi0 and smoothed phi0s
+                [phi0_fit_kk, phi0s_kk] = fitPhiOffsetsFromPrevMesh(TF,...
+                    TV2D, TV3D, uspace0, phiv_kk, ...
+                    prev3d_sphi, -0.45, 0.45, ...
+                    save_ims, plotfn, save_phi0patch, smoothingMethod, ...
+                    preview, patchOpts) ;
 
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                % error('debug')
+                % USED TO USE: uspace * cutMesh.umax
+                % % BREAK IT DOWN
+                % % Using simple offset
+                % phi0s_kk = phiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
+                %     uspace * cutMesh.umax, phiv_kk, prev3d_sphi, ...
+                %     -0.45, 0.45, {preview}) ;
+                % phi0_fit_kk = phi0s_kk;
+                % 
+                % error('debug within debug')
+                % error('debug end inner')
+                % error('debug end')
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                
                 % Update the result
                 dmyk = dmyk + 1;
                 phi0_fit = phi0_fit + phi0_fit_kk ;
                 phi0s = phi0s + phi0s_kk ;
-                phiv_kk = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
-
-
-                % plot mesh colored by the phase phi 
-                % previous timepoint
-                xtmp = prev3d_sphi(:, :, 1) ;
-                ytmp = prev3d_sphi(:, :, 2) ;
-                ztmp = prev3d_sphi(:, :, 3) ;
-                phitmp = (vspace .* ones(nU, nV))' ;
-                colormap parula ;
-                % cmap = parula ;
-                % colors = cmap(max(1, uint8(colortmp(:) * length(parula))), :) ;
-                trisurf(prevf, xtmp(:), ytmp(:), ztmp(:), phitmp(:), ...
-                    'FaceColor', 'interp',...
-                    'EdgeColor', 'none', 'FaceAlpha', 0.25)
-                axis equal
-                % freezeColors
-
-                % before fitting
-                hold on;
-                pe0 = find(phitmp(:) < 1e-4 | phitmp(:) > 0.99) ;
-                plot3(new3d(pe0, 1), new3d(pe0, 2), ...
-                    new3d(pe0, 3), '.')
-                % colormap copper
-                % trimesh(prevf, new3d(inds, 1), new3d(:, 2), new3d(:, 3),...
-                %     phitmp(:), 'FaceColor', 'interp', 'FaceAlpha', 0.3, 'EdgeColor', 'none')
-                % freezeColors
-
-                % after fitting
-                hold on;                   
-                pekk = find(mod(phiv_kk(:), 1) < 1e-4 | mod(phiv_kk(:), 1) > 0.99) ;
-                plot3(new3d(pekk, 1), new3d(pekk, 2), ...
-                    new3d(pekk, 3), '^')                        
-                % colormap summer
-                % trimesh(prevf, new3d(:, 1), new3d(:, 2), new3d(:, 3),...
-                %     mod(phiv_kk(:), 1), 'FaceColor', 'interp', 'FaceAlpha', 0.3, 'EdgeColor', 'none')
-                % freezeColors
-                xlabel('x [\mum]')
-                ylabel('y [\mum]')
-                zlabel('z [\mum]')
-                view(2)
-                saveas(gcf, geomImFn)
+                % phiv_kk is this iteration's updated correction 
+                % NOTE: our convention is that new phi = v - phi_0 but for
+                % some reason when flipy is true even though we have
+                % flipped cutMesh, we must add a minus sign so that phiv_kk
+                % becomes phi_kk = v + phi0. 
+                if phi0_sign > 0
+                    phiv_kk = (vspace .* ones(nU, nV))' + phi0_fit .* ones(nU, nV) ;
+                    phi4plot = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
+                    phi4plot = mod(phi4plot, 1) ;
+                else
+                    phiv_kk = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
+                    % todo: check that this is right
+                    phi4plot = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
+                end
+                
+                %% Preview result
+                if save_phi0patch
+                    % Colored mesh with phi=0 contour
+                    close all
+                    figure('visible', 'off')
+                    % plot mesh colored by the phase phi 
+                    % previous timepoint
+                    xprev = prev3d_sphi(:, :, 1) ;
+                    yprev = prev3d_sphi(:, :, 2) ;
+                    zprev = prev3d_sphi(:, :, 3) ;
+                    phiprev = (vspace .* ones(nU, nV))' ;
+                    colormap parula ;
+                    % cmap = parula ;
+                    % colors = cmap(max(1, uint8(colortmp(:) * length(parula))), :) ;
+                    prevh = trisurf(prevf, xprev(:), yprev(:), zprev(:), phiprev(:), ...
+                        'FaceColor', 'interp',...
+                        'EdgeColor', 'none', 'FaceAlpha', 0.25) ;
+                    axis equal
+                    % before fitting
+                    hold on;
+                    pe0 = find(phiprev(:) < 1e-4 | phiprev(:) > 0.99) ;
+                    pe0h = plot3(new3d(pe0, 1), new3d(pe0, 2), ...
+                        new3d(pe0, 3), '.') ;
+                    % after fitting
+                    hold on;                   
+                    pekk = find(phi4plot(:) < 1e-4 | phi4plot(:) > 0.99) ;
+                    pekkh = plot3(new3d(pekk, 1), new3d(pekk, 2), ...
+                        new3d(pekk, 3), '.') ;         
+                    % format plot
+                    legend({'prev mesh', 'before fitting', 'after fitting'},...
+                        'location', 'eastoutside')
+                    title(['phi0 preview, iteration ' num2str(dmyk)])
+                    xlabel('x [\mum]')
+                    ylabel('y [\mum]')
+                    zlabel('z [\mum]')
+                    view(2)
+                    disp(['Saving phi0 preview to ' geomImFn])
+                    saveas(gcf, geomImFn)
+                    close all
+                    
+                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    % Plot vertices in 3d
+                    % TF, TV2D, TV3D, uspace, vvals, prev3d_sphi
+                    % for qq = 1:nU
+                    %     % where are the displacement vectors
+                    %     interpolate2Dpts_3Dmesh(TF, TV2D, ...
+                    %         TV3Drs, [uspace(qq) * ones(nV, 1), ...
+                    %         mod(vqq + phi_kk, 1)] ) ...
+                    %         - prev3dvals, 2, 2) .^ 2)
+                    % end
+                    
+                end
             end
-
         elseif strcmp(phi_method, 'texture')
-            imfn_sp_prev = sprintf( ...
-                fullfile([imFolder_sp, '/', fileNameBase, '.tif']), ...
-                xp.fileMeta.timePoints(tidx-1) ) ;
-
-            % Load the intensity data            
-            % Load 3D data for coloring mesh pullback
-            xp.loadTime(t);
-            xp.rescaleStackToUnitAspect();
-
-            % Raw stack data
-            IV = xp.stack.image.apply();
-            IV = imadjustn(IV{1});         
-            IVloaded = true ;
-
-            % Texture patch options
-            Options.PSize = 5;
-            Options.EdgeColor = 'none';
-            % Texture image options
-            Options.imSize = ceil( 1000 .* [ 1 a_fixed ] );
-            Options.yLim = [0 1];
-
-            % fit the shifts in the y direction
-            % todo: save uncorrected patchIms,
-            % could try tiling twice...
-            dmyk = 0 ;
-            phi0_fit = zeros(size(uspace)) ;
-            phi0s = zeros(size(uspace)) ;
-            phi0_fit_kk = 1 ; % for first pass                
-            phiv_kk = (vspace .* ones(nU, nV))' ;
-            ensureDir([sphiDir, '/phi0_correction/'])
-            while any(phi0_fit_kk > 0.002) && dmyk < 6
-                disp(['Iteration ' num2str(dmyk)])
-                plotfn = sprintf(phi0fitBase, tt, dmyk);
-                patchImFn = sprintf( ...
-                    fullfile([sphiDir, '/phi0_correction/', fileNameBase, '_prephi0_' num2str(dmyk) '.tif']), ...
-                    xp.fileMeta.timePoints(tidx-1) )  ;
-                [phi0_fit_kk, phi0s_kk] = fitPhiOffsetsFromPrevPullback(IV, ...
-                    new3d, cutMesh.umax, uspace * cutMesh.umax, phiv_kk, ...
-                    ringpath_ss, imfn_sp_prev, lowerboundy, upperboundy, ...
-                    save_ims, plotfn, Options, ...
-                    step_phi0tile, width_phi0tile, potential_sigmay, 'integer', ...
-                    patchImFn) ;
-
-                % Update the result
-                dmyk = dmyk + 1;
-                phi0_fit = phi0_fit + phi0_fit_kk ;
-                phi0s = phi0s + phi0s_kk ;
-                phiv_kk = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
-            end
+            disp('Computing phi(v) via texture matching (physical method)')
+            QS.fitPhiOffsetsViaTexture()
         else
             error("Could not recognize phi_method: must be 'texture' or '3dcurves'")
         end
         close all
 
         % Store to save at this timepoint
-        phiv = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;
+        % phiv = (vspace .* ones(nU, nV))' + phi0_fit .* ones(nU, nV) ;
+        % phiv = phiv_kk ;
+        phiv = (vspace .* ones(nU, nV))' - phi0_fit .* ones(nU, nV) ;    
+                
     end
 
     % NOTE: We have coordinates u,phiv that we associate with
     % the 3d coordinates already mapped to uv
     uphi = [uu(:), phiv(:)] ;
-
-    % plot(uphi(:, 1), uphi(:, 2), '.')
-    % xlabel('u')
-    % ylabel('\phi')
-    % waitfor(gcf)
 
     % Recompute radii_from_mean_uniform_rs as radii_from_avgpts 
     % NOTE: all radius calculations done in microns, not pixels
@@ -406,30 +464,16 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     end
 
     % Triangulate the sphigrid and store as its own cutMesh
-    % sphiv = zeros(nU, nV, 2) ;
-    % sphiv(:, :, 1) = sv ;
-    % sphiv(:, :, 2) = phiv ;
     sv = ringpath_ss .* onesUV ;
-    % % Triangulate the mesh (topology is already known):
-    % tmptri = defineFacesRectilinearGrid(sp, nU, nV) ;
-    % % Old version did not assume topology as given:
-    % tmptri = delaunay(sv(:), phiv(:)) ;
-    % disp('orienting faces of delaunay triangulation (s,phi)')
-    % tmptri = bfs_orient( tmptri );
 
     % Define path pairs for tiling the (s,phi) cut mesh
     spcutP1 = 1:nU;
     spcutP2 = nU*nV - fliplr(0:(nU-1)) ;
     spcutMesh.pathPairs = [ spcutP1', spcutP2' ];
-
-    % Check to see if any members of pathPairs connect to
-    % non-Nearest Neighbors. Not necessary now that we assume
-    % known gridded mesh topology
-    % cleantri = cleanBoundaryPath2D(tmptri, [sv(:), phiv(:)], spcutMesh.pathPairs(:), true) ;
-
     spcutMesh.f = defineFacesRectilinearGrid(uv, nU, nV) ;
     spcutMesh.nU = nU ;
     spcutMesh.nV = nV ;
+    
     % First resampling
     spcutMesh.v0 = new3d ;
     % spcutMesh.vrs0 = ((rot * new3d')' + trans) * resolution ;
@@ -470,10 +514,8 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     spcutMesh = rmfield(spcutMesh, 'u') ;
     spcutMesh = rmfield(spcutMesh, 'v') ;
     spcutMesh = rmfield(spcutMesh, 'vn') ;
+    % Create the 3d vertices for sphi 2D vertices' correspondence
     spv3d = interpolate2Dpts_3Dmesh(faces, v2d, v3d, sp) ;
-    % check the pts
-    % plot3(spv3d(:, 1), spv3d(:, 2), spv3d(:, 3))  
-
     % also interpolate the normals
     spvn3d = interpolate2Dpts_3Dmesh(faces, v2d, vn3d, sp) ;
     spvn3d = spvn3d ./ vecnorm(spvn3d, 2, 2) ;
@@ -512,10 +554,10 @@ if ~exist(spcutMeshfn, 'file') || overwrite
 else
     disp('Loading spcutMesh from disk...')
     load(spcutMeshfn, 'spcutMesh') ;
-    IVloaded = false ;
+    % QS.currentData.IVloaded = false ;
 
     % Load new centerline
-    fn = sprintf(clineDVhoopBase, t) ;
+    fn = sprintf(clineDVhoopBase, tt) ;
     disp(['Loading new centerline from ' fn])
     load(fn, 'mss', 'mcline', 'avgpts', 'avgpts_ss')
 end

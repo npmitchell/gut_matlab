@@ -10,11 +10,12 @@
 %
 % Requirements
 % ------------
-% Signal Processing Toolbox
+% imsane
 %
 % Inputs
 % ------
-% meshes as topological cylinders, in meshDir/cylindercut/
+% meshes as topological cylinders, in meshDir/cylindercut/ 
+%       --> run slice_mesh_endcaps.m
 % meshDir/translation_APDV.txt
 % meshDir/rotation_APDV.txt% meshDir/xyzlim_APDV_um.txt
 % 
@@ -72,8 +73,6 @@ preview = false ;
 washout2d = 0.5 ;
 washout3d = 0.5 ;
 % Parameters for cutMesh creation
-maxJitter = 100 ;
-maxTwChange = 0.15 ;
 nsegs4path = 5 ;
 a_fixed = 2 ;
 % Parameters for spcutMesh creation
@@ -120,13 +119,14 @@ end
 
 addpath(genpath(fullfile(gutpath, 'TexturePatch')));
 addpath(gutpath) ;
-addpath_recurse(fullfile(gutpath, 'basics/')) ;
-addpath_recurse(fullfile(gutpath, 'axisymmetric_pullbacks/')) ;
-addpath_recurse(fullfile(gutpath, 'plotting/')) ;
-addpath_recurse(fullfile(gutpath, 'mesh_handling/')) ;
-addpath_recurse(fullfile(gutpath, 'h5_handling/')) ;
-addpath_recurse(fullfile(gutpath, 'curve_functions/')) ;
-addpath(fullfile(gutpath, 'ExtPhaseCorrelation/')) ;
+addpath_recurse(fullfile(gutpath, ['basics' filesep])) ;
+addpath_recurse(fullfile(gutpath, ['axisymmetric_pullbacks' filesep])) ;
+addpath_recurse(fullfile(gutpath, ['plotting' filesep])) ;
+addpath_recurse(fullfile(gutpath, ['mesh_handling' filesep])) ;
+addpath_recurse(fullfile(gutpath, ['h5_handling' filesep])) ;
+addpath_recurse(fullfile(gutpath, ['geometry' filesep])) ;
+addpath_recurse(fullfile(gutpath, ['curve_functions' filesep])) ;
+addpath(fullfile(gutpath, ['ExtPhaseCorrelation' filesep])) ;
 addpath(fullfile(gutpath, 'savgol')) ;
 addpath(fullfile(codepath, 'DEC')) ;
 % addpath(genpath('/mnt/crunch/djcislo/MATLAB/TexturePatch'));
@@ -311,15 +311,24 @@ phi0fitBase = fullfile(sphiDir, 'phi0s_%06d_%02d.png') ;
 % The file containg the AD/PD points
 dpFile = fullfile( cylCutDir, 'ap_boundary_dorsalpts.h5' );
 
+% Folder for curvature measurements
+KHSmDir = fullfile(sphiSmRSCDir, 'curvature') ;
+KSmDir = fullfile(KHSmDir, 'gauss') ;
+HSmDir = fullfile(KHSmDir, 'mean') ;
+
 tomake = {imFolder, imFolder_e, imFolder_r, imFolder_re,...
     pivDir, cutFolder, cutMeshImagesDir, cylCutMeshOutDir,...
-    cylCutMeshOutImDir, clineDVhoopDir, clineDVhoopImDir, writheDir, ...
+    cylCutMeshOutImDir, clineDVhoopDir, clineDVhoopImDir, wrtheDir, ...
     sphiDir, imFolder_sp, imFolder_sp_e, imFolder_sp, imFolder_sp_e,  ...
     lobeDir, radiusDir, radiusImDir, ...
     sphiSmDir, sphiSmRSImDir, sphiSmRSDir, sphiSmRSCDir, ...
     sphiSmRSPhiImDir, ...
     imFolder_spsm, imFolder_rsm, imFolder_spsm_e, ...
-    foldHoopImDir} ;
+    foldHoopImDir, KHSmDir, KSmDir, HSmDir, ...
+    fullfile(KSmDir, 'dorsal'), fullfile(KSmDir, 'ventral'), ...
+    fullfile(KSmDir, 'latleft'), fullfile(KSmDir, 'latleft'), ...
+    fullfile(HSmDir, 'dorsal'), fullfile(HSmDir, 'ventral'), ...
+    fullfile(HSmDir, 'latleft'), fullfile(HSmDir, 'latleft')} ;
 for i = 1:length(tomake)
     dir2make = tomake{i} ;
     if ~exist( dir2make, 'dir' )
@@ -1382,28 +1391,6 @@ if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
 end
 disp('done')
 
-%% COMPUTE MEAN AND GAUSSIAN CURVATURES
-getderivatives=0;
-disp('Computing/Loading writhe...')
-for t = xp.fileMeta.timePoints
-    KHfn = fullfile(KHDir, ['writhe_sphi' dvexten '_avgpts.mat']) ;
-    if ~exist(KHfn, 'file') || overwrite_curvatures
-        spcutMesh = load(sprintf(spcutMeshBase, t)) ;
-        fv.faces = spcutMesh.f ;
-        fv.vertices = spcutMesh.vrs ;
-        PrincipalCurvatures = GetCurvatures( fv ,getderivatives);
-        gaussCurv = PrincipalCurvatures(1,:).*PrincipalCurvatures(2,:);
-        meanCurv = 0.5 * (PrincipalCurvatures(1,:) + PrincipalCurvatures(2,:));
-
-        trisurf(
-        % Save the fold locations as a mat file
-        save(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
-    else
-        disp('Curvatures already computed & saved on disk')
-    end
-end
-
-
 %% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
 % First compute using the avgpts (DVhoop means)
 disp('Computing/Loading writhe...')
@@ -1418,12 +1405,14 @@ if ~exist(wrfn, 'file') || overwrite_writhe
 else
     load(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
 end
-if true
+Wr_style = 'Levitt' ;
+tmpfn = fullfile(writheDir, ['writhe_' Wr_style '_vs_time_comparison_DVhoop.png']) ;
+if ~exist(tmpfn, 'file') || overwrite_writhe
     % Compute ringpath pathlength for results found using centerline
     area_volume_fn = fullfile(meshDir, 'surfacearea_volume_stab.mat') ;
     aux_plot_writhe(xp.fileMeta.timePoints, clines_resampled, ...
         Wr, Wr_density, dWr, Length_t, writheDir, area_volume_fn, ...
-        fold_onset, 'Levitt', xyzlim, clineDVhoopBase, ...
+        fold_onset, Wr_style, xyzlim, clineDVhoopBase, ...
         cylinderMeshCleanBase, rot, trans, resolution, omit_endpts, false)
     
 end
@@ -1575,6 +1564,9 @@ if redo_meshsmooth
             save(sprintf(spcutMeshSmRSBase, t), 'spcutMeshSmRS') ;
             clearvars vqq vqqrs
 
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % CLOSED & GLUED SMOOTHED MESHES
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % To close the mesh, do the following:
             tmp = spcutMeshSmRS ;
             tmp.u = spcutMesh.sphi ;
@@ -1690,6 +1682,52 @@ for qq = 1:length(timePoints)
 end
 disp('done')
 clearvars fig vqq nqqrs e0 e1 e2 e3 pdir ddir vdir rdir ldir
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% COMPUTE MEAN AND GAUSSIAN CURVATURES OF SMOOTHED MESHES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+getderivatives=0;
+disp('Computing/Loading Curvatures...')
+for t = xp.fileMeta.timePoints
+    Kfns = {fullfile(KSmDir, 'latleft', sprintf('gausscurv_latleft_%06d.png', t)), ...
+        fullfile(KSmDir, 'dorsal', sprintf('gausscurv_dorsal_%06d.png', t)), ...
+        fullfile(KSmDir, 'latright', sprintf('gausscurv_latright_%06d.png', t)), ...
+        fullfile(KSmDir, 'ventral', sprintf('gausscurv_ventral_%06d.png', t)) };
+    Hfns = {fullfile(HSmDir, 'latleft', sprintf('meancurv_latleft_%06d.png', t)), ...
+        fullfile(HSmDir, 'dorsal', sprintf('meancurv_dorsal_%06d.png', t)), ...
+        fullfile(HSmDir, 'latright', sprintf('meancurv_latright_%06d.png', t)),...
+        fullfile(HSmDir, 'ventral', sprintf('meancurv_ventral_%06d.png', t))} ;
+    KHfn = fullfile(KHSmDir, sprintf('gauss_mean_curvature_%06d.mat', t)) ;
+    if ~exist(KHfn, 'file') || overwrite_curvatures
+        % load glued / closed mesh for curvature computation
+        load(sprintf(spcutMeshSmRSCBase, t), 'spcutMeshSmRSC') ;
+        fv.faces = spcutMeshSmRSC.f ;
+        fv.vertices = spcutMeshSmRSC.v ;
+        PrincipalCurvatures = GetCurvatures( fv, getderivatives);
+        gaussCurv = (PrincipalCurvatures(1,:).*PrincipalCurvatures(2,:))';
+        meanCurv = -0.5 * (PrincipalCurvatures(1,:) + PrincipalCurvatures(2,:))';
+
+        opts.outfn = Kfns ;
+        opts.label = 'Gaussian curvature, $K$' ;
+        opts.sscale = 0.01 ;
+        opts.cbarPosition = [.85 .333 .02 .333] ;
+        opts.xlim = xyzlim(1, :) ;
+        opts.ylim = xyzlim(2, :) ;
+        opts.zlim = xyzlim(3, :) ;
+        scalarFieldOnSurface(fv.faces, fv.vertices, gaussCurv, opts)
+        opts.outfn = Hfns ;
+        opts.sscale = 0.3 ;
+        opts.label = 'mean curvature, $H$' ;
+        scalarFieldOnSurface(fv.faces, fv.vertices, meanCurv, opts)
+        % Save the curvatures as a mat file
+        save(KHfn, 'meanCurv', 'gaussCurv')
+    else
+        disp('Curvatures already computed & saved on disk')
+    end
+end
+error('here after curvature calc')
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Redo Pullbacks with time-smoothed meshes ===============================

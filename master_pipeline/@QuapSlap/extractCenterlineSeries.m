@@ -1,5 +1,5 @@
-function extractCenterlineSeries(QS, Options)
-% EXTRACTCENTERLINESERIES(timePoints, meshDir, meshFileName, outDirs, Options)
+function extractCenterlineSeries(QS, cntrlineOptions)
+% EXTRACTCENTERLINESERIES(QS, cntrlineOptions)
 %
 %
 % Parameters
@@ -34,7 +34,6 @@ function extractCenterlineSeries(QS, Options)
 % NPMitchell 2020
 
 timePoints = QS.xp.fileMeta.timePoints ;
-meshDir = QS.dirs.mesh ;
 meshFileName = QS.fullFileBase.mesh ;
 startendptH5FileName = QS.fileName.startendPt ;
 fn = QS.fileBase.name ;
@@ -56,37 +55,37 @@ preview = false ;               % view intermediate results
 xwidth = 16 ;                   % width of figure in cm
 ywidth = 10 ;                   % height of figure in cm
 useSavedAPDVMeshes = false ;    % load APDV meshes instead of transforming the data space meshes on the fly
-if isfield(Options, 'overwrite')
-    overwrite = Options.overwrite ;
+if isfield(cntrlineOptions, 'overwrite')
+    overwrite = cntrlineOptions.overwrite ;
 end
-if isfield(Options, 'weight')
-    exponent = Options.weight ;
+if isfield(cntrlineOptions, 'weight')
+    exponent = cntrlineOptions.weight ;
 end
-if isfield(Options, 'exponent')
-    exponent = Options.exponent ;
+if isfield(cntrlineOptions, 'exponent')
+    exponent = cntrlineOptions.exponent ;
 end
-if isfield(Options, 'res')
-    res = Options.res ;
+if isfield(cntrlineOptions, 'res')
+    res = cntrlineOptions.res ;
 end
-if isfield(Options, 'meshAPDVFileName')
+if isfield(cntrlineOptions, 'meshAPDVFileName')
     useSavedAPDVMeshes = true ;
-    if strcmp(Options.meshAPDVFileName(end-3:end), '.ply')
-        meshAPDVFileName = Options.meshAPDVFileName ;
+    if strcmp(cntrlineOptions.meshAPDVFileName(end-3:end), '.ply')
+        meshAPDVFileName = cntrlineOptions.meshAPDVFileName ;
     else
-        meshAPDVFileName = [Options.meshAPDVFileName '.ply'] ;
+        meshAPDVFileName = [cntrlineOptions.meshAPDVFileName '.ply'] ;
     end
 end
-if isfield(Options, 'xyzlim')
-    xyzlim = Options.xyzlim ;
+if isfield(cntrlineOptions, 'xyzlim')
+    xyzlim = cntrlineOptions.xyzlim ;
 end
-if isfield(Options, 'reorient_faces')
-    reorient_faces = Options.reorient_faces ;
+if isfield(cntrlineOptions, 'reorient_faces')
+    reorient_faces = cntrlineOptions.reorient_faces ;
 end
-if isfield(Options, 'preview')
-    preview = Options.preview ;
+if isfield(cntrlineOptions, 'preview')
+    preview = cntrlineOptions.preview ;
 end
-if isfield(Options, 'xyzlim_um')
-    xyzlim_um = Options.xyzlim_um ;
+if isfield(cntrlineOptions, 'xyzlim_um')
+    xyzlim_um = cntrlineOptions.xyzlim_um ;
 end
 
 % Figure options
@@ -97,10 +96,10 @@ green = colors(5, :) ;
 
 %% Get xyz grid for distance transform 
 % use extrema of mesh vertices to clip the volume a bit for speed
-if isfield(Options, 'xx') && isfield(Options, 'yy') && isfield(Options, 'zz')
-    xx = Options.xx ;
-    yy = Options.yy ;
-    zz = Options.zz ;
+if isfield(cntrlineOptions, 'xx') && isfield(cntrlineOptions, 'yy') && isfield(cntrlineOptions, 'zz')
+    xx = cntrlineOptions.xx ;
+    yy = cntrlineOptions.yy ;
+    zz = cntrlineOptions.zz ;
 else
     % by construction, the data volume must live in positive definite space
     % Check if limits passed by shape: have we been given [xmax,ymax,zmax] 
@@ -134,8 +133,8 @@ else
 end 
 
 % Unpack output directories && ensure they exist
-outdir = QS.dirs.cntrline ;
-figoutdir = fullfile(QS.dirs.cntrline, 'images') ;
+outdir = QS.dir.cntrline ;
+figoutdir = fullfile(QS.dir.cntrline, 'images') ;
 fig1outdir = fullfile(figoutdir, 'centerline_xy') ;
 fig2outdir = fullfile(figoutdir, 'centerline_xz') ;
 fig3outdir = fullfile(figoutdir, 'centerline_yz') ;
@@ -215,9 +214,9 @@ for tt = timePoints
         toc ; 
 
         % Optionally dilate the solid segmentation
-        if Options.dilation > 0
-            disp(['dilating inside volume by ' num2str(Options.dilation) ' voxels'])
-            for qq = 1:Options.dilation
+        if cntrlineOptions.dilation > 0
+            disp(['dilating inside volume by ' num2str(cntrlineOptions.dilation) ' voxels'])
+            for qq = 1:cntrlineOptions.dilation
                 [xb,yb,zb] = ndgrid(-3:3);
                 se = strel(sqrt(xb.^2 + yb.^2 + zb.^2) <=3);
                 inside = imdilate(inside, se) ;

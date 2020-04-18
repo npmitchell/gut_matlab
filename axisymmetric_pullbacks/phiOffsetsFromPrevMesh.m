@@ -4,6 +4,7 @@ function [phi0s] = phiOffsetsFromPrevMesh(TF, TV2D, TV3Drs, uspace, ...
 %   Find the offset in phi (the y dimension of the 2d pullback) that
 %   minimizes the difference in 3D of the positions of each DV hoop from
 %   that of the previous timepoint.
+%   NEW COORDINATES: phi = v - phi0
 %
 % Parameters
 % ----------
@@ -68,8 +69,8 @@ else
     input_v_is_function_of_u = true ;
 end
 
+% Optimize phi(u) for each u value in 1:nU discretization 
 phi0s = zeros(nU, 1) ;
-
 prog = repmat('.', [1 floor(nU/10)]) ;
 for qq = 1:nU
     tic 
@@ -124,12 +125,14 @@ for qq = 1:nU
         tmp = interpolate2Dpts_3Dmesh(TF, TV2D, ...
             TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0s(qq), 1)]) ;
         figure(2)
-        plot3(prev3dvals(:, 1), prev3dvals(:, 2), prev3dvals(:, 3), 'o') ;
+        scatter3(prev3dvals(:, 1), prev3dvals(:, 2), prev3dvals(:, 3), ...
+            5, linspace(0, 1, length(prev3dvals))) ;
         hold on;
-        plot3(tmp(:, 1), tmp(:, 2), tmp(:, 3), '.-')
-        hold off;
+        scatter3(tmp(:, 1), tmp(:, 2), tmp(:, 3), 1, mod(vqq - phi0s(qq), 1), 'filled')
+        axis equal
         pause(0.000000001)
-    end  
+    end 
+    
     runtimeIter = toc ;
     % Display progress bar
     if mod(qq, 10) == 1
@@ -142,3 +145,4 @@ if visualize
 end
 end
 
+% returns phi0s

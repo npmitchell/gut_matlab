@@ -1,10 +1,13 @@
 function [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D,...
     uspace, vvals, prev3d_sphi, lowerbound_phi0, upperbound_phi0, ...
-    save_fit, plotfn, save_phi0patch, varargin)
+    save_fit, plotfn, save_phi0patch, smoothingMethod, preview, patchOpts)
 %FITPHIOFFSETSFROMPREVMESH(TF, TV2D, TV3D, uspace, vspace, prev3d_sphi, lowerbound, upperbound, save_im, plotfn) 
 %   Fit the offset phi values to add to V in UV coords to minimize
 %   difference in 3D between current embedding mesh and previous one. This
 %   rotates the hoops of the sphicutMesh.
+%   - called by QuapSlap.generateCurrentSPCutMesh()
+%   - NEW COORDINATES: phi = v - phi0, where v is input vvals, phi is
+%   output coordinates, and phi0 is the result of the optimization.
 %
 % Parameters
 % ----------
@@ -18,7 +21,9 @@ function [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D,...
 %   The values of u for each line of constant v in pullback space
 % vvals : nV float array OR nU x nV float array as grid
 %   If nV x 1 float array, the values of v for each line of constant u in 
-%   pullback space, otherwise the values for the whole grid. This allows
+%   pullback space, otherwise the values for the whole grid. 
+%   These are the values that will be shifted around by the fitting.
+%   This allows
 %   you to pass either a linspace for v (independent of u) or a series of
 %   v values, one array for each u value
 % prev3d_sphi : nU x nV x 3 float array
@@ -37,41 +42,53 @@ function [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D,...
 % save_phi0patch : bool
 %   save a patch colored by the phi0 motion deduced from the difference
 %   between previous and current DVhoop coordinates
-% varargin : optional positional arguments
+% varargin : optional options struct
 %   preview   : bool (optional) visualize the progress of phi0
 %   patchImFn : str  (optional) save the progress of phi0 as texture 
 %                                 image saved to this path
 %   imfn_sp_prev : str (optional) path to previous timepoint's sp pullback
 %   IV        : MxNxP array (optional) intensity data to use for patch 
-%
-%
+%   axisorder : 3x1 int array between 1-3 (optional) axis order for IV wrt
+%               the mesh coordinate frame
+%   v3d :
+%   ringpath_ss : 
+%   vvals4plot : same as vvals but for plotting. The purpose of including
+%       this is that there is a sign convention with what to do with phi0
+%       after it has been found. If finding optimal phi0_kk iteratively by
+%       running this code several times, then need to update 
+%       vvals4plot as vvals --> vvals - phi0, even though phi0 is updated
+%       as phi0_kk --> phi0_kk + phi0.
+%   Options : struct, passed to texture_patch_to_image
+%   
 % Returns
 % -------
-% phi0_fit
+% phi0_fit : nU x 1 float array
+%   the smoothed best-fit rotation angles, in units of the v coordinate,
+%   bounded by (lowerbound, upperbound) 
 % phi0s : nU x 1 float array 
-%   the additional rotation angles, bounded by (lowerbound, upperbound) 
+%   the best-fit rotation angles, bounded by (lowerbound, upperbound) 
 % 
 % NPMitchell 2019
 
+try
+    assert(strcmp(smoothingMethod, 'none') ||...
+        strcmp(smoothingMethod, 'savgol'))
+catch
+    error('smoothingMethod must be none or savgol')
+end
+
 % If a preview input boolean is passed, interpret it
-if ~isempty(varargin)
-    preview = varargin{1} ;
-    if length(varargin) > 1 && save_phi0patch
-        patchOpts = varargin{2} ;
-        patchImFn = patchOpts.patchImFn ;
-        imfn_sp_prev = patchOpts.imfn_sp_prev ;
-        IV = patchOpts.IV ;
-        ringpath_ss = patchOpts.ringpath_ss ;
-        v3d = patchOpts.v3d ;
-        Options = patchOpts.Options ;
-    else
-        error('save_phi0patch is true, but patchOpts are missing!')
-    end
+if save_phi0patch
+    patchImFn = patchOpts.patchImFn ;
+    imfn_sp_prev = patchOpts.imfn_sp_prev ;
+    IV = patchOpts.IV ;
+    axisorder = patchOpts.axisorder ;
+    ringpath_ss = patchOpts.ringpath_ss ;
+    v3d = patchOpts.v3d ;
+    vvals4plot = patchOpts.vvals4plot ;
+    Options = patchOpts.Options ;
 else
-    preview = false ;
-    if save_phi0patch
-        error('save_phi0patch is true, but patchOpts are missing!')
-    end
+    error('save_phi0patch is true, but patchOpts are missing!')
 end
 
 % if ~isempty(varargin)
@@ -100,26 +117,33 @@ phi0s = phiOffsetsFromPrevMesh(TF, TV2D, TV3D, ...
 % phi0s = mod(phi0s, 2 * pi) ;
 
 % Convert phi0s to a smooth polynomial phi(u)
-% Smoothing parameters
-framelen = 11 ;  % must be odd
-polyorder = 2 ;
-% Low pass filter (Savitsky-Golay)
-% Note we ignore the variations in ds -->
-% (instead use du=constant) to do this fit
-phi0_fit = savgol(phi0s, polyorder, framelen)' ;
-
+if strcmp(smoothingMethod, 'savgol')
+    % Smoothing parameters
+    framelen = 11 ;  % must be odd
+    polyorder = 2 ;
+    % Low pass filter (Savitsky-Golay)
+    % Note we ignore the variations in ds -->
+    % (instead use du=constant) to do this fit
+    phi0_fit = savgol(phi0s, polyorder, framelen)' ;
+elseif strcmp(smoothingMethod, 'none')    
+    phi0_fit = phi0s ;
+end
 % Fit the smoothed curve
 % phicoeffs = polyfit(uspace, phi0_fit, 14) ;
 % phi0_fit = polyval(phicoeffs, uspace);
 
 % Plot the fit for reference
-if save_fit
+if save_fit 
     close all
     fig = figure('visible', 'off') ;
     plot(uspace, phi0s, '.'); hold on;
     % plot(uspace, phix, '--')
     plot(uspace, phi0_fit, '-')
-    legend({'measured shifts', 'SG filter'})
+    if strcmp(smoothingMethod, 'savgol')
+        legend({'measured shifts', 'SG filter'})
+    elseif strcmp(smoothingMethod, 'none')
+        legend({'measured shifts', 'interpolation'})
+    end
     xlabel('u')
     ylabel('\phi_0')
     title('Shift \phi(u)')
@@ -127,16 +151,15 @@ if save_fit
     close all
 end
 
-
 %% OPTIONAL: PLOT CHANGE IN PHI OVER TEXTURE PATCH IMAGES OF PREVIOUS AND CURRENT IMAGE
 if save_phi0patch
     % First check that we have vgrid, not vspace 
     nU = length(uspace) ;
-    if any(size(vvals) == 1)
-        nV = length(vvals) ;
-        vgrid = (vvals .* ones(nV, nU))' ;
+    if any(size(vvals4plot) == 1)
+        nV = length(vvals4plot) ;
+        vgrid = (vvals4plot .* ones(nV, nU))' ;
     else
-        vgrid = vvals ;
+        vgrid = vvals4plot ;
         nV = size(vgrid, 1) ;
     end
     onesUV = ones(nU, nV) ;
@@ -146,7 +169,11 @@ if save_phi0patch
     if exist(imfn_sp_prev, 'file')
         im0 = double(imread(imfn_sp_prev)) / 255.0 ;
     else
-        error('Previous timepoint not available')
+        try
+            im0 = double(imread(sprintf(QS.fullFileBase.im_sp, QS.currentTime))) ;
+        catch
+            error('Previous timepoint not available')
+        end
     end
     tmp = ringpath_ss .* onesUV ;
     svcutMesh.u(:, 1) = tmp(:) ;
@@ -171,9 +198,12 @@ if save_phi0patch
 
     % Create texture image
     if any(isnan(TV2D))
-        error('here -- check for NaNs case')
+        error('here -- check for NaNs in TV2D ')
     end
-    patchIm = texture_patch_to_image( TF, TV2D, TF, TV3D(:, [2 1 3]), ...
+    if any(isnan(TV3D))
+        error('here -- check for NaNs in TV3D ')
+    end
+    patchIm = texture_patch_to_image( TF, TV2D, TF, TV3D(:, axisorder), ...
         IV, Options );
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -186,19 +216,19 @@ if save_phi0patch
     xx = ringpath_ss * size(patchIm, 2) / max(ringpath_ss) ;
     yy = 1:100:size(patchIm, 1) ;
     phi0grid = (phi0_fit .* ones(length(uspace), length(yy)))' ;
-    tmp = cat(3, patchIm, patchIm, im0) ;
+    tmp = cat(3, patchIm, patchIm + im0, im0) ;
     opts.label = '$\phi_0$' ;
     opts.qsubsample = 2 ;
     opts.qscale = 1000 ;
     [~, ~, ~, ax, ~] = vectorFieldHeatPhaseOnImage(tmp, xx, yy', ...
         0*phi0grid, phi0grid, max(abs(phi0_fit))*2, opts) ;
-    title(ax, 'Blue is prev timept, yellow is current')
+    titlestr =  ['Blue = $t - 1$, yellow is current. ', ...
+        '$\phi_0$ is to be subtracted from $v$.' ] ;
+    title(ax, titlestr, 'Interpreter', 'Latex')
     % F = getframe(gca);
     % Image = frame2im(F);
     % imwrite(Image, patchImFn)
     saveas(gcf, patchImFn) 
     close all
+    
 end
-
-end
-

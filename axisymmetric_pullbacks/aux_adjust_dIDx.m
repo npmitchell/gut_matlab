@@ -1,11 +1,12 @@
-function [adIDx, pdIDx] = aux_adjust_dIDx(mesh, t, dpFile, ADBase, PDBase, cylinderMeshCleanBase, outadIDxfn, outpdIDxfn, xp) 
+function [adIDx, pdIDx] = aux_adjust_dIDx(mesh, t, dpFile, ADBase, PDBase, cylinderMeshCleanBase, outadIDxfn, outpdIDxfn, timePoints) 
 
 % Auxilliary function for adjusting adIDx and pdIDx in
 % Generate_Axisymmetric_Pullbacks_Orbifold.m script
 
 % Load the AD/PD vertex IDs
 disp('Loading ADPD vertex IDs...')
-if t == xp.fileMeta.timePoints(1)
+if t == timePoints(1)
+    disp(['reading h5 file: ' dpFile])
     adIDx = h5read( dpFile, sprintf( ADBase, t ) );
     pdIDx = h5read( dpFile, sprintf( PDBase, t ) );
 

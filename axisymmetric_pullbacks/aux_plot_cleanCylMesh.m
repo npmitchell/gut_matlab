@@ -1,5 +1,7 @@
 % Auxilliary function for plotting cleanCylinderMesh from
 % Generate_Axisymmetric_Pullbacks_Orbifold.m script
+% NOTE: THIS IS NOT USED IN THE MASTER PIPELINE, deprecated
+
 close all
 fig = figure('visible', 'off') ;
 xyzrs = ((rot * mesh.v')' + trans) * resolution ;

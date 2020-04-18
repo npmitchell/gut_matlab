@@ -149,17 +149,30 @@ bdyIDx = unique(bdyIDx(:));
 if ~ismember(cp1, bdyIDx) || ~ismember(cp2, bdyIDx)
   
     % Display invalid origin/terminal points:
-    trisurf( meshTri, 'EdgeColor', 'none', 'FaceAlpha', 0.2); 
+    trisurf( meshTri, 'EdgeColor', [0.5,0.5,0.5], 'FaceAlpha', 0.2); 
     hold on
     axis equal
+    scatter3(vertexIn(bdyIDx, 1), vertexIn(bdyIDx, 2), ...
+        vertexIn(bdyIDx, 3), 20, 'c', 'filled')
     scatter3(vertexIn(cp1, 1), vertexIn(cp1, 2), vertexIn(cp1, 3), ...
-        'r', 'filled');
+        10, 'r', 'filled');
     scatter3(vertexIn(cp2, 1), vertexIn(cp2, 2), vertexIn(cp2, 3), ...
-        'r', 'filled');
+        10, 'r', 'filled');
+    title('Debug: boundary=cyan, input points=red')
     hold off
+    disp('points are:')
+    disp(cp1) 
+    disp(cp2)
     
-    error('One or more input point does not lie on the mesh boundary!');
-    
+    if ~ismember(cp1, bdyIDx) && ~ismember(cp2, bdyIDx)
+        error('Neither input point lies on the mesh boundary!');
+    elseif ~ismember(cp1, bdyIDx)
+        error('First input point does not lie on the mesh boundary!');
+    elseif ~ismember(cp2, bdyIDx)
+        error('Second input point does not lie on the mesh boundary!');
+    else
+        erorr('Unknown error with non-boundary point')
+    end
 end
 
 % Process optional inputs -------------------------------------------------

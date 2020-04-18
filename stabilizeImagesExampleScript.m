@@ -1,5 +1,6 @@
 %% Example for calibration of stabilizeImages.m
-% Run this then stabilizeImagesCorrect.m to see the calibration
+% Run this then stabilizeImagesCorrect.m to see the calibration on the
+% example data created by this script.
 % >> stabilizeImagesExampleScript
 % >> stabilizeImagesCorrect
 

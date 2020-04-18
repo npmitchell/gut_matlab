@@ -431,7 +431,7 @@ for ttype = 1:5
             % Is there a match for this dataset at this time in c?
             
             % Find the timepoint in dataset c that matches this t_ref
-            for ii =1:max_ntp
+            for ii =1:111
                 if ~isempty(mca{cc, ii}) 
                     % Note: we search for a match to mca{rr, 1}.name
                     % in minname{cc, ii}

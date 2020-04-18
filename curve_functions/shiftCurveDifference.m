@@ -9,7 +9,9 @@ function [ssdiff] = shiftCurveDifference(t0, curv1, curv2)
 % t0 : float
 %   time to shift curv1 relative to curv2's t axis to match the two curves
 % curv1 : N x 1 float array
-%   first column is timestamp, second is a value f(t)
+%   first column is dependent variable t, second is a value f(t)
+% curv1 : N x 1 float array
+%   first column is dependent variable t, second is a value f(t)
 %
 % Returns 
 % -------

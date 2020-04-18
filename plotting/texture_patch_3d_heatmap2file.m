@@ -1,5 +1,7 @@
 function texture_patch_3d_heatmap2file(FF, VV, TF, TV, IV, tMapOpts, figOpts)
 % TEXTURE_PATCH_3D_HEATMAP2FILE(FF, VV, TF, TV, IV, tMapOpts, figOpts)
+ % unfinished?
+ % NPMitchell 2020
 
 % Default figOpts
 labelstr = '' ;
