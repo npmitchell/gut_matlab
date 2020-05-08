@@ -537,6 +537,40 @@ for leaf=1:40:size(IV, 1)
 end
 close all
 
+%% 2-color cross-section inspection
+% Define your two-channel colors
+color1 = [0.5 0 0.5] ;
+color2 = [0 0.5 0.5] ;
+% which timepoint
+tp = 50 ;
+% grab mesh filename
+meshfn = fullfile(meshDir, sprintf([ meshFileBase '.ply'], tp)) ;
+% Load the raw data via imsane Experiment instance xp
+xp.loadTime(tp)
+xp.rescaleStackToUnitAspect() ;
+IV = xp.stack.image.apply() ;
+% unpack two channel data
+IV1 = IV{1} ;
+IV2 = IV{2} ;
+% make an rgb image cyan/magenta
+red = IV1 * color1(1) + IV2 * color2(1) ;
+grn = IV1 * color1(2) + IV2 * color2(2) ;
+blu = IV1 * color1(3) + IV2 * color2(3) ;
+im = cat(3, red, rgb, blu) ;
+% Load up the mesh
+mesh = read_ply_mod(meshfn) ;
+% which page do you want to look at in cross section?
+leaf = 100 ;
+% Make this number larger to sample more of the nearby mesh
+width = 5 ;
+% Show the cross-section
+inds = find(abs(mesh.v(:, 1) - leaf) < width) ;
+imshow(imadjust(squeeze(im(leaf, :, :))'))
+if any(inds)
+    hold on;
+    plot(mesh.v(inds, 2), mesh.v(inds, 3), 'co')
+end
+                
 %% Inspect all meshes in 3D
 
 % Make an output directory for the quick-and-dirty inspection
@@ -551,6 +585,7 @@ for tp = xp.fileMeta.timePoints
     saveas(gcf, fullfile(outputdir, sprintf('inspect_%04d.png', tp)))
     close all
 end
+                    
 
 %% adjust all meshes by 0.5 --- now this is done in integralDetector
 % for tp = fileMeta.timePoints
