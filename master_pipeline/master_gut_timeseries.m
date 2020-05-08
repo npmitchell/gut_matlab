@@ -537,6 +537,21 @@ for leaf=1:40:size(IV, 1)
 end
 close all
 
+%% Inspect all meshes in 3D
+
+% Make an output directory for the quick-and-dirty inspection
+outputdir = fullfile(meshDir, 'quick_mesh_inspect') ;
+for tp = xp.fileMeta.timePoints
+    % Load the mesh
+    meshfn = fullfile(meshDir, sprintf([ meshFileBase '.ply'], tp)) ;    
+    mesh = read_ply_mod(meshfn) ;
+    % Plot the mesh in 3d. Color here by Y coordinate
+    trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
+        mesh.v(:, 2), 'edgecolor', 'none', 'Facealpha', 0.5)
+    saveas(gcf, fullfile(outputdir, sprintf('inspect_%04d.png', tp)))
+    close all
+end
+
 %% adjust all meshes by 0.5 --- now this is done in integralDetector
 % for tp = fileMeta.timePoints
 %     disp(num2str(tp))

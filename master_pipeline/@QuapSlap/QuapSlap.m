@@ -1,4 +1,4 @@
-classdef QuapSlap < handle
+lassdef QuapSlap < handle
     % Quasi-Axisymmetric Pipeline for Surface Lagrangian Pullbacks class
     %
     % flipy         % APDC coord system is mirrored XZ wrt raw data

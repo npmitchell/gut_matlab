@@ -4,8 +4,9 @@ opts.timeinterval = timeinterval ;
 opts.timeunits = timeunits ;
 opts.nV = 100 ;
 opts.nU = 100 ;
-opts.normalShift = -10 ;
+opts.normalShift = 10 ;
 opts.a_fixed = 2.0 ;
+opts.adjustlow = 1.0 ;
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
