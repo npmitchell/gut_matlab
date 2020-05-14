@@ -1,10 +1,10 @@
 function q = curvspace(p,N)
-
 % CURVSPACE Evenly spaced points along an existing curve in 2D or 3D.
 %   CURVSPACE(P,N) generates N points that interpolates a curve
 %   (represented by a set of points) with an equal spacing. Each
 %   row of P defines a point, which means that P should be a n x 2
 %   (2D) or a n x 3 (3D) matrix.
+%   Note: startpoints and endpoints are preserved.
 %
 %   (Example)
 %   x = -2*pi:0.5:2*pi;

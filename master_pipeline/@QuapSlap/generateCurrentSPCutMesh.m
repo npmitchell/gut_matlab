@@ -96,8 +96,6 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     end
 
     % Transform from u,v coordinates to s, phi coordinates
-    % [scoords, phicoords] = generateSPhiFromUV();
-
     %----------------------------------------------------------------------
     % Generate tiled orbifold triangulation
     %----------------------------------------------------------------------
@@ -139,13 +137,13 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     crude_ringpath_ss = ringpathsGridSampling(uspace0, vspace, TF, TV2D, TV3Drs) ;
 
     % Resample crude_ringpath_ds made from uspace0 (uspace0 had equal du, not equal ds_3D in u direction)
-    [uspace, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU)', crude_ringpath_ss, nU, 'linear') ;
+    [uspace_ds, eq_ringpath_ss] = equidistantSampling1D(linspace(0, 1, nU)', crude_ringpath_ss, nU, 'linear') ;
     % ensure that uspace is nU x 1, not 1 x nU
-    uspace = reshape(uspace, [nU, 1]) ; 
+    uspace_ds = reshape(uspace_ds, [nU, 1]) ; 
     % hedge the first and last point to avoid NaNs
     eps = 1e-13 ;
-    uspace(1) = uspace(1) + eps ;
-    uspace(end) = uspace(end) - eps ;
+    uspace_ds(1) = uspace_ds(1) + eps ;
+    uspace_ds(end) = uspace_ds(end) - eps ;
     clearvars dsuphi curves3d 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -157,7 +155,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
         if mod(kk, 20) == 0
             disp(['u = ' num2str(kk / nU)])
         end
-        uv = [cutMesh.umax * uspace(kk) * ones(size(vspace)), vspace] ;
+        uv = [cutMesh.umax * uspace_ds(kk) * ones(size(vspace)), vspace] ;
         curves3d(kk, :, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, uv) ;
     end 
 
@@ -167,11 +165,15 @@ if ~exist(spcutMeshfn, 'file') || overwrite
         for kk = 1:nU
             plot3(curves3d(kk, :, 1), curves3d(kk, :, 2), curves3d(kk, :, 3), '.') 
         end
+        title('curves3d')
         axis equal
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    fprintf('Compute s(u) and radius(u) for "uniform"--> evenly sample each DV hoop (0,1) so ds_3D=const \n');
+    fprintf(['Compute s(u) and radius(u) for "uniform"--> ', ...
+            'evenly sample each DV hoop (0,1) so ds_3D=const \n']);
+    % Note: c3d_dsv has equal spacing in both ds and dphi, units of um in
+    % rotated & scaled (RS) coordinates
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Resample at evenly spaced dphi in embedding space (rs, in um)
     fprintf('Resampling curves...\n')
@@ -198,6 +200,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
         for kk = 1:nU
             plot3(c3d_dsv(kk, :, 1), c3d_dsv(kk, :, 2), c3d_dsv(kk, :, 3), '.') 
         end
+        title('c3d_dsv')
         axis equal
     end
 
@@ -245,27 +248,28 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     fprintf('Done making new centerline using uniformly sampled hoops\n') ;
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    fprintf('Create new3d, the regridded pts at UV, moved to sphi')
+    fprintf('Create new3d, the grid of UV coords')
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     onesUV = ones(nU, nV) ;
-    uu = uspace * cutMesh.umax .* onesUV ;
+    uspace_ds_umax = uspace_ds * cutMesh.umax ;
+    uu = uspace_ds_umax .* onesUV ;
     vv = (vspace .* onesUV')' ;
-    % uv is UNequally spaced in ss, equally spaced in uu
+    % uv is UNequally spaced in ss, EQUALLY spaced in uu
     uv = [uu(:), vv(:)] ;
     % Note: here interpolate uv in the TV2D coord system, then
     % use uphi as the actual 2D coordinates for these vertices
-    % NOTE: unlike curves3d, new3d is NOT rotated/translated/scaled
-    new3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
-
+    % NOTE: unlike curves3d, uvgrid3d is NOT rotated/translated/scaled
+    uvgrid3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
+    
     if tt == QS.xp.fileMeta.timePoints(1)
         % Store for next timepoint
         phiv = (vspace .* ones(nU, nV))' ;
-        phi0s = zeros(size(uspace)) ;
+        phi0s = zeros(size(uspace_ds)) ;
         phi0_fit = phi0s ;
     else
         % Load previous sphi vertices in 3d 
         tidx = QS.xp.tIdx(tt) ;
-        if strcmp(phi_method, '3dcurves')
+        if strcmp(phi_method, '3dcurves') || strcmp(phi_method, 'combined') 
             disp('Computing phi(v) via 3dcurve matching (geometric method)')
             % Load the previous spcutMesh and call it prev3d_sphi
             % Also note the previous spcutMesh pullback image's fn
@@ -273,21 +277,42 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                 QS.xp.fileMeta.timePoints(tidx-1)), 'spcutMesh') ;
             prevf = tmp.spcutMesh.f ;
             prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
+            
+            %% Resample the vertices evenly around each hoop!!!
+            prev3d_sphi_dsdv = zeros(size(prev3d_sphi)) ;  % in units of pix
+            for i=1:nU
+                % Note: no need to add the first point to the curve
+                % since the endpoints already match exactly in 3d and
+                % curvspace gives a curve with points on either
+                % endpoint (corresponding to the same 3d location).
+                prev3d_sphi_dsdv(i, :, :) = resampleCurvReplaceNaNs(squeeze(prev3d_sphi(i, :, :)), nV, true) ;
+                if vecnorm(squeeze(prev3d_sphi_dsdv(i, 1, :)) - squeeze(prev3d_sphi_dsdv(i, end, :))) > 1e-7
+                    error('endpoints do not join! Exiting')
+                end
+
+                % Visualization for Troubleshooting:
+                % triplot(TF, TV2D(:, 1), TV2D(:, 2))
+                % hold on;
+                % plot(uv(:, 1), uv(:, 2), '.')
+            end
+            
+            %%
+            
             % prev2d_uphi = reshape(tmp.spcutMesh.uphi, [nU, nV, 2]) ;
             imfn_sp_prev = sprintf( QS.fullFileBase.im_sp, ...
                 QS.xp.fileMeta.timePoints(tidx-1) ) ;
 
             % fit the shifts in the y direction
             dmyk = 0 ;
-            phi0_fit = zeros(size(uspace)) ;
-            phi0s = zeros(size(uspace)) ;
+            phi0_fit = zeros(size(uspace_ds)) ;
+            phi0s = zeros(size(uspace_ds)) ;
             phi0_fit_kk = 1 ; % for first pass, so that we enter loop              
             phiv_kk = (vspace .* ones(nU, nV))' ;
             ensureDir(fullfile(sphiDir, 'phi0_correction'))
             % Note: the last boolean ensures that if iterative_phi0 is
             % false, we only do one pass. 
             do_iteration = true ;
-            while any(phi0_fit_kk > 0.002) && dmyk < 3 && do_iteration
+            while any(phi0_fit_kk > 0.002) && do_iteration
                 % Make sure we do only one pass if not iterative
                 if ~iterative_phi0 
                     do_iteration = false ;
@@ -330,7 +355,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                     patchOpts.IV = IV ;
                     patchOpts.axisorder = axisorder ;
                     patchOpts.ringpath_ss = ringpath_ss ;
-                    patchOpts.v3d = new3d ;
+                    patchOpts.v3d = uvgrid3d ;
                     patchOpts.vvals4plot = phi4plot ;
                     patchOpts.Options = Options ;
                     patchOpts.phi0_sign = phi0_sign ;
@@ -341,14 +366,21 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                 % Minimize difference in DV hoop positions wrt
                 % previous pullback mesh   
                 % Outputs are raw phi0 and smoothed phi0s
+                %% THIS WORKS
+                % [phi0_fit_kk, phi0s_kk] = fitPhiOffsetsFromPrevMesh(TF,...
+                %     TV2D, TV3D, uspace_ds_umax, phiv_kk, ...
+                %     prev3d_sphi, -0.45, 0.45, ...
+                %     save_ims, plotfn, save_phi0patch, smoothingMethod, ...
+                %     preview, patchOpts) ;
+                
+                %% EXPERIMENTAL code
                 [phi0_fit_kk, phi0s_kk] = fitPhiOffsetsFromPrevMesh(TF,...
-                    TV2D, TV3D, uspace0, phiv_kk, ...
-                    prev3d_sphi, -0.45, 0.45, ...
+                    TV2D, TV3D, uspace_ds_umax, phiv_kk, ...
+                    prev3d_sphi_dsdv, -0.45, 0.45, ...
                     save_ims, plotfn, save_phi0patch, smoothingMethod, ...
                     preview, patchOpts) ;
-
+                
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % error('debug')
                 % USED TO USE: uspace * cutMesh.umax
                 % % BREAK IT DOWN
                 % % Using simple offset
@@ -402,13 +434,13 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                     % before fitting
                     hold on;
                     pe0 = find(phiprev(:) < 1e-4 | phiprev(:) > 0.99) ;
-                    pe0h = plot3(new3d(pe0, 1), new3d(pe0, 2), ...
-                        new3d(pe0, 3), '.') ;
+                    pe0h = plot3(uvgrid3d(pe0, 1), uvgrid3d(pe0, 2), ...
+                        uvgrid3d(pe0, 3), '.') ;
                     % after fitting
                     hold on;                   
                     pekk = find(phi4plot(:) < 1e-4 | phi4plot(:) > 0.99) ;
-                    pekkh = plot3(new3d(pekk, 1), new3d(pekk, 2), ...
-                        new3d(pekk, 3), '.') ;         
+                    pekkh = plot3(uvgrid3d(pekk, 1), uvgrid3d(pekk, 2), ...
+                        uvgrid3d(pekk, 3), '.') ;         
                     % format plot
                     legend({'prev mesh', 'before fitting', 'after fitting'},...
                         'location', 'eastoutside')
@@ -434,11 +466,20 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                     
                 end
             end
-        elseif strcmp(phi_method, 'texture')
+        elseif strcmp(phi_method, 'texture') 
             disp('Computing phi(v) via texture matching (physical method)')
-            QS.fitPhiOffsetsViaTexture()
+            phi0_fit = QS.fitPhiOffsetsViaTexture(uspace_ds_umax, vspace) ;
         else
-            error("Could not recognize phi_method: must be 'texture' or '3dcurves'")
+            error(["Could not recognize phi_method: ", ...
+                "must be 'texture' or '3dcurves' or 'combined'"])
+        end
+        
+        % If we use a combined method, use curves3d as initial guess for
+        % texture method
+        if strcmp(phi_method, 'combined') 
+            disp('Refining phi(v) via texture matching (physical method)')
+            phi0_fit = QS.fitPhiOffsetsViaTexture(uspace_ds_umax, vspace,...
+                        phi0_fit) ;
         end
         close all
 
@@ -455,7 +496,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
 
     % Recompute radii_from_mean_uniform_rs as radii_from_avgpts 
     % NOTE: all radius calculations done in microns, not pixels
-    sphi3d_rs = ((rot * new3d')' + trans) * resolution ;
+    sphi3d_rs = ((rot * uvgrid3d')' + trans) * resolution ;
     radii_from_avgpts = zeros(size(sphi3d_rs, 1), size(sphi3d_rs, 2)) ;
     for jj = 1:nU
         % Consider this hoop
@@ -475,7 +516,8 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     spcutMesh.nV = nV ;
     
     % First resampling
-    spcutMesh.v0 = new3d ;
+    spcutMesh.v0 = uvgrid3d ;
+    spcutMesh.v0rs_equal_dsdv = c3d_dsv ;
     % spcutMesh.vrs0 = ((rot * new3d')' + trans) * resolution ;
     % Define normals based on the original mesh normals
     spvn03d = interpolate2Dpts_3Dmesh(TF, TV2D, TVN3D, uphi) ;

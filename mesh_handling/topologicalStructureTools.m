@@ -8,9 +8,12 @@ function [eIDx, feIDx, bulkEdgeIDx] = topologicalStructureTools(tri)
 % 
 % Returns 
 % -------
-% bulkEdgeIDx :
-% eIDx :
-% feIDx : 
+% eIDx : #bonds x 2 int
+%   bond vertex IDs
+% feIDx : #faces x 3 int
+%   face bond IDs
+% bulkEdgeIDx : #bonds x 1 int
+%   label of whether in bulk (0) or on edge (1)
 %
 % Dillon Cislo & NPMitchell 2020
 

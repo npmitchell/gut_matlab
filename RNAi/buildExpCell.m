@@ -1,4 +1,9 @@
 function wcell = buildExpCell(dirs)
+% buildExpCell(dirs)
+% build a cell array with all experiments in dirs for RNAi experiments
+% 
+% 
+% NPMitchell 2020
 
 wcell = {} ; 
 for ii = 1:length(dirs)

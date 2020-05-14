@@ -42,7 +42,10 @@ function [phi0_fit, phi0s] = fitPhiOffsetsFromPrevMesh(TF, TV2D, TV3D,...
 % save_phi0patch : bool
 %   save a patch colored by the phi0 motion deduced from the difference
 %   between previous and current DVhoop coordinates
-% varargin : optional options struct
+% smoothingMethod : str specifier
+% preview : bool
+%   whether to show intermediate results
+% patchOpts : optional options struct
 %   preview   : bool (optional) visualize the progress of phi0
 %   patchImFn : str  (optional) save the progress of phi0 as texture 
 %                                 image saved to this path
@@ -79,16 +82,18 @@ end
 
 % If a preview input boolean is passed, interpret it
 if save_phi0patch
-    patchImFn = patchOpts.patchImFn ;
-    imfn_sp_prev = patchOpts.imfn_sp_prev ;
-    IV = patchOpts.IV ;
-    axisorder = patchOpts.axisorder ;
-    ringpath_ss = patchOpts.ringpath_ss ;
-    v3d = patchOpts.v3d ;
-    vvals4plot = patchOpts.vvals4plot ;
-    Options = patchOpts.Options ;
-else
-    error('save_phi0patch is true, but patchOpts are missing!')
+    try
+        patchImFn = patchOpts.patchImFn ;
+        imfn_sp_prev = patchOpts.imfn_sp_prev ;
+        IV = patchOpts.IV ;
+        axisorder = patchOpts.axisorder ;
+        ringpath_ss = patchOpts.ringpath_ss ;
+        v3d = patchOpts.v3d ;
+        vvals4plot = patchOpts.vvals4plot ;
+        Options = patchOpts.Options ;
+    catch
+        error('save_phi0patch is true, but patchOpts are missing!')
+    end
 end
 
 % if ~isempty(varargin)
@@ -203,6 +208,13 @@ if save_phi0patch
     if any(isnan(TV3D))
         error('here -- check for NaNs in TV3D ')
     end
+    disp('fitPhiOffsetsFromPrevMesh: Options = ')
+    disp(Options)
+    disp('fitPhiOffsetsFromPrevMesh: patchOpts = ')
+    disp(patchOpts)
+    disp('fitPhiOffsetsFromPrevMesh: patchOpts.Options = ')
+    disp(patchOpts.Options)
+    size(patchOpts.IV)
     patchIm = texture_patch_to_image( TF, TV2D, TF, TV3D(:, axisorder), ...
         IV, Options );
     
@@ -216,7 +228,7 @@ if save_phi0patch
     xx = ringpath_ss * size(patchIm, 2) / max(ringpath_ss) ;
     yy = 1:100:size(patchIm, 1) ;
     phi0grid = (phi0_fit .* ones(length(uspace), length(yy)))' ;
-    tmp = cat(3, patchIm, patchIm + im0, im0) ;
+    tmp = cat(3, patchIm, 0.5 * (patchIm + im0), im0) ;
     opts.label = '$\phi_0$' ;
     opts.qsubsample = 2 ;
     opts.qscale = 1000 ;
@@ -228,6 +240,7 @@ if save_phi0patch
     % F = getframe(gca);
     % Image = frame2im(F);
     % imwrite(Image, patchImFn)
+    disp(['Saving phi0patch: ' patchImFn])
     saveas(gcf, patchImFn) 
     close all
     

@@ -33,7 +33,7 @@
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
-% cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/deconvolved_16bit
+cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 dataDir = cd ;
 
 % Decide whether to change previously stored detection Opts, if they exist
@@ -902,7 +902,7 @@ clearvars methodOpts
 methodOpts.overwrite = overwrite_endcapOpts ;  % recompute sliced endcaps
 methodOpts.save_figs = true ;   % save images of cntrline, etc, along the way
 methodOpts.preview = false ;     % display intermediate results
-sliceMeshEndcaps(QS, endcapOpts, methodOpts) ;
+QS.sliceMeshEndcaps(endcapOpts, methodOpts) ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ORBIFOLD
@@ -959,7 +959,7 @@ QS.cleanCylMeshes(cleanCylOptions)
     
 %% Iterate Through Time Points to Create Pullbacks ========================
 % outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
-for tt = xp.fileMeta.timePoints(142:end)
+for tt = xp.fileMeta.timePoints(132:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
     
@@ -972,7 +972,6 @@ for tt = xp.fileMeta.timePoints(142:end)
     cutMeshfn = sprintf(QS.fullFileBase.cutMesh, tt) ;
     cutPathfn = sprintf(QS.fullFileBase.cutPath, tt) ;
     if ~exist(cutMeshfn, 'file') || ~exist(cutPathfn, 'file') || overwrite_cutMesh
-        error('here')
         if exist(cutMeshfn, 'file')
             disp('Overwriting cutMesh...') ;
         else
@@ -988,12 +987,15 @@ for tt = xp.fileMeta.timePoints(142:end)
         QS.loadCurrentCutMesh()
         compute_pullback = ~isempty(QS.currentMesh.cutPath) ;
     end
+    
+    % force true here for debug
+    compute_pullback = true ;
 
     spcutMeshOptions.overwrite = overwrite_spcutMesh ;
     spcutMeshOptions.save_phi0patch = true ;
     spcutMeshOptions.iterative_phi0 = true ;
     spcutMeshOptions.smoothingMethod = 'none' ;
-    QS.plotting.preview = true ;
+    QS.plotting.preview = false ;
     QS.generateCurrentSPCutMesh([], spcutMeshOptions) ;
     
     % Compute the pullback if the cutMesh is ok
@@ -1007,7 +1009,6 @@ for tt = xp.fileMeta.timePoints(142:end)
         disp('Skipping computation of pullback')
     end
     clear Options IV
-    error('here')
 
     % %% Save SMArr2D (vertex positions in the 2D pullback) -----------------
     % disp(['Saving meshStack to disk: ' mstckfn])

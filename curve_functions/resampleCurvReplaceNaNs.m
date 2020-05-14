@@ -14,6 +14,10 @@ function [curvout] = resampleCurvReplaceNaNs(curv, N, closed)
 %   the number of points desired in the sampling
 % closed : bool
 %   whether the curve is closed (final point == starting point)
+%   If closed is false but first and last points are equal, this is
+%   also true in the output. In other words, closed is only used if an
+%   endpoint is NaN, in which case it is fixed to be the same as the other
+%   endpoint. Both endpoints cannot be NaN as of May 2020.
 % 
 % Returns
 % -------
@@ -47,6 +51,7 @@ if any(isnan(curv))
         error('NaNs in the middle of curve. Handle this case by interpolation')
     end
 end
+% Note that curvspace preserves endpoints
 curvout = curvspace(curv, N) ;
 
 end

@@ -1,4 +1,4 @@
-lassdef QuapSlap < handle
+classdef QuapSlap < handle
     % Quasi-Axisymmetric Pipeline for Surface Lagrangian Pullbacks class
     %
     % flipy         % APDC coord system is mirrored XZ wrt raw data
@@ -459,6 +459,7 @@ lassdef QuapSlap < handle
             endcapOptions = QS.endcapOptions ;
             save(QS.fileName.endcapOptions, 'endcapOptions')
         end
+        sliceMeshEndcaps(QS, endcapOpts, methodOpts)
         generateCleanCntrlines(QS, idOptions)
         function getCleanCntrlines(QS)
             if isempty(QS.cleanCntrlines)
@@ -510,6 +511,8 @@ lassdef QuapSlap < handle
         % spcutMeshSmStack
         generateSPCutMeshSmStack(QS, spcutMeshSmStackOptions)
         measureThickness(QS, thicknessOptions)
+        phi0_fit = fitPhiOffsetsViaTexture(QS, uspace_ds_umax, vspace,...
+            phi0_init, phi0TextureOpts)
 
     end
     methods (Static)

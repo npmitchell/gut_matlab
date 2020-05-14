@@ -26,6 +26,10 @@ function [phi0s] = phiOffsetsFromPrevMesh(TF, TV2D, TV3Drs, uspace, ...
 %   vspace. Note that uspace is not used explicitly, only nU is used to 
 %   extract the strips over which we iterate, minimizing for phi0 for each
 %   strip.
+% vargin : variable input arguments
+%   visualize : bool
+%   options : optimization options, as output of optimset()
+%   resample_hoops : bool
 % 
 % Returns
 % -------
@@ -36,20 +40,32 @@ function [phi0s] = phiOffsetsFromPrevMesh(TF, TV2D, TV3Drs, uspace, ...
 %
 % NPMitchell 2019
 
-% Interpret vargin as boolean for visualization 
+% Interpret vargin  
 if nargin > 8
+    % First vargin boolean for visualization
     if vargin{1}
         fig = figure('visible', 'on') ;
         visualize = true ;
     else
         visualize = false ;
     end
+    
+    % Second vargin is options for optimization problem
     if nargin > 9
         options = vargin{2} ;
     else
         % options = optimset('PlotFcns','optimplotfval','TolX',1e-7);
         options = optimset() ; 
     end
+    
+    % Third vargin is bollean to resample each DV hoop uniformly for the 
+    % geometric optimization (rotation)
+    if nargin > 10
+        resample_hoops = vargin{3} ;
+    else
+        resample_hoops = true ;
+    end
+    
 else
     visualize = true ;
     % options = optimset('PlotFcns','optimplotfval', 'TolX',1e-7); 
@@ -88,15 +104,35 @@ for qq = 1:nU
     prev3dvals = squeeze(prev3d_sphi(qq, :, :)) ;
     
     % Check it
+    % close all
+    % disp('previous values are')
     % plot3(prev3dvals(:, 1), prev3dvals(:, 2), prev3dvals(:, 3), '.')
     % hold on;
     % tmpx = prev3d_sphi(:, :, 1) ;
     % tmpy = prev3d_sphi(:, :, 2) ;
     % tmpz = prev3d_sphi(:, :, 3) ;
-    % scatter3(tmpx(:), tmpy(:), tmpz(:), 2, 'MarkerFaceAlpha', 0.1,...
+    % scatter3(tmpx(:), tmpy(:), tmpz(:), 2, 'MarkerFaceAlpha', 0.4,...
     %     'MarkerEdgeColor', 'none', 'MarkerFaceColor', 'c')
+    % temp_uv = [uspace(qq) * ones(nV, 1), mod(vqq, 1)] ;
+    % temp3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3Drs, temp_uv) ;
+    % plot3(temp3d(:, 1), temp3d(:, 2), temp3d(:, 3), 'ro')
+    % uspace(qq)
+    % button_is_enter = false ;
+    % while ~button_is_enter
+    %     button = waitforbuttonpress() ;
+    %     if button && ~strcmp(get(gcf, 'CurrentKey'), 'return')
+    %         disp('stopping!')
+    %         error('stop')
+    %     else
+    %         disp('continuing...')
+    %         button_is_enter = true ;
+    %     end
+    % end
+    % clf
         
-    % Note: interpolate2Dpts_3Dmesh(cutMeshrs.f, cutMeshrs.u, cutMeshrs.v, uv) 
+    % Note: argument structure is
+    %   --> interpolate2Dpts_3Dmesh(cutMeshrs.f, cutMeshrs.u, 
+    %   -->                         cutMeshrs.v, uv) 
     
     % Used to do simple search fmin, now do constrained
     % phi0s(qq) = fminsearch(@(phi0)...
@@ -105,13 +141,48 @@ for qq = 1:nU
     %         TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)]) ...
     %         - prev3dvals, 2, 2) .^ 2), [0.], options);
 
-    phi0s(qq) = fminbnd(@(phi0)...
-        sum(vecnorm(...
-        interpolate2Dpts_3Dmesh(TF, TV2D, ...
-            TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)] ) ...
-            - prev3dvals, 2, 2) .^ 2), lowerbound, upperbound, options);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if ~resample_hoops
+        %% Average over hoop to match position in hoop rotation
+        % This works quite well but does have some drift
+        phi0s(qq) = fminbnd(@(phi0)...
+            sum(vecnorm(...
+            interpolate2Dpts_3Dmesh(TF, TV2D, ...
+                TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)] ) ...
+                - prev3dvals, 2, 2) .^ 2), lowerbound, upperbound, options);
+    else        
+        %% Try resampling each hoop every time
+        % check that startpt is endpt for supplied prev3dvals 
+        approx_dv = mean(vecnorm(diff(prev3dvals, 1), 2, 2)) ;
+        ept_is_spt = all(abs(prev3dvals(1, :) - prev3dvals(end, :)) < 1e-6 * approx_dv) ;
+
+        NN = size(prev3dvals, 1) ;
+        closed_curv = true ;
+        utmp = uspace(qq) * ones(nV, 1) ;
+        if ept_is_spt
+            phi0s(qq) = fminbnd(@(phi0)...
+                sum(vecnorm(...
+                openClosedCurve(resampleCurvReplaceNaNs( ...
+                    interpolate2Dpts_3Dmesh(TF, TV2D, ...
+                        TV3Drs, [utmp, mod(vqq + phi0(1), 1)] ), ...
+                    NN, closed_curv)) ...
+                - prev3dvals(1:end-1, :), 2, 2) .^ 2), lowerbound, upperbound, options);
+        else
+            error('Have not handled case when hoop is not closed curve.')
+        end
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Try to eliminate drift by using just branch cut? 
+    % This is more erratic, since it is optimizing a single point instead
+    % of all the points on a hoop
+    % phi0s(qq) = fminbnd(@(phi0)...
+    %     sum(vecnorm(...
+    %     interpolate2Dpts_3Dmesh(TF, TV2D, ...
+    %         TV3Drs, [uspace(qq), mod(phi0(1), 1)] ) ...
+    %         - prev3dvals(1, :), 2, 2) .^ 2), lowerbound, upperbound, options);
         
-    % Visualize the minimization output values
+    %% Visualize the minimization output values
     if visualize
         % Plot the phi_0s computed thus far
         figure(1)
@@ -121,14 +192,23 @@ for qq = 1:nU
         ylabel('\phi_0')
         
         % Plot the points being adjusted
-        disp('phiOffsetsFromPrevMesh: casting into 3d')
+        % disp('phiOffsetsFromPrevMesh: casting into 3d')
+        
         tmp = interpolate2Dpts_3Dmesh(TF, TV2D, ...
             TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0s(qq), 1)]) ;
+        %% Try resampling each hoop every time
+        tmp = resampleCurvReplaceNaNs(tmp, NN, closed_curv) ;
+        
         figure(2)
-        scatter3(prev3dvals(:, 1), prev3dvals(:, 2), prev3dvals(:, 3), ...
-            5, linspace(0, 1, length(prev3dvals))) ;
+        % colormap jet
+        subs = 1:10:length(prev3dvals(:, 1)) ;
+        scatter3(prev3dvals(subs, 1), prev3dvals(subs, 2), prev3dvals(subs, 3), ...
+            6, linspace(0, 1, length(subs))) ;
         hold on;
-        scatter3(tmp(:, 1), tmp(:, 2), tmp(:, 3), 1, mod(vqq - phi0s(qq), 1), 'filled')
+        subs = 1:10:length(tmp(:, 1)) ;
+        scatter3(tmp(subs, 1), tmp(subs, 2), tmp(subs, 3), ...
+            4, vqq(subs), 'filled') 
+        title('small/filled=new, big/open=old')
         axis equal
         pause(0.000000001)
     end 
@@ -140,9 +220,9 @@ for qq = 1:nU
         fprintf([prog '(' num2str(runtimeIter) 's per u value)\n'])
     end
 end
-if visualize
-    close all
-end
+% if visualize
+%     close all
+% end
 end
 
 % returns phi0s

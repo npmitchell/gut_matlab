@@ -99,12 +99,13 @@ for ii=1:length(timePoints)
     if overwrite || ~exist(outfn, 'file') || ~exist(keepfn, 'file')
         if exist(outfn, 'file')
             disp(['Overwriting cylinder mesh: ' outfn])
+            error('either overwriting or keepfn does not exist. DEBUG')
         end
         if exist(keepfn, 'file')
             disp(['Overwriting keep indices: ' keepfn])
         end
         disp(['Computing endcaps for ' name])
-        error('dfdd')
+               
         mesh = read_ply_mod(sprintf(meshfn, tt));
         % subsample the mesh to match acom, pcom
         vtx = mesh.v / ssfactor ;

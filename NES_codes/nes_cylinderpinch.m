@@ -19,22 +19,23 @@ figHeight = 12 ;
 cmin = 0.95 ;
 cmax = 1.05 ;
 
+% Add paths
+gutDir = '/mnt/data/code/gut_matlab/' ;
+addpath(fullfile(gutDir, 'addpath_recurse')) ;
+addpath_recurse(fullfile(gutDir, 'mesh_handling')) ;
+addpath_recurse(fullfile(gutDir, 'plotting')) ;
+
 % Path options
 NESpath = '/mnt/data/code/NonEuclideanShells/NES/' ;
 addpath_recurse(NESpath)
 exten = sprintf('_L%02dR%02d_sigma%0.3f_strain%0.3f_%03dx%03d', ...
     Len, Rad, sigma, strain, nU, nV) ;
 exten = strrep(exten, '.', 'p') ;
-dirname = [strainstyle exten ] ;
+dirname = [strainstyle exten '_test'] ;
 outdir = fullfile('/mnt/data/simulations/NES_cylinder/', dirname) ;
 if ~exist(outdir, 'dir')
     mkdir(outdir)
 end
-
-% Add paths
-addpath('/mnt/data/code/gut_matlab/addpath_recurse/')
-addpath_recurse('/mnt/data/code/gut_matlab/mesh_handling/')
-addpath_recurse('/mnt/data/code/gut_matlab/plotting/')
 
 %--------------------------------------------------------------------------
 % Construct 2D mesh corresponding to the planar domain of
@@ -191,7 +192,7 @@ for ii = 1:uint8(1/strain)
         'Thickness', 0.1, 'Poisson', 0.3, ...
         'MaxIterations', 1000, ...
         'FixBoundary', 'Alpha', 10 );
-%     
+
 %     V = minimizeElasticEnergy( F, V, eL, ...
 %         'TargetAngles', tarTheta, ...
 %         'Thickness', 0.1, 'Poisson', 0.3, ...
@@ -285,8 +286,6 @@ for ii = 1:uint8(1/strain)
         [v0n, v0t ] = ...
             resolveTangentNormalVelocities(faces, vertices, v0, 1:length(F))
         
-        
-        
         % Plot phase info of 
         opts.style = 'phase' ;
         opts.sscale = strain ;
@@ -300,6 +299,9 @@ for ii = 1:uint8(1/strain)
         opts.figHeight = figHeight ;
         scalarVectorFieldsOnSurface(F, V, sf, xxv, yyv, zzv, vx,vy,vz, opts)
         error('here')
+        
+        % Perform DEC analysis of these fields
+        
     end
     
 end

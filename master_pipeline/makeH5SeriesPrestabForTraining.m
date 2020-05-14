@@ -194,7 +194,7 @@ detectOptions = struct( 'channel', channel, ...
     'preilastikaxisorder', preilastikaxisorder, ... % axis order as output by ilastik probabilities h5. To keep as saved coords use xyzc
     'ilastikaxisorder', ilastikaxisorder, ... % axis order as output by ilastik probabilities h5. To keep as saved coords use xyzc
     'include_boundary_faces', include_boundary_faces, ...
-     'smooth_with_meshlab', true) ;
+     'smooth_with_matlab', -1) ;
 
 % Set detect options ------------------------------------------------------
 xp.setDetectOptions( detectOptions );

@@ -3,7 +3,9 @@ function [mss, mcline, radii_from_mean, avgpts_ss, avgpts] = srFromDVCurves(curv
 %   Given the array of 1d DV curves, compute the new centerline from
 %   averaging each hoop and resampling the string of averages. Also returns
 %   the pathlength of the resampling and distance from the average points.
-%
+%   Note: as of 2020, figures out whether startpt=endpt and handles
+%   accordingly.
+% 
 % Parameters
 % ----------
 % curvesDV : N*M x 3 float
@@ -24,7 +26,7 @@ function [mss, mcline, radii_from_mean, avgpts_ss, avgpts] = srFromDVCurves(curv
 % avgpts : N x 3 float
 %   positions of the average of each hoop (3d positions of each hoop)
 %
-% NPMitchell 2019
+% NPMitchell 2019-2020
                    
 % Iterate over u coordinate
 % Compute radius of curves3d from new centerline
@@ -33,7 +35,14 @@ radii_from_mean = zeros(size(curvesDV, 1), size(curvesDV, 2)) ;
 for jj = 1:size(curvesDV, 1)
     % Consider this hoop
     hoop = squeeze(curvesDV(jj, :, :)) ;
-    avgpts(jj, :) = mean(hoop) ; 
+    % In mean, ignore the first entry if it is the same as the last 
+    approx_dv = mean(vecnorm(diff(hoop, 1), 2, 2)) ;
+    ept_is_spt = all(abs(hoop(1, :) - hoop(end, :)) < 1e-6 * approx_dv) ;
+    if ept_is_spt
+        avgpts(jj, :) = mean(hoop(2:end, :)) ;
+    else
+        avgpts(jj, :) = mean(hoop) ; 
+    end
     radii_from_mean(jj, :) = vecnorm(hoop - avgpts(jj, :), 2, 2) ;
 end
 avgpts_ss = ss_from_xyz(avgpts) ;

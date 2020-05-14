@@ -1,7 +1,7 @@
 function [phi0_fit, phi0s] = fitPhiOffsetsFromPrevPullback(IV,...
     new3d, umax, uspace, vgrid, ringpath_ss, imfn_sp_prev, ...
-    lowerboundy, upperboundy, save_ims, plotfn, Options, step_phi0tile, width_phi0tile,...
-    potential_sigmay, method, patchImFn)
+    lowerboundy, upperboundy, save_ims, plotfn, Options, step_phi0tile,...
+    width_phi0tile, potential_sigmay, method, patchImFn)
 %FITPHIOFFSETSFROMPREVPULLBACK(TF, TV2D, TV3D, uspace, vspace, prev3d_sphi, lowerbound, upperbound, save_im, plotfn, save_patchIm) 
 %   Fit the offset phi values to add to V in UV coords to minimize
 %   difference in 3D between current embedding mesh and previous one. This
@@ -9,11 +9,9 @@ function [phi0_fit, phi0s] = fitPhiOffsetsFromPrevPullback(IV,...
 %
 % Parameters
 % ----------
-% TF : #faces x 3 int array
-%   connectivity list of the mesh vertices into triangulated faces
-% TV2D : #vertices x 2 float array
-%   the UV mapped coordinates of mesh vertices
-% TV3D : #vertices x 3 float array
+% IV : 3d float values
+%   intensity values of the raw data, in which the 3d mesh vertices reside
+% new3d : #vertices x 3 float array
 %   the embedding coordinates of mesh vertices
 % uspace : nU float array
 %   The values of u for each line of constant v in pullback space
@@ -62,7 +60,6 @@ svcutMesh.f = defineFacesRectilinearGrid([uu(:), vvtmp(:)], nU, nV) ;
 svcutP1 = 1:nU ;
 svcutP2 = nU*nV - fliplr(0:(nU-1)) ;
 svcutMesh.pathPairs = [ svcutP1', svcutP2' ] ;
-
 
 % Load previous sp pullback image
 if exist(imfn_sp_prev, 'file')
