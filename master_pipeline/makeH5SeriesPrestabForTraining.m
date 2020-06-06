@@ -1,13 +1,17 @@
-function makeH5SeriesPrestabForTraining(fn, nChannels, timePoints,...
-    ssfactor, stackResolution, dataDir, preilastikaxisorder)
+function makeH5SeriesPrestabForTraining(masterSettings)
 % NPMitchell 
 %
 % This is a pipeline to create h5s before stabilization, to be used on all
 % training.
 
-%% -III. 32to16bit.m
-%%  -II. make_mips.m for 16bit images
-% -- 
+%% Unpack arguments
+fn = masterSettings.fn_prestab(1:end-4) ;
+nChannels = masterSettings.nChannels ;
+timePoints = masterSettings.timePoints ;
+ssfactor = masterSettings.ssfactor ;
+stackResolution = masterSettings.stackResolution ;
+dataDir = masterSettings.dir16bit_prestab ;
+preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
 
 %% I. INITIALIZE
 

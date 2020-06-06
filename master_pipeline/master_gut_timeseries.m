@@ -58,6 +58,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     % Metadata about the experiment
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 1 ;
+    channelsUsed = 1 ;
     timePoints = 0:169 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
@@ -72,6 +73,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     set_preilastikaxisorder = 'xyzc' ;
     masterSettings = struct('stackResolution', stackResolution, ...
         'nChannels', nChannels, ...
+        'channelsUsed', channelsUsed, ...
         'timePoints', timePoints, ...
         'ssfactor', ssfactor, ...
         'flipy', flipy, ...
@@ -107,6 +109,7 @@ if loadMaster
     % Unpack existing master settings
     stackResolution = masterSettings.stackResolution ;
     nChannels = masterSettings.nChannels ;
+    channelsUsed = masterSettings.channelsUsed ;
     timePoints = masterSettings.timePoints ;
     ssfactor = masterSettings.ssfactor ;
     % whether the data is stored inverted relative to real position
@@ -124,48 +127,7 @@ dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
 dir16bit_prestab = fullfile(dir16bit, 'data_pre_stabilization') ;
 
 %% PATHS ==================================================================
-disp('Adding paths')
-ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/' ;
-codepath = '/mnt/data/code/' ;
-gutpath = fullfile(codepath, 'gut_matlab') ;
-meshlabCodeDir = fullfile(codepath, 'meshlab_codes') ;
-addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
-addpath_recurse(fullfile(codepath, 'gptoolbox'))
-addpath(fullfile(gutpath, 'master_pipeline'))
-addpath(fullfile(gutpath, 'data_handling'))
-addpath_recurse(fullfile(gutpath, 'mesh_handling'))
-addpath(fullfile(gutpath, 'basics'))
-addpath(fullfile(gutpath, 'distanceTransform'))
-addpath_recurse(fullfile(gutpath, 'plotting'))
-addpath(fullfile(gutpath, 'savgol'))
-addpath_recurse(fullfile(gutpath, 'toolbox_fast_marching/'));
-addpath(genpath(fullfile(gutpath, 'euclidean_orbifolds')));
-addpath(genpath(fullfile(gutpath, 'TexturePatch')));
-addpath_recurse(fullfile(gutpath, ['axisymmetric_pullbacks' filesep])) ;
-addpath_recurse(fullfile(gutpath, ['plotting' filesep])) ;
-addpath_recurse(fullfile(gutpath, ['h5_handling' filesep])) ;
-addpath_recurse(fullfile(gutpath, ['curve_functions' filesep])) ;
-addpath(fullfile(gutpath, ['ExtPhaseCorrelation' filesep])) ;
-addpath(fullfile(gutpath, 'savgol')) ;
-addpath(fullfile(codepath, 'DEC')) ;
-addpath(fullfile(codepath, 'TexturePatch_for_git', 'TexturePatch')) ;
-% addpath(genpath('/mnt/crunch/djcislo/MATLAB/TexturePatch'));
-disp('done')
-
-%% Define some colors
-[colors, color_names] = define_colors() ;
-blue = [0 0.4470 0.7410] ;
-orange = [0.8500 0.3250 0.0980] ;
-yellow = [0.9290, 0.6940, 0.1250] ;
-purple = [0.4940, 0.1840, 0.5560] ;
-green = [0.4660, 0.6740, 0.1880] ;
-sky = [0.3010, 0.7450, 0.9330] ;
-red = [0.6350, 0.0780, 0.1840] ;
-brick = [0.800000 0.250000 0.330000] ;
-light_green =[0.560000 0.930000 0.560000] ;
-light_gray = [0.830000 0.830000 0.830000] ;
-bwr = diverging_cmap([0:0.01:1], 1, 2) ;
-disp('done adding colors')
+aux_paths_and_colors
 
 %% END OF EXPERIMENT METADATA =============================================
 % =========================================================================
@@ -214,8 +176,7 @@ stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
 %%   -I. master_gut_timeseries_prestab_for_training.m
 cd(dir16bit)
 dataDir = cd ;
-makeH5SeriesPrestabForTraining(fn_prestab(1:end-4), nChannels, timePoints, ...
-    ssfactor, stackResolution, dir16bit_prestab, set_preilastikaxisorder)
+makeH5SeriesPrestabForTraining(masterSettings)
 cd(dir16bit)
 
 %% I. INITIALIZE ImSAnE PROJECT ===========================================
@@ -239,8 +200,6 @@ xp = project.Experiment(projectDir, dataDir);
 
 % Set file and experiment meta data
 %
-% Set required additional information on the files.
-%
 % We assume on individual image stack for each time point, labeled by time.
 %  To be able to load the stack, we need to tell the project wehre the data
 %  is, what convention is assumed for the file names, available time
@@ -249,7 +208,6 @@ xp = project.Experiment(projectDir, dataDir);
 %  provided for each option.
 %
 % The following file metadata information is required:
-%
 % * 'directory'         , the project directory (full path)
 % * 'dataDir'           , the data directory (full path)
 % * 'filenameFormat'    , fprintf type format spec of file name
@@ -257,7 +215,6 @@ xp = project.Experiment(projectDir, dataDir);
 % * 'stackResolution'   , stack resolution in microns, e.g. [0.25 0.25 1]
 %
 % The following file metadata information is optional:
-%
 % * 'imageSpace'        , bit depth of image, such as uint16 etc., defined
 %                         in Stack class
 % * 'stackSize'         , size of stack in pixels per dimension 
@@ -278,7 +235,6 @@ fileMeta.swapZT             = 1;
 % to use for fitting, etc.
 %
 % The following project metadata information is required:
-%
 % * 'channelsUsed'      , the channels used, e.g. [1 3] for RGB
 % * 'channelColor'      , mapping from element in channels used to RGB = 123
 % * 'dynamicSurface'    , Not implemented yet, future plan: boolean, false: static surface
@@ -287,7 +243,6 @@ fileMeta.swapZT             = 1;
 % * 'fitterType'        , name of fitter class
 %
 % The following project meta data information is optional:
-%
 % * 'description'     , string describing the data set set experiments metadata, 
 %                                such as a description, and if the surface is dynamic,
 %                                or requires drift correction of the sample.
@@ -296,9 +251,9 @@ fileMeta.swapZT             = 1;
 % first_tp is also required, which sets the tp to do individually.
 first_tp = 1 ;
 expMeta                     = struct();
-expMeta.channelsUsed        = 1;
+expMeta.channelsUsed        = channelsUsed ;
 expMeta.channelColor        = 1;
-expMeta.description         = 'Apical membrane in Drosophila gut';
+expMeta.description         = 'Drosophila gut';
 expMeta.dynamicSurface      = 1;
 expMeta.jitterCorrection    = 0;  % 1: Correct for sample translation
 expMeta.fitTime             = fileMeta.timePoints(first_tp);

@@ -113,7 +113,7 @@ else
     % metadata and debugging output will be stored.  Also specifiy the
     % directory containing the data.
     dataDir = [ '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/', ...
-        'Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit/' ];
+        'Time6views_60sec_1.4um_25x_obis1.5_2/data/deconvolved_16bit_smallbox/' ];
     cd(dataDir)
 end
 
@@ -318,7 +318,7 @@ HSmDir = fullfile(KHSmDir, 'mean') ;
 
 tomake = {imFolder, imFolder_e, imFolder_r, imFolder_re,...
     pivDir, cutFolder, cutMeshImagesDir, cylCutMeshOutDir,...
-    cylCutMeshOutImDir, clineDVhoopDir, clineDVhoopImDir, wrtheDir, ...
+    cylCutMeshOutImDir, clineDVhoopDir, clineDVhoopImDir, writheDir, ...
     sphiDir, imFolder_sp, imFolder_sp_e, imFolder_sp, imFolder_sp_e,  ...
     lobeDir, radiusDir, radiusImDir, ...
     sphiSmDir, sphiSmRSImDir, sphiSmRSDir, sphiSmRSCDir, ...
@@ -1357,7 +1357,8 @@ if exist(foldfn, 'file') && ~overwrite_folds
         'rssfold', 'rssfold_frac', 'rssmax', 'rmax')
     
 else
-    [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = identifyLobes(xp.fileMeta.timePoints,...
+    [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
+        identifyLobes(xp.fileMeta.timePoints,...
             spcutMeshBase, guess123, max_wander, preview, 'avgpts') ;
     
     % Compute ringpath pathlength for results found using centerline
@@ -2301,7 +2302,7 @@ else
         end
         
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Assign one tangential velocity per face via interpolation
+        % Assign one velocity per face via interpolation
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % Obtain circumcenters for the current timepoint's 2D mesh
         % tr0 = triangulation(tm0f, tm0XY) ;  <-- already done in interpolate2dpts_3Dmesh
@@ -2325,6 +2326,25 @@ else
         v3dfaces = [Fx(bc(:, 1), bc(:, 2)), ...
             Fy(bc(:, 1), bc(:, 2)), Fz(bc(:, 1), bc(:, 2))] ;
         
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Assign one tangential velocity per face via interpolation
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        v3dvertices = [Fx(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2)), ...
+            Fy(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2)), ...
+            Fz(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2))] ;
+        % %% Convert pivSimAvg to evaluated at vertices of simple smoothed meshes
+        % piv3dfn = fullfile(fullfile(pivDir, 'piv3d'), 'piv3d_%04d.mat') ;
+        % % load piv3d as a cell array
+        % disp(['Loading piv3d from ' piv3dfn])
+        % piv3d = cell(length(fns)) ;
+        % for i=1:(length(fns)-1)
+        %     if mod(time(i), 10) == 0
+        %         disp(['loading piv3d for time t=' num2str(time(i))])
+        %     end
+        %     load(sprintf(piv3dfn, time(i)), 'piv3dstruct')
+        %     piv3d{i} = piv3dstruct ;
+        % end
+        
         %% Save the results in datstruct ----------------------------------
         % v0, v0n, v0t are in units of um/min,  
         % while v0t2d, g_ab, and jacobian are in pullback pixels
@@ -2341,6 +2361,7 @@ else
         datstruct.facenormals = facenormals ;
         
         % Face-centered velocities
+        datstruct.v3dvertices = v3dvertices ;
         datstruct.v3dfaces = v3dfaces ;
         datstruct.v3dfaces_rs = (rot * v3dfaces')' * resolution / dt(i) ; 
         assert(all(size(v3dfaces) == size(datstruct.m0f)))
@@ -2359,8 +2380,7 @@ else
         datstruct.jacobian = jac ;          % jacobian of 3d->2d transformation
         datstruct.fieldfaces = fieldfaces ; % faces where v defined from PIV
         
-        %
-        
+        %        
         readme = struct ;
         readme.m0XY = "Px2 float: 2d mesh vertices in pullback image pixel space" ;
         readme.m0f = "#facesx3 float: mesh connectivity list" ;
@@ -2373,6 +2393,8 @@ else
         readme.v0n = "Nx1 float: normal velocity [mesh pix / min]" ;
         readme.v0t = "Nx3 float: tangential velocity in 3d [mesh pix / min]" ;
         readme.facenormals = "#faces x 3 float: face normals for all faces" ;
+        readme.v3dfaces = "#faces x 3 float: face-centered velocities in embedding space" ;
+        readme.v3dvertices = "#mesh vertices x 3 float: vertex-centered velocities in embedding space" ;
         readme.v0_rs = "Nx3 float: rotated/scaled 3d velocities [um/min]" ;
         readme.v0n_rs = "Nx3 float: scaled normal velocities [um/min]" ;
         readme.v0t_rs = "Nx3 float: rotated/scaled tangential 3d velocities [um/min]" ;
@@ -2480,20 +2502,22 @@ else
         end
         
         %% Draw 2D flows
+        vtdir2d = fullfile(pivDir, 'vt2d') ;
+        vndir2d = fullfile(pivDir, 'vn2d') ;
+        if ~exist(vtdir2d, 'dir')
+            mkdir(vtdir2d)
+        end
+        if ~exist(vndir2d, 'dir')
+            mkdir(vndir2d)
+        end
+        
+        % check if figure output exists already
+        fileName = split(fns(i).name, '.tif') ;
+        fileName = fileName{1} ;
         outimfn = fullfile(vndir2d, [fileName '.png']) ;
         if save_ims && (~exist(outimfn, 'file') || overwrite_piv)
-            vtdir2d = fullfile(pivDir, 'vt2d') ;
-            vndir2d = fullfile(pivDir, 'vn2d') ;
-            if ~exist(vtdir2d, 'dir')
-                mkdir(vtdir2d)
-            end
-            if ~exist(vndir2d, 'dir')
-                mkdir(vndir2d)
-            end
-            
+
             % Load the image to put flow on top
-            fileName = split(fns(i).name, '.tif') ;
-            fileName = fileName{1} ;
             im = imread(fullfile(fns(i).folder, fns(i).name)) ;
             im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
             im = im * washout2d + max(im) * (1-washout2d) ;
@@ -2504,7 +2528,7 @@ else
             options.ylim = [0, size(im, 1)] ;
             options.outfn = fullfile(vtdir2d, [fileName '.png']) ;
             % plot the 2d tangential flow, adjusted for dilation
-            vectorFieldHeatPhaseOnImage(im, x0(1,:), yy(:,1)', ...
+            vectorFieldHeatPhaseOnImage(im, x0(1,:), y0(:,1)', ...
                 v0t2dsc(:,1), v0t2dsc(:, 2), 10, options) ;
             
             % xlims = xlim ;
@@ -2602,7 +2626,7 @@ else
         
     end 
 end
-disp('done')
+disp('done with piv3dstruct')
 
 
 %% First do very simpleminded averaging of velocities
@@ -2650,16 +2674,21 @@ if do_simpleavg
     v2dsmMfn = fullfile(pivSimAvgDir, 'v2dM_simpletimeavg.mat') ;
     vnsmMfn = fullfile(pivSimAvgDir, 'vnM_simpletimeavg.mat') ;
     vsmMfn = fullfile(pivSimAvgDir, 'vM_simpletimeavg.mat') ;
+    % vertex-based velocities
+    vvsmMfn = fullfile(pivSimAvgDir, 'vvM_simpletimeavg.mat') ;
+    % face-based velocities
     vfsmMfn = fullfile(pivSimAvgDir, 'vfM_simpletimeavg.mat') ;
     if exist(v2dsmMumfn, 'file') && exist(v2dsmMfn, 'file') && ...
             exist(vnsmMfn, 'file') && exist(vsmMfn, 'file') && ...
-            exist(vfsmMfn, 'file') && ~overwrite_piv
+            exist(vfsmMfn, 'file') && exist(vvsmMfn, 'file') && ...
+            ~overwrite_piv
         % load the velocities smoothed in time, (vM v2dM and vnM)
         disp('Loading the time-smoothed velocities...')
         load(v2dsmMfn, 'v2dsmM') ;
         load(v2dsmMumfn, 'v2dsmMum') ;
         load(vnsmMfn, 'vnsmM') ;
         load(vsmMfn, 'vsmM') ;
+        load(vvsmMfn, 'vvsmM') ;
         load(vfsmMfn, 'vfsmM') ;
         disp('loaded!')
     else
@@ -2671,19 +2700,23 @@ if do_simpleavg
                 if first 
                     vM = zeros(length(piv3d), size(piv3d{i}.v0_rs, 1), size(piv3d{i}.v0_rs, 2));
                     vfM = zeros(length(piv3d), size(piv3d{i}.v3dfaces, 1), size(piv3d{i}.v3dfaces, 2)); 
+                    vvM = zeros(length(piv3d), ...
+                        size(piv3d{i}.v3dvertices, 1), ...
+                        size(piv3d{i}.v3dvertices, 2)); 
                     vnM = zeros(length(piv3d), size(piv3d{i}.v0n_rs, 1), size(piv3d{i}.v0n_rs, 2));
                     v2dM = zeros(length(piv3d), size(piv3d{i}.v0t2d, 1), size(piv3d{i}.v0t2d, 2));
                     v2dMum = zeros(length(piv3d), size(piv3d{i}.v0t2d, 1), size(piv3d{i}.v0t2d, 2));
                     first = false ;
                 end
                 vM(i, :, :) = piv3d{i}.v0_rs ;          % in um/min rs
-                try
-                    vfM(i, :, :) = piv3d{i}.v3dfaces_rs ;   % in um/min rs
-                catch
-                    v3dfaces = piv3d{i}.v3dfaces ;
-                    vfM(i, :, :) = (rot * v3dfaces')' * resolution / dt(i) ; 
-                end
+                % try
+                vfM(i, :, :) = piv3d{i}.v3dfaces_rs ;   % in um/min rs
+                % catch
+                %     v3dfaces = piv3d{i}.v3dfaces ;
+                %     vfM(i, :, :) = (rot * v3dfaces')' * resolution / dt(i) ; 
+                % end
                 vnM(i, :, :) = piv3d{i}.v0n_rs ;        % in rs coords, unit length
+                vvM(i, :, :) = (rot * piv3d{i}.v3dvertices')' * resolution / dt(i) ;
                 v2dM(i, :, :) = piv3d{i}.v0t2d ;        % in pixels/ min
                 v2dMum(i, :, 1) = piv3d{i}.v0t2d(:, 1) ./ piv3d{i}.dilation ; % in pix/min, scaled as um/min
                 v2dMum(i, :, 2) = piv3d{i}.v0t2d(:, 2) ./ piv3d{i}.dilation ;
@@ -2700,18 +2733,20 @@ if do_simpleavg
         tripulse3 = tripulse3 ./ sum(tripulse3(:)) ;
         tripulse3 = reshape(tripulse3, [length(tripulse3), 1]) ;
 
-        vsmM = imfilter(vM, tripulse3,'replicate');         % in um/min, rs
-        vnsmM = imfilter(vnM, tripulse3,'replicate');       % in um/min
-        v2dsmM = imfilter(v2dM, tripulse3,'replicate');     % in pix/min
-        v2dsmMum = imfilter(v2dMum, tripulse3,'replicate'); % in scaled pix/min, proportional to um/min  
-        vfsmM = imfilter(vfM, tripulse3, 'replicate') ;     % in um/min, rs
+        vsmM = imfilter(vM, tripulse3, 'replicate');         % in um/min, rs
+        vvsmM = imfilter(vvM, tripulse3, 'replicate');       % in um/min, rs
+        vnsmM = imfilter(vnM, tripulse3, 'replicate');       % in um/min
+        v2dsmM = imfilter(v2dM, tripulse3, 'replicate');     % in pix/min
+        v2dsmMum = imfilter(v2dMum, tripulse3, 'replicate'); % in scaled pix/min, proportional to um/min  
+        vfsmM = imfilter(vfM, tripulse3, 'replicate') ;      % in um/min, rs
 
         % Save the simpleminded averaging
         disp('Saving the time-smoothed velocities to disk')
         save(fullfile(pivSimAvgDir, 'v2dMum_simpletimeavg.mat'), 'v2dsmMum') ;  % in scaled pix/min, proportional to um/min 
         save(fullfile(pivSimAvgDir, 'v2dM_simpletimeavg.mat'), 'v2dsmM') ;      % in pix/min
         save(fullfile(pivSimAvgDir, 'vnM_simpletimeavg.mat'), 'vnsmM') ;        % in um/min
-        save(fullfile(pivSimAvgDir, 'vM_simpletimeavg.mat'), 'vsmM') ;          % in um/min, rs
+        save(fullfile(pivSimAvgDir, 'vM_simpletimeavg.mat'), 'vsmM') ;          % in um/min
+        save(fullfile(pivSimAvgDir, 'vvM_simpletimeavg.mat'), 'vvsmM') ;          % in um/min, rs
         save(fullfile(pivSimAvgDir, 'vfM_simpletimeavg.mat'), 'vfsmM') ;        % in um/min, rs
         
         disp('done')

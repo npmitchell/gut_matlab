@@ -12,6 +12,7 @@ classdef QuapSlap < handle
         timeinterval
         timeunits
         dir
+        dirBase
         fileName
         fileBase
         fullFileBase
@@ -21,6 +22,7 @@ classdef QuapSlap < handle
         flipy 
         nV 
         nU
+        t0                      % reference time in the experiment
         normalShift
         axisOrderIV2Mesh
         a_fixed
@@ -92,6 +94,32 @@ classdef QuapSlap < handle
             QS.dir.cylinderMesh = fullfile(meshDir, 'cylinder_meshes') ;
             QS.dir.cutMesh = fullfile(meshDir, 'cutMesh') ;
             QS.dir.cylinderMeshClean = fullfile(QS.dir.cylinderMesh, 'cleaned') ;
+            % Metric strain dirs
+            QS.dir.gstrain = fullfile(meshDir, 'metric_strain') ;
+            QS.dir.gstrainRate = fullfile(QS.dir.gstrain, 'rateMetric') ;
+            QS.dir.gstrainRateIm = fullfile(QS.dir.gstrainRate, 'images') ;
+            QS.dir.gstrainVel = fullfile(QS.dir.gstrain, 'velMetric') ;
+            QS.dir.gstrainVelIm = fullfile(QS.dir.gstrainVel, 'images') ;
+            QS.dir.gstrainMesh = fullfile(QS.dir.gstrain, 'meshMetric') ;
+            QS.dir.gstrainMeshIm = fullfile(QS.dir.gstrainMesh, 'images') ;
+            QS.fileBase.gstrainVel = 'gstrainVel_%06d.mat' ;
+            QS.fileBase.gstrainMesh = 'gstrainMesh_%06d.mat' ;
+            QS.fileBase.gstrainRate = 'gstrainRate_%06d.mat' ;
+            QS.fullFileBase.gstrainVel = fullfile(QS.dir.gstrainVel, ...
+                QS.fileBase.gstrainVel) ;
+            QS.fullFileBase.gstrainMesh = fullfile(QS.dir.gstrainMesh, ...
+                QS.fileBase.gstrainMesh) ; 
+            QS.fullFileBase.gstrainRate = fullfile(QS.dir.gstrainRate, ...
+                QS.fileBase.gstrainRate) ; 
+            QS.dir.compressibility = fullfile(QS.dir.mesh, 'compressibility') ;
+            QS.dir.compressibility2d = ...
+                fullfile(QS.dir.compressibility, 'images_2d') ;
+            QS.dir.compressibility3d = ...
+                fullfile(QS.dir.compressibility, 'images_3d') ;
+            QS.fullFileBase.compressibility2d = ...
+                fullfile(QS.dir.compressibility2d, 'compr_2d_%06d.png') ;
+            QS.fullFileBase.compressibility3d = ...
+                fullfile(QS.dir.compressibility3d, 'compr_3d_%06d.png') ;
             
             % shorten variable names for brevity
             clineDir = QS.dir.cntrline ;
@@ -110,7 +138,7 @@ classdef QuapSlap < handle
                 [QS.fileBase.mesh '_cylindercut.ply'] ;
             QS.fileBase.apBoundary = 'ap_boundary_indices_%06d.mat';
             QS.fileBase.cylinderKeep = 'cylinderMesh_keep_indx_%06.mat' ;
-            QS.fileBase.apBoundaryDorsalPts = 'ap_boundary_dorsalpts.h5' ;
+            QS.fileName.apBoundaryDorsalPts = 'ap_boundary_dorsalpts.h5' ;
             
             % Clean Cylinder Mesh
             QS.fileName.aBoundaryDorsalPtsClean = ...
@@ -155,12 +183,12 @@ classdef QuapSlap < handle
             QS.fullFileBase.apBoundary = ...
                 fullfile(QS.dir.cylinderMesh, QS.fileBase.apBoundary) ;
             QS.fullFileBase.apBoundaryDorsalPts = ...
-                fullfile(QS.dir.cylinderMesh, QS.fileBase.apBoundaryDorsalPts) ;
+                fullfile(QS.dir.cylinderMesh, QS.fileName.apBoundaryDorsalPts) ;
             QS.fullFileBase.cylinderKeep = ...
                 fullfile(QS.dir.cylinderMesh, QS.fileBase.cylinderKeep) ;
             QS.fullFileBase.cylinderMeshClean = ...
                 fullfile(QS.dir.cylinderMesh, 'cleaned',...
-                [QS.fileBase.mesh '_cylindercut_clean.ply']) ;
+                [QS.fileBase.mesh '_cylindercut_clean.ply']) ;            
             
             % Define cutMesh directories
             nshift = strrep(sprintf('%03d', QS.normalShift), '-', 'n') ;
@@ -223,16 +251,25 @@ classdef QuapSlap < handle
             QS.fullFileBase.clineDVhoop = ...
                 fullfile(QS.dir.clineDVhoop,...
                 'centerline_from_DVhoops_%06d.mat');
+            % filenames for lobe dynamics
+            QS.fileName.fold = fullfile(lobeDir, ...
+                ['fold_locations_sphi' dvexten '_avgpts.mat']) ;
             
             %  spcutMesh and pullbacks
             QS.fullFileBase.spcutMesh = ...
                 fullfile(sphiDir, 'mesh_apical_stab_%06d_spcutMesh.mat') ;
+            QS.fileBase.spcutMesh = 'mesh_apical_stab_%06d_spcutMesh' ;
             QS.fullFileBase.spcutMeshSm = ...
                 fullfile(sphiSmDir, '%06d_spcutMeshSm.mat') ;
+            QS.fileBase.spcutMeshSm = '%06d_spcMeshSm' ;
             QS.fullFileBase.spcutMeshSmRS = ...
                 fullfile(sphiSmRSDir, '%06d_spcutMeshSmRS.mat') ;
+            QS.fileBase.spcutMeshSmRS = '%06d_spcMeshSmRS' ;
             QS.fullFileBase.spcutMeshSmRSC = ...
                 fullfile(sphiSmRSCDir, '%06d_spcMSmRSC.mat') ;
+            QS.fullFileBase.spcutMeshSmRSCPLY = ...
+                fullfile(sphiSmRSCDir, '%06d_spcMSmRSC.ply') ;
+            QS.fileBase.spcutMeshSmRSC = '%06d_spcMSmRSC' ;
             QS.fullFileBase.im = ...
                 fullfile([QS.dir.im, '/', QS.fileBase.name, '_pb.tif']) ;
             QS.fullFileBase.im_r = ...
@@ -244,6 +281,10 @@ classdef QuapSlap < handle
             QS.fullFileBase.im_up = ...
                  fullfile([QS.dir.im_up, '/', QS.fileBase.name, '_pbup.tif']) ;
             
+            % PIV
+            QS.dir.piv = fullfile(meshDir, 'piv') ;
+            QS.dir.pivSimAvg = fullfile(QS.dir.piv, 'simpleAvg') ;
+             
             % Ensure directories
             dirs2make = struct2cell(QS.dir) ;
             for ii=1:length(dirs2make)
@@ -269,6 +310,19 @@ classdef QuapSlap < handle
             end
             QS.currentTime = tt ;
             QS.xp.setTime(tt) ;
+        end
+        
+        function t0set(QS, t0)
+            if nargin < 2
+                try
+                    load(QS.fileName.fold, 'fold_onset') ;
+                    QS.t0 = min(fold_onset) ;
+                catch
+                    error('No folding times saved to disk')
+                end
+            else
+                QS.t0 = t0 ;
+            end
         end
         
         function [acom_sm, pcom_sm] = getAPCOMSm(QS) 
@@ -302,16 +356,19 @@ classdef QuapSlap < handle
                 xyzlim_raw = QS.plotting.xyzlim_raw ;
             else
                 xyzlim_raw = dlmread(QS.fileName.xyzlim_raw, ',', 1, 0) ; 
+                QS.plotting.xyzlim_raw = xyzlim_raw ;
             end
             if ~isempty(QS.plotting.xyzlim)
                 xyzlim = QS.plotting.xyzlim ;
             else
                 xyzlim = dlmread(QS.fileName.xyzlim, ',', 1, 0) ;
+                QS.plotting.xyzlim = xyzlim ;
             end
             if ~isempty(QS.plotting.xyzlim_um)
                 xyzlim_um = QS.plotting.xyzlim_um ;
             else
                 xyzlim_um = dlmread(QS.fileName.xyzlim_um, ',', 1, 0) ;
+                QS.plotting.xyzlim_um = xyzlim_um ;
             end
         end
         
@@ -331,7 +388,6 @@ classdef QuapSlap < handle
             zSize = stackSize(3);
             
             % number of channels
-            nChannels = r.getSizeC();
             nTimePts = stackSize(4);
             
             data = zeros([ySize xSize zSize nChannelsUsed], 'uint16');
@@ -514,6 +570,11 @@ classdef QuapSlap < handle
         phi0_fit = fitPhiOffsetsViaTexture(QS, uspace_ds_umax, vspace,...
             phi0_init, phi0TextureOpts)
 
+        % flow measurements
+        
+        % compressible/incompressible flow on evolving surface
+        [cumerr, HHs, divvs, velns] = measureCompressibility(QS, lambda, lambda_err)
+        
     end
     methods (Static)
     end
