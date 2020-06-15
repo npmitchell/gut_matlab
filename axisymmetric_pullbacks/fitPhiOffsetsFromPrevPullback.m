@@ -5,13 +5,14 @@ function [phi0_fit, phi0s] = fitPhiOffsetsFromPrevPullback(IV,...
 %FITPHIOFFSETSFROMPREVPULLBACK(TF, TV2D, TV3D, uspace, vspace, prev3d_sphi, lowerbound, upperbound, save_im, plotfn, save_patchIm) 
 %   Fit the offset phi values to add to V in UV coords to minimize
 %   difference in 3D between current embedding mesh and previous one. This
-%   rotates the hoops of the sphicutMesh.
+%   rotates the hoops of the sphicutMesh. Texture method.
+%   Smoothing is built-in to the function (hard-coded).
 %
 % Parameters
 % ----------
 % IV : 3d float values
 %   intensity values of the raw data, in which the 3d mesh vertices reside
-% new3d : #vertices x 3 float array
+% new3d : nU*nV x 3 float array
 %   the embedding coordinates of mesh vertices
 % uspace : nU float array
 %   The values of u for each line of constant v in pullback space

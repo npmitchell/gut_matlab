@@ -4,7 +4,7 @@ function [angle, magnitude, results] = extractRadonNematic(im, options)
 %   and average vectors in 2*theta space. Then divide angle by 2 and return
 %   the vector magnitude.
 % 
-% Requires ../PeakFinding to be in current path
+% Requires PeakFinding/ to be in current path
 % 
 % Parameters
 % ----------
@@ -21,7 +21,7 @@ function [angle, magnitude, results] = extractRadonNematic(im, options)
 %         res       A handle that switches between two peak finding methods:
 %                   1 - the local maxima method (default).
 %                   2 - the weighted centroid sub-pixel resolution method.
-%                   Note that the latter method takes ~20% more time on average.
+%                   Note that res=2 method takes ~20% more time on average.
 %         theta     array of angles onto which to project
 %         savefn    full path of where to save figure summarizing result
 %         title     Title of the figure to save if savefn == true
@@ -39,40 +39,48 @@ function [angle, magnitude, results] = extractRadonNematic(im, options)
 %   The magnitude of the nematic "vector" relating to the strength of the
 %   peak relative to the rest of the image
 % results : struct with fields
-%       R : 
-%       xp : 
+%       R : radon transform
+%       xp : x values of radon
 %       
+% NPMitchell
+ 
 %% Find peaks in the transform
 
+% thresholding on CDF to find peaks
 if isfield(options, 'thres')
     thres = options.thres ;
 else
     thres = 0.97 ;
 end
 
+% Angles to sample -- note must extend below 0 and above 180 
 if isfield(options, 'theta')
     theta = options.theta ;
 else
     theta = -40:220 ;
 end
 
+% filter to use on radon transform
 if ~isfield(options, 'filt')
     filt = fspecial('gaussian', 7, 2) ;
 else
     filt = options.filt ; 
 end
 
+% width of boundary pixels to ignore
 if ~isfield(options, 'edg')
     edg = 2 ;
 else
     edg = options.edg ;
 end
 
+% Which method to use: local peak finding or weighted centroid
 if ~isfield(options, 'res')
     options.res = 1 ;
 end
 
 % For method 1, additional parameters
+% peak width for region around peak to measure average intensity
 if isfield(options, 'peakw')
     peakw = options.peakw ;
 else
@@ -126,7 +134,7 @@ if options.res == 1
 
 else
     %% Other option is hard threshold and centroids
-    [cent, d, weights, cm] = RadonPeakFind(R, 0.98, filt, 2, 2) ;
+    [cent, d, weights, cm] = RadonPeakFind(R, thres, filt, 2, 2) ;
     xyc = [min(theta) + cent(1:2:end) - 1, min(xp) + cent(2:2:end) - 1] ;
 
     % Filter to (0, 180) deg

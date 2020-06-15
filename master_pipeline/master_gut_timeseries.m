@@ -440,6 +440,7 @@ disp('Open with ilastik if not already done')
 % end
 
 %% Create MorphoSnakesLevelSet from the Probabilities from ilastik ========
+% Skip if already done
 % Now detect all surfaces
 if strcmp(detectOptions.run_full_dataset, projectDir)
     assert(run_full_dataset_ms)
@@ -473,6 +474,7 @@ else
 end
 
 %% Inspect a single mesh
+% Skip if already done
 tp = 50 ;
 meshfn = fullfile(meshDir, sprintf([ meshFileBase '.ply'], tp)) ;    
 xp.loadTime(tp)
@@ -493,6 +495,8 @@ end
 close all
 
 %% 2-color cross-section inspection
+% Skip if already done
+
 % Define your two-channel colors
 color1 = [0.5 0 0.5] ;
 color2 = [0 0.5 0.5] ;
@@ -527,6 +531,7 @@ if any(inds)
 end
                 
 %% Inspect all meshes in 3D
+% Skip if already done
 
 % Make an output directory for the quick-and-dirty inspection
 outputdir = fullfile(meshDir, 'quick_mesh_inspect') ;
@@ -569,6 +574,7 @@ end
 
 
 %% Check that all have been created
+% Skip if already done
 for tp = xp.fileMeta.timePoints
     meshfn = fullfile(meshDir, sprintf([ofn_smoothply '%06d.ply'], tp)) ;
        
@@ -703,7 +709,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     optsfn = fullfile(projectDir, 'alignAPDV_Opts.mat') ;
     if exist(optsfn, 'file') && ~overwrite_alignAPDVOpts
         disp('Loading options from disk')
-        QS.load(optsfn, 'alignAPDVOpts')
+        load(optsfn, 'alignAPDVOpts')
     else
         disp('No alignAPDV_Opts on disk or overwriting, defining')
         apdvOpts.smwindow = 30 ;
@@ -740,20 +746,24 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     % Align the meshes APDV & plot them
     opts.overwrite_ims = overwrite_alignedMeshIms ;  % overwrite images even if centerlines are not overwritten
     opts.overwrite = overwrite_APDVCOMs || overwrite_APDVMeshAlignment ; % recompute APDV rotation, translation
-    [rot, trans, xyzlim_raw, xyzlim, xyzlim_um] = QS.alignMeshesAPDV(acom_sm, pcom_sm, opts) ;
+    [rot, trans, ~, xyzlim, xyzlim_um] = QS.alignMeshesAPDV(acom_sm, pcom_sm, opts) ;
 else
     disp('Already done')
 end
 disp('done')
 clearvars normal_step 
 
-%% MAKE MASKED DATA FOR PRETTY VIDEO ==================================
+%% MAKE MASKED DATA FOR PRETTY VIDEO ======================================
+% Skip if already done
 QS.generateMaskedData()
 
-%% MAKE ORIENTED MASKED DATA FOR PRETTY VIDEO ==================================
+%% MAKE ORIENTED MASKED DATA FOR PRETTY VIDEO =============================
+% Skip if already done
 QS.alignMaskedDataAPDV()
 
 %% PLOT ALL TEXTURED MESHES IN 3D =========================================
+% Skip if already done
+
 % Get limits and create output dir
 % Name output directory
 figoutdir = fullfile(meshDir, 'images_texturepatch') ;
@@ -816,6 +826,7 @@ plotSeriesOnSurfaceTexturePatch(xp, meshFileName, figdirs, overwrite, ...
 clearvars Options xyzbuff 
 
 %% EXTRACT CENTERLINES
+% Skip if already done
 % Note: these just need to be 'reasonable' centerlines for topological
 % checks on the orbifold cuts.
 exponent = 1.0 ;
@@ -837,9 +848,8 @@ disp('done with centerlines')
 %% Fix flip in Y for centerlines
 % aux_fix_flip
 
-%% Surface area and volume calc
-
 %% Cylinder cut mesh
+% Skip if already done
 if overwrite_endcapOpts
     endcapOpts = ...
         struct( 'adist_thres', 20, ...  % distance threshold for cutting off anterior in pix
@@ -865,9 +875,9 @@ QS.sliceMeshEndcaps(endcapOpts, methodOpts) ;
 
 %% Parameters
 % Overwriting options
-overwrite_pullbacks = true ;
+overwrite_pullbacks = false ;
 overwrite_cutMesh = false ;
-overwrite_spcutMesh = true ;
+overwrite_spcutMesh = false ;
 overwrite_writhe = false ;
 overwrite_SmRSIms = false ;
 overwrite_spcutMeshSm = false ;
@@ -876,7 +886,6 @@ overwrite_lobedynamics = false ;
 overwrite_foldims = false ;
 overwrite_lobeims = false ;
 overwrite_spcutMesh_smoothradii = false ;
-overwrite_piv = false ;
 % Other options for what to do
 save_ims = true ;
 nCurves_yjitter = 100 ;
@@ -894,13 +903,6 @@ a_fixed = 2 ;
 normal_shift = 10 ;
 maxJitter = 100 ;
 maxTwChange = 0.15 ;
-% for phi0 calculation via texture matching
-lowerboundy = -350 ;
-upperboundy = 350 ;
-step_phi0tile = 25 ;
-width_phi0tile = 150 ;
-potential_sigmay = 350 ;
-
 
 %% Identify anomalies in centerline data
 idOptions.ssr_thres = 15 ;  % distance of sum squared residuals in um as threshold
@@ -908,13 +910,14 @@ idOptions.overwrite = overwrite_idAnomClines ;
 QS.generateCleanCntrlines(idOptions) ;
 
 %% Clean Cylinder Meshes
+% May skip if already done
 cleanCylOptions.overwrite = overwrite_cleanCylMesh ;
 cleanCylOptions.save_ims = true ;
 QS.cleanCylMeshes(cleanCylOptions)
     
 %% Iterate Through Time Points to Create Pullbacks ========================
 % outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
-for tt = xp.fileMeta.timePoints(132:end)
+for tt = xp.fileMeta.timePoints(1:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
     
@@ -932,6 +935,7 @@ for tt = xp.fileMeta.timePoints(132:end)
         else
             disp('cutMesh not found on disk. Generating cutMesh... ');
         end
+        error('here')
         QS.generateCurrentCutMesh()
         disp('Saving cutP image')
         % Plot the cutPath (cutP) in 3D
@@ -943,11 +947,8 @@ for tt = xp.fileMeta.timePoints(132:end)
         compute_pullback = ~isempty(QS.currentMesh.cutPath) ;
     end
     
-    % force true here for debug
-    compute_pullback = true ;
-
     spcutMeshOptions.overwrite = overwrite_spcutMesh ;
-    spcutMeshOptions.save_phi0patch = true ;
+    spcutMeshOptions.save_phi0patch = false ;
     spcutMeshOptions.iterative_phi0 = true ;
     spcutMeshOptions.smoothingMethod = 'none' ;
     QS.plotting.preview = false ;
@@ -958,14 +959,14 @@ for tt = xp.fileMeta.timePoints(132:end)
         pbOptions.overwrite = overwrite_pullbacks ;
         pbOptions.generate_uv = false ;
         pbOptions.generate_uphi = false ;
-        pbOptions.generate_relaxed = false ;
+        pbOptions.generate_relaxed = true ;
         QS.generateCurrentPullbacks([], [], pbOptions) ;
     else
         disp('Skipping computation of pullback')
     end
     clear Options IV
-
-    % %% Save SMArr2D (vertex positions in the 2D pullback) -----------------
+        
+    %% Save SMArr2D (vertex positions in the 2D pullback) -----------------
     % disp(['Saving meshStack to disk: ' mstckfn])
     % save(mstckfn, 'meshStack') ;
     % 
@@ -985,136 +986,56 @@ if check
     aux_preview_results
 end
 
-%% Phase correlation to get x shift
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% TILE IMAGES IN Y AND RESAVE ============================================
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-imDirs = {imFolder, imFolder_sp, imFolder_up} ;
-imDirs_e = {imFolder_e, imFolder_sp_e, imFolder_up_e} ;
-ntiles = 50 ;   %   The number of bins in each dimension for histogram equilization for a
-                %   square original image. That is, the extended image will have (a_fixed *
-                %   ntiles, 2 * ntiles) bins in (x,y).
-for qq = 1:2
-    options.histeq = true ;
-    options.a_fixed = a_fixed ;
-    options.ntiles = ntiles ;
-    options.overwrite = overwrite_pullbacks;
-    extendImages(imDirs{qq}, imDirs_e{qq}, fileNameBase, options)
-    disp(['done ensuring extended tiffs for ' imDirs{qq} ' in ' imDirs_e{qq}])
-end
+%% TILE/EXTEND IMAGES IN Y AND RESAVE =======================================
+options = struct() ;
+options.overwrite = overwrite_pullbacks;
+options.coordsys = 'sp' ;
+QS.doubleCoverPullbackImages(options)
 disp('done')
 
 %% Estimate cell density
 
+
 %% FIND THE FOLDS SEPARATING COMPARTMENTS =================================
-% First compute using the avgpts (DVhoop means)
-guess123 = [0.2, 0.5, 0.8] ;
-max_wander = 20 ; % max amount that DV hoop id can wander per timepoint
-disp('Identifying lobes...')
-foldfn = fullfile(lobeDir, ['fold_locations_sphi' dvexten '_avgpts.mat']) ;
-if exist(foldfn, 'file') && ~overwrite_folds
-    disp('Loading lobes')
-    % Save the fold locations as a mat file
-    load(foldfn, 'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset', ...
-        'rssfold', 'rssfold_frac', 'rssmax', 'rmax')
-    
-else
-    [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = identifyLobes(xp.fileMeta.timePoints,...
-            spcutMeshBase, guess123, max_wander, preview, 'avgpts') ;
-    
-    % Compute ringpath pathlength for results found using centerline
-    disp('Converting folds to ringpath_ss locations...')
-    [rssfold, rssfold_frac, rssmax] = rssFromFoldID(folds, xp.fileMeta.timePoints, spcutMeshBase) ;
+options = struct() ;
+options.overwrite = false ;
+options.preview = true ;
+options.first_tp_allowed = -1 ;  % enforce that no folds before this tp
+QS.identifyFolds(options)
+disp('done')
 
-    % Save the fold locations as a mat file
-    save(foldfn, 'rssfold', 'rssfold_frac', 'rssmax', 'rmax', ...
-        'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset')
-end
-clearvars guess123 maxwander
-
-% Plot results as both avgpts and ringpath distances
-fold_ofn = dir(fullfile(lobeDir, ['radii_folds' dvexten '_avgpts*.png'])) ;
-if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
-    if save_ims
-        disp('Plotting ss folds...')
-        aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
-            xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
-            'avgpts', overwrite_foldims)
-    end
-end
-fold_ofn = dir(fullfile(lobeDir, ['radii_folds' dvexten '_avgpts*.png'])) ;
-if (length(fold_ofn) == length(timePoints)) || overwrite_foldims
-    if save_ims
-        disp('Plotting rss folds...')
-        aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
-            xp.fileMeta.timePoints, lobeDir, dvexten, spcutMeshBase, ...
-            'ringpath', overwrite_foldims)
-    end
-end
+%% COMPUTE MESH SURFACE AREA AND VOLUME ===================================
+% Note: doing this after fold identification so that t0 is defined
+options = struct() ;
+options.overwrite = false ;
+QS.measureSurfaceAreaVolume(options)
 disp('done')
 
 %% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
-% First compute using the avgpts (DVhoop means)
-disp('Computing/Loading writhe...')
-omit_endpts = 4 ;
-wrfn = fullfile(lobeDir, ['writhe_sphi' dvexten '_avgpts.mat']) ;
-if ~exist(wrfn, 'file') || overwrite_writhe
-    [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
-        aux_compute_writhe(clineDVhoopBase, xp.fileMeta.timePoints, true, omit_endpts, preview) ;
-    
-    % Save the fold locations as a mat file
-    save(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
-else
-    load(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
-end
-Wr_style = 'Levitt' ;
-tmpfn = fullfile(writheDir, ['writhe_' Wr_style '_vs_time_comparison_DVhoop.png']) ;
-if ~exist(tmpfn, 'file') || overwrite_writhe
-    % Compute ringpath pathlength for results found using centerline
-    area_volume_fn = fullfile(meshDir, 'surfacearea_volume_stab.mat') ;
-    aux_plot_writhe(xp.fileMeta.timePoints, clines_resampled, ...
-        Wr, Wr_density, dWr, Length_t, writheDir, area_volume_fn, ...
-        fold_onset, Wr_style, xyzlim, clineDVhoopBase, ...
-        cylinderMeshCleanBase, rot, trans, resolution, omit_endpts, false)
-    
-end
+options = struct() ;
+options.overwrite = false ;
+QS.measureWrithe(options)
 disp('done')
 
 %% Compute surface area and volume for each compartment ===================
-lobe_dynamics_fn = fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']) ;
-if exist(lobe_dynamics_fn, 'file') && ~overwrite_lobedynamics
-    % Load length, surface area, and volume dynamics for each lobe
-    disp('Loading lobe length, area, and volume...')
-    load(lobe_dynamics_fn, 'length_lobes', 'area_lobes', 'volume_lobes')
-    tp = xp.fileMeta.timePoints - min(fold_onset) ;
-else
-    [length_lobes, area_lobes, volume_lobes] = aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, xp.fileMeta.timePoints, ...
-        spcutMeshBase, nV, nU, rot, trans, resolution, xyzlim, colors, save_ims, overwrite_lobeims) ;
-    % Save surface area and volume dynamics for each lobe
-    save(fullfile(lobeDir, ['lobe_dynamics' dvexten '.mat']), ...
-        'length_lobes', 'area_lobes', 'volume_lobes')
-end
-clearvars fold_ofn
+options = struct() ;
+options.overwrite = false ;
+QS.measureLobeDynamics(options) ;
 
 %% plot length, area, and volume for each lobe ============================
-lobe_dynamics_figfn = fullfile(lobeDir, ['lobe_dynamics' dvexten '.png']) ;
-fig1exist = exist(lobe_dynamics_figfn, 'file') ;
-% scaled version of same plot
-lobe_dynamics_figfn = fullfile(lobeDir, ['lobe_dynamics' dvexten '_scaled.png']) ;
-fig2exist = exist(lobe_dynamics_figfn, 'file') ;
-if save_ims && (~fig2exist || ~fig2exist || overwrite_lobeims)
-    disp('Plotting lobe dynamics...')
-    aux_plot_lobe_dynamics(length_lobes, area_lobes, volume_lobes, ...
-            timePoints, fold_onset, colors, lobe_dynamics_figfn)
-else
-    disp('Skipping lobe dynamics plot since it exists...')
-end
+options = struct() ;
+options.overwrite = false ;
+QS.plotLobes(options)
 
 %% Plot motion of avgpts at folds in yz plane over time ===================
-aux_plot_avgptcline_lobes(folds, fold_onset, lobeDir, dvexten, save_ims, ...
-    overwrite_lobeims, tp, timePoints, spcutMeshBase, clineDVhoopBase)
+overwrite_lobeims = true ;
+load(QS.fileName.fold, 'folds', 'fold_onset') ;
+dvexten = sprintf('_nU%04d_nV%04d', QS.nU, QS.nV) ;
+aux_plot_avgptcline_lobes(folds, fold_onset, QS.dir.lobe, dvexten, true, ...
+    overwrite_lobeims, QS.xp.fileMeta.timePoints - QS.t0,...
+    QS.xp.fileMeta.timePoints, ...
+    QS.fullFileBase.spcutMesh, QS.fullFileBase.clineDVhoop)
 disp('done')
 
 %% Plot motion of DVhoop at folds in yz plane over time ===================
@@ -1130,139 +1051,9 @@ aux_smooth_avgptcline_radius_before_mesh_smoothing(overwrite_spcutMesh_smoothrad
     rot, trans, resolution, xyzlim, nU, nV)
 
 %% Smooth the sphi grid meshes in time ====================================
-% Check if all already exist
-redo_meshsmooth = overwrite_spcutMeshSm ;
-qq = 1 ;
-disp('Checking if smoothed meshes already exist on file')
-while ~redo_meshsmooth && qq < length(xp.fileMeta.timePoints)
-    tt = xp.fileMeta.timePoints(qq) ;
-    % Check that all meshes are saved--if not, declare that we must compute
-    smfn = sprintf(spcutMeshSmBase, tt) ;
-    smrsfn = sprintf(spcutMeshSmRSBase, tt) ;
-    smrscfn = sprintf(spcutMeshSmRSCBase, tt) ;
-    if ~exist(smfn, 'file') || ~exist(smrsfn, 'file') || ~exist(smrscfn, 'file')
-        redo_meshsmooth = true ;
-    end
-    qq = qq + 1 ;
-end
-
-if redo_meshsmooth
-    disp('Mesh smoothing does not exist on file, computing')
-    % Load all spcutMesh objects 
-    timePoints = xp.fileMeta.timePoints ;
-    vM = zeros(length(timePoints), nU*nV, 3);
-    nsmM = zeros(length(timePoints), nU*nV, 3) ;
-    for i = 1:length(timePoints)
-        tt = timePoints(i) ;
-        % Load the spcutMesh for this timepoint
-        disp(['Loading spcutMesh from disk... [t = ' num2str(tt) ']'])
-        load(sprintf(spcutMeshBase, tt), 'spcutMesh') ;
-        vM(i, :, :) = spcutMesh.v ;
-    end
-    disp('built v3d matrix')
-    % Filter in time axis
-    disp('Building tripulse filter equivalent to tripuls(-0.5:0.1:0.5)')
-    tripulse = 0:0.2:1 ;
-    tripulse = [tripulse, fliplr(tripulse(1:end-1))] ;
-    tripulse = tripulse ./ sum(tripulse(:)) ;
-    tripulse = reshape(tripulse, [length(tripulse), 1]) ;
-    % linfilt = 0.1 * ones(10, 1, 1) ;
-    % ellipsoid = fspecial3('ellipsoid', [5, 1, 1]) ;
-    v3dsmM = imfilter(vM, tripulse, 'replicate') ;
-    % vsmM = permute(vsmM, [2,1,3]) ;
-    % nsmM = permute(nsmM, [2,1,3]) ;
-
-    % Alternative is to use Gaussian filter but seems no padding option here:
-    % smoothdata(vM, 1, 'gaussian', 10)
-    close all
-
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Save the smoothed meshes, then smoothed/rotated/scaled meshes 
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    for qq = 1:length(xp.fileMeta.timePoints)
-        tt = xp.fileMeta.timePoints(qq) ;
-
-        % First build normals from smoothed vertices as facenormals
-        vqq = squeeze(v3dsmM(qq, :, :)) ;
-        nqq = per_vertex_normals(vqq, spcutMesh.f, 'Weighting', 'angle') ;
-        % pack it into a struct mesh
-        mesh.v = vqq ;
-        mesh.vn = nqq ;
-        mesh.f = spcutMesh.f ;
-
-        % Average normals with neighboring normals
-        disp('Averaging normals with neighboring normals')
-        nqq = average_normals_with_neighboring_vertices(mesh, 0.5) ;
-        nsmM(qq, :, :) = nqq ;
-
-        % Next save the mesh
-        smfn = sprintf(spcutMeshSmBase, tt) ;
-        smrsfn = sprintf(spcutMeshSmRSBase, tt) ;
-        smrscfn = sprintf(spcutMeshSmRSCBase, tt) ;
-        if ~exist(smfn, 'file') || ~exist(smrsfn, 'file') || ~exist(smrscfn, 'file') || overwrite_spcutMeshSm
-            vqq = squeeze(v3dsmM(qq, :, :)) ;
-            nqq = squeeze(nsmM(qq, :, :)) ;
-            nsmM(qq, :, :) = nqq ./ vecnorm(nqq, 2, 2) ;
-
-            % rotate and scale
-            nqqrs = (rot * nqq')' ;
-            vqqrs = ((rot * vqq')' + trans) * resolution;
-
-            spcutMeshSm.f = spcutMesh.f ;
-            spcutMeshSm.v = vqq ;
-            spcutMeshSm.vn = nqq ;
-            spcutMeshSm.u = spcutMesh.sphi ;
-            spcutMeshSm.nU = spcutMesh.nU ;
-            spcutMeshSm.nV = spcutMesh.nV ;
-            spcutMeshSm.pathPairs = spcutMesh.pathPairs ;
-
-            % Resave s,phi and their 3D embedding
-            disp(['Saving ' sprintf(spcutMeshSmBase, tt)])
-            save(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
-
-            % Also save rotated and scaled (RS) copy of the time-smoothed mesh
-            spcutMeshSmRS = spcutMeshSm ;
-            spcutMeshSmRS.v = vqqrs ;
-            spcutMeshSmRS.vn = nqqrs ;
-            % Resave s,phi and their 3D embedding
-            save(sprintf(spcutMeshSmRSBase, tt), 'spcutMeshSmRS') ;
-            clearvars vqq vqqrs
-
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % CLOSED & GLUED SMOOTHED MESHES
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % To close the mesh, do the following:
-            tmp = spcutMeshSmRS ;
-            tmp.u = spcutMesh.sphi ;
-            spcutMeshSmRSC = glueCylinderCutMeshSeam(tmp) ;
-            save(sprintf(spcutMeshSmRSCBase, tt), 'spcutMeshSmRSC') ;
-
-            % check it
-            % fig = figure ;
-            % % triplot(spcutMeshSmRSC.f, spcutMeshSmRSC.u(:, 1), spcutMeshSmRSC.u(:, 2))
-            % trisurf(spcutMeshSmRSC.f, spcutMeshSmRSC.v(:, 1),...
-            %     spcutMeshSmRSC.v(:, 2), spcutMeshSmRSC.v(:, 3))
-            % To fully close the mesh use:
-            % anewpt = mean(spcutMeshSmRS.v(1:nV:end, :), 1)
-            % pnewpt = mean(spcutMeshSmRS.v(nU:nV:end, :), 1)
-            % waitfor(fig)
-        end
-    end
-else
-    disp('Mesh smoothing already exists on file, loading...')
-    timePoints = xp.fileMeta.timePoints ;
-    v3dsmM = zeros(length(timePoints), nU*nV, 3);
-    nsmM = zeros(length(timePoints), nU*nV, 3) ;
-    
-    % Load each mesh into v3dsmM and nsmM    
-    for qq = 1:length(xp.fileMeta.timePoints)
-        tt = xp.fileMeta.timePoints(qq) ;
-        load(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
-        v3dsmM(qq, :, :) = spcutMeshSm.v ;
-        nsmM(qq, :, :) = spcutMeshSm.vn ;
-    end
-end
-disp('done smoothing meshes in time')
+options = struct() ;
+options.overwrite = overwrite_spcutMeshSm ;
+QS.smoothDynamicSPhiMeshes(options)
 
 %% Plot the time-smoothed meshes
 pdir = ensureDir(fullfile(sphiSmRSPhiImDir, 'perspective')) ;
@@ -1346,6 +1137,11 @@ for qq = 1:length(timePoints)
 end
 disp('done')
 clearvars fig vqq nqqrs e0 e1 e2 e3 pdir ddir vdir rdir ldir
+
+
+%% Images for publication/presentation on method & coordinate system
+% Create coordinate system charts visualization using smoothed meshes
+QS.coordSystemDemo()
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% COMPUTE MEAN AND GAUSSIAN CURVATURES OF SMOOTHED MESHES
@@ -1484,4 +1280,7 @@ dumpfn = fullfile(meshDir, 'orbifold_dump_before_piv.mat') ;
 save(dumpfn)
 load(dumpfn)
 clearvars dumpfn
+
+%% Measure Compressibility (div(v), 2*vn*H, and gdot)
+QS.measureCompressibility()
 

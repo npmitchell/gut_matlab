@@ -1,5 +1,6 @@
 function [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
-    aux_compute_writhe(clineDVhoopBase, timepoints, filter_curve, omit_endpts, preview)
+    aux_compute_writhe(clineDVhoopBase, timepoints, filter_curve,...
+    omit_endpts, flipy, preview)
 %AUX_COMPUTE_WRITHE 
 % auxiliary function for computing writhe in Axisymmetric Orbifold Pullback
 % Pipeline.
@@ -8,11 +9,13 @@ function [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
 % ----------
 % clineDVhoopBase : str
 % timepoints : int array
-% filter_curve : bool
-%   polynomial filter and fitting
+% filter_curve : int
+%   window size for polynomial filter (cubic) and fitting
 % omit_endpts : int
 %   how many points on either end of the centerline to omit in writhe
 %   calculation
+% flipy : bool
+%   invert the sign of the y coordinate of the curve
 % preview : bool
 %   
 % Returns
@@ -31,7 +34,6 @@ WrL = zeros(nTPs, 1) ;
 wrL_densities = cell(nTPs, 1);
 WrG = zeros(nTPs, 1) ;
 wrG_densities = cell(nTPs, 1);
-timestamps = zeros(nTPs, 1) ;
 lengths = zeros(nTPs, 1) ;
 clines_resampled = cell(nTPs, 1) ;
 
@@ -47,6 +49,9 @@ for ii = 1:nTPs
     disp(['t = ' num2str(t)])
     disp(['Loading DVhoop centerline from ' fn])
     load(fn, 'mss', 'mcline', 'avgpts')
+    if flipy
+        mcline(:, 2) = -mcline(:, 2) ;
+    end
 
     % Load centerline 
     ds = diff(mss) ; 
@@ -56,7 +61,7 @@ for ii = 1:nTPs
     % Compute writhe of the centerline
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    if ~filter_curve
+    if filter_curve < 1
         ssx = mss ;
         xpt = mcline(:, 1) ;
         ypt = mcline(:, 2) ;
@@ -64,7 +69,7 @@ for ii = 1:nTPs
     else
         % Filter the result
         % Smoothing parameters
-        framelen = 7 ;  % must be odd
+        framelen = filter_curve ;  % must be odd
         polyorder = 3 ;
         [ssx, xpt, ypt, zpt, coeffs] = ...
             smooth_curve_via_fit_3d(mss, mcline, polyorder, framelen, 21) ;

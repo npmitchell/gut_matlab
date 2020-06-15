@@ -1,5 +1,5 @@
-function [phi0s] = phiOffsetsFromPrevMesh(TF, TV2D, TV3Drs, uspace, ...
-    vspace, prev3d_sphi, lowerbound, upperbound, vargin)
+function [phi0s, residuals] = phiOffsetsFromPrevMesh(TF, TV2D, TV3D, uspace, ...
+    vspace, prev3d_sphi, lowerbound, upperbound, phiOptions)
 %PHIOFFSETSFROMPREVMESH(TF, TV2D, TV3Drs, nU, vpsace, prev3d_sphi) 
 %   Find the offset in phi (the y dimension of the 2d pullback) that
 %   minimizes the difference in 3D of the positions of each DV hoop from
@@ -27,9 +27,10 @@ function [phi0s] = phiOffsetsFromPrevMesh(TF, TV2D, TV3Drs, uspace, ...
 %   extract the strips over which we iterate, minimizing for phi0 for each
 %   strip.
 % vargin : variable input arguments
-%   visualize : bool
-%   options : optimization options, as output of optimset()
-%   resample_hoops : bool
+%   preview : bool
+%   optimization : struct, default=omtimset()
+%       optimization options, as output of optimset()
+%   resample_hoops : bool, default=true
 % 
 % Returns
 % -------
@@ -40,39 +41,62 @@ function [phi0s] = phiOffsetsFromPrevMesh(TF, TV2D, TV3Drs, uspace, ...
 %
 % NPMitchell 2019
 
-% Interpret vargin  
+%% Interpret Options
 if nargin > 8
-    % First vargin boolean for visualization
-    if vargin{1}
-        fig = figure('visible', 'on') ;
-        visualize = true ;
+    %%%%%%%%%%%%%%%%%%%%
+    % Unpack Options
+    %%%%%%%%%%%%%%%%%%%%
+    
+    % boolean for visualization
+    if isfield(phiOptions, 'preview')
+        preview = phiOptions.preview ;
+        if preview
+            fig = figure('visible', 'on') ;
+        end
     else
-        visualize = false ;
+        preview = false ;
     end
     
-    % Second vargin is options for optimization problem
-    if nargin > 9
-        options = vargin{2} ;
+    % options for optimization problem
+    if isfield(phiOptions, 'optimization')
+        options = phiOptions.optimization ;
     else
         % options = optimset('PlotFcns','optimplotfval','TolX',1e-7);
         options = optimset() ; 
     end
     
-    % Third vargin is bollean to resample each DV hoop uniformly for the 
+    % resample_hoops: boolean to resample each DV hoop uniformly for the 
     % geometric optimization (rotation)
-    if nargin > 10
-        resample_hoops = vargin{3} ;
+    if isfield(phiOptions, 'resample_hoops')
+        resample_hoops = phiOptions.resample_hoops ;
     else
-        resample_hoops = true ;
+        resample_hoops = true ; 
     end
     
+    % 
+    if isfield(phiOptions, 'avgpts') && isfield(phiOptions, 'prev_avgpts')
+        avgpts = phiOptions.avgpts ;
+        prev_avgpts = phiOptions.prev_avgpts ;
+        optimize_hoop_distance = true ;
+        % Get pathlengths along piecewise curve
+        prev_ss = phiOptions.prev_avgpts_ss ;
+        prev_ss = prev_ss / max(prev_ss) ;
+    elseif isfield(phiOptions, 'avgpts') || isfield(phiOptions, 'prev_avgpts')
+        error(['Hoop-averaged centerlines were passed to phiOptions, ', ...
+            'but only for one mesh!'])
+    else
+        optimize_hoop_distance = false ;
+        error('not optimizing hoop distance -- pass avgpts etc in phiOptions')
+    end
 else
-    visualize = true ;
+    preview = true ;
     % options = optimset('PlotFcns','optimplotfval', 'TolX',1e-7); 
     options = optimset() ; % 'TolX',1e-7); 
+    resample_hoops = true ;
+    optimize_hoop_distance = false ;
 end
 
-% Consider each value of u in turn
+%% Consider each value of u in turn
 % Fit for phi0 such that v = phi - phi0
 nU = length(uspace) ;
 if any(size(vspace) == 1)
@@ -85,7 +109,15 @@ else
     input_v_is_function_of_u = true ;
 end
 
-% Optimize phi(u) for each u value in 1:nU discretization 
+%% Decide if we compute residuals based on output args
+if nargout > 1
+    compute_residual = true ;
+    residuals = zeros(nU, nV - 1) ;
+else
+    compute_residual = false ;
+end
+
+%% Optimize phi(u) for each u value in 1:nU discretization 
 phi0s = zeros(nU, 1) ;
 prog = repmat('.', [1 floor(nU/10)]) ;
 for qq = 1:nU
@@ -99,9 +131,40 @@ for qq = 1:nU
         vqq = vspace ;
     end
     
-    % curve = curves3d(qq, :) ;
-    % The previous 3d embedding values are stored 
-    prev3dvals = squeeze(prev3d_sphi(qq, :, :)) ;
+    % The previous 3d embedding values are stored in prev3d_sphi
+    % Choose which previous mesh's hoops against which to compare the 
+    % current hoop (qq).
+    if optimize_hoop_distance && qq > 1 && qq < nU
+        % two matching hoops are how far away?
+        % NOTE: get the first hoop behind, and the first hoop ahead
+        [~, ~, ss] = distance2curve(prev_avgpts, avgpts(qq, :), 'linear') ;
+        ahead = find(ss < prev_ss, 1) ;
+        behind = find(ss > prev_ss, 1, 'last') ; 
+        inds = [ahead, behind] ;
+        dists = vecnorm(avgpts(qq, :) - prev_avgpts(inds, :), 2, 2) ; 
+        assert(any(dists)) 
+        % Handle if one of the matches is exact (this should never happen)
+        if dists(1) == 0
+            prev3dvals = squeeze(prev3d_sphi(inds(1), :, :)) ;
+        else
+            % The usual case. There are two hoops nearby. Use both,
+            % weighted by distance.
+            weights = 1 - dists / (dists(1) + dists(2)) ;
+            weights = weights / sum(weights) ;
+            try
+                assert(all(weights < 1))
+                assert((sum(weights) == 1))
+            catch
+                disp('weights not right!')
+            end
+            prev3dvals = weights(1) * squeeze(prev3d_sphi(inds(1), :, :)) + ...
+                         weights(2) * squeeze(prev3d_sphi(inds(2), :, :)) ;
+        end
+    else
+        % Here we simply line up the hoop with the previous mesh's hoop 
+        % matching the same index qq.
+        prev3dvals = squeeze(prev3d_sphi(qq, :, :)) ;
+    end
     
     % Check it
     % close all
@@ -148,8 +211,15 @@ for qq = 1:nU
         phi0s(qq) = fminbnd(@(phi0)...
             sum(vecnorm(...
             interpolate2Dpts_3Dmesh(TF, TV2D, ...
-                TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)] ) ...
+                TV3D, [uspace(qq) * ones(nV, 1), mod(vqq + phi0(1), 1)] ) ...
                 - prev3dvals, 2, 2) .^ 2), lowerbound, upperbound, options);
+            
+       if compute_residual
+           residuals(qq, :) = vecnorm(...
+            interpolate2Dpts_3Dmesh(TF, TV2D, ...
+                TV3D, [uspace(qq) * ones(nV, 1), mod(vqq + phi0s(qq), 1)] ) ...
+                - prev3dvals, 2, 2) ;
+       end
     else        
         %% Try resampling each hoop every time
         % check that startpt is endpt for supplied prev3dvals 
@@ -164,11 +234,57 @@ for qq = 1:nU
                 sum(vecnorm(...
                 openClosedCurve(resampleCurvReplaceNaNs( ...
                     interpolate2Dpts_3Dmesh(TF, TV2D, ...
-                        TV3Drs, [utmp, mod(vqq + phi0(1), 1)] ), ...
+                        TV3D, [utmp, mod(vqq + phi0(1), 1)] ), ...
                     NN, closed_curv)) ...
                 - prev3dvals(1:end-1, :), 2, 2) .^ 2), lowerbound, upperbound, options);
         else
             error('Have not handled case when hoop is not closed curve.')
+        end
+        
+        % if the residual is requested, compute it
+        if compute_residual
+            residuals(qq, :) = vecnorm(...
+                openClosedCurve(resampleCurvReplaceNaNs( ...
+                    interpolate2Dpts_3Dmesh(TF, TV2D, ...
+                        TV3D, [utmp, mod(vqq + phi0s(qq), 1)] ), ...
+                    NN, closed_curv)) ...
+                - prev3dvals(1:end-1, :), 2, 2) ;
+            
+            % DEBUG
+            % if qq == 50 && false
+            %     uspace(qq)
+            %     max(TV2D)
+            %     disp('debugging here')
+            %     new3d = openClosedCurve(resampleCurvReplaceNaNs( ...
+            %         interpolate2Dpts_3Dmesh(TF, TV2D, ...
+            %             TV3D, [utmp, mod(vqq + phi0s(qq), 1)] ), ...
+            %         NN, closed_curv)) ;
+            %     scatter3(prev3dvals(1:end-1, 1), ...
+            %         prev3dvals(1:end-1, 2), prev3dvals(1:end-1, 3), 10, 1:99)
+            %     hold on;
+            %     scatter3(new3d(:, 1), new3d(:, 2), new3d(:, 3), 20, 1:99)
+            %     hoop1 = squeeze(prev3d_sphi(inds(1), 1:end-1, :)) ;
+            %     hoop2 = squeeze(prev3d_sphi(inds(2), 1:end-1, :)) ;
+            %     hoop3 = squeeze(prev3d_sphi(max(inds)+1, 1:end-1, :)) ;
+            %     scatter3(hoop1(:, 1), hoop1(:, 2), hoop1(:, 3), 5, 1:99)
+            %     scatter3(hoop2(:, 1), hoop2(:, 2), hoop2(:, 3), 5, 1:99)
+            %     scatter3(hoop3(:, 1), hoop3(:, 2), hoop3(:, 3), 5, 'r')
+            %     pause(2)
+            % 
+            %     figure
+            %     plot3(avgpts(:, 1), avgpts(:, 2), avgpts(:, 3), 'k.')
+            %     hold on;
+            %     plot3(prev_avgpts(:, 1), prev_avgpts(:, 2), prev_avgpts(:, 3), 'ro')
+            % 
+            % 
+            %     figure
+            %     plot(prev_ss, vecnorm(avgpts(qq, :) - prev_avgpts, 2, 2), '.-')
+            %     hold on;
+            %     plot(prev_ss(inds), vecnorm(avgpts(qq, :) - prev_avgpts(inds, :), 2, 2), 'o')
+            %     plot([ss, ss], [0, 100], '--')
+            %     pause(1)
+            % end
+            % % end debug
         end
     end
     
@@ -183,7 +299,7 @@ for qq = 1:nU
     %         - prev3dvals(1, :), 2, 2) .^ 2), lowerbound, upperbound, options);
         
     %% Visualize the minimization output values
-    if visualize
+    if preview
         % Plot the phi_0s computed thus far
         figure(1)
         plot(phi0s)
@@ -195,7 +311,7 @@ for qq = 1:nU
         % disp('phiOffsetsFromPrevMesh: casting into 3d')
         
         tmp = interpolate2Dpts_3Dmesh(TF, TV2D, ...
-            TV3Drs, [uspace(qq) * ones(nV, 1), mod(vqq + phi0s(qq), 1)]) ;
+            TV3D, [uspace(qq) * ones(nV, 1), mod(vqq + phi0s(qq), 1)]) ;
         %% Try resampling each hoop every time
         tmp = resampleCurvReplaceNaNs(tmp, NN, closed_curv) ;
         

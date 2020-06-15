@@ -1,6 +1,8 @@
-function [fig, ax1, ax2, imhandle, shandle] = heatmap_on_image(im, xfield, yfield, cfield, options)
-% HEATMAP_ON_IMAGE Plot a scalar field as heatmap on image
-% This function has some unresolved bugs 2019-10-06: please fix
+function [fig, ax1, ax2, imhandle, shandle] = heatmap_on_image(im, ...
+    xfield, yfield, cfield, options)
+% HEATMAP_ON_IMAGE(im, xfield, yfield, cfield, options)
+%   Plot a scalar field as heatmap on image
+%   This function has some unresolved bugs 2019-10-06: please fix
 %
 % Parameters
 % ----------

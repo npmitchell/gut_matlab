@@ -1,4 +1,6 @@
-function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = identifyLobes(timePoints, sphiBase, guess123, max_wander, visualize, method)
+function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
+    identifyLobes(timePoints, sphiBase, guess123, max_wander,...
+    visualize, method, first_tp_allowed)
 %idenitfyLobes(timePoints, sphiBase, guess1, guess2, guess3, visualize) Find folds in meshes 
 %   Load each spcutMesh, find the local minima in radius, and mark these as 
 %   fold locations. Track the location of those local minima over time, and
@@ -19,6 +21,10 @@ function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = identifyLobes(t
 %   identified, in units of pathlength (ss)
 % visualize : bool
 % method : ('ringpath' or 'avgpts')
+%   which method to use to find local minima, 'avgpts' recommended
+% first_tp_allowed : int, default=-1
+%   First timepoint in which we allow detected local minumum to be 
+%   considered a true, physical fold
 %
 % Returns
 % -------
@@ -81,7 +87,7 @@ for kk = 1:length(timePoints)
     % Find the minima in the radius. First make radius 1d
     rad = mean(spcutMesh.radii_from_mean_uniform_rs, 2) ;
     minidx = islocalmin(rad) ;
-    if any(minidx)
+    if any(minidx) && (t > (first_tp_allowed - 1))
         minidx = find(minidx) ;
         % Identify each minimum which fold it may be
         dd = zeros(length(minidx), 1) ;

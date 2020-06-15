@@ -4,10 +4,21 @@ function generateCurrentSPCutMesh(QS, cutMesh, spcutMeshOptions)
 % Parameters
 % ----------
 % QS : QuapSlap class instance
-%   
+%   Note that the following properties are used:
+%       QS.phiMethod = ('3dcurves', 'texture', 'combined') 
+%       QS.a_fixed = 2.0    
 % cutMesh : cutMesh struct, optional
-%   
+%   cutMesh with fields
 % spcutMesh : spcutMesh struct, optional
+% spcutMeshOptions : struct with fields, optional
+%   overwrite : bool
+%       overwrite previous results
+%   save_phi0patch : bool
+%       show the relaxation steps of phi0 determination
+%   iterative_phi0 : bool
+%       iteratively determine phi0 until convergence
+%   smoothingMethod : str specifier (default='none')
+%       method for smoothing phi0 wrt AP axis coordinate (ss)
 %
 % Returns
 % -------
@@ -44,7 +55,7 @@ if nargin > 2
     end
 end
 
-% Unpack QS
+%% Unpack QS
 tt = QS.currentTime ;
 nU = QS.nU ;
 nV = QS.nV ;
@@ -206,7 +217,8 @@ if ~exist(spcutMeshfn, 'file') || overwrite
 
     fprintf('Finding s(u) and r(u) of resampled "uniform" c3ds [uniform ds in V dir]...\n')
     % mcline is the resampled centerline, with mss
-    % avgpts is the raw Nx3 averaged hoops, with avgpts_ss
+    % avgpts is the Nx3 averaged hoops (hoops are resampled already), with 
+    % avgpts_ss being the associated pathlength along the centerline
     [mss, mcline, radii_from_mean_uniform_rs, avgpts_ss, avgpts] = ...
         srFromDVCurves(c3d_dsv) ;
 
@@ -223,7 +235,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     % Plot new centerline
     aux_plot_clineDVhoop(avgpts, avgpts_ss, cseg, cline, cseg_ss, ...
         curves3d, xyzlim_um, clineDVhoopFigBase, tt)
-
+    
     % Optional: clean curve with polynomial and point match
     % avgpts onto cleaned curve. Skipping for later.
 
@@ -254,13 +266,31 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     uspace_ds_umax = uspace_ds * cutMesh.umax ;
     uu = uspace_ds_umax .* onesUV ;
     vv = (vspace .* onesUV')' ;
-    % uv is UNequally spaced in ss, EQUALLY spaced in uu
+    % uv is equally spaced in ss, UNEQUALLY spaced in uu
     uv = [uu(:), vv(:)] ;
     % Note: here interpolate uv in the TV2D coord system, then
     % use uphi as the actual 2D coordinates for these vertices
     % NOTE: unlike curves3d, uvgrid3d is NOT rotated/translated/scaled
     uvgrid3d = interpolate2Dpts_3Dmesh(TF, TV2D, TV3D, uv) ;
     
+    %% Make avgpts in pixel space (not RS)
+    fprintf('Resampling uvgrid3d curves in pix...\n')
+    curves3d_pix = reshape(uvgrid3d, [nU, nV, 3]) ;
+    c3d_dsv_pix = zeros(size(curves3d_pix)) ;  % in units of pix
+    avgpts_pix = zeros(nU, 3) ;
+    for i=1:nU
+        % Note: no need to add the first point to the curve
+        % since the endpoints already match exactly in 3d and
+        % curvspace gives a curve with points on either
+        % endpoint (corresponding to the same 3d location).
+        c3d_dsv_pix(i, :, :) = resampleCurvReplaceNaNs(squeeze(curves3d_pix(i, :, :)), nV, true) ;
+        if vecnorm(squeeze(c3d_dsv_pix(i, 1, :)) - squeeze(c3d_dsv_pix(i, end, :))) > 1e-7
+            error('endpoints do not join! Exiting')
+        end
+        avgpts_pix(i, :) = mean(squeeze(c3d_dsv_pix(i, :, :)), 1) ; 
+    end
+    
+    %%
     if tt == QS.xp.fileMeta.timePoints(1)
         % Store for next timepoint
         phiv = (vspace .* ones(nU, nV))' ;
@@ -278,7 +308,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
             prevf = tmp.spcutMesh.f ;
             prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
             
-            %% Resample the vertices evenly around each hoop!!!
+            %% Resample the vertices evenly around each hoop!
             prev3d_sphi_dsdv = zeros(size(prev3d_sphi)) ;  % in units of pix
             for i=1:nU
                 % Note: no need to add the first point to the curve
@@ -296,8 +326,15 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                 % plot(uv(:, 1), uv(:, 2), '.')
             end
             
-            %%
+            %% Obtain previous avgpts to use for hoop matching
+            % fn_prev_mcline = sprintf(clineDVhoopBase, tt - 1) ;
+            disp('Grabbing previous centerline')
+            % prev_avgpts = load(fn_prev_mcline, 'avgpts') ;
+            % prev_avgpts = prev_avgpts.avgpts ;
+            [~, ~, ~, prev_avgpts_ss_pix, prev_avgpts_pix] = ...
+                srFromDVCurves(prev3d_sphi_dsdv) ;
             
+            %% Obtain previous pullback image
             % prev2d_uphi = reshape(tmp.spcutMesh.uphi, [nU, nV, 2]) ;
             imfn_sp_prev = sprintf( QS.fullFileBase.im_sp, ...
                 QS.xp.fileMeta.timePoints(tidx-1) ) ;
@@ -320,6 +357,15 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                 disp(['Iteration ' num2str(dmyk)])
                 plotfn = sprintf(phi0fitBase, tt, dmyk);
 
+                % Pass phiOptions to allow sliding along AP
+                % passed to phiOffsetsFromPrevMesh
+                phiOpts = struct(); 
+                phiOpts.preview = preview ;
+                phiOpts.avgpts = avgpts_pix ;
+                phiOpts.c3d_dsv = c3d_dsv_pix ;
+                phiOpts.prev_avgpts_ss = prev_avgpts_ss_pix ;
+                phiOpts.prev_avgpts = prev_avgpts_pix ;
+                
                 % Will we save check pullbacks to preview the algo?
                 % If so, create a struct to pass visualization options
                 if save_phi0patch
@@ -330,6 +376,10 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                     patchImFn = sprintf( ...
                         fullfile(sphiDir, 'phi0_correction',...
                         [fileNameBase, '_prephi0_' num2str(dmyk) '.tif']), ...
+                        QS.xp.fileMeta.timePoints(tidx-1) )  ;
+                    patchImFnRes = sprintf( ...
+                        fullfile(sphiDir, 'phi0_correction',...
+                        [fileNameBase, '_phi0residual_' num2str(dmyk) '.tif']), ...
                         QS.xp.fileMeta.timePoints(tidx-1) )  ;
                     geomImFn = sprintf( ...
                         fullfile(sphiDir, 'phi0_correction', ...
@@ -350,35 +400,32 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                     Options.yLim = [0 1];
 
                     % Roll options into a struct
+                    patchOpts = struct() ;
+                    patchOpts.resolution = QS.xp.fileMeta.stackResolution(1) ;
                     patchOpts.patchImFn = patchImFn ;
+                    patchOpts.patchImFnRes = patchImFnRes ;
                     patchOpts.imfn_sp_prev = imfn_sp_prev ;
                     patchOpts.IV = IV ;
                     patchOpts.axisorder = axisorder ;
                     patchOpts.ringpath_ss = ringpath_ss ;
                     patchOpts.v3d = uvgrid3d ;
                     patchOpts.vvals4plot = phi4plot ;
+                    % passed to texturePatchToImage
                     patchOpts.Options = Options ;
                     patchOpts.phi0_sign = phi0_sign ;
-                else
-                    patchOpts = [] ;
+                else                
+                    patchOpts = struct() ;
                 end
 
                 % Minimize difference in DV hoop positions wrt
                 % previous pullback mesh   
                 % Outputs are raw phi0 and smoothed phi0s
                 %% THIS WORKS
-                % [phi0_fit_kk, phi0s_kk] = fitPhiOffsetsFromPrevMesh(TF,...
-                %     TV2D, TV3D, uspace_ds_umax, phiv_kk, ...
-                %     prev3d_sphi, -0.45, 0.45, ...
-                %     save_ims, plotfn, save_phi0patch, smoothingMethod, ...
-                %     preview, patchOpts) ;
-                
-                %% EXPERIMENTAL code
                 [phi0_fit_kk, phi0s_kk] = fitPhiOffsetsFromPrevMesh(TF,...
                     TV2D, TV3D, uspace_ds_umax, phiv_kk, ...
                     prev3d_sphi_dsdv, -0.45, 0.45, ...
-                    save_ims, plotfn, save_phi0patch, smoothingMethod, ...
-                    preview, patchOpts) ;
+                    save_ims, plotfn, smoothingMethod, ...
+                    phiOpts, patchOpts) ;
                 
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % USED TO USE: uspace * cutMesh.umax

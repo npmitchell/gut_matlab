@@ -1,4 +1,4 @@
-function extendImages(directory, direc_e, fileNameBase, options)
+function extendImages(directory, direc_e, fnsearch, options)
 % EXTENDIMAGES(directory, direc_e, fileNameBase) Repeat an image above and
 % below, and equilize histograms in ntiles in each dimension
 %
@@ -6,7 +6,7 @@ function extendImages(directory, direc_e, fileNameBase, options)
 %   path to the existing images
 % direc_e : str
 %   path to the place where extended images are to be saved
-% fileNameBase : str
+% fnsearchstr : str
 %   The file name of the images to load and save
 % options : struct with fields (default is no histeq, overwrite==true)
 %     histeq : bool
@@ -37,7 +37,9 @@ else
     histeq = false ;
 end
 
-fns = dir(strrep(fullfile([directory, '/', fileNameBase, '.tif']), '%06d', '*')) ;
+% searchfn = strrep(fullfile(directory, [fileNameBase, '.tif']), '%06d', '*') ;
+disp(['Searching for files: ' fnsearch])
+fns = dir(fullfile(directory, fnsearch)) ;
 % Get original image size
 im = imread(fullfile(fns(1).folder, fns(1).name)) ;
 halfsize = round(0.5 * size(im, 1)) ;
@@ -50,6 +52,8 @@ for i=1:length(fns)
         % Declare if we are overwriting the file
         if exist(fullfile(direc_e, fns(i).name), 'file') 
             disp(['Overwriting ' fullfile(direc_e, fns(i).name)])
+        else
+            disp(['Generating ' fullfile(direc_e, fns(i).name)])
         end
         disp(['Reading ' fns(i).name])
         % fileName = split(fns(i).name, '.tif') ;

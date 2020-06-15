@@ -68,6 +68,7 @@ classdef QuapSlap < handle
             QS.fileBase.fn = xp.fileMeta.filenameFormat ;
             QS.nV = opts.nV ;
             QS.nU = opts.nU ;
+            
             QS.normalShift = opts.normalShift ;
             QS.a_fixed = opts.a_fixed ;
             if isfield(opts, 'adjustlow')
@@ -79,7 +80,7 @@ classdef QuapSlap < handle
             if isfield(opts, 'axisOrder')
                 QS.data.axisOrder = opts.axisOrder ;
             end
-            dvexten = sprintf('_nU%04d_nV%04d', QS.nU, QS.nV) ;
+            uvexten = sprintf('_nU%04d_nV%04d', QS.nU, QS.nV) ;
             
             % APDV coordinate system
             QS.APDV.resolution = min(xp.fileMeta.stackResolution) ;
@@ -94,6 +95,7 @@ classdef QuapSlap < handle
             QS.dir.cylinderMesh = fullfile(meshDir, 'cylinder_meshes') ;
             QS.dir.cutMesh = fullfile(meshDir, 'cutMesh') ;
             QS.dir.cylinderMeshClean = fullfile(QS.dir.cylinderMesh, 'cleaned') ;
+            
             % Metric strain dirs
             QS.dir.gstrain = fullfile(meshDir, 'metric_strain') ;
             QS.dir.gstrainRate = fullfile(QS.dir.gstrain, 'rateMetric') ;
@@ -195,24 +197,24 @@ classdef QuapSlap < handle
             shiftstr = ['_' nshift 'step'] ;
             % cutFolder = fullfile(meshDir, 'cutMesh') ;
             % cutMeshBase = fullfile(cutFolder, [QS.fileBase.name, '_cutMesh.mat']) ;
-            imFolder = fullfile(meshDir, ['PullbackImages' shiftstr] ) ;
-            sphiDir = fullfile(meshDir, ['sphi_cutMesh' shiftstr dvexten]) ;
+            imFolderBase = fullfile(meshDir, ['PullbackImages' shiftstr uvexten] ) ;
+            sphiDir = fullfile(meshDir, ['sphi_cutMesh' shiftstr uvexten]) ;
             sphiSmDir = fullfile(sphiDir, 'smoothed') ;
             sphiSmRSDir = fullfile(sphiDir, 'smoothed_rs') ;
             % sphiSmRSImDir = fullfile(sphiSmRSDir, 'images') ;
             % sphiSmRSPhiImDir = fullfile(sphiSmRSImDir, 'phicolor') ;
             sphiSmRSCDir = fullfile(sphiDir, 'smoothed_rs_closed') ;
-            imFolder_sp = [imFolder '_sphi' dvexten] ;
-            imFolder_sp_e = fullfile(imFolder_sp, '_extended') ;
-            imFolder_up = [imFolder '_uphi' dvexten] ;
-            imFolder_up_e = fullfile(imFolder_up, '_extended') ;
+            imFolder_sp = [imFolderBase '_sphi'] ;
+            imFolder_spe = fullfile(imFolder_sp, 'extended') ;
+            imFolder_up = [imFolderBase '_uphi'] ;
+            imFolder_upe = fullfile(imFolder_up, 'extended') ;
             % time-averaged meshes
-            imFolder_spsm = fullfile(imFolder_sp, '_smoothed') ;
-            imFolder_spsm_e = fullfile(imFolder_sp, '_extended_smoothed') ;
-            imFolder_spsm_e2 = fullfile(imFolder_sp, '_extended_LUT_smoothed') ;  % raw LUT, no histeq
-            imFolder_rsm = fullfile(imFolder, '_relaxed_smoothed') ;
-            imFolder_rsm_e = fullfile(imFolder, '_relaxed_extended_smoothed') ;
-            % Lobe identification paths
+            imFolder_spsm = fullfile(imFolder_sp, 'smoothed') ;
+            imFolder_spsme = fullfile(imFolder_sp, 'extended_smoothed') ;  % raw LUT, no histeq
+            imFolder_spsme2 = fullfile(imFolder_sp, 'extended_LUT_smoothed') ;  % with histeq?
+            imFolder_rsm = fullfile([imFolderBase, '_sphi_relaxed'], 'smoothed');
+            imFolder_rsme = fullfile([imFolderBase, '_sphi_relaxed'], 'smoothed_extended') ;
+            % Lobe/fold identification paths
             lobeDir = fullfile(meshDir, 'lobes') ;
             foldHoopImDir = fullfile(lobeDir, 'constriction_hoops') ;
             % Folder for curvature measurements
@@ -228,22 +230,24 @@ classdef QuapSlap < handle
             QS.dir.spcutMeshSmRS = sphiSmRSCDir ;
             QS.dir.clineDVhoop = ...
                 fullfile(QS.dir.cntrline, ...
-                ['centerline_from_DVhoops' shiftstr dvexten]) ;
-            QS.dir.im = imFolder ;
-            QS.dir.im_e = [imFolder '_extended'] ;
-            QS.dir.im_r = [imFolder '_relaxed'] ;
-            QS.dir.im_re = [imFolder '_relaxed_extended'] ;
+                ['centerline_from_DVhoops' shiftstr uvexten]) ;
+            QS.dir.writhe =  fullfile(QS.dir.clineDVhoop, 'writhe') ;
+            QS.dir.im_uv = [imFolderBase '_uv'] ;
+            QS.dir.im_uve = [imFolderBase '_uv_extended'] ;
+            QS.dir.im_r = [imFolderBase '_sphi_relaxed'] ;
+            QS.dir.im_re = [imFolderBase '_sphi_relaxed_extended'] ;
             QS.dir.im_sp = imFolder_sp ;
-            QS.dir.im_sp_e = imFolder_sp_e ;
+            QS.dir.im_spe = imFolder_spe ;
             QS.dir.im_up = imFolder_up ;
-            QS.dir.im_up = imFolder_up_e ;
-            QS.dir.im_spsm = imFolder_spsm ;
-            QS.dir.im_spsm_e = imFolder_spsm_e ;
-            QS.dir.im_spsm_e2 = imFolder_spsm_e2 ;
-            QS.dir.im_rsm = imFolder_rsm ;
-            QS.dir.im_rsm_e = imFolder_rsm_e ;
+            QS.dir.im_upe = imFolder_upe ;
+            QS.dir.im_sp_sm = imFolder_spsm ;
+            QS.dir.im_sp_sme = imFolder_spsme ;
+            QS.dir.im_sp_sme2 = imFolder_spsme2 ;
+            QS.dir.im_r_sm = imFolder_rsm ;
+            QS.dir.im_r_sme = imFolder_rsme ;
             QS.dir.piv = fullfile(meshDir, 'piv') ;
             QS.dir.lobe = lobeDir ;
+            QS.dir.foldHoopIm = foldHoopImDir ;
             QS.fullFileBase.cutMesh = ...
                 fullfile(QS.dir.cutMesh, [QS.fileBase.name, '_cutMesh.mat']) ;
             QS.fullFileBase.phi0fit = ...
@@ -253,7 +257,9 @@ classdef QuapSlap < handle
                 'centerline_from_DVhoops_%06d.mat');
             % filenames for lobe dynamics
             QS.fileName.fold = fullfile(lobeDir, ...
-                ['fold_locations_sphi' dvexten '_avgpts.mat']) ;
+                ['fold_locations_sphi' uvexten '_avgpts.mat']) ;
+            QS.fileName.lobeDynamics = ...
+                fullfile(lobeDir, ['lobe_dynamics' uvexten '.mat']) ;
             
             %  spcutMesh and pullbacks
             QS.fullFileBase.spcutMesh = ...
@@ -270,16 +276,25 @@ classdef QuapSlap < handle
             QS.fullFileBase.spcutMeshSmRSCPLY = ...
                 fullfile(sphiSmRSCDir, '%06d_spcMSmRSC.ply') ;
             QS.fileBase.spcutMeshSmRSC = '%06d_spcMSmRSC' ;
-            QS.fullFileBase.im = ...
-                fullfile([QS.dir.im, '/', QS.fileBase.name, '_pb.tif']) ;
+            QS.fileBase.im_uv = [QS.fileBase.name, '_pbuv.tif'] ;
+            QS.fullFileBase.im_uv = ...
+                fullfile(QS.dir.im_uv, QS.fileBase.im_uv) ;
+            QS.fileBase.im_r = [QS.fileBase.name, '_pr.tif'] ;
             QS.fullFileBase.im_r = ...
-                fullfile([QS.dir.im_r, '/', QS.fileBase.name, '_pr.tif']) ;
+                fullfile(QS.dir.im_r, QS.fileBase.im_r) ;
+            QS.fileBase.im_re = [QS.fileBase.name, '_pre.tif'] ;
             QS.fullFileBase.im_re =  ...
-                fullfile([QS.dir.im_re, '/', QS.fileBase.name, '_pre.tif']) ;
+                fullfile(QS.dir.im_re, QS.fileBase.im_re) ;
+            QS.fileBase.im_sp = [QS.fileBase.name, '_pbsp.tif'] ;
             QS.fullFileBase.im_sp = ...
-                fullfile([QS.dir.im_sp, '/', QS.fileBase.name, '_pbsp.tif']);
+                fullfile(QS.dir.im_sp, QS.fileBase.im_sp);
+            QS.fileBase.im_up = [QS.fileBase.name, '_pbup.tif'] ;
             QS.fullFileBase.im_up = ...
-                 fullfile([QS.dir.im_up, '/', QS.fileBase.name, '_pbup.tif']) ;
+                 fullfile(QS.dir.im_up, QS.fileBase.im_up) ;
+            QS.fullFileBase.im_r_cells = ...
+                 fullfile(QS.fullFileBase.im_r, ...
+                 'cell_ID_Probabilities', ...
+                 [QS.fileBase.name, '_Probabilities_pr.h5']) ;
             
             % PIV
             QS.dir.piv = fullfile(meshDir, 'piv') ;
@@ -312,9 +327,12 @@ classdef QuapSlap < handle
             QS.xp.setTime(tt) ;
         end
         
-        function t0set(QS, t0)
+        function t0 = t0set(QS, t0)
+            % t0set(QS, t0) Set time offset to 1st fold onset or manually 
             if nargin < 2
                 try
+                    % Note that fold_onset is in units of timepoints, not 
+                    % indices into timepoints
                     load(QS.fileName.fold, 'fold_onset') ;
                     QS.t0 = min(fold_onset) ;
                 catch
@@ -323,6 +341,7 @@ classdef QuapSlap < handle
             else
                 QS.t0 = t0 ;
             end
+            t0 = QS.t0 ;
         end
         
         function [acom_sm, pcom_sm] = getAPCOMSm(QS) 
@@ -482,6 +501,7 @@ classdef QuapSlap < handle
         function getAPDCOMs(QS, apdvCOMOptions)
             computeAPDCOMs(QS, apdvCOMOptions)
         end
+        
         function ars = xyz2APDV(QS, a)
             % transform 3d coords from XYZ data space to APDV coord sys
             [ro, tr] = QS.getRotTrans() ;
@@ -501,6 +521,9 @@ classdef QuapSlap < handle
             apdvCOMOptions = QS.APDVCOMs.apdvCOMOptions ;
             save(QS.fileName.apdvCOMOptions, 'apdvCOMOptions')
         end
+        
+        % Surface Area and Volume over time
+        measureSurfaceAreaVolume(QS, options)
         
         % Centerlines & cylinderMesh
         extractCenterlineSeries(QS, cntrlineOpts)
@@ -564,18 +587,127 @@ classdef QuapSlap < handle
             QS.currentMesh.spcutMesh = tmp.spcutMesh ;
         end
         
+        % Pullback handling
+        function doubleCoverPullbackImages(QS, options)
+            % options : struct with fields
+            %   coordsys : ('sp', 'uv', 'up')
+            %       coordinate system to make double cover 
+            %   overwrite : bool, default=false
+            %       whether to overwrite current images on disk
+            %   histeq : bool, default=true
+            %       perform histogram equilization during pullback
+            %       extension
+            %   ntiles : int, default=50 
+            %       The number of bins in each dimension for histogram equilization for a
+            %       square original image. That is, the extended image will have (a_fixed *
+            %       ntiles, 2 * ntiles) bins in (x,y).
+            %   a_fixed : float, default=QS.a_fixed
+            %       The aspect ratio of the pullback image: Lx / Ly          
+            %   fnsearch : str, default=
+            
+            if nargin > 1
+                % unpack options
+                if isfield(options, 'coordsys')
+                    coordsys = options.coordsys ;
+                    options = rmfield(options, 'coordsys') ;
+                    if strcmp(coordsys, 'sp')
+                        imDir = QS.dir.im_sp ;
+                        imDir_e = QS.dir.im_spe ;
+                        fn0 = QS.fileBase.im_sp ;
+                    elseif strcmp(coordsys, 'uv')
+                        imDir = QS.dir.im_uv ;
+                        imDir_e = QS.dir.im_uve ;
+                        fn0 = QS.fileBase.im_uv ;
+                    elseif strcmp(coordsys, 'up')
+                        imDir = QS.dir.im_up ;
+                        imDir_e = QS.dir.im_upe ;
+                        fn0 = QS.fileBase.im_up ;
+                    end
+                else
+                    % Default value of coordsys = 'sp' ;
+                    imDir = QS.dir.im_sp ;
+                    imDir_e = QS.dir.im_spe ;
+                    fn0 = QS.fileBase.im_sp ;
+                end
+                
+                % pack options if missing fields
+                if ~isfield(options, 'histeq')
+                    % equalize the histogram in patches of the image
+                    options.histeq = true ;
+                end
+                if ~isfield(options, 'a_fixed')
+                    % Assign the aspect ratio for histogram equilization
+                    options.a_fixed = QS.a_fixed ;
+                end
+                if ~isfield(options, 'ntiles')
+                    % Number of tiles per circumference and per unit ap
+                    % length, so that if aspect ratio is two, there will be
+                    % 2*ntiles samplings for histogram equilization along
+                    % the ap axis
+                    options.ntiles = 50 ;
+                end
+                if ~isfield(options, 'overwrite')
+                    options.overwrite = false ;
+                end
+                if ~isfield(options, 'fnsearch')
+                    % Attempt to guess what the filename of the images are
+                    split_string = strsplit(fn0, '%0') ;
+                    cont2 = strsplit(split_string{2}, 'd') ;
+                    cont2 = strjoin(cont2(2:end), '') ;
+                    fnsearch = strjoin({split_string{1}, '*', cont2, ...
+                        strjoin(split_string(3:end))}, '') ;
+                    disp(['Guessing fnsearch: ', fnsearch])
+                end
+            else
+                % Default options
+                % Default value of coordsys = 'sp' ;
+                options = struct() ;
+                imDir = QS.dir.im_sp ;
+                imDir_e = QS.dir.im_spe ;
+                options.histeq = true ;
+                options.a_fixed = QS.a_fixed ;
+                options.ntiles = ntiles ;
+            end
+            extendImages(imDir, imDir_e, fnsearch, options)
+            disp(['done ensuring extended tiffs for ' imDir ' in ' imDir_e])
+        end
+        
+        % identify folds
+        identifyFolds(QS, options)
+        
+        % measure writhe
+        measureWrithe(QS, options)
+        
+        % measure Lobe dynamics
+        [lengths, areas, volumes] = measureLobeDynamics(QS, options)
+        
+        % density of cells -- nuclei or membrane based
+        measureCellDensity(QS, nuclei_or_membrane)
+        function loadCurrentNuclearDensity(QS)
+            if QS.currentData
+                disp('Loading from self')
+            else
+                disp('Loading from disk')
+            end
+        end
+        
         % spcutMeshSmStack
         generateSPCutMeshSmStack(QS, spcutMeshSmStackOptions)
         measureThickness(QS, thicknessOptions)
         phi0_fit = fitPhiOffsetsViaTexture(QS, uspace_ds_umax, vspace,...
             phi0_init, phi0TextureOpts)
-
+       
+        % spcutMeshSm coordinate system demo
+        coordinateSystemDemo(QS)
+        
         % flow measurements
         
         % compressible/incompressible flow on evolving surface
         [cumerr, HHs, divvs, velns] = measureCompressibility(QS, lambda, lambda_err)
         
     end
+    
     methods (Static)
     end
+    
 end

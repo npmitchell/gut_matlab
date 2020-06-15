@@ -1,5 +1,6 @@
 function generateCurrentPullbacks(QS, cutMesh, spcutMesh, pbOptions)
-%
+%GENERATECURRENTPULLBACKS(QS, cutMesh, spcutMesh, pbOptions)
+%   Generate 2D images of tissue mapped from 3D
 %
 % Parameters
 % ----------
@@ -55,15 +56,24 @@ if nargin < 3 || isempty(spcutMesh)
 end
 
 % Unpack pbOptions
-overwrite = false ;
-generate_uphi = false ;
-generate_uv = true ;
-generate_relaxed = true ;
+overwrite = false ;         % generate pullbacks even if they exist on disk
+generate_sphi = true ;      % generate an (s, phi) coord system pullback
+generate_relaxed = true ;   % generate a relaxed (s,phi) coord system pullback
+generate_uv = true ;        % generate a (u,v) coord system pullback
+generate_uphi = false ;     % generate a (u, phi) coord system pullback
 if nargin > 3
-    disp('Unpacking options')
+    disp('Unpacking options for which pullbacks to generate/overwrite')
     if isfield(pbOptions, 'overwrite')
         overwrite = pbOptions.overwrite ;
         pbOptions = rmfield(pbOptions, 'overwrite') ;
+    end
+    if isfield(pbOptions, 'generate_sphi')
+        generate_uv = pbOptions.generate_uv ;
+        pbOptions = rmfield(pbOptions, 'generate_uv') ;
+    end
+    if isfield(pbOptions, 'generate_relaxed')
+        generate_relaxed = pbOptions.generate_relaxed ;
+        pbOptions = rmfield(pbOptions, 'generate_relaxed') ;
     end
     if isfield(pbOptions, 'generate_uv')
         generate_uv = pbOptions.generate_uv ;
@@ -72,10 +82,6 @@ if nargin > 3
     if isfield(pbOptions, 'generate_uphi_coord')
         generate_uphi = pbOptions.generate_uphi_coord ;
         pbOptions = rmfield(pbOptions, 'generate_uphi_coord') ;
-    end
-    if isfield(pbOptions, 'generate_relaxed')
-        generate_relaxed = pbOptions.generate_relaxed ;
-        pbOptions = rmfield(pbOptions, 'generate_relaxed') ;
     end
 end
 
@@ -90,28 +96,48 @@ imFolder_up = QS.dir.im_up ;
 axisorder = QS.data.axisOrder ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fprintf('Create pullback using S,Phi coords \n');
+fprintf('Checking whether to create pullback \n');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %--------------------------------------------------------------
 % Generate Output Image Files
 %--------------------------------------------------------------
-imfn = sprintf( fullfile([imFolder, '/', fileNameBase, '_pb.tif']), tt); 
+imfn_uv = sprintf( fullfile([imFolder, '/', fileNameBase, '_pb.tif']), tt); 
 imfn_r = sprintf( fullfile([imFolder_r, '/', fileNameBase, '_pr.tif']), tt) ;
 imfn_sp = sprintf( fullfile([imFolder_sp, '/', fileNameBase, '_pbsp.tif']), tt) ;
 imfn_up = sprintf( fullfile([imFolder_up, '/', fileNameBase, '_pbup.tif']), tt) ;
-pullbacks_exist1 = exist(imfn, 'file') && exist(imfn_r, 'file') ;
-pullbacks_exist2 = exist(imfn_sp, 'file') && (exist(imfn_up, 'file') || ~generate_uphi) ;
+pullbacks_exist1 = exist(imfn_uv, 'file') || ~generate_uv ;
+pullbacks_exist2 = exist(imfn_r, 'file') || ~generate_relaxed ;
+pullbacks_exist3 = exist(imfn_sp, 'file') || ~generate_sp ;
+pullbacks_exist4 = exist(imfn_up, 'file') || ~generate_uphi ;
 
 do_pullbacks = (~pullbacks_exist1 || ~pullbacks_exist2 || overwrite) ;
 
 if do_pullbacks
+    % Declare what needs to be redone
+    if overwrite
+        disp('All pullback images will be recomputed & saved')
+    else
+        if ~pullbacks_exist1
+            disp(['(u,v) PB will be generated: ', imfn_uv])
+        end 
+        if ~pullbacks_exist2
+            disp(['Relaxed (s,phi) PB will be generated: ', imfn_r])
+        end
+        if ~pullbacks_exist3
+            disp(['(s,phi) PB will be generated: ', imfn_sp])
+        end
+        if ~pullbacks_exist4
+            disp(['(u,phi) PB will be generated: ', imfn_up])
+        end
+    end     
+    
     % Load 3D data for coloring mesh pullback
     QS.getCurrentData()
     % grab raw stack data
     IV = QS.currentData.IV ;
 end
 
-if ~exist(imfn_sp, 'file') || overwrite
+if (~exist(imfn_sp, 'file') || overwrite) && generate_sphi
     fprintf(['Generating SP output image: ' imfn_sp]);
     % Assigning field spcutMesh.u to be [s, phi] (ringpath
     % and azimuthal angle)
@@ -134,10 +160,10 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generate Output Image File -- regular UV coordinates
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if (~exist(imfn, 'file') || overwrite) && generate_uv
+if (~exist(imfn_uv, 'file') || overwrite) && generate_uv
     % Generate output image in uv
-    fprintf(['Generating output image: ' imfn]);
-    aux_generate_orbifold(cutMesh, a_fixed, IV, imfn, ...
+    fprintf(['Generating UV output image: ' imfn_uv]);
+    aux_generate_orbifold(cutMesh, a_fixed, IV, imfn_uv, ...
         pbOptions, axisorder)
 else
     disp('Skipping pullback image generation since exists')

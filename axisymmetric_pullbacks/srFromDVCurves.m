@@ -1,4 +1,5 @@
-function [mss, mcline, radii_from_mean, avgpts_ss, avgpts] = srFromDVCurves(curvesDV)
+function [mss, mcline, radii_from_mean, avgpts_ss, avgpts] = ...
+    srFromDVCurves(curvesDV)
 %SRFROMDVCURVES(curvesDV) Find new centerline, pathlength, and radii for 3D DV hoops 
 %   Given the array of 1d DV curves, compute the new centerline from
 %   averaging each hoop and resampling the string of averages. Also returns

@@ -3,6 +3,17 @@ function [length_lobes, area_lobes, volume_lobes] = aux_compute_lobe_dynamics(fo
 %AUX_COMPUTE_LOBE_DYNAMICS auxiliary function for Generate_Axisymmetric_Pullbacks_Orbifold.m
 %   Compute the lobe dynamics for all timepoints
 % 
+% Parameters
+% ----------
+% resolution : float
+%   
+% colors : (>=#lobes)x3 float array
+%   colors to use to color each lobe
+% save_ims : bool
+%   save an image of the mesh in 3d, with each lobe colored differently
+% 
+%
+%
 % NPMitchell 2019
 
 disp('Computing length_lobes...')

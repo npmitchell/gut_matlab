@@ -1,5 +1,6 @@
 function aux_plot_lobe_dynamics(length_lobes, area_lobes, volume_lobes, ...
-    timePoints, fold_onset, colors, lobe_dynamics_figfn, varargin)
+    timePoints, fold_onset, colors, lobe_dynamics_figfn, ...
+    lobedyn_figfn_scaled, t0, varargin)
 %AUX_PLOT_LOBE_DYNAMICS(length_lobes, area_lobes, volume_lobes, ...
 %    timePoints, fold_onset, colors, lobe_dynamics_figfn)
 % Auxiliary function for plotting the geometric dynamics of each lobe. 
@@ -8,6 +9,20 @@ function aux_plot_lobe_dynamics(length_lobes, area_lobes, volume_lobes, ...
 %
 % Parameters
 % ----------
+% length_lobes : 
+% area_lobes : 
+% volume_lobes : 
+% timePoints : #timepoints x 1 increasing float or int array
+%   the timepoints of the dynamic dataset, in minutes
+% fold_onset : 3x1 float array
+%   the timepoints in minutes at which folds appear in the sample
+% colors : 
+% lobe_dynamics_figfn : 
+% varargin
+%
+% Returns
+% -------
+% <none>
 %
 % NPMitchell 2020 
 
@@ -20,7 +35,7 @@ end
 close all;
 fig = figure('visible', 'off');
 fh = cell(1, nlobes) ;
-tp = timePoints - min(fold_onset) ;
+tp = timePoints - t0 ; 
 for lobe = 1:nlobes
     % Length
     subplot(3,2,1)
@@ -114,5 +129,5 @@ ylabel('Volume / V_0')
 ylim([0, 2])
 
 xlabel('time [min]')
-disp(['Saving summary to ' lobe_dynamics_figfn])
-saveas(fig, lobe_dynamics_figfn)
+disp(['Saving summary to ' lobedyn_figfn_scaled])
+saveas(fig, lobedyn_figfn_scaled)

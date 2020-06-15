@@ -1,7 +1,7 @@
 function aux_plot_writhe(timepoints, clines_resampled, ...
     Wr, Wr_density, dWr, Length_t, wrfigdir, area_volume_fn, fold_onset, Wr_style, ...
     xyzlim, clineDVhoopBase, cylinderMeshCleanBase, rot, trans, resolution, ...
-    omit_endpts, plot_fold_times)
+    flipy, omit_endpts, plot_fold_times, t0)
 %AUX_PLOT_WRITHE(Wr, Wr_density, dWr, Length_t)
 % auxiliary function for plotting writhe over time along with geometric
 % properties of length, area, and volume
@@ -67,20 +67,17 @@ saveas(fig, [outfn '.pdf'])
 saveas(fig, [outfn '.png'])
 set(gcf, 'visible', 'on')
 
-
-
-
 %% Save writhe as a figure with length, surfarea, volume
 % Do it again in stages --> the last build isn't finished right now
 % load 'aas', 'vvs', 'dt' 
-load(area_volume_fn, 'aas', 'vvs', 'dt')
+load(area_volume_fn, 'aas', 'vvs')
 % load the folding timepoints
 t0 = fold_onset(2) ;
 t1 = fold_onset(1) ;
-t2 = fold_onset(3) ;
+t3 = fold_onset(3) ;
 ind = find(timepoints == t0) ;
 okinds = 1:148 ;
-[colors, colornames] = define_colors ;
+[colors, ~] = define_colors ;
 
 for ii = 1:4
     disp(['ii = ' num2str(ii)])
@@ -129,12 +126,12 @@ for ii = 1:4
     
     if ii == 1
         % writhe on right
-        h2 = plot([1], [1])
-        h3 = plot([1], [1])
+        h2 = plot([1], [1]) ;
+        h3 = plot([1], [1]) ;
         legend({'volume', ' ', ' '}, ...
             'location', 'northwest', 'AutoUpdate', 'off')
     elseif ii == 2
-        h3 = plot([1], [1])
+        h3 = plot([1], [1]) ;
         legend({'volume', 'area', ''}, ...
             'location', 'northwest', 'AutoUpdate', 'off')
     elseif ii == 3
@@ -156,22 +153,22 @@ for ii = 1:4
     if plot_fold_times
         if ii > 3
             plot(t1 - t0, Wrc(t1-t0+ind), 'ks') ;
-            plot(t2 - t0, Wrc(t2-t0+ind), 'k^') ;
+            plot(t3 - t0, Wrc(t3-t0+ind), 'k^') ;
             plot(0, Wrc(ind), 'ko') ;
         end
 
         yyaxis left
         plot(t1 - t0, vvs(t1-t0+ind)/vvs(ind), 'ks') ;
-        plot(t2 - t0, vvs(t2-t0+ind)/vvs(ind), 'k^') ;
+        plot(t3 - t0, vvs(t3-t0+ind)/vvs(ind), 'k^') ;
         plot(0, 1, 'ko') ;
         if ii > 1
             plot(t1 - t0, aas(t1-t0+ind)/aas(ind), 'ks') ;
-            plot(t2 - t0, aas(t2-t0+ind)/aas(ind), 'k^') ;
+            plot(t3 - t0, aas(t3-t0+ind)/aas(ind), 'k^') ;
             plot(0, 1, 'ko') ;
         end
         if ii > 2
             plot(t1 - t0, lengths(t1-t0+ind)/lengths(ind), 'ks') ;
-            plot(t2 - t0, lengths(t2-t0+ind)/lengths(ind), 'k^') ;
+            plot(t3 - t0, lengths(t3-t0+ind)/lengths(ind), 'k^') ;
             plot(0, 1, 'ko') ;
         end
     end
@@ -211,16 +208,13 @@ for ii = 1:4
     export_fig(fn, '-r300', '-nocrop')
 end
 
-error('here')
-
-%%
 %% Save writhe as a figure with length, surfarea, volume
 % load 'aas', 'vvs', 'dt'
-load(area_volume_fn)
+load(area_volume_fn, 'aas', 'vvs', 'dv', 'da')
 % load the folding timepoints
-t0 = fold_onset(2) ;
+t2 = fold_onset(2) ;
 t1 = fold_onset(1) ;
-t2 = fold_onset(3) ;
+t3 = fold_onset(3) ;
 ind = find(timepoints == t0) ;
 ylims_derivs = [-0.045, 0.045];
 close all
@@ -242,17 +236,17 @@ legend({'volume', 'area', 'length'}, ...
 title('Gut dynamics', 'Interpreter', 'Latex')
 % Plot folding events
 plot(t1 - t0, Wrc(t1-t0+ind), 'ks') ;
-plot(t2 - t0, Wrc(t2-t0+ind), 'k^') ;
+plot(t3 - t0, Wrc(t3-t0+ind), 'k^') ;
 plot(0, Wrc(ind), 'ko') ;
 yyaxis left
 plot(t1 - t0, aas(t1-t0+ind)/aas(ind), 'ks') ;
-plot(t2 - t0, aas(t2-t0+ind)/aas(ind), 'k^') ;
+plot(t3 - t0, aas(t3-t0+ind)/aas(ind), 'k^') ;
 plot(0, 1, 'ko') ;
 plot(t1 - t0, vvs(t1-t0+ind)/vvs(ind), 'ks') ;
-plot(t2 - t0, vvs(t2-t0+ind)/vvs(ind), 'k^') ;
+plot(t3 - t0, vvs(t3-t0+ind)/vvs(ind), 'k^') ;
 plot(0, 1, 'ko') ;
 plot(t1 - t0, lengths(t1-t0+ind)/lengths(ind), 'ks') ;
-plot(t2 - t0, lengths(t2-t0+ind)/lengths(ind), 'k^') ;
+plot(t3 - t0, lengths(t3-t0+ind)/lengths(ind), 'k^') ;
 plot(0, 1, 'ko') ;
 
 
@@ -311,7 +305,7 @@ plot(timepoints - t0, dv / vvs(ind) * 100, '--', 'Color', vcolor) ;
 plot(timepoints - t0, da / aas(ind) * 100, '--', 'Color', acolor) ;
 plot(t0, Wrc(toff), 'k.') ;
 plot(t1 - t0, Wrc(t1 - t0 + toff), 'ko') ;
-plot(t2 - t0, Wrc(t2 - t0 + toff), 'ks') ;
+plot(t3 - t0, Wrc(t3 - t0 + toff), 'ks') ;
 set(gca, 'xlim', xlims)
 set(gca, 'ylim', ylims)
 xlabel('time [min]', 'Interpreter', 'Latex')
@@ -324,7 +318,6 @@ outfn = fullfile(wrfigdir, ['writhe_dynamics2_DVhoop_' Wr_style]) ;
 disp(['Saving figure to ' outfn])
 saveas(fig, [outfn '.pdf'])
 saveas(fig, [outfn '.png'])
-
 
 
 %% Save figures of writhe density
@@ -356,6 +349,9 @@ for ii=1:length(wr_densities)
     end
     mesh = read_ply_mod(sprintf(cylinderMeshCleanBase, t)) ;
     mesh.v = ((rot * mesh.v')' + trans) * resolution ;
+    if flipy
+        mesh.v(:, 2) = -mesh.v(:, 2) ;
+    end
     trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
         'EdgeColor', 'none', 'FaceAlpha', falph, 'FaceColor', tcolor)
     
