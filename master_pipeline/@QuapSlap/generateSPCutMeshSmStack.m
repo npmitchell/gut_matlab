@@ -1,6 +1,7 @@
 function generateSPCutMeshSmStack(QS, spcutMeshSmStackOptions)
 % generateSPCutMeshSmStack(QS, spcutMeshSmStackOptions)
-%
+%   Create TIFF stacks of normally evolved smoothed meshes in (s, phi)
+%   coordinate system.
 %
 % Parameters
 % ----------
@@ -21,6 +22,9 @@ function generateSPCutMeshSmStack(QS, spcutMeshSmStackOptions)
 % Unpack options
 n_outward = 10 ;
 n_inward = 10 ;
+layer_spacing = 1 ;
+smoothIter = 0 ;
+preSmoothIter = 0 ;
 overwrite = false ;
 if isfield(spcutMeshSmStackOptions, 'overwrite')
     overwrite = spcutMeshSmStackOptions.overwrite ;
@@ -31,7 +35,15 @@ end
 if isfield(spcutMeshSmStackOptions, 'n_inward')
     n_inward = spcutMeshSmStackOptions.n_inward ;
 end
-
+if isfield(spcutMeshSmStackOptions, 'layer_spacing')
+    layer_spacing = spcutMeshSmStackOptions.layer_spacing ;
+end
+if isfield(spcutMeshSmStackOptions, 'smoothIter')
+    smoothIter = spcutMeshSmStackOptions.smoothIter ;
+end
+if isfield(spcutMeshSmStackOptions, 'preSmoothIter')
+    preSmoothIter = spcutMeshSmStackOptions.preSmoothIter ;
+end
 
 % Unpack QS
 spcutMeshSmBase = QS.fullFileBase.spcutMeshSm ;
@@ -48,25 +60,34 @@ for qq = 1:length(QS.xp.fileMeta.timePoints)
     %--------------------------------------------------------------
     % Generate Output Image File
     %--------------------------------------------------------------
-    spacingstr = strrep(sprintf('%0.2fum', layer_spacing * resolution), '.', 'p') ;
-    imfn_spsm = sprintf( fullfile( QS.dir.im_spsm_e2, ...
+    spacingstr = strrep(sprintf('%0.2fum', layer_spacing * QS.APDV.resolution), '.', 'p') ;
+    imfn_spsm = sprintf( fullfile( QS.dir.im_sp_rsme_stack, ...
         [fileNameBase, '_%02d_%02d_' spacingstr '.tif']), tt, n_outward, n_inward ) ;
     
     if ~exist(imfn_spsm, 'file') || overwrite
         % Load 3D data for coloring mesh pullback
-        xp.getCurrentData(QS)
-        IV = adjustIV();
+        QS.getCurrentData() ;
+        IV = QS.currentData.IV ;
         
         fprintf(['Generating SP output image for sm mesh: ' imfn_spsm]);
         % Assigning field spcutMesh.u to be [s, phi] (ringpath
         % and azimuthal angle)
         Options.numLayers = [n_outward, n_inward] ;
         Options.layerSpacing = layer_spacing ;
-        Options.smoothIter = 1 ;
+        Options.smoothIter = smoothIter ;
+        Options.preSmoothIter = preSmoothIter ;
         Options.yLim = [-0.5, 1.5] ;
+        
         % Note that we pass a_fixed * 0.5 since the image is extended by a
         % factor of two
-        aux_generate_orbifold( spcutMeshSm, a_fixed * 0.5, IV, imfn_spsm, Options)
+        % Compute relaxed aspect ratio
+        tmp = spcutMeshSm.u ;
+        tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
+        arspsm = minimizeIsoarealAffineEnergy( spcutMeshSm.f, spcutMeshSm.v, tmp );
+                
+        % aux_generate_orbifold( spcutMeshSm, QS.a_fixed * 0.5, IV, imfn_spsm, Options)
+        aux_generate_orbifold( spcutMeshSm, arspsm * 0.5, IV, imfn_spsm, Options)
+        % error('stopping here')
     end
     clear Options
 end

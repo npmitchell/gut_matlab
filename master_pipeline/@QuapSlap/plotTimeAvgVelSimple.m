@@ -1,3 +1,9 @@
+function plotTimeAvgVelSimple(QS, options) 
+
+%% Unpack QS
+pivSimAvgDir = QS.dir.pivSimAvg ;
+
+
 % Auxiliary function for plotting smoothed meshes
 
 %% Define directories
@@ -29,8 +35,6 @@ end
 %% Make plots
 % get size of images to make
 gridsz = size(piv.x{1}) ;
-bottom = round(gridsz(1) * 0.25) ;
-top = round(gridsz(1) * 0.75) ;
 % Display the velocities
 close all
 fig = figure('visible', 'off') ;
@@ -42,8 +46,7 @@ for i = 1:size(vsmM, 1)
     dilfn = fullfile(dilDir, [sprintf('%04d', time(i)) '.png']) ;
     vxyorigfn = fullfile(vxyorigDir, [sprintf('%04d', time(i)) '.png']) ;
     speedfn = fullfile(pivSimAvgImSDir, [sprintf('%04d', time(i)) '.png']) ;
-    shearfn = fullfile(pivSimAvgImShearDir, [sprintf('%04d', time(i)) '.png']) ;
-
+    
     % grab the tangential velocity for this timestep
     vsm_ii = squeeze(vsmM(i, :, :)) ;
     v2dsmum_ii = squeeze(v2dsmMum(i, :, :)) ;
@@ -179,92 +182,100 @@ for i = 1:size(vsmM, 1)
             piv.u_filtered{i}, piv.v_filtered{i}, 15, opts) ;
         clearvars opts
     end
-
-    % % Plot divergence
-    % if ~exist(dvgfn, 'file') || overwrite_vsm_plots 
-    % 
-    %     vxb = imgaussfilt(vx, 10) ;
-    %     vyb = imgaussfilt(vy, 10) ;
-    % 
-    %     % Interpolate dilation onto locations where curl is defined
-    %     % Di = scatteredInterpolant(tm0X, tm0Y, dilation_allfaces) ;
-    %     % tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
-    %     % [subfieldfaces, ~] = pointLocation(tr0, [xx(:), yy(:)]) ;
-    %     % dilv = dilation_allfaces(subfieldfaces) ;
-    % 
-    %     dilum = reshape(piv3d{i}.dilation / resolution, size(vxb)) ;
-    %     dvg = divergence(piv.x{i}, piv.y{i}, vxb, vyb) .* dilum;
-    %     opts.label = '$\nabla \cdot v_t$ [min$^{-1}$]' ;
-    %     opts.title = [ '$t=$' num2str(time(i)) ' min' ] ;
-    %     opts.outfn = dvgfn ;
-    %     opts.qscale = 10 ;
-    %     opts.sscale = 1.0 ;
-    %     opts.alpha = 0.8 ;
-    %     opts.ylim = [size(im, 2) * 0.25, size(im, 2) * 0.75] ;
-    %     scalarVectorFieldsOnImage(im, xx, yy, ...
-    %         dvg, xx, yy, vxb, vyb, opts) ;
-    %     clearvars opts
-    % end
-    % 
-    % % Plot curl
-    % if ~exist(curlfn, 'file') || overwrite_vsm_plots || true
-    %     % xd = xx(1:10:end) ;
-    %     % yd = yy(1:10:end) ;
-    %     % xdgrid = xd .* ones(length(xd), length(yd)) ; 
-    %     % ydgrid = (xd .* ones(length(yd), length(xd)))' ; 
-    %     % check it
-    %     % scatter(xdgrid(:), ydgrid(:), 10, xdgrid(:))
-    % 
-    %     % Interpolate dilation onto locations where curl is defined
-    %     % Di = scatteredInterpolant(tm0X, tm0Y, dilation_allfaces) ;
-    %     % tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
-    %     % [subfieldfaces, ~] = pointLocation(tr0, [xx(:), yy(:)]) ;
-    %     % dilv = dilation_allfaces(subfieldfaces) ;
-    % 
-    %     dilum = reshape(piv3d{i}.dilation / resolution, size(vxb)) ;
-    %     curlv = curl(piv.x{i}, piv.y{i}, vxb, vyb) ;
-    %     curlv = curlv .* dilum ;
-    %     opts.title = [ '$t=$' num2str(time(i)) ' min' ] ;
-    %     opts.label = '$\nabla \times v_t$ [min$^{-1}$]' ;
-    %     opts.outfn = curlfn ;
-    %     opts.qscale = 10 ;
-    %     opts.sscale = 0.5 ;
-    %     opts.alpha = 0.8 ;
-    %     opts.ylim = [size(im, 2) * 0.25, size(im, 2) * 0.75] ;
-    %     scalarVectorFieldsOnImage(im, xx, yy, ...
-    %         curlv, xx, yy, vxb, vyb, opts) ;
-    %     clearvars opts
-    % end
-    % 
-    % % Plot strain dv_phi/ds on image
-    % if ~exist(shearfn, 'file') || overwrite_vsm_plots || true
-    %     % xd = xx(1:10:end) ;
-    %     % yd = yy(1:10:end) ;
-    %     % xdgrid = xd .* ones(length(xd), length(yd)) ; 
-    %     % ydgrid = (xd .* ones(length(yd), length(xd)))' ; 
-    %     % check it
-    %     % scatter(xdgrid(:), ydgrid(:), 10, xdgrid(:))
-    % 
-    %     % Interpolate dilation onto locations where curl is defined
-    %     % Di = scatteredInterpolant(tm0X, tm0Y, dilation_allfaces) ;
-    %     % tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
-    %     % [subfieldfaces, ~] = pointLocation(tr0, [xx(:), yy(:)]) ;
-    %     % dilv = dilation_allfaces(subfieldfaces) ;
-    % 
-    %     dilum = reshape(piv3d{i}.dilation / resolution, size(vxb)) ;
-    %     dvphidX = gradient(vyb, xx(2) - xx(1), yy(2) - yy(1)) ;
-    %     dvphids = dvphidX .* dilum ;
-    %     opts.title = [ '$t=$' num2str(time(i)) ' min' ] ;
-    %     opts.label = '$\nabla_s v_{\phi}$ [min$^{-1}$]' ;
-    %     opts.outfn = shearfn ;
-    %     opts.qscale = 10 ;
-    %     opts.sscale = 0.5 ;
-    %     opts.alpha = 0.8 ;
-    %     opts.ylim = [size(im, 2) * 0.25, size(im, 2) * 0.75] ;
-    %     scalarVectorFieldsOnImage(im, xx, yy, ...
-    %         dvphids, xx, yy, vxb, vyb, opts) ;
-    %     clearvars opts
-    % end
-
         
 end
+
+
+
+
+% RETIRED CODE: DIVERGENCE, CURL, and SHEAR (these are crude, replaced
+% by DEC) 
+%
+%
+% shearfn = fullfile(pivSimAvgImShearDir, [sprintf('%04d', time(i)) '.png']) ;
+%
+% % Plot divergence
+% if ~exist(dvgfn, 'file') || overwrite_vsm_plots 
+% 
+%     vxb = imgaussfilt(vx, 10) ;
+%     vyb = imgaussfilt(vy, 10) ;
+% 
+%     % Interpolate dilation onto locations where curl is defined
+%     % Di = scatteredInterpolant(tm0X, tm0Y, dilation_allfaces) ;
+%     % tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
+%     % [subfieldfaces, ~] = pointLocation(tr0, [xx(:), yy(:)]) ;
+%     % dilv = dilation_allfaces(subfieldfaces) ;
+% 
+%     dilum = reshape(piv3d{i}.dilation / resolution, size(vxb)) ;
+%     dvg = divergence(piv.x{i}, piv.y{i}, vxb, vyb) .* dilum;
+%     opts.label = '$\nabla \cdot v_t$ [min$^{-1}$]' ;
+%     opts.title = [ '$t=$' num2str(time(i)) ' min' ] ;
+%     opts.outfn = dvgfn ;
+%     opts.qscale = 10 ;
+%     opts.sscale = 1.0 ;
+%     opts.alpha = 0.8 ;
+%     opts.ylim = [size(im, 2) * 0.25, size(im, 2) * 0.75] ;
+%     scalarVectorFieldsOnImage(im, xx, yy, ...
+%         dvg, xx, yy, vxb, vyb, opts) ;
+%     clearvars opts
+% end
+% 
+% % Plot curl
+% if ~exist(curlfn, 'file') || overwrite_vsm_plots || true
+%     % xd = xx(1:10:end) ;
+%     % yd = yy(1:10:end) ;
+%     % xdgrid = xd .* ones(length(xd), length(yd)) ; 
+%     % ydgrid = (xd .* ones(length(yd), length(xd)))' ; 
+%     % check it
+%     % scatter(xdgrid(:), ydgrid(:), 10, xdgrid(:))
+% 
+%     % Interpolate dilation onto locations where curl is defined
+%     % Di = scatteredInterpolant(tm0X, tm0Y, dilation_allfaces) ;
+%     % tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
+%     % [subfieldfaces, ~] = pointLocation(tr0, [xx(:), yy(:)]) ;
+%     % dilv = dilation_allfaces(subfieldfaces) ;
+% 
+%     dilum = reshape(piv3d{i}.dilation / resolution, size(vxb)) ;
+%     curlv = curl(piv.x{i}, piv.y{i}, vxb, vyb) ;
+%     curlv = curlv .* dilum ;
+%     opts.title = [ '$t=$' num2str(time(i)) ' min' ] ;
+%     opts.label = '$\nabla \times v_t$ [min$^{-1}$]' ;
+%     opts.outfn = curlfn ;
+%     opts.qscale = 10 ;
+%     opts.sscale = 0.5 ;
+%     opts.alpha = 0.8 ;
+%     opts.ylim = [size(im, 2) * 0.25, size(im, 2) * 0.75] ;
+%     scalarVectorFieldsOnImage(im, xx, yy, ...
+%         curlv, xx, yy, vxb, vyb, opts) ;
+%     clearvars opts
+% end
+% 
+% % Plot strain dv_phi/ds on image
+% if ~exist(shearfn, 'file') || overwrite_vsm_plots || true
+%     % xd = xx(1:10:end) ;
+%     % yd = yy(1:10:end) ;
+%     % xdgrid = xd .* ones(length(xd), length(yd)) ; 
+%     % ydgrid = (xd .* ones(length(yd), length(xd)))' ; 
+%     % check it
+%     % scatter(xdgrid(:), ydgrid(:), 10, xdgrid(:))
+% 
+%     % Interpolate dilation onto locations where curl is defined
+%     % Di = scatteredInterpolant(tm0X, tm0Y, dilation_allfaces) ;
+%     % tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
+%     % [subfieldfaces, ~] = pointLocation(tr0, [xx(:), yy(:)]) ;
+%     % dilv = dilation_allfaces(subfieldfaces) ;
+% 
+%     dilum = reshape(piv3d{i}.dilation / resolution, size(vxb)) ;
+%     dvphidX = gradient(vyb, xx(2) - xx(1), yy(2) - yy(1)) ;
+%     dvphids = dvphidX .* dilum ;
+%     opts.title = [ '$t=$' num2str(time(i)) ' min' ] ;
+%     opts.label = '$\nabla_s v_{\phi}$ [min$^{-1}$]' ;
+%     opts.outfn = shearfn ;
+%     opts.qscale = 10 ;
+%     opts.sscale = 0.5 ;
+%     opts.alpha = 0.8 ;
+%     opts.ylim = [size(im, 2) * 0.25, size(im, 2) * 0.75] ;
+%     scalarVectorFieldsOnImage(im, xx, yy, ...
+%         dvphids, xx, yy, vxb, vyb, opts) ;
+%     clearvars opts
+% end

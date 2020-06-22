@@ -1,8 +1,9 @@
-function [pts, fieldfaces, tr0] = interpolate2Dpts_3Dmesh(faces, v2d, v3d, uv)
+function [pts, fieldfaces, tr0] = ...
+    interpolate2Dpts_3Dmesh(faces, v2d, v3d, uv)
 %INTERPOLATE2DPTS_3DMESH Map points in 2D to 3D using mesh faces  
 %   Map points in 2D space living in 2D representation of a mesh to 3D
 %   space living on the 3D representation of the same mesh, using
-%   barycentric coordinates.
+%   barycentric coordinates. 
 %
 % Parameters
 % ----------
@@ -23,6 +24,8 @@ function [pts, fieldfaces, tr0] = interpolate2Dpts_3Dmesh(faces, v2d, v3d, uv)
 %   indices into faces of the faces on which uv live. These are where 
 %   the supplied field uv is defined on the mesh, and where the output
 %   pts live on the 3d mesh.
+% tr0 : triangulation object
+%   triangulation of the input faces and 2d vertices (v2d)
 %
 % NPMitchell 2019
 
@@ -67,7 +70,6 @@ pts = [sum(baryc0 .* vxa(tria), 2), ...
 % Handle case where there are NaNs
 pts(bad, :) = NaN  ;
 fieldfaces(bad) = NaN ;
-
 
 %%%
 % Note: an alternative method is to interpolate

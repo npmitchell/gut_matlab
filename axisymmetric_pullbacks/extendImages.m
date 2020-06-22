@@ -1,4 +1,4 @@
-function extendImages(directory, direc_e, fnsearch, options)
+function extendImages(directory, direc_e, fnbase, timePoints, options)
 % EXTENDIMAGES(directory, direc_e, fileNameBase) Repeat an image above and
 % below, and equilize histograms in ntiles in each dimension
 %
@@ -6,23 +6,25 @@ function extendImages(directory, direc_e, fnsearch, options)
 %   path to the existing images
 % direc_e : str
 %   path to the place where extended images are to be saved
-% fnsearchstr : str
+% fnbase : str
 %   The file name of the images to load and save
 % options : struct with fields (default is no histeq, overwrite==true)
-%     histeq : bool
-%         whether to equilize the LUT in tiles across the image
-%     a_fixed : float
-%         The aspect ratio of the pullback image: Lx / Ly
-%     ntiles : int 
-%         The number of bins in each dimension for histogram equilization for a
-%         square original image. That is, the extended image will have (a_fixed *
-%         ntiles, 2 * ntiles) bins in (x,y).
-%     overwrite : bool
-%         overwrite the existing extended image on disk
+%   outFnBase : str, default=fnbase
+%       the output filename base for each extended image
+%   histeq : bool
+%       whether to equilize the LUT in tiles across the image
+%   a_fixed : float
+%       The aspect ratio of the pullback image: Lx / Ly
+%   ntiles : int 
+%       The number of bins in each dimension for histogram equilization for a
+%       square original image. That is, the extended image will have (a_fixed *
+%       ntiles, 2 * ntiles) bins in (x,y).
+%   overwrite : bool
+%       overwrite the existing extended image on disk
 %
 % NPMitchell 2019 
 
-if nargin > 2 
+if nargin > 3
     if isfield(options, 'histeq')
         histeq = options.histeq ;
     else
@@ -31,34 +33,42 @@ if nargin > 2
     if isfield(options, 'overwrite')
         overwrite = options.overwrite ;
     else
-        overwrite = true ;
+        overwrite = false ;
+    end
+    if isfield(options, 'outFnBase')
+        outFnBase = options.outFnBase  ;
+    else
+        outFnBase = fnbase ;
     end
 else
     histeq = false ;
+    outFnBase = fnbase ;
 end
 
-% searchfn = strrep(fullfile(directory, [fileNameBase, '.tif']), '%06d', '*') ;
-disp(['Searching for files: ' fnsearch])
-fns = dir(fullfile(directory, fnsearch)) ;
-% Get original image size
-im = imread(fullfile(fns(1).folder, fns(1).name)) ;
-halfsize = round(0.5 * size(im, 1)) ;
+% disp(['Searching for files: ' fnbase])
+% fns = dir(fullfile(directory, fnbase)) ;
+% % Get original image size
+% im = imread(fullfile(fns(1).folder, fns(1).name)) ;
+% halfsize = round(0.5 * size(im, 1)) ;
 % osize = size(im) ;
 
 % Extend each timepoint's image
-for i=1:length(fns)
-    outfn = fullfile(direc_e, fns(i).name) ;
-    if ~exist(outfn, 'file') || overwrite 
+for tp=timePoints
+    outfn = fullfile(direc_e, sprintf(outFnBase, tp)) ;
+    if ~exist(outfn, 'file') || overwrite
+        infn = fullfile(directory, sprintf(fnbase, tp)) ;
+        
         % Declare if we are overwriting the file
-        if exist(fullfile(direc_e, fns(i).name), 'file') 
-            disp(['Overwriting ' fullfile(direc_e, fns(i).name)])
+        if exist(outfn, 'file') 
+            disp(['Overwriting ' sprintf(outFnBase, tp) ': ' outfn])
         else
-            disp(['Generating ' fullfile(direc_e, fns(i).name)])
+            disp(['Generating ' sprintf(outFnBase, tp) ': ' outfn])
         end
-        disp(['Reading ' fns(i).name])
+        disp(['Reading ' sprintf(fnbase, tp) ': ' infn])
         % fileName = split(fns(i).name, '.tif') ;
         % fileName = fileName{1} ;
-        im = imread(fullfile(fns(i).folder, fns(i).name)) ;
+        im = imread(infn) ;
+        halfsize = round(0.5 * size(im, 1)) ;
 
         % im2 is as follows:
         % [ im(end-halfsize) ]

@@ -91,7 +91,6 @@ for ii=1:length(timePoints)
     boundaryfn = sprintf(QS.fullFileBase.apBoundary, tt) ;
     outapd_boundaryfn = sprintf(QS.fullFileBase.apBoundaryDorsalPts, tt) ;
     
-    
     %% Read the mesh
     disp(['Loading mesh ' name]) ;
     
@@ -99,11 +98,16 @@ for ii=1:length(timePoints)
     if overwrite || ~exist(outfn, 'file') || ~exist(keepfn, 'file')
         if exist(outfn, 'file')
             disp(['Overwriting cylinder mesh: ' outfn])
-            error('either overwriting or keepfn does not exist. DEBUG')
+        else
+            disp(['Cylinder mesh not on disk: ' outfn])
         end
         if exist(keepfn, 'file')
             disp(['Overwriting keep indices: ' keepfn])
+        else
+            disp(['Keep indices not on disk: ' keepfn])
         end
+        
+        error('Debug: do not overwrite, does not exist. DEBUG')
         disp(['Computing endcaps for ' name])
                
         mesh = read_ply_mod(sprintf(meshfn, tt));

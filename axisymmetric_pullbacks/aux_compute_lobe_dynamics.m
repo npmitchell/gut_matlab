@@ -1,12 +1,30 @@
-function [length_lobes, area_lobes, volume_lobes] = aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, timePoints, ...
+function [length_lobes, area_lobes, volume_lobes] = ...
+    aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, timePoints, ...
     spcutMeshBase, nV, nU, rot, trans, resolution, xyzlim, colors, save_ims, overwrite_lobeims)
 %AUX_COMPUTE_LOBE_DYNAMICS auxiliary function for Generate_Axisymmetric_Pullbacks_Orbifold.m
 %   Compute the lobe dynamics for all timepoints
 % 
 % Parameters
 % ----------
-% resolution : float
-%   
+% folds : 
+% ssfold :
+% ssmax : 
+% lobeDir :  str
+%   the path to where lobe information/data/images are stored
+% timePoints : #timepoints x 1 float array
+%   the time in minutes of each frame
+% spcutMeshBase : str
+%   full file path to the (s,phi) coord sys cylinder cut mesh
+% nV : int
+%   sampling number along DV axis
+% nU : int 
+%   sampling number along AP axis
+% rot : 3x3 float array
+%   rotation matrix transforming data into APDV coord sys
+% trans : 1x3 float array
+%   translation to perform after rotation to move APDV coord sys to origin
+% resolution : float 
+%   um / pixel conversion for data 
 % colors : (>=#lobes)x3 float array
 %   colors to use to color each lobe
 % save_ims : bool

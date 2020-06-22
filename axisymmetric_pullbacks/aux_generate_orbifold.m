@@ -1,4 +1,4 @@
-function aux_generate_orbifold(cutMesh, a, IV, imfn, Options, axisorder)
+function aux_generate_orbifold(cutMesh, a, IV, imfn, Options, axisorder, save_as_stack)
 %AUX_GENERATE_ORBIFOLD(cutMesh, a, IV, imfn)
 % called by QuapSlap.generateCurrentPullbacks()
 %
@@ -31,6 +31,10 @@ function aux_generate_orbifold(cutMesh, a, IV, imfn, Options, axisorder)
 %                               Format is [ (num +), (num -) ]
 %       - Options.layerSpacing: The spacing between adjacent onion layers
 %                               in units of pixels
+%       - Options.preSmoothIter:   Number of iterations of Laplacian mesh
+%                               smoothing to run on the mesh prior to
+%                               vertex normal displacement (requires
+%                               GPToolBox) (Default is 0)
 %       - Options.smoothIter:   Number of iterations of Laplacian mesh
 %                               smoothing to run on the mesh prior to
 %                               vertex normal displacement (requires
@@ -46,6 +50,31 @@ function aux_generate_orbifold(cutMesh, a, IV, imfn, Options, axisorder)
 tileCount = [1 1];  % how many above, how many below
 [ TF, TV2D, TV3D ] = tileAnnularCutMesh( cutMesh, tileCount );
 
+if isfield(Options, 'preSmoothIter')
+    preSmoothIter = Options.preSmoothIter ;
+else
+    preSmoothIter = 0 ;
+end
+
+% Before making pullback, smooth surface
+if preSmoothIter > 0
+    disp(['Smoothing mesh before passing to texture_patch_to_image(): iter=' num2str(preSmoothIter)])
+    % Hold the positions of the boundary vertices fixed under smoothing
+    % to avoid mesh collapse
+    realTri = triangulation(TF, TV3D) ;
+    bdyIDx = unique(realTri.freeBoundary);
+    
+    % check it
+    % trisurf(TF, TV3D(:, 1), TV3D(:, 2), TV3D(:, 3), TV3D(:, 2), 'edgecolor', 'none')
+    % hold on;
+    TV3D = laplacian_smooth( TV3D, TF, 'cotan', ...
+        bdyIDx, 0.1, 'implicit', TV3D, preSmoothIter );
+    
+    % Check smoothed mesh on top
+    % trisurf(TF, TV3D(:, 1), TV3D(:, 2), TV3D(:, 3), TV3D(:, 2), 'facecolor', 'none')
+    % waitfor(gcf)
+end
+
 % View Results -------------------------------------------------------
 % patch( 'Faces', TF, 'Vertices', TV2D, 'FaceVertexCData', ...
 %     TV3D(:,3), 'FaceColor', 'interp', 'EdgeColor', 'k' );
@@ -56,6 +85,21 @@ if nargin < 5
 end
 if nargin < 6
     axisorder = [1 2 3] ;
+end
+if nargin < 7
+    if isfield(Options, 'numLayers')
+        if ~isempty(Options.numLayers)
+            if any(Options.numLayers)
+                save_as_stack = true ;
+            else
+                save_as_stack = false ;
+            end
+        else
+            save_as_stack = false ; 
+        end
+    else
+        save_as_stack = false ;
+    end
 end
 
 % Texture image options
@@ -101,13 +145,19 @@ fprintf('Done\n');
 % Write figure to file
 disp(['Writing ' imfn]) 
 if length(size(patchIm)) < 3
-    imwrite( patchIm, imfn, 'TIFF' );            
-else
+    % Image is 2d, save using imwrite
+    imwrite( patchIm, imfn, 'TIFF' ) ;
+elseif save_as_stack
+    % image is 3d
     disp('Saving using saveastiff()')
     tiffoptions.overwrite = true ;
-    max(patchIm(:))
     dat = uint8(255 * patchIm) ;
     saveastiff( dat, imfn, tiffoptions) ;
+else
+    disp('Taking MIP and saving as image')
+    dat = max(patchIm, [], 3) ;
+    dat = uint8(255 * dat) ;
+    imwrite( dat, imfn, 'TIFF') ;
 end
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

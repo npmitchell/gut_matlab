@@ -28,9 +28,17 @@ function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
 %
 % Returns
 % -------
-% ssmax : N x 1 float array
-%   Maximum pathlength for each timepoint
-% rmax
+% fold_onset : #folds x 1 float
+%   timestamps (not indices) of fold onset
+% folds : #timepoints x #folds int
+%   indices of nU sampling of folds
+% ssmax : #timepoints x 1 float
+%   maximum length of the centerline for each timepoint
+% ssfold : #timepoints x #folds float
+%   positional pathlength along centerline of folds
+% rmax : #timepoints x 1 float
+%   maximum radius of any part of the surface at each timepoint
+%         
 %
 %
 % NPMitchell 2019

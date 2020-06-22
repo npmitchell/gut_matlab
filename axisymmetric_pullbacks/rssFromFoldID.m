@@ -14,12 +14,12 @@ function [rssfold, rssfold_frac, rssmax] = rssFromFoldID(folds, timePoints, sphi
 % Returns
 % -------
 % rssfold : N x 1 float array
-%   ringpath pathlength (ringpath_ss) evaluated at fold locations
+%   ringpath proper pathlength (ringpath_ss) evaluated at fold locations
 % rssfold : N x 1 float array
-%   ringpath pathlength (ringpath_ss) evaluated at fold locations as
+%   ringpath proper pathlength (ringpath_ss) evaluated at fold locations as
 %   fraction of total ringpath length
 % rssmax : N x 1 float array
-%   Maximum ringpath pathlength at each timepoint
+%   Maximum proper ringpath pathlength at each timepoint
 %
 %
 % NPMitchell 2019

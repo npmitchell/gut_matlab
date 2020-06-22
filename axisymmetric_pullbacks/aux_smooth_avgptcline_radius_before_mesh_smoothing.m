@@ -2,17 +2,17 @@ function aux_smooth_avgptcline_radius_before_mesh_smoothing(...
     overwrite_spcutMesh_smoothradii, timePoints, ...
     spcutMeshBase, clineDVhoopBase, ...
     radiusImDir, rot, trans, resolution, xyzlim, nU, nV)
-    %AUX_SMOOTH_AVGPTCLINE_RADIUS_BEFORE_MESH_SMOOTHING
-    %
-    % Parameters
-    % ----------
-    % timePoints :
-    %   same as xp.fileMeta.timePoints
-    %
-    % Returns
-    % -------
-    % 
-    % NPMitchell 2020
+%AUX_SMOOTH_AVGPTCLINE_RADIUS_BEFORE_MESH_SMOOTHING
+%
+% Parameters
+% ----------
+% timePoints :
+%   same as xp.fileMeta.timePoints
+%
+% Returns
+% -------
+% 
+% NPMitchell 2020
 
 redo_smoothed_centerline_and_radius = overwrite_spcutMesh_smoothradii ;
 kk = 1;
@@ -195,4 +195,5 @@ if redo_smoothed_centerline_and_radius
     end
 end
 disp('done')
+
 % note: see extract_radius_from_DVhoops for old version of radius plotting

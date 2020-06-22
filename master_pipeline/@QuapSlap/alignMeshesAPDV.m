@@ -1,4 +1,5 @@
-function [rot, trans, xyzlim_raw, xyzlim, xyzlim_um] = alignMeshesAPDV(acom_sm, pcom_sm, opts)
+function [rot, trans, xyzlim_raw, xyzlim, xyzlim_um, xyzlim_um_buff] = ...
+    alignMeshesAPDV(QS, acom_sm, pcom_sm, opts)
 % ALIGNMESHESAPDV(opts) 
 % Uses anterior, posterior, and dorsal training in ilastik h5 output to
 % align meshes along APDV coordinate system. Extracted COMs from the 
@@ -18,6 +19,19 @@ function [rot, trans, xyzlim_raw, xyzlim, xyzlim_um] = alignMeshesAPDV(acom_sm, 
 %   smwindow      : float or int
 %       number of timepoints over which we smooth
 %
+% Returns
+% -------
+% xyzlim_raw : 
+%   xyzlimits of raw meshes in units of full resolution pixels (ie not
+%   downsampled)
+% xyzlim : 
+%   xyzlimits of rotated and translated meshes in units of full resolution 
+%   pixels (ie not downsampled)
+% xyzlim_um : 
+%   xyz limits of rotated and translated meshes in microns
+% xyzlim_um_buff : 
+%   xyz limits of rotated and translated meshes in microns, with padding of
+%   QS.normalShift * resolution in every dimension
 %
 % OUTPUTS
 % -------
@@ -85,9 +99,10 @@ end
 % Data file names
 rotname = fullfile(meshDir, 'rotation_APDV.txt') ;
 transname = fullfile(meshDir, 'translation_APDV.txt') ;
-xyzlimname_raw = fullfile(meshDir, 'xyzlim.txt') ;
-xyzlimname = fullfile(meshDir, 'xyzlim_APDV.txt') ;
-xyzlimname_um = fullfile(meshDir, 'xyzlim_APDV_um.txt') ;
+xyzlimname_raw = QS.fileName.xyzlim_raw ;
+xyzlimname_pix = QS.fileName.xyzlim_pix ;
+xyzlimname_um = QS.fileName.xyzlim_um ;
+xyzlimname_um_buff = QS.fileName.xyzlim_um_buff ;
 % Name output directory for apdv info
 apdvoutdir = opts.apdvoutdir ;
 outapdvname = fullfile(apdvoutdir, 'apdv_coms_rs.h5') ;
@@ -530,10 +545,16 @@ for tidx = 1:length(timePoints)
     
     % Flip in Y if data is reflected across XZ
     if flipy
-        xyzrs = [xyzrs(:, 1), -xyzrs(:, 2), xyzrs(:, 3)] ;
-        sptrs = [sptrs(1), -sptrs(2), sptrs(3)] ;
-        eptrs = [eptrs(1), -eptrs(2), eptrs(3)] ;
-        dptrs = [dptrs(1), -dptrs(2), dptrs(3)] ;
+        % Note: since normals point inward along y when y is flipped, it
+        % remains only to flip normals along X and Z in the second line.
+        xyzrs = [xyzrs(:, 1), -xyzrs(:, 2), xyzrs(:, 3)] ;  % flip vertices
+        vn_rs = [-vn_rs(:, 1), vn_rs(:, 2), -vn_rs(:, 3)] ; % flip normals > normals point inward
+        sptrs = [sptrs(1), -sptrs(2), sptrs(3)] ;           % flip startpt
+        eptrs = [eptrs(1), -eptrs(2), eptrs(3)] ;           % flip endpt
+        dptrs = [dptrs(1), -dptrs(2), dptrs(3)] ;           % flip dorsalpt
+    else
+        vn_rs = -vn_rs ;    % flip normals > normals point inward 
+        mesh.f = mesh.f(:, [1, 3, 2]) ;
     end
     
     %% Update our estimate for the true xyzlims
@@ -580,11 +601,10 @@ for tidx = 1:length(timePoints)
         hold on;
         xyz = vtx_sub;
         
-        if flipy
-            faces_to_plot = mesh.f(:, [2, 1, 3]) ;
-        else
-            faces_to_plot = mesh.f ;
-        end
+        % Aligned meshes have inward pointing normals, so flip them for
+        % plotting ambient occlusion (irrespective of flipy, I believe)
+        faces_to_plot = mesh.f(:, [2, 1, 3]) ;
+        
         tmp2 = trisurf(faces_to_plot, xyz(:, 1), xyz(:,2), xyz(:, 3), ...
             xyz(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.5) ;
         clearvars faces_to_plot
@@ -826,12 +846,23 @@ for tidx = 1:length(timePoints)
     toc
 end
 
+% Todo: save raw xyzlim in full resolution pixels but not rotated/scaled
+% Save xyzlim_raw
+if overwrite || ~exist(xyzlimname_raw, 'file')
+    disp('Saving rot/trans mesh xyzlimits for plotting')
+    header = 'xyzlimits for raw meshes in units of full resolution pixels' ;
+    xyzlim = [xmin, xmax; ymin, ymax; zmin, zmax] ;
+    write_txt_with_header(xyzlimname_raw, xyzlim, header) ;
+else
+    xyzlim_raw = [xmin, xmax; ymin, ymax; zmin, zmax] ;
+end
+
 % Save xyzlimits 
-if overwrite || ~exist(xyzlimname, 'file')
+if overwrite || ~exist(xyzlimname_pix, 'file')
     disp('Saving rot/trans mesh xyzlimits for plotting')
     header = 'xyzlimits for rotated translated meshes in units of full resolution pixels' ;
     xyzlim = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] / resolution;
-    write_txt_with_header(xyzlimname, xyzlim, header) ;
+    write_txt_with_header(xyzlimname_pix, xyzlim, header) ;
 else
     xyzlim = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] / resolution;
 end
@@ -842,6 +873,15 @@ if overwrite || ~exist(xyzlimname_um, 'file')
     header = 'xyzlimits for rotated translated meshes in microns' ;
     xyzlim_um = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] ;
     write_txt_with_header(xyzlimname_um, xyzlim_um, header) ;
+end
+
+% Save buffered xyzlimits in um
+if overwrite || ~exist(xyzlimname_um_buff, 'file')
+    disp('Saving rot/trans mesh xyzlimits for plotting, in microns')
+    header = 'xyzlimits for rotated translated meshes in microns, with padding (buffered)' ;
+    xyzlim_um = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] ;
+    xyzlim_um_buff = xyzlim_um + QS.normalShift * resolution * [-1, 1] ;
+    write_txt_with_header(xyzlimname_um_buff, xyzlim_um_buff, header) ;
 end
 
 disp('done')

@@ -1,6 +1,8 @@
 function [eIDx, feIDx, bulkEdgeIDx] = topologicalStructureTools(tri)
 % TOPOLOGICALSTRUCTURETOOLS(tri)
-%
+%   Compute topological structure tools of triangulation: bond list, face
+%   bond IDs, and label of whether bonds are in bulk or edge
+% 
 % Parameters
 % ----------
 % tri : triangulation object 
@@ -11,7 +13,8 @@ function [eIDx, feIDx, bulkEdgeIDx] = topologicalStructureTools(tri)
 % eIDx : #bonds x 2 int
 %   bond vertex IDs
 % feIDx : #faces x 3 int
-%   face bond IDs
+%   face bond IDs. feIDx(i, :) gives the bond indices (indices into eIDx) 
+%   of face i. 
 % bulkEdgeIDx : #bonds x 1 int
 %   label of whether in bulk (0) or on edge (1)
 %

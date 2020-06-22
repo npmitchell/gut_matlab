@@ -1,5 +1,6 @@
-function generateCurrentPullbacks(QS, cutMesh, spcutMesh, pbOptions)
-%GENERATECURRENTPULLBACKS(QS, cutMesh, spcutMesh, pbOptions)
+function generateCurrentPullbacks(QS, cutMesh, spcutMesh, ...
+    spcutMeshSm, pbOptions)
+%GENERATECURRENTPULLBACKS(QS, cutMesh, spcutMesh, spcutMeshSm, pbOptions)
 %   Generate 2D images of tissue mapped from 3D
 %
 % Parameters
@@ -40,7 +41,51 @@ function generateCurrentPullbacks(QS, cutMesh, spcutMesh, pbOptions)
 %
 % NPMitchell 2020
 
-% Unpack options
+%% Unpack pbOptions
+overwrite = false ;         % generate pullbacks even if they exist on disk
+generate_sphi    = true  ;  % generate an (s, phi) coord system pullback
+generate_relaxed = false ;  % generate a relaxed (s,phi) coord system pullback
+generate_uv      = false ;  % generate a (u,v) coord system pullback
+generate_uphi    = false ;  % generate a (u, phi) coord system pullback
+generate_spsm    = false ;  % generate an (s, phi) coord system smoothed mesh pullback
+generate_rsm     = false ;  % generate a relaxed (s, phi) coord system smoothed mesh pullback
+% Other options
+save_as_stack    = false ;
+
+% Replace defaults
+if nargin > 4
+    disp('Unpacking options for which pullbacks to generate/overwrite')
+    if isfield(pbOptions, 'overwrite')
+        overwrite = pbOptions.overwrite ;
+        pbOptions = rmfield(pbOptions, 'overwrite') ;
+    end
+    if isfield(pbOptions, 'generate_sphi')
+        generate_sphi = pbOptions.generate_sphi ;
+        pbOptions = rmfield(pbOptions, 'generate_sphi') ;
+    end
+    if isfield(pbOptions, 'generate_relaxed')
+        generate_relaxed = pbOptions.generate_relaxed ;
+        pbOptions = rmfield(pbOptions, 'generate_relaxed') ;
+    end
+    if isfield(pbOptions, 'generate_uv')
+        generate_uv = pbOptions.generate_uv ;
+        pbOptions = rmfield(pbOptions, 'generate_uv') ;
+    end
+    if isfield(pbOptions, 'generate_uphi_coord')
+        generate_uphi = pbOptions.generate_uphi_coord ;
+        pbOptions = rmfield(pbOptions, 'generate_uphi_coord') ;
+    end
+    if isfield(pbOptions, 'generate_spsm')
+        generate_spsm = pbOptions.generate_spsm ;
+        pbOptions = rmfield(pbOptions, 'generate_spsm') ;
+    end
+    if isfield(pbOptions, 'generate_rsm')
+        generate_rsm = pbOptions.generate_rsm ;
+        pbOptions = rmfield(pbOptions, 'generate_rsm') ;
+    end
+end
+
+%% Unpack options
 if nargin < 2 || isempty(cutMesh)
     if isempty(QS.currentMesh.cutMesh)
         QS.loadCurrentCutMesh()
@@ -55,44 +100,23 @@ if nargin < 3 || isempty(spcutMesh)
     spcutMesh = QS.currentMesh.spcutMesh ;
 end
 
-% Unpack pbOptions
-overwrite = false ;         % generate pullbacks even if they exist on disk
-generate_sphi = true ;      % generate an (s, phi) coord system pullback
-generate_relaxed = true ;   % generate a relaxed (s,phi) coord system pullback
-generate_uv = true ;        % generate a (u,v) coord system pullback
-generate_uphi = false ;     % generate a (u, phi) coord system pullback
-if nargin > 3
-    disp('Unpacking options for which pullbacks to generate/overwrite')
-    if isfield(pbOptions, 'overwrite')
-        overwrite = pbOptions.overwrite ;
-        pbOptions = rmfield(pbOptions, 'overwrite') ;
+if nargin < 4 || isempty(spcutMeshSm)
+    if isempty(QS.currentMesh.spcutMeshSm)
+        QS.loadCurrentSPCutMeshSm()
     end
-    if isfield(pbOptions, 'generate_sphi')
-        generate_uv = pbOptions.generate_uv ;
-        pbOptions = rmfield(pbOptions, 'generate_uv') ;
-    end
-    if isfield(pbOptions, 'generate_relaxed')
-        generate_relaxed = pbOptions.generate_relaxed ;
-        pbOptions = rmfield(pbOptions, 'generate_relaxed') ;
-    end
-    if isfield(pbOptions, 'generate_uv')
-        generate_uv = pbOptions.generate_uv ;
-        pbOptions = rmfield(pbOptions, 'generate_uv') ;
-    end
-    if isfield(pbOptions, 'generate_uphi_coord')
-        generate_uphi = pbOptions.generate_uphi_coord ;
-        pbOptions = rmfield(pbOptions, 'generate_uphi_coord') ;
-    end
+    spcutMeshSm = QS.currentMesh.spcutMeshSm ;
 end
 
-% Unpack QS
+%% Unpack QS
 tt = QS.currentTime ;
 a_fixed = QS.a_fixed ;
-fileNameBase = QS.fileBase.name ;
-imFolder = QS.dir.im ;
-imFolder_r = QS.dir.im_r ;
-imFolder_sp = QS.dir.im_sp ;
-imFolder_up = QS.dir.im_up ;
+% fileNameBase = QS.fileBase.name ;
+% imFolder = QS.dir.im ;
+% imFolder_r = QS.dir.im_r ;
+% imFolder_sp = QS.dir.im_sp ;
+% imFolder_up = QS.dir.im_up ;
+% imFolder_spsm = QS.dir.im_sp_sm ;
+% imFolder_rsm = QS.dir.im_r_sm ;
 axisorder = QS.data.axisOrder ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -101,33 +125,44 @@ fprintf('Checking whether to create pullback \n');
 %--------------------------------------------------------------
 % Generate Output Image Files
 %--------------------------------------------------------------
-imfn_uv = sprintf( fullfile([imFolder, '/', fileNameBase, '_pb.tif']), tt); 
-imfn_r = sprintf( fullfile([imFolder_r, '/', fileNameBase, '_pr.tif']), tt) ;
-imfn_sp = sprintf( fullfile([imFolder_sp, '/', fileNameBase, '_pbsp.tif']), tt) ;
-imfn_up = sprintf( fullfile([imFolder_up, '/', fileNameBase, '_pbup.tif']), tt) ;
-pullbacks_exist1 = exist(imfn_uv, 'file') || ~generate_uv ;
-pullbacks_exist2 = exist(imfn_r, 'file') || ~generate_relaxed ;
-pullbacks_exist3 = exist(imfn_sp, 'file') || ~generate_sp ;
-pullbacks_exist4 = exist(imfn_up, 'file') || ~generate_uphi ;
+imfn_uv = sprintf( QS.fullFileBase.im_uv, tt); 
+imfn_r = sprintf( QS.fullFileBase.im_r, tt) ;
+imfn_sp = sprintf( QS.fullFileBase.im_sp, tt) ;
+imfn_up = sprintf( QS.fullFileBase.im_up, tt) ;
+imfn_spsm = sprintf( QS.fullFileBase.im_sp_sm, tt) ;
+imfn_rsm = sprintf( QS.fullFileBase.im_r_sm, tt) ;
+do_pb1 = ~exist(imfn_uv, 'file') && generate_uv ;
+do_pb2 = ~exist(imfn_r, 'file') && generate_relaxed ;
+do_pb3 = ~exist(imfn_sp, 'file') && generate_sphi ;
+do_pb4 = ~exist(imfn_up, 'file') && generate_uphi ;
+do_pb5 = ~exist(imfn_spsm, 'file') && generate_spsm ;
+do_pb6 = ~exist(imfn_rsm, 'file') && generate_rsm ;
 
-do_pullbacks = (~pullbacks_exist1 || ~pullbacks_exist2 || overwrite) ;
+do_pb = [do_pb1, do_pb2, do_pb3, do_pb4, do_pb5, do_pb6] ;
+do_pullbacks = (any(do_pb) || overwrite) ;
 
 if do_pullbacks
     % Declare what needs to be redone
     if overwrite
         disp('All pullback images will be recomputed & saved')
     else
-        if ~pullbacks_exist1
+        if do_pb1
             disp(['(u,v) PB will be generated: ', imfn_uv])
         end 
-        if ~pullbacks_exist2
+        if do_pb2
             disp(['Relaxed (s,phi) PB will be generated: ', imfn_r])
         end
-        if ~pullbacks_exist3
+        if do_pb3
             disp(['(s,phi) PB will be generated: ', imfn_sp])
         end
-        if ~pullbacks_exist4
+        if do_pb4
             disp(['(u,phi) PB will be generated: ', imfn_up])
+        end
+        if do_pb5
+            disp(['Smooth (s,phi) PB will be generated: ', imfn_spsm])
+        end
+        if do_pb6
+            disp(['Smooth relaxed (s,phi) PB will be generated: ', imfn_rsm])
         end
     end     
     
@@ -143,8 +178,10 @@ if (~exist(imfn_sp, 'file') || overwrite) && generate_sphi
     % and azimuthal angle)
     spcutMesh.u = spcutMesh.sphi ;
     aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_sp,...
-        pbOptions, axisorder)
-    spcutMesh = rmfield(spcutMesh, 'u') ;
+        pbOptions, axisorder, save_as_stack)
+    spcutMesh = rmfield(spcutMesh, 'u') ;    
+else
+    disp('Skipping SP pullback image generation ')
 end
 
 if (~exist(imfn_up, 'file') || overwrite) && generate_uphi
@@ -153,8 +190,10 @@ if (~exist(imfn_up, 'file') || overwrite) && generate_uphi
     % and azimuthal angle)
     spcutMesh.u = spcutMesh.uphi ;
     aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_up, ...
-        pbOptions, axisorder)
+        pbOptions, axisorder, save_as_stack)
     spcutMesh = rmfield(spcutMesh, 'u') ;
+else
+    disp('Skipping UP pullback image generation ')
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -164,9 +203,9 @@ if (~exist(imfn_uv, 'file') || overwrite) && generate_uv
     % Generate output image in uv
     fprintf(['Generating UV output image: ' imfn_uv]);
     aux_generate_orbifold(cutMesh, a_fixed, IV, imfn_uv, ...
-        pbOptions, axisorder)
+        pbOptions, axisorder, save_as_stack)
 else
-    disp('Skipping pullback image generation since exists')
+    disp('Skipping UV pullback image generation ')
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -176,8 +215,39 @@ if (~exist(imfn_r, 'file') || overwrite) && generate_relaxed
     disp('Generating relaxed image for sphi coords...')
     spcutMesh.u = spcutMesh.sphi ;
     aux_generate_orbifold(spcutMesh, spcutMesh.ar, IV, imfn_r, ...
-        pbOptions, axisorder)
+        pbOptions, axisorder, save_as_stack)
     spcutMesh = rmfield(spcutMesh, 'u') ;
+else
+    disp('Skipping relaxed SP pullback image generation ')
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Save smoothed sp image
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+if (~exist(imfn_spsm, 'file') || overwrite) && generate_spsm
+    disp('Generating image for smoothed sphi coords...')
+    aux_generate_orbifold(spcutMeshSm, a_fixed, IV, imfn_spsm, ...
+        pbOptions, axisorder, save_as_stack)
+else
+    disp('Skipping SPSm pullback image generation ')
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Save smoothed relaxed image
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+if (~exist(imfn_rsm, 'file') || overwrite) && generate_rsm
+    disp('Generating relaxed image for sphi coords...')
+    if ~isfield(spcutMeshSm, 'ar')
+        % Compute relaxed aspect ratio
+        tmp = spcutMeshSm.u ;
+        tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
+        arspsm = minimizeIsoarealAffineEnergy( spcutMeshSm.f, spcutMeshSm.v, tmp );
+        spcutMeshSm.ar = arspsm ;
+    end
+    aux_generate_orbifold(spcutMeshSm, spcutMeshSm.ar, IV, imfn_rsm, ...
+        pbOptions, axisorder, save_as_stack)
+else
+    disp('Skipping relaxed SPSm pullback image generation ')
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

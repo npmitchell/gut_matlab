@@ -42,8 +42,9 @@ function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, xx, yy, vx
 % Default options
 labelstr = '$|v|$ [$\mu$m / min]' ;
 overlay_quiver = true ;
-qsubsample = 10 ;
-qscale = 10 ;
+qsubsample = 5 ;
+qscale = 5 ;
+quiver_vecfield = [] ;
 
 % Unpack options
 if isfield(options, 'label')
@@ -57,6 +58,9 @@ if isfield(options, 'qsubsample')
 end
 if isfield(options, 'qscale') 
     qscale = options.qscale ;
+end
+if isfield(options, 'quiver_vecfield') 
+    quiver_vecfield = options.quiver_vecfield ;
 end
 
 
@@ -87,10 +91,17 @@ ax = gca() ;
 % QUIVER 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if overlay_quiver    
-    vx = reshape(vx, [hh, ww]) ;
-    vy = reshape(vy, [hh, ww]) ;
-    QX = imresize(vx, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
-    QY = imresize(vy, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
+    if isempty(quiver_vecfield)
+        qvx = vx ;
+        qvy = vy ;
+    else
+        qvx = quiver_vecfield(:, 1) ;
+        qvy = quiver_vecfield(:, 2) ;
+    end
+    qvx = reshape(qvx, [hh, ww]) ;
+    qvy = reshape(qvy, [hh, ww]) ;
+    QX = imresize(qvx, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
+    QY = imresize(qvy, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
     xq = 1:qsubsample:ww ;
     yq = 1:qsubsample:hh ;
     [xg, yg] = meshgrid(xx(xq), yy(yq)) ;
@@ -107,10 +118,13 @@ end
 colormap phasemap
 caxis([0, 2*pi])
 if isfield(options, 'ylim')
-    ylim(ylim)  % [size(im, 2) * 0.25, size(im, 2) * 0.75]
+    ylim(options.ylim)  
 end
 if isfield(options, 'xlim')
-    ylim(xlim)  
+    xlim(options.xlim)  
+end
+if isfield(options, 'title')
+    title(options.title, 'Interpreter', 'Latex')
 end
 set(gca, 'Position', [0 0.11 0.85 0.8]) ;
 % Add phasebar

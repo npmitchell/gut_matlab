@@ -29,13 +29,17 @@
 % outside.  flipy indicates that the APDV coordinate system is mirrored 
 % across XZ wrt data coordinate system XYZ. 
 
-%% Global options
+%% Clear workspace ========================================================
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
 cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 dataDir = cd ;
 
+%% PATHS ==================================================================
+aux_paths_and_colors
+
+%% Global options
 % Decide whether to change previously stored detection Opts, if they exist
 overwrite_masterSettings = false ;
 overwrite_mips = false ;
@@ -126,19 +130,18 @@ dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
 dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
 dir16bit_prestab = fullfile(dir16bit, 'data_pre_stabilization') ;
 
-%% PATHS ==================================================================
-aux_paths_and_colors
-
 %% END OF EXPERIMENT METADATA =============================================
 % =========================================================================
 % =========================================================================
 %% -IIV. make MIPs for 32bit images
+% Skip if already done
 mipDir = fullfile(dir32bit, 'mips32bit') ;
 Options.overwrite_mips = overwrite_mips ;
 Options.scale = scale ;
 makeMips(timePoints, dir32bit, file32Base, mipDir, Options)
 
 %%  -IV. convert 32 to 16bit images
+% Skip if already done
 convert32to16bit(timePoints, scale, dir32bit, dir16bit_prestab,...
     file32Base, fn_prestab)
 
@@ -149,11 +152,13 @@ convert32to16bit(timePoints, scale, dir32bit, dir16bit_prestab,...
 % end
 
 %% -III. make MIPs for 16bit images
+% Skip if already done
 mipDir = fullfile(dir16bit_prestab, 'mips') ;
 Options.overwrite_mips = overwrite_mips ;
 makeMips(timePoints, dir16bit_prestab, fn_prestab, mipDir, Options)
 
 %%  -II. stabilizeImagesCorrect.m
+% Skip if already done
 % name of directory to check the stabilization of mips
 mips_stab_check = fullfile(mipDir, 'stab_check') ;
 mipoutdir = fullfile(mipDir, 'mips_stab') ;
@@ -174,6 +179,7 @@ stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     mipDir, mipoutdir, mips_stab_check, overwrite_mips, overwrite_tiffs)
 
 %%   -I. master_gut_timeseries_prestab_for_training.m
+% Skip if already done
 cd(dir16bit)
 dataDir = cd ;
 makeH5SeriesPrestabForTraining(masterSettings)
@@ -680,7 +686,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     % xyzlim_APDV_um.txt
     %   bounding box in rotated frame, in microns
     % apdv_coms_rs.h5
-    %   Centers of mass for A, P, and D in microns in rotated APDV coord system
+    %   Centers of mass for A,aux_paths_and_colors P, and D in microns in rotated APDV coord system
     % 
     % Notes
     % -----
@@ -714,7 +720,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         disp('No alignAPDV_Opts on disk or overwriting, defining')
         apdvOpts.smwindow = 30 ;
         apdvOpts.dorsal_thres = dorsal_thres ;
-        apdvOpts.buffer = buffer ;    error('here')
+        apdvOpts.buffer = buffer ;  
         apdvOpts.plot_buffer = plot_buffer ;
         alignAPDVOpts.weight = weight ;
         alignAPDVOpts.normal_step = normal_step ;
@@ -752,6 +758,25 @@ else
 end
 disp('done')
 clearvars normal_step 
+
+
+%% Fix vertex normals in alignedMeshes (hack)
+% for tt = QS.xp.fileMeta.timePoints ;
+%     alignedmeshfn = fullfile(QS.dir.alignedMesh, ...
+%         sprintf([QS.fileBase.alignedMesh '.ply'], tt)) ;
+%     mm = read_ply_mod(alignedmeshfn) ;
+%     xyzrs = mm.v ;
+%     vn_rs = mm.vn ;
+%     vn_rs(:, 1) = -vn_rs(:, 1) ;
+%     vn_rs(:, 3) = -vn_rs(:, 3) ;
+%     
+%     % Save it
+%     if overwrite || ~exist(alignedmeshfn, 'file')
+%         disp('Saving the aligned mesh...')
+%         disp([' --> ' alignedmeshfn])
+%         plywrite_with_normals(alignedmeshfn, mm.f, xyzrs, vn_rs)
+%     end
+% end
 
 %% MAKE MASKED DATA FOR PRETTY VIDEO ======================================
 % Skip if already done
@@ -960,7 +985,7 @@ for tt = xp.fileMeta.timePoints(1:end)
         pbOptions.generate_uv = false ;
         pbOptions.generate_uphi = false ;
         pbOptions.generate_relaxed = true ;
-        QS.generateCurrentPullbacks([], [], pbOptions) ;
+        QS.generateCurrentPullbacks([], [], [], pbOptions) ;
     else
         disp('Skipping computation of pullback')
     end
@@ -986,16 +1011,12 @@ if check
     aux_preview_results
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TILE/EXTEND IMAGES IN Y AND RESAVE =======================================
 options = struct() ;
 options.overwrite = overwrite_pullbacks;
 options.coordsys = 'sp' ;
 QS.doubleCoverPullbackImages(options)
 disp('done')
-
-%% Estimate cell density
-
 
 %% FIND THE FOLDS SEPARATING COMPARTMENTS =================================
 options = struct() ;
@@ -1028,240 +1049,101 @@ options = struct() ;
 options.overwrite = false ;
 QS.plotLobes(options)
 
-%% Plot motion of avgpts at folds in yz plane over time ===================
-overwrite_lobeims = true ;
-load(QS.fileName.fold, 'folds', 'fold_onset') ;
-dvexten = sprintf('_nU%04d_nV%04d', QS.nU, QS.nV) ;
-aux_plot_avgptcline_lobes(folds, fold_onset, QS.dir.lobe, dvexten, true, ...
-    overwrite_lobeims, QS.xp.fileMeta.timePoints - QS.t0,...
-    QS.xp.fileMeta.timePoints, ...
-    QS.fullFileBase.spcutMesh, QS.fullFileBase.clineDVhoop)
-disp('done')
-
-%% Plot motion of DVhoop at folds in yz plane over time ===================
-aux_plot_constriction_DVhoops(folds, fold_onset, foldHoopImDir, dvexten, save_ims, ...
-    overwrite_lobeims, tp, timePoints, spcutMeshBase, alignedMeshFullBase, ...
-    normal_shift, rot, trans, resolution, colors, xyzlim)
+%% Plot motion of avgpts & DVhoops at folds in yz plane over time ===================
+overwrite_lobeims = false ;
+QS.plotConstrictionDynamics(overwrite_lobeims) ;
 disp('done')
 
 %% SMOOTH MEAN CENTERLINE RADIUS ==========================================
 % todo: rework this section so that it takes place after smoothing meshes
-aux_smooth_avgptcline_radius_before_mesh_smoothing(overwrite_spcutMesh_smoothradii, ...
-    timePoints, spcutMeshBase, clineDVhoopBase, radiusImDir, ...
-    rot, trans, resolution, xyzlim, nU, nV)
+aux_smooth_avgptcline_radius_before_mesh_smoothing(overwrite, ...
+    QS.xp.fileMeta.timePoints, QS.fullFileBase.spcutMesh, ...
+    QS.fullFileBase.clineDVhoop, radiusImDir, ...
+    QS.APDV.rot, QS.APDV.trans, QS.APDV.resolution, ...
+    QS.plotting.xyzlim_um, QS.nU, QS.nV)
 
 %% Smooth the sphi grid meshes in time ====================================
 options = struct() ;
-options.overwrite = overwrite_spcutMeshSm ;
-QS.smoothDynamicSPhiMeshes(options)
+options.overwrite = false ;
+QS.smoothDynamicSPhiMeshes(options) ;
 
 %% Plot the time-smoothed meshes
-pdir = ensureDir(fullfile(sphiSmRSPhiImDir, 'perspective')) ;
-ddir = ensureDir(fullfile(sphiSmRSPhiImDir, 'dorsal')) ;
-vdir = ensureDir(fullfile(sphiSmRSPhiImDir, 'ventral')) ;
-ldir = ensureDir(fullfile(sphiSmRSPhiImDir, 'latL')) ;
-rdir = ensureDir(fullfile(sphiSmRSPhiImDir, 'latR')) ;
-for qq = 1:length(timePoints)
-    tt = timePoints(qq) ;
-    disp(['checking figures for time-smoothed meshes: t = ' num2str(tt)])
-    % prep directories
-    fig1fn = fullfile(sphiSmRSImDir, [sprintf('%04d', tt ) '.png']) ;
-    fp0fn = fullfile(pdir, [sprintf('%04d', tt ) '.png']) ;
-    fp1fn = fullfile(ddir, ['dorsal_' sprintf('%04d', tt ) '.png']) ;
-    fp2fn = fullfile(vdir, ['ventral_' sprintf('%04d', tt ) '.png']) ;
-    fp3fn = fullfile(ldir, ['latL_' sprintf('%04d', tt ) '.png']) ;
-    fp4fn = fullfile(rdir, ['latR_' sprintf('%04d', tt ) '.png']) ;
-    e0 = ~exist(fig1fn, 'file') ;
-    e1 = ~exist(fp0fn, 'file') ;
-    e2 = ~exist(fp1fn, 'file') || ~exist(fp2fn, 'file') ;
-    e3 = ~exist(fp3fn, 'file') || ~exist(fp4fn, 'file') ;
-    if e0 || e1 || e2 || e3 || overwrite_SmRSIms
-        disp(['Consider smoothed sphi gridmesh for time ' num2str(tt)])
-        % Load the spcutMesh for this timepoint
-        vqq = squeeze(v3dsmM(qq, :, :)) ;
-        nqq = squeeze(nsmM(qq, :, :)) ;
-
-        % rotate and scale
-        nqqrs = (rot * nqq')' ;
-        vqq = ((rot * vqq')' + trans) * resolution;
-    end
-    
-    % Plot embedding RS colored by normal vector in y direction
-    if e0 || overwrite_SmRSIms
-        fig = figure('visible', 'off') ;
-        % Color figure with normals taken via faceNormals  
-        trisurf(spcutMeshSm.f, vqq(:, 1), vqq(:, 2), vqq(:, 3), ...
-            nqqrs(:, 2), 'EdgeColor', 'none')
-        axis equal
-        xlim(xyzlim(1, :))
-        ylim(xyzlim(2, :))
-        zlim(xyzlim(3, :))
-        xlabel('x [\mum]')
-        ylabel('y [\mum]')
-        zlabel('z [\mum]')
-        title(['Smoothed mesh embedding, t=' num2str(tt)])
-        disp(['Saving figure: ' fig1fn])
-        saveas(fig, fig1fn)
-        close all
-    end
-    
-    % Plot embedding colored by phi
-    if e1 || e2 || e3 || overwrite_SmRSIms 
-        fig = figure('visible', 'off') ;
-        % Plot embedding in 3d color coding (color=phi)
-        pc = (1:nV) .* ones(nU, nV) / nV ;
-        trisurf(spcutMeshSm.f, vqq(:, 1), vqq(:, 2), vqq(:, 3), ...
-            pc(:), 'EdgeColor', 'none')
-        axis equal
-        xlim(xyzlim(1, :))
-        ylim(xyzlim(2, :))
-        zlim(xyzlim(3, :))
-        xlabel('x [\mum]')
-        ylabel('y [\mum]')
-        zlabel('z [\mum]')
-        c = colorbar() ;
-        c.Label.String = '\phi / 2\pi' ;
-        title(['Smoothed mesh embedding, t=' num2str(tt)])
-        disp(['Saving figure: ' fp0fn])
-        saveas(fig, fp0fn)
-        view(0, 90)
-        saveas(fig, fp1fn)
-        view(0, 270)
-        saveas(fig, fp2fn)
-        view(0, 0)
-        saveas(fig, fp3fn)
-        view(0, 180)
-        saveas(fig, fp4fn)
-        close all
-    end
-end
-disp('done')
-clearvars fig vqq nqqrs e0 e1 e2 e3 pdir ddir vdir rdir ldir
-
+options.overwrite = true ;
+QS.plotSPCutMeshSmRS(options) ;
 
 %% Images for publication/presentation on method & coordinate system
 % Create coordinate system charts visualization using smoothed meshes
 QS.coordSystemDemo()
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% COMPUTE MEAN AND GAUSSIAN CURVATURES OF SMOOTHED MESHES
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-getderivatives=0;
-disp('Computing/Loading Curvatures...')
-for tt = xp.fileMeta.timePoints
-    Kfns = {fullfile(KSmDir, 'latleft', sprintf('gausscurv_latleft_%06d.png', tt)), ...
-        fullfile(KSmDir, 'dorsal', sprintf('gausscurv_dorsal_%06d.png', tt)), ...
-        fullfile(KSmDir, 'latright', sprintf('gausscurv_latright_%06d.png', tt)), ...
-        fullfile(KSmDir, 'ventral', sprintf('gausscurv_ventral_%06d.png', tt)) };
-    Hfns = {fullfile(HSmDir, 'latleft', sprintf('meancurv_latleft_%06d.png', tt)), ...
-        fullfile(HSmDir, 'dorsal', sprintf('meancurv_dorsal_%06d.png', tt)), ...
-        fullfile(HSmDir, 'latright', sprintf('meancurv_latright_%06d.png', tt)),...
-        fullfile(HSmDir, 'ventral', sprintf('meancurv_ventral_%06d.png', tt))} ;
-    KHfn = fullfile(KHSmDir, sprintf('gauss_mean_curvature_%06d.mat', tt)) ;
-    if ~exist(KHfn, 'file') || overwrite_curvatures
-        % load glued / closed mesh for curvature computation
-        load(sprintf(spcutMeshSmRSCBase, tt), 'spcutMeshSmRSC') ;
-        fv.faces = spcutMeshSmRSC.f ;
-        fv.vertices = spcutMeshSmRSC.v ;
-        PrincipalCurvatures = GetCurvatures( fv, getderivatives);
-        gaussCurv = (PrincipalCurvatures(1,:).*PrincipalCurvatures(2,:))';
-        meanCurv = -0.5 * (PrincipalCurvatures(1,:) + PrincipalCurvatures(2,:))';
-
-        opts.outfn = Kfns ;
-        opts.label = 'Gaussian curvature, $K$' ;
-        opts.sscale = 0.01 ;
-        opts.cbarPosition = [.85 .333 .02 .333] ;
-        opts.xlim = xyzlim(1, :) ;
-        opts.ylim = xyzlim(2, :) ;
-        opts.zlim = xyzlim(3, :) ;
-        scalarFieldOnSurface(fv.faces, fv.vertices, gaussCurv, opts)
-        opts.outfn = Hfns ;
-        opts.sscale = 0.3 ;
-        opts.label = 'mean curvature, $H$' ;
-        scalarFieldOnSurface(fv.faces, fv.vertices, meanCurv, opts)
-        % Save the curvatures as a mat file
-        save(KHfn, 'meanCurv', 'gaussCurv')
-    else
-        disp('Curvatures already computed & saved on disk')
-    end
-end
-error('here after curvature calc')
-
-
+options = struct() ;
+options.overwrite = true ;
+QS.measureCurvatures(options)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Redo Pullbacks with time-smoothed meshes ===============================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 disp('Create pullback using S,Phi coords with time-averaged Meshes')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-for qq = 1:length(xp.fileMeta.timePoints)
-    tt = xp.fileMeta.timePoints(qq) ;
-    disp(['checking pullbacks for time-smoothed meshes: t = ' num2str(tt)])
+for tt = xp.fileMeta.timePoints(1:end)
+    disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
+    tidx = xp.tIdx(tt);
     
-    % Load time-smoothed mesh
-    load(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
+    % Load the data for the current time point ------------------------
+    QS.setTime(tt) ;
     
-    %--------------------------------------------------------------
-    % Generate Output Image File
-    %--------------------------------------------------------------
-    imfn_spsm = sprintf( fullfile( imFolder_spsm, [fileNameBase, '.tif']), tt ) ;
-    imfn_rsm  = sprintf( fullfile( imFolder_rsm, [fileNameBase, '.tif']), tt ) ;
-    pullbacks_exist1 = exist(imfn_spsm, 'file') ;
-    pullbacks_exist2 = exist(imfn_rsm, 'file') ;
-    if ~pullbacks_exist1 || ~pullbacks_exist2 || overwrite_pullbacks
-        QS.getCurrentData()
-        IV = QS.currentData.IV ;
-    end
-
-    if ~exist(imfn_spsm, 'file') || overwrite_pullbacks
-        fprintf(['Generating SP output image for sm mesh: ' imfn_spsm]);
-        % Assigning field spcutMesh.u to be [s, phi] (ringpath
-        % and azimuthal angle)
-        aux_generate_orbifold( spcutMeshSm, a_fixed, IV, imfn_spsm)
-    end
-    
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Save relaxed image
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-    if ~exist(imfn_rsm, 'file') || overwrite_pullbacks
-        disp('Generating relaxed image for sm mesh...')
-        tmp = spcutMesh.sphi ;
-        tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
-        arspsm = minimizeIsoarealAffineEnergy( spcutMeshSm.f, spcutMeshSm.v, tmp );
-        aux_generate_orbifold(spcutMeshSm, arspsm, IV, imfn_rsm)
-    end
+    % Establish custom Options for MIP
+    pbOptions = struct() ;
+    pbOptions.overwrite = false ;
+    pbOptions.numLayers = [5, 5] ;
+    pbOptions.layerSpacing = 0.75 ;
+    pbOptions.generate_rsm = true ;
+    pbOptions.generate_spsm = true ;
+    pbOptions.generate_sphi = false ;
+    QS.data.adjustlow = 1.00 ;
+    QS.data.adjusthigh = 99.999 ;
+    QS.generateCurrentPullbacks([], [], [], pbOptions) ;
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% TILE SMOOTHED IMAGES IN Y AND RESAVE ===================================
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-imDirs = {imFolder_spsm, imFolder_rsm, } ;
-imDirs_e = {imFolder_spsm_e, imFolder_rsm_e, } ;
-ntiles = 50 ;   %   The number of bins in each dimension for histogram equilization for a
-                %   square original image. That is, the extended image will have (a_fixed *
-                %   ntiles, 2 * ntiles) bins in (x,y).
-for qq = 1:length(imDirs)
-    options.histeq = true ;
-    options.a_fixed = a_fixed ;
-    options.ntiles = ntiles ;
-    options.overwrite = overwrite_pullbacks;
-    extendImages(imDirs{qq}, imDirs_e{qq}, fileNameBase, options)
-    disp(['done ensuring extended tiffs for ' imDirs{qq} ' in ' imDirs_e{qq}])
-end
-clearvars qq ntiles imDirs_e imDirs
+%% TILE/EXTEND SMOOTHED IMAGES IN Y AND RESAVE =======================================
+options = struct() ;
+options.overwrite = false ;
+options.coordsys = 'spsm' ;
+QS.doubleCoverPullbackImages(options)
+options.coordsys = 'rsm' ;
+QS.doubleCoverPullbackImages(options)
 disp('done')
 
+%% Measure Cell density
+options = struct() ;
+options.overwrite = false ;
+options.preview = false ;
+QS.measureCellDensity('nuclei', options)
+QS.plotCellDensity(options) ;
+
+%% Cell density kymograph
+options = struct() ;
+options.overwrite = true ;
+options.timePoints = 0:85 ;
+QS.plotCellDensityKymograph(options)
+
 %% CREATE PULLBACK STACKS =================================================
-fprintf('Create pullback nstack using S,Phi coords with time-averaged Meshes \n');
+disp('Create pullback stack using S,Phi coords with time-averaged Meshes');
 % Load options
-if ~exist(optionfn, 'file') || overwriteSmSPCutMeshStackOptions
-    spcutMeshSmStackOptions.layer_spacing = 1 / resolution ; % pixel resolution matches xy
-    spcutMeshSmStackOptions.n_outward = 10 ;
-    spcutMeshSmStackOptions.n_inward = 8 ;
+overwrite = false ;
+optionfn = fullfile(QS.dir.im_sp_sme2, 'spcutMeshSmStackOptions.mat') ;
+if ~exist(optionfn, 'file') || overwrite
+    spcutMeshSmStackOptions.layer_spacing = 0.5 / QS.APDV.resolution ; % pixel resolution roughly matches xy
+    spcutMeshSmStackOptions.n_outward = 20 ;
+    spcutMeshSmStackOptions.n_inward = 40 ;
+    spcutMeshSmStackOptions.smoothIter = 0 ;
+    spcutMeshSmStackOptions.preSmoothIter = 35 ;
+    % Save options
+    save(optionfn, 'spcutMeshSmStackOptions')
 else
     load(optionfn, 'smSPCutMeshStackOptions')
 end
-spcutMeshSmStackOptions.overwrite = overwrite_spcutMeshSmStackOptions ;
+spcutMeshSmStackOptions.overwrite = overwrite ;
 QS.generateSPCutMeshSmStack(spcutMeshSmStackOptions)
 
 %% TRAIN IN ILASTIK ON MIDGUT TISSUE TO GET THICKNESS
@@ -1280,6 +1162,427 @@ dumpfn = fullfile(meshDir, 'orbifold_dump_before_piv.mat') ;
 save(dumpfn)
 load(dumpfn)
 clearvars dumpfn
+
+%% PERFORM PIV ON PULLBACK MIPS ===========================================
+% % Select all frames in PullbackImages_extended_shifted/ 
+% % Select Sequencing style 1-2, 2-3, ... 
+% % Load settings: piv_set_pass1.mat
+% % Image Preprocessing > Select All
+% % PIV settings: 128 (32 step), 64 (16 step), 32 (16 step) for three passes
+disp('Loading PIV results...')
+tmp = load(fullfile(QS.dir.piv, 'piv_results.mat')) ;
+
+
+%% MAKE MAP FROM PIXEL TO XYZ =============================================
+disp('Making map from pixel to xyz to compute velocities in 3d for smoothed meshes...')
+options = struct() ;
+options.overwrite = true ;
+options.preview = false ;
+options.show_v3d_on_data = false ;
+options.save_ims = true ;
+QS.measurePIV3D(options) ;
+
+%% First do very simpleminded averaging of velocities
+options.overwrite = true ;
+options.plot_vxyz = true ;
+QS.timeAverageVelocitiesSimple(options)
+
+%% AUTOCORRELATIONS
+overwrite_autocorrelations = false ;
+do_acorr = false ;
+redo_acorr = ~exist(fullfile(pivSimAvgDir, 'autocorr_velocities.png'), 'file') ;
+if (redo_acorr || overwrite_autocorrelations) && do_acorr
+    aux_autocorrelations
+end
+
+%% VELOCITY PLOTS
+options.overwrite = false ;
+options.plot_vxyz = false ;
+QS.plotTimeAvgVelSimple(options)
+
+%% Plot texture map in 3d with velocities
+for i = 1:size(vM, 1)
+    t = time(i) ;
+    vtqfn0 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_perspective.png']) ;
+    vtqfn1 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_dorsal.png']) ;
+    vtqfn2 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_ventral.png']) ;
+    vtqfn3 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_lateralL.png']) ;
+    vtqfn4 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_lateralR.png']) ;
+
+    % Plot the tangential velocity as quiver on top of the embedding,
+    % colored by normal velocity (all in one in embedding!)
+    if ~exist(vtqfn0, 'file') || overwrite_vsm_plots
+        disp(['Creating ' vtqfn])
+        tic
+
+        v2dsmum_ii = squeeze(v2dsmMum(i, :, :)) ;
+        vnsm_ii = squeeze(vnsmM(i, :, :)) ;
+
+        % Load the data for the current time point ------------------------
+        xp.setT=ime(t) ;
+        % Load 3D data for coloring mesh pullback
+        xp.loadTime(t);
+        xp.rescaleStackToUnitAspect();
+
+        fig = figure('units', 'normalized', ...
+                'outerposition', [0 0 1 1], 'visible', 'off') ;
+
+        % Psize is the linear dimension of the grid drawn on each triangular face
+        Options.PSize = 5;
+        Options.EdgeColor = 'none';
+        Options.Rotation = rot ;
+        Options.FaceScalarField = vn_interp ;
+
+        % Raw stack data
+        IV = xp.stack.image.apply();
+        IV = imadjustn(IV{1});
+
+        % First args are physical vertices, then texture faces (same number as 
+        % physical faces, but connectivity can be different), then texture
+        % vertices, which can also be different. The vertices are in row, column, 
+        % page format, so x and y get flipped. IV is the texture volume.
+        % Options.PSize 
+        [ patchIm, imref, zeroID, MIP, SIP ] = ...
+            texture_patch_3d( mesh.f, mesh.v, ...
+            mesh.f, mesh.v(:, [2 1 3]), IV, Options );
+
+        % Add quiver to image
+        % Downsample by a factor of qsubsample
+        xx = piv.x{i}(1, :)' ;
+        yy = piv.y{i}(:, 1) ;
+        ww = length(xx) ;
+        hh = length(yy) ;
+        vx = reshape(v2dsmum_ii(:, 1), [ww, hh]) ;
+        vy = reshape(v2dsmum_ii(:, 2), [ww, hh]) ;
+        QX = imresize(vx, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
+        QY = imresize(vy, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
+        xq = 1:qsubsample:ww ;
+        yq = 1:qsubsample:hh ;
+        [xg, yg] = meshgrid(xq, yq) ;
+        h2 = quiver(xg(:), yg(:), QX(:), QY(:), 0) ;
+
+        % Format the figure and axis
+        xlim(xyzmin(1, :))
+        ylim(xyzmin(2, :))
+        zlim(xyzmin(3, :))
+        title(['$t = $' num2str(t) ' min'], 'Interpreter', 'Latex', 'Color', 'white') 
+        xlabel('AP position [$\mu$m]', 'Interpreter', 'Latex', 'Color', 'white')
+        ylabel('DV position [$\mu$m]', 'Interpreter', 'Latex', 'Color', 'white')
+        zlabel('lateral position [$\mu$m]', 'Interpreter', 'Latex', 'Color', 'white')
+        set(fig, 'PaperUnits', 'centimeters');
+        set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
+
+        % Make background black
+        set(gca,'Color','k')
+        set(gcf, 'InvertHardCopy', 'off');
+        set(gcf, 'Color', 'k')
+
+        % Make tick labels white
+        labeltype = {'XTickLabel', 'YTickLabel', 'ZTickLabel'} ;
+        for q = 1:2
+            % get the current tick labeks
+            ticklabels = get(gca, labeltype{q});
+            % prepend a color for each tick label
+            ticklabels_new = cell(size(ticklabels));
+            for i = 1:length(ticklabels)
+                ticklabels_new{i} = ['\color{white} ' ticklabels{i}];
+            end
+            % set the tick labels
+            set(gca, labeltype{q}, ticklabels_new);
+        end
+
+        % Capture all five views (perspective + DVLR
+        disp(['saving figure...' num2str(t, '%06d')])
+        saveas(fig, vtqfn0)
+        view(0, 90)
+        % DORSAL
+        saveas(fig, vtqfn1)
+        view(0, 270)
+        % VENTRAL
+        saveas(fig, vtqfn2)
+
+        % Lateral views
+        view(0, 0)
+        % make white z tick labels
+        q = 3;
+        % get the current tick labeks
+        ticklabels = get(gca, labeltype{q});
+        % prepend a color for each tick label
+        ticklabels_new = cell(size(ticklabels));
+        for i = 1:length(ticklabels)
+            ticklabels_new{i} = ['\color{white} ' ticklabels{i}];
+        end
+        % set the tick labels
+        set(gca, labeltype{q}, ticklabels_new);
+
+        % LEFT
+        saveas(fig, vtqfn3)
+        view(0, 180)
+        % RIGHT
+        saveas(fig, vtqfn4)
+        close all
+        toc
+        clear Options IV
+    end
+
+end
+
+% Check the orientation of the phasebar
+% imshow(im)
+% hold on;
+clf
+xsize = 2000 ;
+ysize = 2000 ;
+step = 100 ;
+imsz = [ xsize ysize ] ;
+[xx, yy] = meshgrid(1:step:xsize, 1:step:ysize) ;
+ucheck = xx - xsize * 0.5 ;
+vcheck = yy - ysize * 0.5 ;
+vangle = mod(atan2(vcheck, -ucheck), 2* pi) ;
+imshow(im * washout2d + max(im) * (1-washout2d)) ;
+hold on ;
+h2 = imagesc(xx(:), yy(:), vangle) ;
+hold on ;
+quiver(xx, yy, ucheck, vcheck, 5) ;
+colormap phasemap
+phasebar
+caxis([0, 2*pi])
+axis on
+set(gcf, 'visible', 'on')
+waitfor(gcf)
+
+%% Divergence and Curl (Helmholtz-Hodge)
+qsubU = 5 ; 
+qsubV = 10 ;
+niter_smoothing = [4, 10] ;
+plot_dec_pullback = true ;
+plot_dec_texturepatch = false ;
+
+
+% define the output dirs
+decDir = fullfile(pivSimAvgDir, 'dec') ;
+dvgDir2d = fullfile(pivSimAvgDir, 'dec_div2D') ;
+dvgDir3d = fullfile(pivSimAvgDir, 'dec_div3D') ;
+dvgDir3dt = fullfile(pivSimAvgDir, 'dec_div3Dt') ;
+curlDir2d = fullfile(pivSimAvgDir, 'dec_curl2D') ;
+curlDir3d = fullfile(pivSimAvgDir, 'dec_curl3D') ;
+curlDir3dt = fullfile(pivSimAvgDir, 'dec_curl3Dt') ;
+harmDir2d = fullfile(pivSimAvgDir, 'dec_harm2D') ;
+harmDir3d = fullfile(pivSimAvgDir, 'dec_harm3D') ;
+% create the output dirs
+dirs2do = {decDir, dvgDir2d, dvgDir3d, dvgDir3dt, ...
+    curlDir2d, curlDir3d, curlDir3dt, ...
+    harmDir2d, harmDir3d} ;
+for i = 1:length(dirs2do)
+    ensureDir(dirs2do{i}) ;
+end
+
+% Consider each timepoint and plot the div and curl
+for i = 1:length(piv3d)
+    if ~isempty(piv3d{i})
+        t = xp.fileMeta.timePoints(i) ;
+        % Prepare filenames
+        div2dfn = fullfile(dvgDir2d, [sprintf(fileNameBase, t) '_div2d.png']) ; 
+        div3dfn = fullfile(dvgDir3d, [sprintf(fileNameBase, t) '_div3d.png']) ;
+        div3dtfn = fullfile(dvgDir3dt, [sprintf(fileNameBase, t) '_divt3d.png']) ;
+        curl2dfn = fullfile(curlDir2d, [sprintf(fileNameBase, t) '_curl2d.png']) ;
+        curl3dfn = fullfile(curlDir3d, [sprintf(fileNameBase, t) '_curl3d.png']) ;
+        curl3dtfn = fullfile(curlDir3dt, [sprintf(fileNameBase, t) '_curlt3d.png']) ;
+        harm2dfn = fullfile(harmDir2d, [sprintf(fileNameBase, t) '_harm2d.png']) ; 
+        harm3dfn = fullfile(harmDir3d, [sprintf(fileNameBase, t) '_harm3d.png']) ;
+        
+        % Obtain smoothed velocities on all faces
+        vfsm = squeeze(vfsmM(i, :, :)) ;
+        v2dsmum_ii = squeeze(v2dsmMum(i, :, :)) ;
+        
+        % Use current time's tiled smoothed mesh
+        % Note: vfsmM is in um/min rs
+        FF = piv3d{i}.m0f ;   % #facesx3 float: mesh connectivity list
+        V2D = piv3d{i}.m0XY ; % Px2 float: 2d mesh vertices in pullback image pixel space
+        v3drs = ((rot * piv3d{i}.m0v3d')' + trans) * resolution ;
+        cutM.f = FF ;
+        cutM.u = V2D ;
+        cutM.v = v3drs ;
+        cutM.nU = nU ;
+        cutM.nV = nV ;
+        disp('Decomposing flow into div/curl...')
+        [divs, rots, harms, glueMesh] = ...
+            helmHodgeDECRectGridPullback(cutM, vfsm, ...
+            'niterSmoothing', niter_smoothing, ...
+            'clipDiv', [-5, 5], 'clipRot', [-0.5, 0.5], ...
+            'preview', preview, 'method', 'both') ;
+        
+        % save divs, rots, and harms
+        save(fullfile(decDir, [sprintf(fileNameBase, t) '_dec.mat']), ...
+            'divs', 'rots', 'harms')
+        
+        % Plot results
+        disp('Plotting div/curl...')
+        if plot_dec_pullback
+            im = imread(fullfile(fns(i).folder, fns(i).name)) ;
+            im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
+            addTitleStr = ['$t=$', num2str(t - min(fold_onset))] ;
+            Options.addTitleStr = addTitleStr ;
+            Options.div2dfn = div2dfn ;
+            Options.div3dfn = div3dfn ;
+            Options.rot2dfn = curl2dfn ;
+            Options.rot3dfn = curl3dfn ;
+            Options.qsubU = 5 ; 
+            Options.qsubV = 5 ;
+            Options.sscaleDiv = 0.5 ;
+            Options.sscaleRot = 0.2 ;
+            Options.qscaleDiv = 50 ;
+            Options.qscaleRot = 50 ;
+            Options.xyzlim = xyzlim ;
+            opts2d.xlim = [0, size(im, 1)] ;
+            opts2d.ylim = [0.25 * size(im, 2), 0.75 * size(im, 2) ] ;
+            xy = {piv3d{i}.x0, piv3d{i}.y0} ;
+            plotHelmHodgeDECPullback(im, cutM, vfsm, xy, v2dsmum_ii, ...
+                divs, rots, Options, opts2d)
+        end
+        if plot_dec_texturepatch
+            % load current timepoint
+            % (3D data for coloring mesh pullback)
+            QS.setTime(t) ;
+            QS.getCurrentData() ;     
+            IV = QS.currentData.IV ;
+            IV = imcomplement(IV) ; % does this work? debug 2020
+            % IV = max(IV(:)) - IV ; % used to do this.
+
+            addTitleStr = ['$t=$', num2str(t)] ;
+            Options.addTitleStr = addTitleStr ;
+            Options.div3dfn = div3dtfn ;
+            Options.rot3dfn = curl3dtfn ;
+            Options.sscaleDiv = 0.5 ;
+            Options.sscaleRot = 0.2 ;
+            Options.xyzlim = xyzlim ;
+            
+            % Load the cutmesh vertices and normals
+            cutM.v = piv3d{i}.m0v3d ;
+            cutM.v3drs = ((rot * cutM.v')' + trans) * resolution ;
+            plotHelmHodgeDECTexture3d(IV, cutM, divs, rots, rot, trans, Options)
+        end
+    end
+end
+
+
+%% Simpleminded streamlines from velocity scaled by dilation
+% Build 3d grid of positions and velocities
+% Assume that x0, y0 are fixed for all time
+ntimes = length(piv.x) ;
+x0 = piv.x{i} ;
+y0 = piv.y{i} ;
+xlen = size(v2dsmM, 1) ;
+ylen = size(v2dsmM, 2) ;
+vdat = v2dsmM(:) ;
+vxdat = reshape(vdat(:, 1), [ntimes, xlen, ylen]) ;
+vydat = reshape(vdat(:, 2), [ntimes, xlen, ylen]) ;
+vzdat = ones(size(vydat)) ; % we march through time at 1 index / timestep
+% Define positions we track through the streamlines
+startx = x0(1:200:end) ;
+starty = y0(1:200:end) ;
+startz = zeros(size(starty)) ;
+streamline(x0, y0, z0, vxdat, vydat, vzdat, startx, starty, startz)
+view(2)
+save(gcf, fullfile(pivDir, 'streamlines.png')) 
+error('break')
+
+
+%% Smooth velocities in time ==============================================
+% Make correspondences between faces in t_i, t_{i-1}, and t_{i+1} 
+% Interpolate velocities on grid to smooth them in time
+piv3dfn = fullfile(pivDir, 'piv3d.mat') ;
+if exist(piv3dfn, 'file')
+    load(piv3dfn)
+else
+    piv3d = cell(ntps, 1) ;
+    for i=1:ntps - 1
+        % Average in time by advecting v3d along correlation vector 
+        x0 = piv.x{i} ;
+        y0 = piv.y{i} ;
+        uu = piv.u_filtered{i} ;
+        v0 = piv.v_filtered{i} ; 
+        v3d0 = piv3d{i}.v0 ;
+        v3d0grid = reshape(v3d0, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
+        x0vel = squeeze(v3d0grid(:, :, 1)) ;
+        y0vel = squeeze(v3d0grid(:, :, 2)) ;
+        z0vel = squeeze(v3d0grid(:, :, 3)) ;
+                
+        % Advect 0 -> 1
+        x0ad1 = x0 + u0 ;
+        y0ad1 = y0 + v0 ;
+        
+        % Advect 0 -> -1
+        x0ad1 = x0 - u0 ;
+        y0ad1 = y0 - v0 ;
+        
+        % next timept
+        tpid = i + 1 ;
+        if tpid < ntps
+            x1 = piv.x{tpid} ;
+            y1 = piv.y{tpid} ;
+            u1 = piv.u_filtered{tpid} ;
+            v1 = piv.v_filtered{tpid} ; 
+            v3d1 = piv3d{tpid}.v0 ;
+            % cast as NxMx3, then as N*M x 1 arrays for vx,vy,vz separately
+            v3d1grid = reshape(v3d1, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
+            x1vel = squeeze(v3d1grid(:, :, 1)) ;
+            y1vel = squeeze(v3d1grid(:, :, 2)) ;
+            z1vel = squeeze(v3d1grid(:, :, 3)) ;
+            % Find the velocity at the advected position using only 2d coords
+            Fx = griddedInterpolant(x1', y1', x1vel') ;
+            Fy = griddedInterpolant(x1', y1', y1vel') ;
+            Fz = griddedInterpolant(x1', y1', z1vel') ;
+            v3d1 = [Fx(x0ad1(:), y0ad1(:)), ...
+                Fy(x0ad1(:), y0ad1(:)), Fz(x0ad1(:), y0ad1(:))] ;
+        else
+            v3d1 = v3d0 ;
+        end
+        
+        % previous timept
+        tpid = i - 1; 
+        if tpid > 0
+            x2 = piv.x{tpid} ;
+            y2 = piv.y{tpid} ;
+            u2 = piv.u_filtered{tpid} ;
+            v2 = piv.v_filtered{tpid} ; 
+            v3d2 = piv3d{tpid}.v0 ;
+            % cast as NxMx3, then as N*M x 1 arrays for vx,vy,vz separately
+            v3d2grid = reshape(v3d2, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
+            x2vel = squeeze(v3d2grid(:, :, 1)) ;
+            y2vel = squeeze(v3d2grid(:, :, 2)) ;
+            z2vel = squeeze(v3d2grid(:, :, 3)) ;
+            % Find the velocity at the advected position using only 2d coords
+            Fx = griddedInterpolant(x0', y0', x2vel') ;
+            Fy = griddedInterpolant(x0', y0', y2vel') ;
+            Fz = griddedInterpolant(x0', y0', z2vel') ;
+            v3d2 = [Fx(x0ad2(:), y0ad2(:)), ...
+                Fy(x0ad2(:), y0ad2(:)), Fz(x0ad2(:), y0ad2(:))] ;
+        else
+            v3d2 = v3d0 ;
+        end
+        
+        % Perform a boxcar average & store the result
+        v0avg = (1/3) * (v3d0 + v3d1 + v3d2) ;
+        piv3d{i}.v0avg = v0avg ;
+        
+        % Decompose the result into tangential and normal components
+        
+        % Plot the tangential velocity as heatmap on top of the image
+        fig = figure('units', 'normalized', ...
+            'outerposition', [0 0 1 1], 'visible', 'off') ;
+        imshow(im * washout2d + max(im) * (1-washout2d)) ;
+        hold on;
+        h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vangle) ;
+        colormap phasemap
+        % phasebar
+        set(h2, 'AlphaData', speed)
+        plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
+        saveas(fig, fullfile(pivSimAvgImTDir, [sprintf('%04d', time(i)) '.png'])) ;    
+        close all
+    end
+end
+
 
 %% Measure Compressibility (div(v), 2*vn*H, and gdot)
 QS.measureCompressibility()
