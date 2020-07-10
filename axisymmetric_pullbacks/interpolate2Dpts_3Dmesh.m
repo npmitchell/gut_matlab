@@ -72,16 +72,16 @@ pts(bad, :) = NaN  ;
 fieldfaces(bad) = NaN ;
 
 %%%
-% Note: an alternative method is to interpolate
-% Xai = scatteredInterpolant(tm0X, tm0Y, tm0v3d(:, 1)) ;
-% Yai = scatteredInterpolant(tm0X, tm0Y, tm0v3d(:, 2)) ;
-% Zai = scatteredInterpolant(tm0X, tm0Y, tm0v3d(:, 3)) ;
-% pt0 = [Xai(x0(:), y0(:)), Yai(x0(:), y0(:)), Zai(x0(:), y0(:))] ;
-% disp('Finding barycentric coordinates')
-% % Compute barycentric coordinates for later
-% tr0 = triangulation(tm0f, [tm0X, tm0Y]) ;
-% [fieldfaces, baryc0] = pointLocation(tr0, [x0(:), y0(:)]) ;
-%%%
+% Now attempt to fix the bad indices by interpolating
+% if ~isempty(bad)
+%     Xai = scatteredInterpolant(v2d(:, 1), v2d(:, 2), vxa, 'linear', 'nearest') ;
+%     Yai = scatteredInterpolant(v2d(:, 1), v2d(:, 2), vya, 'linear', 'nearest') ;
+%     Zai = scatteredInterpolant(v2d(:, 1), v2d(:, 2), vza, 'linear', 'nearest') ;
+%     pts(bad, :) = [Xai(uv(bad, 1), uv(bad, 2)), ...
+%         Yai(uv(bad, 1), uv(bad, 2)), Zai(uv(bad, 1), uv(bad, 2))] ;
+%     fieldfaces(bad) = 
+% end
+%%
 
 end
 

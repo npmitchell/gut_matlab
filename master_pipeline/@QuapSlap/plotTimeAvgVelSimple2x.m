@@ -1,15 +1,16 @@
-function plotTimeAvgVelSimple(QS, options) 
+function plotTimeAvgVelSimple2x(QS, samplingResolution, options) 
 %plotTimeAvgVelSimple(QS, options) 
 %   Save images of the velocity field over time that has been "simply"
 %   averaged over time in-place in the surface-Lagrangian pullback. That
 %   is, the velocity field at location (u,v) has been averaged in time with
 %   previous and later timepoints at the same pullback location (u,v).
-%   For samplingResolution, all fields plotted in this method depend only 
-%   on the PIV sampling settings
+%   
 %
 % Parameters
 % ----------
 % QS : QuapSlap class instance
+% samplingResolution : str specifier ('1x' or '2x', 'single' or 'double')
+%   the resolution in which to sample the Pullback for velocities
 % options : struct with fields 
 %   overwrite : bool
 %       overwrite previous results
@@ -41,6 +42,15 @@ preview = false ;
 pivimCoords = 'sp_sme' ;
 doubleCovered = true;
 
+%% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
+if strcmp(samplingResolution, '1x') || strcmp(samplingResolution, 'single')
+    doubleResolution = false ;
+elseif strcmp(samplingResolution, '2x') || strcmp(samplingResolution, 'double')
+    doubleResolution = true ;
+else 
+    error("Could not parse samplingResolution: set to '1x' or '2x'")
+end
+
 %% Unpack options
 if isfield(options, 'plot_vxyz')
     plot_vxyz = options.plot_vxyz ;
@@ -58,7 +68,11 @@ if isfield(options, 'overwrite')
 end
     
 %% Unpack QS
-pivSADir = QS.dir.pivSimAvg ;  % Note these fields are sampling independent (not related to pullback coords)
+if doubleResolution
+    pivSADir = QS.dir.pivSimAvg2x ;
+else
+    pivSADir = QS.dir.pivSimAvg ;
+end
 timePoints = QS.xp.fileMeta.timePoints ;
 QS.getFeatures('ssfold')
 ssfold_frac = QS.features.ssfold / QS.nU ;
@@ -73,7 +87,7 @@ pivSAImYDir = fullfile(pivSADir, 'vy') ;
 pivSAImZDir = fullfile(pivSADir, 'vz') ;
 pivSAImTDir = fullfile(pivSADir, 'vtH') ;  % Heatmap
 pivSAImGDir = fullfile(pivSADir, 'vtG ') ;  % Gaussian smoothed in space
-pivSAImSDir = fullfile(pivSADir, 'vmag') ;  % speed |v_3D|
+pivSAImSDir = fullfile(pivSADir, 'vmag ') ;  % speed |v_3D|
 pivSAImNDir = fullfile(pivSADir, 'vn') ;
 % pivSimAvgImQDir = fullfile(pivSimAvgDir, 'vtQ') ;  % Quiverplot
 % pivSimAvgImDvgDir = fullfile(pivSimAvgDir, 'dvg') ;
@@ -101,10 +115,13 @@ piv = load(QS.fileName.pivRaw) ;
 gridsz = size(piv.x{1}) ;
 
 %% Load simple average piv results
-disp('Loading single Resolution velocity sampling')
-QS.getVelocitySimpleAverage('v3d', 'v2dum', 'vn')
-velstruct = QS.velocitySimpleAverage ;
-
+if doubleResolution
+    QS.getVelocitySimpleAverage2x()
+    velstruct = QS.velocitySimpleAverage2x ;
+else
+    QS.getVelocitySimpleAverage()
+    velstruct = QS.velocitySimpleAverage ;
+end
 vsmM = velstruct.v3d ;
 v2dsmMum = velstruct.v2dum ;
 vnsmM = velstruct.vn ;
@@ -115,7 +132,6 @@ close all
 fig = figure('visible', 'off') ;
 for i = 1:size(vsmM, 1)
     tp = timePoints(i) ;
-    disp(['t = ', num2str(tp)])
     
     % Check if normal velocity plot exists
     vnfn = fullfile(pivSAImNDir, [sprintf(QS.fileBase.name, tp) '.png']) ;
@@ -266,7 +282,7 @@ for i = 1:size(vsmM, 1)
     end
         
 end
-disp('Done plotting in-place-avgeraged velocitites')
+
 
 
 

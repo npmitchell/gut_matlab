@@ -100,7 +100,7 @@ if nargin < 3 || isempty(spcutMesh)
     spcutMesh = QS.currentMesh.spcutMesh ;
 end
 
-if nargin < 4 || isempty(spcutMeshSm)
+if (nargin < 4 || isempty(spcutMeshSm)) && (generate_rsm || generate_spsm)
     if isempty(QS.currentMesh.spcutMeshSm)
         QS.loadCurrentSPCutMeshSm()
     end

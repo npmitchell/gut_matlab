@@ -11,17 +11,19 @@ classdef QuapSlap < handle
         xp
         timeinterval
         timeunits
+        spaceunits
         dir
         dirBase
         fileName
         fileBase
         fullFileBase
+        ssfactor                % subsampling factor for probabilities 
         APDV = struct('resolution', [], ...
             'rot', [], ...
             'trans', [])
         flipy 
-        nV 
-        nU
+        nV                      % sampling number along circumferential axis
+        nU                      % sampling number along longitudinal axis
         uvexten                 % naming extension with nU and nV like '_nU0100_nV0100'
         t0                      % reference time in the experiment
         normalShift
@@ -59,13 +61,26 @@ classdef QuapSlap < handle
             'spcutMeshSm', []) 
         data = struct('adjustlow', 0, ...
             'adjusthigh', 0, ...
-            'axisOrder', [1 2 3]) 
+            'axisOrder', [1 2 3]) % options for scaling and transposing image intensity data
         currentData = struct('IV', [], ...
             'adjustlow', 0, ...
-            'adjusthigh', 0 ) 
-        currentVelocity = struct('piv3d', struct()) 
-        velocitySimpleAverage = struct() 
+            'adjusthigh', 0 )    % image intensity data in 3d and scaling
+        currentVelocity = struct('piv3d', struct(), ...
+            'piv3d2x', struct()) ; 
+        velocitySimpleAverage = struct('v3d', [], ...
+            'v2d', [], ...
+            'v2dum', [], ...
+            'vn', [], ...
+            'vf', [], ...       
+            'vv', []) ;          % velocity field after in-place (uv) avg
+        velocitySimpleAverage2x = struct('v3d', [], ...
+            'v2d', [], ...
+            'v2dum', [], ...
+            'vn', [], ...
+            'vf', [], ...       
+            'vv', []) ;          % velocity field after in-place (uv) avg
         cleanCntrlines
+        pivPullback = 'sp_sme' ; % coordinate system used for velocimetry
         
     end
     
@@ -83,6 +98,15 @@ classdef QuapSlap < handle
     % properties of the class instance
     methods
         function setTime(QS, tt)
+            % Set the current time of the dataset and clear current data
+            % which was associated with the previously considered time
+            %
+            % Parameters
+            % ----------
+            % tt : int or float
+            %   timePoint to set to be current, from available times in
+            %   QS.xp.fileMeta.timePoints
+            %
             if tt ~= QS.currentTime
                 QS.currentMesh.cylinderMesh = [] ;
                 QS.currentMesh.cylinderMeshClean = [] ;
@@ -96,6 +120,7 @@ classdef QuapSlap < handle
                 QS.currentData.adjustlow = 0 ;
                 QS.currentData.adjusthigh = 0 ;
                 QS.currentVelocity.piv3d = struct() ;
+                QS.currentVelocity.piv3d2x = struct() ;                
             end
             QS.currentTime = tt ;
             QS.xp.setTime(tt) ;
@@ -104,12 +129,12 @@ classdef QuapSlap < handle
         function t0 = t0set(QS, t0)
             % t0set(QS, t0) Set time offset to 1st fold onset or manually 
             if nargin < 2
-                try
+                if exist(QS.fileName.fold, 'file')
                     % Note that fold_onset is in units of timepoints, not 
                     % indices into timepoints
                     load(QS.fileName.fold, 'fold_onset') ;
                     QS.t0 = min(fold_onset) ;
-                catch
+                else
                     error('No folding times saved to disk')
                 end
             else
@@ -119,12 +144,19 @@ classdef QuapSlap < handle
         end
         
         function [acom_sm, pcom_sm] = getAPCOMSm(QS) 
-            acom_sm = h5read(QS.fileName.apdv, '/acom') ;
-            pcom_sm = h5read(QS.fileName.apdv, '/pcom') ;
+            % Load the anterior and posterior 'centers of mass' ie the
+            % endpoints of the object's centerline
+            try
+                acom_sm = h5read(QS.fileName.apdv, '/acom') ;
+                pcom_sm = h5read(QS.fileName.apdv, '/pcom') ;
+            catch
+                [acom_sm, pcom_sm] = QS.computeAPDCOMs() ;
+            end
         end
         
         function [rot, trans] = getRotTrans(QS)
-            % Load the translation to put anterior to origin
+            % Load the translation to put anterior to origin and AP axis
+            % along x axis 
             if ~isempty(QS.APDV.trans)
                 % return from self
                 trans = QS.APDV.trans ;
@@ -145,6 +177,7 @@ classdef QuapSlap < handle
         
         function [xyzlim_raw, xyzlim_pix, xyzlim_um, xyzlim_um_buff] = ...
                 getXYZLims(QS)
+            %[raw, pix, um, um_buff] = GETXYZLIMS(QS)
             % Grab each xyzlim from self, otherwise load from disk
             % full resolution pix
             if ~isempty(QS.plotting.xyzlim_raw)
@@ -178,7 +211,9 @@ classdef QuapSlap < handle
         
         function getFeatures(QS, varargin)
             %GETFEATURES(QS, varargin)
-            %
+            %   Load features of the QS object (those specied, or all of 
+            %   them). Features include {'folds', 'fold_onset', 'ssmax', 
+            %   'ssfold', 'rssmax', 'rssfold'}. 
             if nargin > 1
                 for qq=1:length(varargin)
                     if isempty(eval(['QS.features.' varargin{qq}]))
@@ -320,7 +355,8 @@ classdef QuapSlap < handle
                     IVii = IV{ii} ;
                     vlo = double(prctile( IVii(:) , adjustlow )) / double(max(IVii(:))) ;
                     vhi = double(prctile( IVii(:) , adjusthigh)) / double(max(IVii(:))) ;
-                    disp(['--> ' num2str(vlo) ', ' num2str(vhi)])
+                    disp(['--> ', num2str(vlo), ', ', num2str(vhi), ...
+                        ' for ', num2str(adjustlow), '/', num2str(adjusthigh)])
                     IV{ii} = imadjustn(IVii, [double(vlo); double(vhi)]) ;
                 end
             end
@@ -352,13 +388,17 @@ classdef QuapSlap < handle
                 load(sprintf(piv3dfn, QS.currentTime), 'piv3dstruct') ;
                 QS.currentVelocity.piv3d = piv3dstruct ;
             end
+            no_piv3d2x = isempty(fieldnames(QS.currentVelocity.piv3d2x)) ;
+            if (do_all || contains(varargin, 'piv3d2x')) && no_piv3d2x
+                % Load 3D data for piv results
+                piv3d2xfn = QS.fullFileBase.piv3d2x ;
+                load(sprintf(piv3d2xfn, QS.currentTime), 'piv3dstruct') ;
+                QS.currentVelocity.piv3d2x = piv3dstruct ;
+            end
         end
         
         % APDV methods
-        function getAPDCOMs(QS, apdvCOMOptions)
-            computeAPDCOMs(QS, apdvCOMOptions)
-        end
-        
+        [acom_sm, pcom_sm] = computeAPDCOMs(QS, opts)
         function ars = xyz2APDV(QS, a)
             %ars = xyz2APDV(QS, a)
             %   Transform 3d coords from XYZ data space to APDV coord sys
@@ -368,7 +408,6 @@ classdef QuapSlap < handle
                 ars(:, 2) = - ars(:, 2) ;
             end
         end
-        
         function dars = dx2APDV(QS, da)
             %dars = dx2APDV(QS, da)
             %   Transform 3d difference vector from XYZ data space to APDV 
@@ -379,20 +418,25 @@ classdef QuapSlap < handle
                 dars(:, 2) = - dars(:, 2) ;
             end
         end
-        
         function setAPDVCOMOptions(QS, apdvCOMOpts)
             QS.apdvCOMOptions = apdvCOMOpts ;
         end
-        
         function apdvCOMOptions = loadAPDVCOMOptions(QS)
             load(QS.fileName.apdvCOMOptions, 'apdvCOMOptions')
             QS.apdvCOMOptions = apdvCOMOptions ;
         end     
-        
         function apdvCOMOptions = saveAPDVCOMOptions(QS)
             apdvCOMOptions = QS.APDVCOMs.apdvCOMOptions ;
             save(QS.fileName.apdvCOMOptions, 'apdvCOMOptions')
         end
+        [rot, trans, xyzlim_raw, xyzlim, xyzlim_um, xyzlim_um_buff] = ...
+            alignMeshesAPDV(QS, alignAPDVOpts) 
+        
+        % Masked Data
+        generateMaskedData(QS)
+        alignMaskedDataAPDV(QS)
+        plotSeriesOnSurfaceTexturePatch(QS, overwrite, metadat, ...
+                                        TexturePatchOptions)
         
         % Surface Area and Volume over time
         measureSurfaceAreaVolume(QS, options)
@@ -463,7 +507,7 @@ classdef QuapSlap < handle
             tmp = load(spcutMeshfn, 'spcutMeshSm') ;
             QS.currentMesh.spcutMeshSm = tmp.spcutMeshSm ;
         end
-        
+                
         % Pullbacks
         generateCurrentPullbacks(QS, cutMesh, spcutMesh, spcutMeshSm, pbOptions)
         function doubleCoverPullbackImages(QS, options)
@@ -614,6 +658,25 @@ classdef QuapSlap < handle
             end
         end
         
+        % spcutMeshSm at DoubleRes (2x resolution)
+        function generateSPCutMeshSm2x(QS, overwrite)
+            % Double the resolution of spcutMeshSm meshes
+            %
+            if nargin < 2
+                overwrite = false ;
+            end
+            for tp = QS.xp.fileMeta.timePoints 
+                sp2xfn = sprintf(QS.fullFileBase.spcutMeshSm2x, tp) ;
+                if overwrite || ~exist(sp2xfn, 'file')
+                    mesh1x = load(sprintf(QS.fullFileBase.spcutMeshSm, tp), 'spcutMeshSm') ;
+                    mesh1x = mesh1x.spcutMeshSm ;
+                    spcutMeshSm2x = QS.doubleResolution(mesh1x) ;
+                    disp(['saving ' sp2xfn])
+                    save(sp2xfn, 'spcutMeshSm2x')
+                end
+            end
+        end
+        
         % Mean & Gaussian curvature videos
         measureCurvatures(QS, options)
         
@@ -639,12 +702,81 @@ classdef QuapSlap < handle
         coordinateSystemDemo(QS)
         
         % flow measurements
-        measurePIV3D(QS, options)
-        timeAverageVelocitiesSimple(QS, options)
-        plotTimeAvgVelSimple(QS, options)
+        measurePIV3d(QS, options)
+        measurePIV3dDoubleResolution(QS, options)
+        timeAverageVelocitiesSimple(QS, samplingResolution, options)
+        % Note: To timeAverage Velocities at Double resolution, pass
+        % options.doubleResolution == true
+        
+        function loadVelocitySimpleAverage(QS, varargin)
+            % Load and pack into struct
+            if any(strcmp(varargin, 'v3d'))
+                load(QS.fileName.pivSimAvg.v3d, 'vsmM') ;
+                QS.velocitySimpleAverage.v3d = vsmM ;
+            end
+            if any(strcmp(varargin, 'v2dum'))
+                load(QS.fileName.pivSimAvg.v2dum, 'v2dsmMum') ;
+                QS.velocitySimpleAverage.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'vn'))
+                load(QS.fileName.pivSimAvg.vn, 'vnsmM') ;
+                QS.velocitySimpleAverage.vn = vnsmM ;
+            end
+            if any(strcmp(varargin, 'vf'))
+                load(QS.fileName.pivSimAvg.vf, 'vfsmM') ;
+                QS.velocitySimpleAverage.vf = vfsmM ;
+            end
+            if any(strcmp(varargin, 'v2v'))
+                load(QS.fileName.pivSimAvg.vf, 'vvsmM') ;
+                QS.velocitySimpleAverage.vv = vvsmM ;
+            end
+        end
+        function getVelocitySimpleAverage(QS, varargin)
+            % todo: check if all varargin are already loaded
+            loadVelocitySimpleAverage(QS, varargin{:})
+        end
+        
+        function loadVelocitySimpleAverage2x(QS, varargin)
+            % Load and pack into struct
+            if isempty(varargin)
+                varargin = {'v3d', 'v2dum', 'v2d', 'vn', 'vf', 'vv'};
+            end
+            if any(strcmp(varargin, 'v3d'))
+                load(QS.fileName.pivSimAvg2x.v3d, 'vsmM') ;
+                QS.velocitySimpleAverage2x.v3d = vsmM ;
+            end
+            if any(strcmp(varargin, 'v2dum'))
+                load(QS.fileName.pivSimAvg2x.v2dum, 'v2dsmMum') ;
+                QS.velocitySimpleAverage2x.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'v2d'))
+                load(QS.fileName.pivSimAvg2x.v2dum, 'v2dsmMum') ;
+                QS.velocitySimpleAverage2x.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'vn'))
+                load(QS.fileName.pivSimAvg2x.vn, 'vnsmM') ;
+                QS.velocitySimpleAverage2x.vn = vnsmM ;
+            end
+            if any(strcmp(varargin, 'vf'))
+                load(QS.fileName.pivSimAvg2x.vf, 'vfsmM') ;
+                QS.velocitySimpleAverage2x.vf = vfsmM ;
+            end
+            if any(strcmp(varargin, 'vv'))
+                load(QS.fileName.pivSimAvg2x.vv, 'vvsmM') ;
+                QS.velocitySimpleAverage2x.vv = vvsmM ;
+            end
+        end
+        function getVelocitySimpleAverage2x(QS, varargin)
+            if isempty(QS.velocitySimpleAverage2x.v3d)
+                loadVelocitySimpleAverage2x(QS, varargin{:})
+            end
+        end
+        
+        plotTimeAvgVelSimple(QS, samplingResolution, options)
+        helmoltzHodgeSimple(QS, options)
         
         % compressible/incompressible flow on evolving surface
-        [cumerr, HHs, divvs, velns] = measureCompressibility(QS, lambda, lambda_err)
+        [cumerr, HHs, divvs, velns] = measureMetricKinematics(QS, options)
         
     end
     
@@ -748,6 +880,164 @@ classdef QuapSlap < handle
             dy2dY = @ (y, Yscale) (Yscale*0.5)*y ;
             
             % Now map the coornates
+        end
+        
+        function cutMesh2x = doubleResolution(cutMesh, preview)
+            % 
+            if nargin < 2
+                preview = false;
+            end
+            
+            % Double resolution in uv
+            uv0 = cutMesh.u ;
+            v3 = cutMesh.v ;
+            vn0 = cutMesh.vn ;
+            nU = cutMesh.nU ;
+            nV = cutMesh.nV ;
+            
+            nU2 = nU * 2 - 1;
+            nV2 = nV * 2 - 1;
+            
+            % Double resolution in V
+            unew = zeros(nU, nV2, 2) ;
+            v3new = zeros(nU, nV2, 3) ;
+            ugrid = reshape(uv0, [nU, nV, 2]) ;
+            v3grid = reshape(v3, [nU, nV, 3]) ;
+            for qq = 1:nV - 1
+                % Duplicate column of u=const in 2d
+                unew(:, 2*qq-1, :) = ugrid(:, qq, :) ;
+                unew(:, 2 * qq, :) = 0.5 * (ugrid(:, qq, :) ...
+                                          + ugrid(:, qq + 1, :)) ;
+                % Duplicate column of u=const in 3d
+                v3new(:, 2*qq-1, :) = v3grid(:, qq, :) ;
+                v3new(:, 2 * qq, :) = 0.5 * (v3grid(:, qq, :) ...
+                                          + v3grid(:, qq + 1, :)) ;
+            end
+            unew(:, nV2, :) = ugrid(:, nV, :) ;
+            v3new(:, nV2, :) = v3grid(:, nV, :) ;
+            
+            % Double resolution in U
+            uv = zeros(nU2, nV2, 2) ;
+            v3d = zeros(nU2, nV2, 3) ;
+            for qq = 1:nU - 1
+                uv(2*qq-1, :, :) = unew(qq, :, :) ;
+                uv(2 * qq, :, :) = 0.5 * (unew(qq, :, :) ...
+                                           + unew(qq + 1, :, :)) ;
+                % Duplicate column of v=const in 3d
+                v3d(2*qq-1, :, :) = v3new(qq, :, :) ;
+                v3d(2 * qq, :, :) = 0.5 * (v3new(qq, :, :) ...
+                                          + v3new(qq + 1, :, :)) ;
+            end
+            uv(nU2, :, :) = unew(nU, :, :) ;
+            v3d(nU2, :, :) = v3new(nU, :, :) ;
+            
+            % Check it
+            if preview
+                % check it
+                imagesc(squeeze(v3new(:, :, 2)))
+                waitfor(gcf)
+                clf
+                hold on;
+                for qq = 1:length(v3d)
+                    plot3(v3d(qq, :, 1), v3d(qq, :, 2), v3d(qq, :, 3), '.')
+                    pause(0.0001)
+                end
+            end
+            
+            % Reshape uv and v3d
+            uv = reshape(uv, [nU2 * nV2, 2]) ;
+            v3d = reshape(v3d, [nU2 * nV2, 3]) ;
+            
+            % Check it
+            if preview
+                clf
+                hold on;
+                nn = 50 ;
+                for qq = 1:nn:length(v3d)
+                    plot3(v3d(qq:qq+nn, 1), v3d(qq:qq+nn, 2), v3d(qq:qq+nn, 3), '.')
+                    pause(0.00001)
+                end
+            end
+            
+            % Output variables
+            faces = defineFacesRectilinearGrid(uv, nU2, nV2) ;
+            % Store in output cutMesh struct
+            cutMesh2x = struct() ;
+            cutMesh2x.v = v3d ;
+            cutMesh2x.u = uv ;
+            cutMesh2x.f = faces ;
+            cutMesh2x.nU = nU2 ;
+            cutMesh2x.nV = nV2 ;
+            cutMesh2x.pathPairs = [1:nU2; (nV2-1)*nU2 + (1:nU2)]' ;
+            
+            cutMesh2xC = glueCylinderCutMeshSeam(cutMesh2x) ;
+            vn = zeros(size(cutMesh2x.v)) ;
+            vn(1:nU2*(nV2-1), :) = cutMesh2xC.vn ;
+            vn(nU2*(nV2-1)+1:nU2*nV2, :) = cutMesh2xC.vn(1:nU2, :) ;
+            cutMesh2x.vn = vn ;
+            
+            %%% ALTERNATE APPROACH
+            % % Create vertex normals via interpolation
+            % % push boundaries inward slightly by epsilon
+            % leftId = uv(:, 1) < min(uv0(:, 1)) + eps ;
+            % rightId = uv(:, 1) > max(uv0(:, 1)) - eps ;
+            % uv(leftId, 1) = uv(leftId, 1) + eps ; 
+            % uv(rightId, 1) = uv(rightId, 1) + eps ;
+            % [ TF, TV2D, ~, TVN3D ] = tileAnnularCutMesh(cutMesh, [1, 1]) ;
+            % vn = interpolate2Dpts_3Dmesh(TF, TV2D, TVN3D, uv) ;
+            % vn = vn ./ vecnorm(vn, 2, 2) ;
+            % 
+            % dmyk = 0;
+            % while any(isnan(vn(:))) && dmyk < 1000 
+            %     % Fix bad normals
+            %     bad = find(isnan(vn(:, 1))) ;
+            %     disp(['found ', num2str(length(bad)), ...
+            %         ' bad vertex normals, attempting to fix...'])
+            %     jitter = 1e-14 * rand([size(bad, 1), 2]) ;
+            %     size(vn(bad, :))
+            %     vn(bad, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TVN3D, uv(bad, :)+jitter) ;
+            %     dmyk = dmyk + 1 ;
+            % end
+            % if any(isnan(vn(:)))
+            %     error(['bad vertex normals. ', ...
+            %         'Cannot use cutMesh normals to define ', ...
+            %         'double Resolution cutMesh.'])
+            % end
+            % 
+            % % Check normals
+            % vn2 = per_vertex_normals(v3d, faces, 'Weighting', 'angle') ;
+            % distant = find(abs(vn(:) - vn2(:)) > 0.25) ;
+            % [distant, colind] = ind2sub(size(vn), distant) ;
+            % plot(vn(:), vn2(:), '.')
+            % waitfor(gcf)
+            % 
+            % % Check it
+            % % % bad indices have NaNs
+            % umax = max(uv(:, 1)) ;
+            % bad = find(isnan(vn(:, 1))) ;
+            if preview
+                clf
+                trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2),...
+                    cutMesh.v(:, 3), 'edgecolor', 'none') ; 
+                hold on; 
+                % plot3(v3d(distant, 1), v3d(distant, 2), v3d(distant, 3), 'o')
+                quiver3(v3d(:, 1), v3d(:, 2), v3d(:, 3), vn(:, 1), vn(:, 2), ...
+                    vn(:, 3), 1, 'r')
+                % quiver3(v3d(:, 1), v3d(:, 2), v3d(:, 3), vn2(:, 1), vn2(:, 2), ...
+                %     vn2(:, 3), 1, 'y')
+                axis equal
+                waitfor(gcf)
+            end
+            % % % plot(uv(:, 1)/umax, uv(:, 2), '.')
+            % % trisurf(TF, TV2D(:, 1)/umax, TV2D(:, 2), 0*TV2D(:, 1)) ; 
+            % % plot(uv(bad, 1)/umax, uv(bad, 2), 'o')
+            
+            if preview
+                trimesh(faces, v3d(:, 1), v3d(:, 2), v3d(:, 3), ...
+                    v3d(:, 1), 'Edgecolor', 'k', 'FaceColor', 'Interp')
+                axis equal
+                title('Preview double-resolution cutMesh')
+            end
         end
     end
     

@@ -1,7 +1,13 @@
 function initializeQuapSlap(QS, xp, opts)
+%initializeQuapSlap(QS, xp, opts)
+%   Hidden method for instantiating QuapSlap class
 %
-%
-%
+% Parameters
+% ----------
+% QS : QuapSlap object whose properties to fill in
+% xp : Imsane Experiment class instance belonging to QS
+% opts : struct with fields
+%   
 %
 % NPMitchell 2020
 
@@ -9,11 +15,17 @@ function initializeQuapSlap(QS, xp, opts)
 QS.xp = xp ;
 QS.flipy = opts.flipy ;
 meshDir = opts.meshDir ;
-QS.timeinterval = opts.timeinterval ;
 QS.timeunits = opts.timeunits ;
+QS.spaceunits = opts.spaceunits ;
 QS.fileBase.fn = xp.fileMeta.filenameFormat ;
+QS.ssfactor = xp.detectOptions(1).ssfactor ;
 QS.nV = opts.nV ;
 QS.nU = opts.nU ;
+if isfield(opts, 'timeinterval')
+    QS.timeinterval = opts.timeinterval ;
+else
+    QS.timeinterval = 1 ;
+end
 
 QS.normalShift = opts.normalShift ;
 QS.a_fixed = opts.a_fixed ;
@@ -25,6 +37,11 @@ if isfield(opts, 'adjusthigh')
 end
 if isfield(opts, 'axisOrder')
     QS.data.axisOrder = opts.axisOrder ;
+end
+
+% Assign which pullback coordsys is used for velocimetry
+if isfield(opts, 'pivPullback')
+    QS.pivPullback = pivPullback ;
 end
 
 %% NAMING
@@ -40,19 +57,26 @@ QS.APDV.trans = [] ;
 
 % Plotting settings
 QS.plotting.colors = define_colors() ;
-QS.plotting.markers = {'o', 's', '^', 'v'} ;
+QS.plotting.markers = {'o', 's', '^', 'v', '*', '>', '<'} ;
 
 % Directories of the QS object
-QS.dir.dataDir = xp.fileMeta.dataDir ;
+% Meshes and measurements before gridding into pullback coords
+QS.dir.data = xp.fileMeta.dataDir ;
 QS.dir.mesh = meshDir ;
+QS.dir.maskedData = fullfile(meshDir, 'masked_data') ;
 QS.dir.alignedMesh = fullfile(meshDir, 'aligned_meshes') ;
 QS.dir.cntrline = fullfile(meshDir, 'centerline') ;
 QS.dir.cylinderMesh = fullfile(meshDir, 'cylinder_meshes') ;
 QS.dir.cutMesh = fullfile(meshDir, 'cutMesh') ;
 QS.dir.cylinderMeshClean = fullfile(QS.dir.cylinderMesh, 'cleaned') ;
+QS.dir.texturePatchIm = fullfile(meshDir, 'images_texturepatch') ;
+
+% After gridding into (u,v) / (zeta,phi) pullback coords
+uvDir = fullfile(QS.dir.mesh, sprintf('gridCoords_nU%04d_nV%04d', QS.nU, QS.nV)) ;
+QS.dir.uvCoord = uvDir ;
 
 % Metric strain dirs
-QS.dir.gstrain = fullfile(meshDir, 'metric_strain') ;
+QS.dir.gstrain = fullfile(uvDir, 'metric_strain') ;
 QS.dir.gstrainRate = fullfile(QS.dir.gstrain, 'rateMetric') ;
 QS.dir.gstrainRateIm = fullfile(QS.dir.gstrainRate, 'images') ;
 QS.dir.gstrainVel = fullfile(QS.dir.gstrain, 'velMetric') ;
@@ -68,15 +92,15 @@ QS.fullFileBase.gstrainMesh = fullfile(QS.dir.gstrainMesh, ...
     QS.fileBase.gstrainMesh) ; 
 QS.fullFileBase.gstrainRate = fullfile(QS.dir.gstrainRate, ...
     QS.fileBase.gstrainRate) ; 
-QS.dir.compressibility = fullfile(QS.dir.mesh, 'compressibility') ;
-QS.dir.compressibility2d = ...
-    fullfile(QS.dir.compressibility, 'images_2d') ;
-QS.dir.compressibility3d = ...
-    fullfile(QS.dir.compressibility, 'images_3d') ;
-QS.fullFileBase.compressibility2d = ...
-    fullfile(QS.dir.compressibility2d, 'compr_2d_%06d.png') ;
-QS.fullFileBase.compressibility3d = ...
-    fullfile(QS.dir.compressibility3d, 'compr_3d_%06d.png') ;
+QS.dir.metricKinematics = fullfile(uvDir, 'metricKinematics') ;
+QS.dir.metricKinematics2d = ...
+    fullfile(QS.dir.metricKinematics, 'images_2d') ;
+QS.dir.metricKinematics3d = ...
+    fullfile(QS.dir.metricKinematics, 'images_3d') ;
+QS.fullFileBase.metricKinematics2d = ...
+    fullfile(QS.dir.metricKinematics2d, 'compr_2d_%06d.png') ;
+QS.fullFileBase.metricKinematics3d = ...
+    fullfile(QS.dir.metricKinematics3d, 'compr_3d_%06d.png') ;
 
 % shorten variable names for brevity
 clineDir = QS.dir.cntrline ;
@@ -87,6 +111,7 @@ QS.fileBase.mesh = ...
     [xp.detector.options.ofn_smoothply '%06d'] ;
 QS.fileBase.alignedMesh = ...
     [QS.fileBase.mesh '_APDV_um'] ;
+QS.fileBase.apdProb = [QS.fileBase.name '_Probabilities_apcenterline.h5'] ; ;
 QS.fileBase.centerlineXYZ = ...
     [QS.fileBase.mesh '_centerline_exp1p0_res*.txt' ] ;
 QS.fileBase.centerlineAPDV = ...
@@ -118,6 +143,7 @@ QS.fileName.xyzlim_um = ...
 QS.fileName.xyzlim_um_buff = ...
     fullfile(meshDir, ['xyzlim_APDV_um' shiftstr '.txt']) ;
 % fileNames for APDV and cylinderMesh
+QS.fullFileBase.apdProb = fullfile(QS.dir.data, QS.fileBase.apdProb) ;
 QS.fileName.apdv = ...
     fullfile(clineDir, 'apdv_coms_from_training.h5') ;
 QS.fileName.startendPt = fullfile(clineDir, 'startendpt.h5') ;
@@ -155,13 +181,18 @@ QS.fullFileBase.cylinderMeshClean = ...
 % Define cutMesh directories
 % cutFolder = fullfile(meshDir, 'cutMesh') ;
 % cutMeshBase = fullfile(cutFolder, [QS.fileBase.name, '_cutMesh.mat']) ;
-imFolderBase = fullfile(meshDir, ['PullbackImages' shiftstr uvexten] ) ;
-sphiDir = fullfile(meshDir, ['sphi_cutMesh' shiftstr uvexten]) ;
+imFolderBase = fullfile(uvDir, ['PullbackImages' shiftstr] ) ;
+sphiDir = fullfile(uvDir, ['sphi_cutMesh' shiftstr]) ;
 sphiSmDir = fullfile(sphiDir, 'smoothed') ;
 sphiSmRSDir = fullfile(sphiDir, 'smoothed_rs') ;
 % sphiSmRSImDir = fullfile(sphiSmRSDir, 'images') ;
 % sphiSmRSPhiImDir = fullfile(sphiSmRSImDir, 'phicolor') ;
 sphiSmRSCDir = fullfile(sphiDir, 'smoothed_rs_closed') ;
+sphiSmDir2x = fullfile(sphiDir, 'smoothed_doubleResolution') ;
+sphiSmRSDir2x = fullfile(sphiDir, 'smoothed_rs_doubleResolution') ;
+sphiSmRSCDir2x = fullfile(sphiDir, 'smoothed_rs_closed_doubleResolution') ;
+
+% Images of pullbacks in smoothed mesh coordinate systems
 imFolder_sp = [imFolderBase '_sphi'] ;
 imFolder_spe = fullfile(imFolder_sp, 'extended') ;
 imFolder_up = [imFolderBase '_uphi'] ;
@@ -175,7 +206,7 @@ imFolder_rsme = fullfile([imFolderBase, '_sphi_relaxed'], 'smoothed_extended') ;
 imFolder_rsme_stack = fullfile([imFolderBase, '_sphi_relaxed'], 'smoothed_extended_stack') ;  % with histeq?
 
 % Lobe/fold identification paths
-lobeDir = fullfile(meshDir, 'lobes') ;
+lobeDir = fullfile(uvDir, 'lobes') ;
 foldHoopImDir = fullfile(lobeDir, 'constriction_hoops') ;
 % Folder for curvature measurements
 KHSmDir = fullfile(sphiSmRSCDir, 'curvature') ;
@@ -188,10 +219,16 @@ QS.dir.spcutMesh = sphiDir ;
 QS.dir.spcutMeshSm = sphiSmDir ;
 QS.dir.spcutMeshSmRS = sphiSmRSDir ;
 QS.dir.spcutMeshSmRSC = sphiSmRSCDir ;
+% double resolution
+QS.dir.spcutMeshSm2x = sphiSmDir2x ;
+QS.dir.spcutMeshSmRS2x = sphiSmRSDir2x ;
+QS.dir.spcutMeshSmRSC2x = sphiSmRSCDir2x ;
+% centerlines
 QS.dir.clineDVhoop = ...
-    fullfile(QS.dir.cntrline, ...
-    ['centerline_from_DVhoops' shiftstr uvexten]) ;
+    fullfile(QS.dir.uvCoord, ...
+    ['centerline_from_DVhoops' shiftstr]) ;
 QS.dir.writhe =  fullfile(QS.dir.clineDVhoop, 'writhe') ;
+% Images
 QS.dir.im_uv = [imFolderBase '_uv'] ;
 QS.dir.im_uve = [imFolderBase '_uv_extended'] ;
 QS.dir.im_r = [imFolderBase '_sphi_relaxed'] ;
@@ -225,6 +262,8 @@ QS.fileName.fold = fullfile(lobeDir, ...
     ['fold_locations_sphi' uvexten '_avgpts.mat']) ;
 QS.fileName.lobeDynamics = ...
     fullfile(lobeDir, ['lobe_dynamics' uvexten '.mat']) ;
+QS.fileName.writhe = fullfile(QS.dir.writhe, ...
+    ['writhe_sphi' uvexten '_avgpts.mat']) ;
 
 %  spcutMesh and pullbacks
 QS.fullFileBase.spcutMesh = ...
@@ -232,15 +271,28 @@ QS.fullFileBase.spcutMesh = ...
 QS.fileBase.spcutMesh = 'mesh_apical_stab_%06d_spcutMesh' ;
 QS.fullFileBase.spcutMeshSm = ...
     fullfile(sphiSmDir, '%06d_spcutMeshSm.mat') ;
-QS.fileBase.spcutMeshSm = '%06d_spcMeshSm' ;
+QS.fileBase.spcutMeshSm = '%06d_spcutMeshSm' ;
 QS.fullFileBase.spcutMeshSmRS = ...
     fullfile(sphiSmRSDir, '%06d_spcutMeshSmRS.mat') ;
-QS.fileBase.spcutMeshSmRS = '%06d_spcMeshSmRS' ;
+QS.fileBase.spcutMeshSmRS = '%06d_spcutMeshSmRS' ;
 QS.fullFileBase.spcutMeshSmRSC = ...
     fullfile(sphiSmRSCDir, '%06d_spcMSmRSC.mat') ;
 QS.fullFileBase.spcutMeshSmRSCPLY = ...
     fullfile(sphiSmRSCDir, '%06d_spcMSmRSC.ply') ;
 QS.fileBase.spcutMeshSmRSC = '%06d_spcMSmRSC' ;
+% double resolution spcutMeshSm's
+QS.fullFileBase.spcutMeshSm2x = ...
+    fullfile(sphiSmDir2x, '%06d_spcutMeshSm2x.mat') ;
+QS.fileBase.spcutMeshSm2x = '%06d_spcutMeshSm2x' ;
+QS.fullFileBase.spcutMeshSmRS2x = ...
+    fullfile(sphiSmRSDir2x, '%06d_spcutMeshSmRS2x.mat') ;
+QS.fileBase.spcutMeshSmRS2x = '%06d_spcutMeshSmRS2x' ;
+QS.fullFileBase.spcutMeshSmRSC2x = ...
+    fullfile(sphiSmRSCDir2x, '%06d_spcMSmRSC2x.mat') ;
+QS.fullFileBase.spcutMeshSmRSCPLY2x = ...
+    fullfile(sphiSmRSCDir2x, '%06d_spcMSmRSC2x.ply') ;
+QS.fileBase.spcutMeshSmRSC2x = '%06d_spcMSmRSC2x' ;
+
 QS.fileBase.im_uv = [QS.fileBase.name, '_pbuv.tif'] ;
 QS.fullFileBase.im_uv = ...
     fullfile(QS.dir.im_uv, QS.fileBase.im_uv) ;
@@ -277,28 +329,80 @@ QS.fullFileBase.cellID = fullfile(QS.dir.cellID, ...
      [QS.fileBase.cellID '.mat']) ;
 
 % PIV
-QS.dir.piv = fullfile(meshDir, 'piv') ;
+QS.dir.piv = fullfile(uvDir, 'piv') ;
 QS.dir.piv3d = fullfile(QS.dir.piv, 'piv3d') ;
 QS.dir.pivt2d = fullfile(QS.dir.piv, 'vt2d') ;
 QS.dir.pivn2d = fullfile(QS.dir.piv, 'vn2d') ;
+QS.dir.pivdilation = fullfile(QS.dir.piv, 'dilation') ;
 QS.dir.pivSimAvg = fullfile(QS.dir.piv, 'simpleAvg') ;
 QS.dir.pivSimAvgCurl = fullfile(QS.dir.pivSimAvg, 'curl') ;
 QS.dir.pivSimAvgDvg = fullfile(QS.dir.pivSimAvg, 'dvg') ;
 QS.fileName.pivRaw = fullfile(QS.dir.piv, 'piv_results.mat') ;
 QS.fullFileBase.piv3d = fullfile(QS.dir.piv3d, 'piv3d_%04d.mat') ;
 QS.fileName.pivSimAvg = struct() ;
-QS.fileName.pivSimAvg.v2dMum = fullfile(QS.dir.pivSimAvg, 'v2dMum_simpletimeavg.mat') ;
-QS.fileName.pivSimAvg.v2dM = fullfile(QS.dir.pivSimAvg, 'v2dM_simpletimeavg.mat') ;
-QS.fileName.pivSimAvg.vnM = fullfile(QS.dir.pivSimAvg, 'vnM_simpletimeavg.mat') ;
-QS.fileName.pivSimAvg.vM = fullfile(QS.dir.pivSimAvg, 'vM_simpletimeavg.mat') ;
-QS.fileName.pivSimAvg.vvM = fullfile(QS.dir.pivSimAvg, 'vvM_simpletimeavg.mat') ;
-QS.fileName.pivSimAvg.vfM = fullfile(QS.dir.pivSimAvg, 'vfM_simpletimeavg.mat') ;
+QS.fileName.pivSimAvg.v2dum = fullfile(QS.dir.pivSimAvg, 'v2dMum_simpletimeavg.mat') ;
+QS.fileName.pivSimAvg.v2d = fullfile(QS.dir.pivSimAvg, 'v2dM_simpletimeavg.mat') ;
+QS.fileName.pivSimAvg.vn  = fullfile(QS.dir.pivSimAvg, 'vnM_simpletimeavg.mat') ;
+QS.fileName.pivSimAvg.v3d = fullfile(QS.dir.pivSimAvg, 'vM_simpletimeavg.mat') ;
+QS.fileName.pivSimAvg.vv  = fullfile(QS.dir.pivSimAvg, 'vvM_simpletimeavg.mat') ;
+QS.fileName.pivSimAvg.vf  = fullfile(QS.dir.pivSimAvg, 'vfM_simpletimeavg.mat');
+
+% Helmholtz-Hodge and DEC
+QS.dir.pivSimAvgDEC = struct() ;
+QS.dir.pivSimAvgDEC.data   = fullfile(QS.dir.pivSimAvg, 'dec') ;
+QS.dir.pivSimAvgDEC.div2d  = fullfile(QS.dir.pivSimAvg, 'dec_div2d') ;
+QS.dir.pivSimAvgDEC.div3d  = fullfile(QS.dir.pivSimAvg, 'dec_div3d') ;
+QS.dir.pivSimAvgDEC.div3dTexture = fullfile(QS.dir.pivSimAvg, 'dec_div3dTexture') ;
+QS.dir.pivSimAvgDEC.rot2d  = fullfile(QS.dir.pivSimAvg, 'dec_rot2d') ;
+QS.dir.pivSimAvgDEC.rot3d  = fullfile(QS.dir.pivSimAvg, 'dec_rot3d') ;
+QS.dir.pivSimAvgDEC.rot3dTexture = fullfile(QS.dir.pivSimAvg, 'dec_rot3dTexture') ;
+QS.dir.pivSimAvgDEC.harm2d = fullfile(QS.dir.pivSimAvg, 'dec_harm2d') ;
+QS.dir.pivSimAvgDEC.harm3d = fullfile(QS.dir.pivSimAvg, 'dec_harm3d') ;
+QS.fullFileBase.dec = fullfile(QS.dir.pivSimAvgDEC.data, ...
+                              [QS.fileBase.name '_dec.mat'] ) ;
+
+% Double resolution
+QS.dir.piv3d2x = fullfile(QS.dir.piv, 'piv3dDoubleRes') ;
+QS.dir.pivt2d2x = fullfile(QS.dir.piv, 'vt2dDoubleRes') ;
+QS.dir.pivn2d2x = fullfile(QS.dir.piv, 'vn2dDoubleRes') ;
+QS.dir.pivdilation2x = fullfile(QS.dir.piv, 'dilationDoubleRes') ;
+QS.dir.pivSimAvg2x = fullfile(QS.dir.piv, 'simpleAvgDoubleRes') ;
+QS.fullFileBase.piv3d2x = fullfile(QS.dir.piv3d2x, 'piv3dDoubleRes_%04d.mat') ;
+QS.fileName.pivSimAvg2x = struct() ;
+QS.fileName.pivSimAvg2x.v2dum = fullfile(QS.dir.pivSimAvg2x, 'v2dMum_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.v2d = fullfile(QS.dir.pivSimAvg2x, 'v2dM_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.vn  = fullfile(QS.dir.pivSimAvg2x, 'vnM_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.v3d = fullfile(QS.dir.pivSimAvg2x, 'vM_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.vv  = fullfile(QS.dir.pivSimAvg2x, 'vvM_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.vf  = fullfile(QS.dir.pivSimAvg2x, 'vfM_simpletimeavg2x.mat') ;
+QS.dir.pivSimAvgDEC2x = struct() ;
+QS.dir.pivSimAvgDEC2x.data   = fullfile(QS.dir.pivSimAvg2x, 'dec') ;
+QS.dir.pivSimAvgDEC2x.div2d  = fullfile(QS.dir.pivSimAvg2x, 'dec_div2d') ;
+QS.dir.pivSimAvgDEC2x.div3d  = fullfile(QS.dir.pivSimAvg2x, 'dec_div3d') ;
+QS.dir.pivSimAvgDEC2x.div3dTexture = fullfile(QS.dir.pivSimAvg2x, 'dec_div3dTexture') ;
+QS.dir.pivSimAvgDEC2x.rot2d  = fullfile(QS.dir.pivSimAvg2x, 'dec_rot2d') ;
+QS.dir.pivSimAvgDEC2x.rot3d  = fullfile(QS.dir.pivSimAvg2x, 'dec_rot3d') ;
+QS.dir.pivSimAvgDEC2x.rot3dTexture = fullfile(QS.dir.pivSimAvg2x, 'dec_rot3dTexture') ;
+QS.dir.pivSimAvgDEC2x.harm2d = fullfile(QS.dir.pivSimAvg2x, 'dec_harm2d') ;
+QS.dir.pivSimAvgDEC2x.harm3d = fullfile(QS.dir.pivSimAvg2x, 'dec_harm3d') ;
+QS.fullFileBase.dec2x = fullfile(QS.dir.pivSimAvgDEC2x.data, ...
+                              [QS.fileBase.name '_dec.mat'] ) ;
 
 % Ensure directories
 dirs2make = struct2cell(QS.dir) ;
 for ii=1:length(dirs2make)
     dir2make = dirs2make{ii} ;
-    if ~exist(dir2make, 'dir')
-        mkdir(dir2make)
+    if isa(dir2make, 'struct')
+        dirfields = struct2cell(dir2make) ;
+        for qq = 1:length(dirfields)
+            dir2make = dirfields{qq} ;
+            if ~exist(dir2make, 'dir')
+                mkdir(dir2make)
+            end
+        end
+    else
+        if ~exist(dir2make, 'dir')
+            mkdir(dir2make)
+        end
     end
 end

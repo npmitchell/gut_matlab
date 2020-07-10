@@ -1,5 +1,5 @@
 function [rot, trans, xyzlim_raw, xyzlim, xyzlim_um, xyzlim_um_buff] = ...
-    alignMeshesAPDV(QS, acom_sm, pcom_sm, opts)
+    alignMeshesAPDV(QS, opts)
 % ALIGNMESHESAPDV(opts) 
 % Uses anterior, posterior, and dorsal training in ilastik h5 output to
 % align meshes along APDV coordinate system. Extracted COMs from the 
@@ -73,17 +73,34 @@ function [rot, trans, xyzlim_raw, xyzlim, xyzlim_um, xyzlim_um_buff] = ...
 % 
 % NPMitchell 2020
 
+% Unpack QS
+timePoints = QS.xp.fileMeta.timePoints ;
+meshDir = QS.dir.mesh ;
+resolution = QS.APDV.resolution ;
+[acom_sm, pcom_sm] = QS.getAPCOMSm() ;
+
+% Default options
+overwrite = false ;
+overwrite_ims = false ;
+preview = false ;
+plot_buffer = 20 ;
+ssfactor = QS.ssfactor ;
+flipy = QS.flipy ; 
+
 % Booleans & floats
-overwrite = opts.overwrite ;  % overwrite everything 
-overwrite_ims = opts.overwrite_ims ;  % overwrite images, whether or not we overwrite everything else
-timePoints = opts.timePoints ;
-meshDir = opts.meshDir ;
-preview = opts.preview ; 
-resolution = opts.resolution ;
-plot_buffer = opts.plot_buffer ;
-ssfactor = opts.ssfactor ;
+if isfield(opts, 'overwrite')
+    overwrite = opts.overwrite ;  % overwrite everything 
+end
+if isfield(opts, 'overwrite_ims')
+    overwrite_ims = opts.overwrite_ims ;  % overwrite images, whether or not we overwrite everything else
+end
+if isfield(opts, 'preview')
+    preview = opts.preview ;
+end
+if isfield(opts, 'plot_buffer')
+    plot_buffer = opts.plot_buffer ;
+end
 normal_step = opts.normal_step ;
-flipy = opts.flipy ;
 dcomname = fullfile(meshDir, 'dcom_for_rot.txt') ;
 
 % Default valued options
@@ -104,17 +121,17 @@ xyzlimname_pix = QS.fileName.xyzlim_pix ;
 xyzlimname_um = QS.fileName.xyzlim_um ;
 xyzlimname_um_buff = QS.fileName.xyzlim_um_buff ;
 % Name output directory for apdv info
-apdvoutdir = opts.apdvoutdir ;
+apdvoutdir = QS.dir.cntrline ;
 outapdvname = fullfile(apdvoutdir, 'apdv_coms_rs.h5') ;
 outstartendptname = fullfile(apdvoutdir, 'startendpt.h5') ;
 % Name the directory for outputting aligned_meshes
-alignedMeshDir = opts.alignedMeshDir ;
-meshFileName = opts.meshFileName ;
-alignedMeshBase = opts.alignedMeshBase ;
-alignedMeshXYFigBaseName = [alignedMeshBase '_xy.png'] ;
-alignedMeshXZFigBaseName = [alignedMeshBase '_xz.png'] ;
-alignedMeshYZFigBaseName = [alignedMeshBase '_yz.png'] ;
-fn = opts.fn ;
+alignedMeshDir = QS.dir.alignedMesh ;
+meshFileName = QS.fullFileBase.mesh ;
+alignedMeshBase = QS.fullFileBase.alignedMesh ;
+alignedMeshXYFigBaseName = [QS.fileBase.alignedMesh '_xy.png'] ;
+alignedMeshXZFigBaseName = [QS.fileBase.alignedMesh '_xz.png'] ;
+alignedMeshYZFigBaseName = [QS.fileBase.alignedMesh '_yz.png'] ;
+fn = QS.fileBase.fn ;
 
 % rotname
 if isfield(opts, 'rotname')
@@ -180,7 +197,9 @@ green = colors(5, :) ;
 % Ensure that PLY files exist
 for tt = timePoints 
     if ~exist(sprintf(meshFileName, tt), 'file')
-        error('Found no matching PLY files in ' + meshDir)
+        msg = ['Found no matching PLY files ', ...
+                sprintf(meshFileName, tt), ' in ', meshDir ]; 
+        error(msg)
     end
 end
 
@@ -646,7 +665,7 @@ for tidx = 1:length(timePoints)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Save the rotated, translated, scaled to microns mesh ===============
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    alignedmeshfn = fullfile(alignedMeshDir, sprintf([alignedMeshBase '.ply'], tt)) ;
+    alignedmeshfn = sprintf(alignedMeshBase, tt) ;
     if overwrite || ~exist(alignedmeshfn, 'file')
         disp('Saving the aligned mesh...')
         disp([' --> ' alignedmeshfn])

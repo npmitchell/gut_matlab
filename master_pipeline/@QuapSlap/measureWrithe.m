@@ -32,6 +32,10 @@ resolution = QS.APDV.resolution ;
 clineDVhoopBase = QS.fullFileBase.clineDVhoop ;
 cylinderMeshCleanBase = QS.fullFileBase.cylinderMeshClean ;
 writheDir = QS.dir.writhe ;
+writheImDir = fullfile(writheDir, 'images') ;
+if ~exist(writheImDir, 'dir')
+    mkdir(writheImDir)
+end
 meshDir = QS.dir.mesh ;
 % get timestamps to indicate on writhe plot
 load(QS.fileName.fold, 'fold_onset') ;
@@ -73,7 +77,7 @@ end
 
 %% First compute Writhe using the avgpts (DVhoop mean positions)
 disp('Computing/Loading writhe...')
-wrfn = fullfile(lobeDir, ['writhe_sphi' dvexten '_avgpts.mat']) ;
+wrfn = QS.fileName.writhe ;
 if ~exist(wrfn, 'file') || overwrite
     [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
         aux_compute_writhe(clineDVhoopBase, timePoints, ...
@@ -86,14 +90,15 @@ else
 end
 
 % Which writhe to plot is determined by Wr_style
-tmpfn = fullfile(writheDir, ['writhe_' Wr_style '_vs_time_comparison_DVhoop.png']) ;
+tmpfn = fullfile(writheImDir, ['writhe_' Wr_style '_vs_time_comparison_DVhoop.png']) ;
 if ~exist(tmpfn, 'file') || overwrite 
     % Compute ringpath pathlength for results found using centerline
     area_volume_fn = fullfile(meshDir, 'surfacearea_volume_stab.mat') ;
     aux_plot_writhe(timePoints, clines_resampled, ...
-        Wr, Wr_density, dWr, Length_t, writheDir, area_volume_fn, ...
+        Wr, Wr_density, dWr, Length_t, writheImDir, area_volume_fn, ...
         fold_onset, Wr_style, xyzlim, clineDVhoopBase, ...
-        cylinderMeshCleanBase, rot, trans, resolution, flipy, omit_endpts, false, t0)
+        cylinderMeshCleanBase, rot, trans, resolution, flipy, ...
+        omit_endpts, false, t0)
 end
 
 % Done with measuring writhe

@@ -1,5 +1,5 @@
 function [divs, rots, harms, glueMesh] = ...
-    helmHodgeDECRectGridPullback(cutM, facevf, varargin)
+    helmHodgeDECRectGridPullback(cutM, facevf, Options, varargin)
 % helmHodgeDECRectGridPullback(cutM, facevf, varargin)
 %   Perform Hodge decomposition using discrete exterior calculus on
 %   vector field defined on faces. Clip, denoise and/or smooth the results 
@@ -10,6 +10,8 @@ function [divs, rots, harms, glueMesh] = ...
 % cutM : struct with fields v,f
 % facevf : #faces x 3 float array
 %   vector field defined on faces
+% Options : struct with fields
+%   lambda : smoothing diffusion constant
 % varargin : keyword arguments (optional)
 %   niterSmoothing : int or two ints 
 %       how many smoothing steps to perform. 
@@ -40,16 +42,23 @@ function [divs, rots, harms, glueMesh] = ...
 
 
 % Method options
-niter_div = 0 ;
-niter_rot = 0 ;
+max_niter_div = 0 ;
+max_niter_rot = 0 ;
 niterU2d_div = 0 ;
 niterU2d_rot = 0 ;
 niterU2d_harm = 0 ;
 clipDiv = [-Inf, Inf] ;  
 clipRot = [-Inf, Inf] ;  
+lambda_smooth = 0.02 ;
 method = 'smooth' ;     % options: smooth, denoise
 eps = 1e-16 ;
 preview = false ;
+%% Unpack options
+if isfield(Options, 'lambda')
+    labmda_smooth = Options.lambda ;
+end
+
+%% varargin options
 for i = 1:length(varargin)
     
     if isa(varargin{i}, 'double')
@@ -63,11 +72,11 @@ for i = 1:length(varargin)
         niter = varargin{i+1} ;
         % Allow for different niters for divergence and rotation
         if length(niter) > 1
-            niter_div = niter(1) ;
-            niter_rot = niter(2) ;
+            max_niter_div = niter(1) ;
+            max_niter_rot = niter(2) ;
         else
-            niter_div = niter ;
-            niter_rot = niter ;
+            max_niter_div = niter ;
+            max_niter_rot = niter ;
         end
     end    
     
@@ -105,7 +114,7 @@ end
 % Unpack the cutMesh
 FF = cutM.f ;
 V2D = cutM.u ;
-v3drs = cutM.v ;
+vtx3drs = cutM.v ;
 nU = cutM.nU ;
 nV = cutM.nV ;
 
@@ -142,7 +151,7 @@ DEC = DiscreteExteriorCalculus( glueMesh.f, glueMesh.v ) ;
 
 % Now resolve the vector field for decomposition
 [v0n, v0t, v0t2d, jac3d_to_2d, ~, ~, dilation] = ...
-    resolveTangentNormalVelocities(FF, v3drs, facevf, V2D, 1:length(FF)) ;
+    resolveTangentNormalVelocities(FF, vtx3drs, facevf, 1:length(FF), V2D ) ;
 
 divv = DEC.divergence(v0t) ;
 rotv = DEC.curl(v0t) ;
@@ -170,12 +179,8 @@ end
 
 % LAPLACIAN SMOOTHING on vertices (divergence field)
 fixed_verts = [] ;  % note: could use boundaries here, seems unnecessary
-% Options are: laplacian_smooth(V,F,L_method,b,lambda,method,S,max_iter)
-%
-% todo: denoise on vertices here
-%
 divvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
-    0.05, 'explicit', divv, niter_div) ;
+    lambda_smooth, 'explicit', divv, max_niter_div) ;
 
 % View results on divergence
 if preview 
@@ -188,11 +193,13 @@ if preview
     pause(1)
 end
 
-% LAPLACIAN SMOOTHING on faces (rotational field)
+%% LAPLACIAN SMOOTHING for rotational field
 % weight curl by face area
 % Note: hodge dual (star) is applied at end of Curl(), so no area exists in
 % the curl/rotational field, so just average with any weighting we like (we
 % think).
+% See retired code at end for old face smoothing. Now we put the field onto
+% vertices.
 
 % First inspect the field
 if preview 
@@ -205,97 +212,21 @@ if preview
     pause(1)
 end
 
-rotvsm = rotv ;
-% SMOOTHING -- DENOISE, SMOOTH, or ITERATE BOTH
-if strcmp(method, 'denoise')
-    % apply harmonic smoothing several times to extrema (DENOISE)
-    for qq = 1:niter_rot
-        rotvsm = laplacian_smooth_faces(rotvsm, glueMesh, ...
-            'Weight', 'Area', 'Method', 'denoise', 'Epsilon', eps) ;
-
-        if preview 
-            tmp = reshape(rotvsm, [nU-1, (nV-1)*2]) ;
-            imagesc(tmp)
-            colormap bwr 
-            colorbar
-            caxis([-0.4, 0.4])
-            title(['Curl, denoising #' num2str(qq)])
-            pause(3)
-        end
-    end
-elseif strcmp(method, 'smooth')
-    % apply harmonic smoothing several times (SMOOTHING)
-    for qq = 1:niter_rot
-        rotvsm = laplacian_smooth_faces(rotvsm, glueMesh,...
-            'Weight', 'Area', 'Method', 'smooth', 'Epsilon', eps) ;
-
-        % Check it
-        if preview
-            tmp = reshape(rotvsm, [nU-1, (nV-1)*2]) ;
-            imagesc(tmp)
-            colormap bwr 
-            colorbar
-            caxis([-0.4, 0.4])
-            title(['Curl, smoothing #' num2str(qq)])
-            pause(1)
-        end
-    end
-elseif strcmp(method, 'both')
-    % apply denoising and harmonic smoothing several times (BOTH)
-    for qq = 1:niter_rot
-        rotvsm = laplacian_smooth_faces(rotvsm, glueMesh,...
-            'Weight', 'Area', 'Method', 'denoise', 'Epsilon', eps) ;
-
-        % Check it
-        if preview
-            tmp = reshape(rotvsm, [nU-1, (nV-1)*2]) ;
-            imagesc(tmp)
-            colormap bwr 
-            colorbar
-            caxis([-0.4, 0.4])
-            title(['Curl, denoising #' num2str(qq)])
-            pause(1)
-        end
-        
-        rotvsm = laplacian_smooth_faces(rotvsm, glueMesh,...
-            'Weight', 'Area', 'Method', 'smooth', 'Epsilon', eps) ;
-        
-        % Check it
-        if preview
-            tmp = reshape(rotvsm, [nU-1, (nV-1)*2]) ;
-            imagesc(tmp)
-            colormap bwr 
-            colorbar
-            caxis([-0.4, 0.4])
-            title(['Curl, smoothing #' num2str(qq)])
-            pause(1)
-        end
-        
-    end
-else
-    error('SmoothingMethod not recognized')
-end
-
-% tmp = reshape(rotv, [nU-1, (nV-1)*2])
+% LAPLACIAN SMOOTHING on vertices (rotation field)
+fixed_verts = [] ;  % note: could use boundaries here, seems unnecessary
+[~, gF2V] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
+rotvsm = gF2V * rotv ;
+rotvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+    lambda_smooth, 'implicit', rotvsm, max_niter_rot) ;
 
 % add nU points back to divv from phi=0 by duplication --> convert back to
 % cut mesh indices
 divvCut = divvsm(glue2cut) ;
-% note: rot is on faces, and faces are preserved
-rotvCut = rotvsm ; 
+% note: rot was on faces, and faces are preserved, but now on vertices
+rotvCut = rotvsm(glue2cut) ; 
 
-% Note: rotU, divU, and harmU are on faces, and faces are preserved
-
-% Coarse grain
-% bcx = bc(:, 1) ;
-% bcy = bc(:, 2) ;
-% bcz = bc(:, 3) ;
-% bcgridx = imresize(bcx(faceIDgrid), 1/qsub) ;
-% bcgridy = imresize(bcy(faceIDgrid), 1/qsub) ;
-% bcgridz = imresize(bcz(faceIDgrid), 1/qsub) ;
-% divUgrid = divU(faceIDgrid) ;
-% rotUgrid = rotU(faceIDgrid) ;
-% harmUgrid = harmU(faceIDgrid) ;
+% Note: rotU, divU, and harmU are on faces, and faces are preserved when
+% converting from glueMesh to cutMesh
 
 % Pullback Vector Fields to Domain of Parameterization ====================
 divU2d = zeros(size(FF, 1), 2);
@@ -319,15 +250,17 @@ for dim=1:2
     rotU2d(:, dim) = laplacian_smooth_faces(rotU2d(:, dim), glueMesh, ...
         'Weight', 'Area', 'Method', method, 'Epsilon', eps, ...
         'niter', niterU2d_rot) ;
-    harmU2d(:, dim) = laplacian_smooth_faces(rotU2d(:, dim), glueMesh, ...
+    harmU2d(:, dim) = laplacian_smooth_faces(harmU2d(:, dim), glueMesh, ...
         'Weight', 'Area', 'Method', method, 'Epsilon', eps, ...
         'niter', niterU2d_harm) ;
 end
     
 % Store fields in structs
+divs.raw = divv ;
 divs.divv = divvCut ;
 divs.divU = divU ;
 divs.divU2d = divU2d ;
+rots.raw = rotv ;
 rots.rotv = rotvCut ;
 rots.rotU = rotU ;
 rots.rotU2d = rotU2d ;
@@ -335,4 +268,78 @@ harms.harmU = harmU ;
 harms.harmU2d = harmU2d ;
 
 return
+
+
+% Retired code
+% 
+% % SMOOTHING rot on faces -- DENOISE, SMOOTH, or ITERATE BOTH
+% if strcmp(method, 'denoise')
+%     % apply harmonic smoothing several times to extrema (DENOISE)
+%     for qq = 1:niter_rot
+%         rotvsm = laplacian_smooth_faces(rotvsm, glueMesh, ...
+%             'Weight', 'Area', 'Method', 'denoise', 'Epsilon', eps) ;
+% 
+%         if preview 
+%             tmp = reshape(rotvsm, [nU-1, (nV-1)*2]) ;
+%             imagesc(tmp)
+%             colormap bwr 
+%             colorbar
+%             caxis([-0.4, 0.4])
+%             title(['Curl, denoising #' num2str(qq)])
+%             pause(3)
+%         end
+%     end
+% elseif strcmp(method, 'smooth')
+%     % apply harmonic smoothing several times (SMOOTHING)
+%     for qq = 1:niter_rot
+%         rotvsm = laplacian_smooth_faces(rotvsm, glueMesh,...
+%             'Weight', 'Area', 'Method', 'smooth', 'Epsilon', eps) ;
+% 
+%         % Check it
+%         if preview
+%             tmp = reshape(rotvsm, [nU-1, (nV-1)*2]) ;
+%             imagesc(tmp)
+%             colormap bwr 
+%             colorbar
+%             caxis([-0.4, 0.4])
+%             title(['Curl, smoothing #' num2str(qq)])
+%             pause(1)
+%         end
+%     end
+% elseif strcmp(method, 'both')
+%     % apply denoising and harmonic smoothing several times (BOTH)
+%     for qq = 1:niter_rot
+%         rotvsm = laplacian_smooth_faces(rotvsm, glueMesh,...
+%             'Weight', 'Area', 'Method', 'denoise', 'Epsilon', eps) ;
+% 
+%         % Check it
+%         if preview
+%             tmp = reshape(rotvsm, [nU-1, (nV-1)*2]) ;
+%             imagesc(tmp)
+%             colormap bwr 
+%             colorbar
+%             caxis([-0.4, 0.4])
+%             title(['Curl, denoising #' num2str(qq)])
+%             pause(1)
+%         end
+%         
+%         rotvsm = laplacian_smooth_faces(rotvsm, glueMesh,...
+%             'Weight', 'Area', 'Method', 'smooth', 'Epsilon', eps) ;
+%         
+%         % Check it
+%         if preview
+%             tmp = reshape(rotvsm, [nU-1, (nV-1)*2]) ;
+%             imagesc(tmp)
+%             colormap bwr 
+%             colorbar
+%             caxis([-0.4, 0.4])
+%             title(['Curl, smoothing #' num2str(qq)])
+%             pause(1)
+%         end
+%         
+%     end
+% else
+%     error('SmoothingMethod not recognized')
+% end
+
 

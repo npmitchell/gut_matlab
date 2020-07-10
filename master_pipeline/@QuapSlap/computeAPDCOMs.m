@@ -1,4 +1,4 @@
-function [acom_sm, pcom_sm, dcom] = computeAPDCOMs(opts)
+function [acom_sm, pcom_sm, dcom] = computeAPDCOMs(QS, opts)
 %[acom_sm, pcom_sm, dcom] = COMPUTEAPDCOMS(opts)
 % Compute the anterior, posterior, and dorsal centers of mass from training
 %
@@ -28,18 +28,31 @@ function [acom_sm, pcom_sm, dcom] = computeAPDCOMs(opts)
 % 
 % NPMitchell 2020
 
-timePoints = opts.timePoints ;
+timePoints = QS.xp.fileMeta.timePoints ;
+apdvoutdir = QS.dir.cntrline ;
+meshDir = QS.dir.mesh ;
+axorder = QS.data.axisOrder ;
+apdProbFileName = QS.fullFileBase.apdProb ;
+
+% Default options
+overwrite = false ; 
+preview_com = false ;
+check_slices = false ;
+
+% Unpack opts
 dorsal_thres = opts.dorsal_thres ;
 anteriorChannel = opts.anteriorChannel ;
 posteriorChannel = opts.posteriorChannel ;
 dorsalChannel = opts.dorsalChannel ;
-overwrite = opts.overwrite ;
-apdvoutdir = opts.apdvoutdir ;
-meshDir = opts.meshDir ;
-apdProbFileName = opts.apdProbFileName ;
-preview_com = opts.preview_com ; 
-check_slices = opts.check_slices ;
-axorder = opts.axorder ;
+if isfield(opts, 'overwrite')
+    overwrite = opts.overwrite ;
+end
+if isfield(opts, 'preview_com')
+    preview_com = opts.preview_com ;
+end
+if isfield(opts, 'check_slices')
+    check_slices = opts.check_slices ;
+end
 
 % Default valued options
 smwindow = 30 ;
@@ -48,7 +61,7 @@ if isfield(opts, 'smwindow')
 end
 
 dcomname = fullfile(meshDir, 'dcom_for_rot.txt') ;
-rawapdvname = fullfile(apdvoutdir, 'apdv_coms_from_training.h5') ;
+rawapdvname = QS.fileName.apdv ;
 rawapdvmatname = fullfile(apdvoutdir, 'apdv_coms_from_training.mat') ;
 preview = false ;
 if isfield(opts, 'preview')
@@ -59,7 +72,7 @@ end
 acoms = zeros(length(timePoints), 3) ;
 pcoms = zeros(length(timePoints), 3) ;
 load_from_disk = false ;
-if exist(rawapdvname, 'file')
+if exist(rawapdvname, 'file') && ~overwrite
     load_from_disk = true ;
     try
         h5create(rawapdvname, '/acom_sm', size(acoms)) ;
@@ -85,8 +98,10 @@ if exist(rawapdvname, 'file')
     end
 end
 if ~load_from_disk
-    disp('acom and pcom not both already saved on disk. Compute them')
+    disp('acom and/or pcom not already saved on disk. Compute them')
 end
+
+disp(['Load from disk? =>', num2str(load_from_disk)])
 
 %% Compute acom and pcom if not loaded from disk -- RAW XYZ coords
 if ~load_from_disk || overwrite

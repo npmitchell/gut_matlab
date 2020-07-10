@@ -1,17 +1,30 @@
-function [h1, h2, h3] = scalarVectorFieldsOnSurface(faces, vertices, sf, ...
-    xxv, yyv, zzv, vx, vy, vz, options)
+function [fig, h1, h2, h3] = ...
+    scalarVectorFieldsOnSurface(faces, vertices, sf, ...
+                                xxv, yyv, zzv, vx, vy, vz, options)
 %SCALARVECTORFIELDSONIMAGE(im, xx, yy, vx, vy, options)
 %   Plot both a scalar field (sf) as heatmap and vector field (vx,vy) as 
 %   quiver arrows.
 %
-% xx : N x 1 float array
-%   x values of PIV grid evaluation points
-% yy : M x 1 float array
-%   y values of PIV grid evaluation points
-% vx : N*M x 1 float array
+% Parameters
+% ----------
+% faces : F x 3 int array
+%   indices into vertices of F mesh faces
+% vertices : V x 3 float array
+%   coordinates of V mesh vertices
+% sf : Fx1 or Vx1 float array 
+%   scalar field to plot as heatmap, defined on faces or vertices
+% xxv : Q x 1 float array
+%   x coordinates of velocity evaluation points
+% yyv : Q x 1 float array
+%   y coordinates of velocity evaluation points
+% zzv : Q x 1 float array
+%   z coordinates of velocity evaluation points
+% vx : Q x 1 float array
 %   velocity in x direction
-% vy : N*M x 1 float array
+% vy : Q x 1 float array
 %   velocity in y direction
+% vz : Q x 1 float array
+%   velocity in z direction
 % qopts : struct with fields
 %   style : str ('diverging' 'phase')
 %       style of overlaid scalar field, default is diverging
@@ -36,6 +49,8 @@ function [h1, h2, h3] = scalarVectorFieldsOnSurface(faces, vertices, sf, ...
 %       figure width in cm
 %   figHeight : int (optional, default = 10) 
 %       figure height in cm
+%   cticks : numeric 1d array (optional)
+%       colorbar tick values, if specified. Otherwise default.
 %
 % Returns
 % -------
@@ -45,7 +60,7 @@ function [h1, h2, h3] = scalarVectorFieldsOnSurface(faces, vertices, sf, ...
 %
 % NPMitchell 2020
 
-% Default options
+%% Default options
 labelstr = '' ;
 interpreter = 'latex' ;
 qscale = 10 ;
@@ -107,23 +122,50 @@ close all
 fig = figure('units', 'normalized', ...
     'outerposition', [0 0 1 1], 'visible', 'off') ;
 
-% Add the scalar field defined on faces
-h1 = patch( 'Faces', faces, 'Vertices', vertices, 'FaceVertexCData', sf, ...
-    'FaceColor', 'flat', 'EdgeColor', 'none', ...
-    'SpecularStrength', 0.1, 'DiffuseStrength', 0.1, ...
-    'AmbientStrength', 0.8 );
+% Add the scalar field defined on faces OR on vertices
+if size(sf, 1) == size(vertices, 1)
+    h1 = patch( 'Faces', faces, 'Vertices', vertices, ...
+        'FaceVertexCData', sf, ...
+        'FaceColor', 'flat', 'EdgeColor', 'none', ...
+        'SpecularStrength', 0.1, 'DiffuseStrength', 0.1, ...
+        'AmbientStrength', 0.8 );
+elseif size(sf, 1) == size(faces, 1)
+    % Add the scalar field defined on faces
+    if strcmp(style, 'phasemap')
+        cmap = phasemap ;
+        colors = mapValueToColor(sf, [0, 2*pi], cmap) ;
+    elseif strcmp(style, 'diverging')
+        cmap = bwr ;
+        if sscale > 0
+            colors = mapValueToColor(sf, [-sscale, sscale], cmap) ;
+        else
+            colors = mapValueToColor(sf, [min(sf(:)), max(sf(:))], cmap) ;
+        end
+    end
+    
+    % plot in 3d as patches
+    h1 = patch( 'Faces', faces, 'Vertices', vertices, ...
+        'FaceVertexCData', colors, 'FaceColor', 'flat', ...
+        'EdgeColor', 'none', ...
+        'SpecularStrength', 0.1, 'DiffuseStrength', 0.1, ...
+        'AmbientStrength', 0.8 );
+else
+    error('Colors for patch object must be #faces x 3 or #verts x 3')
+end
 hold on;
 axis equal
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% QUIVER 
+%% QUIVER 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if qsubsample > 1
-    error('have not implemented here')
+if qscale > 0
+    if qsubsample > 1
+        error('have not implemented here')
+    end
+    h3 = quiver3(xxv(:), yyv(:), zzv(:), ...
+        qscale * vx(:), qscale * vy(:), qscale * vz(:), 0, 'k',...
+        'LineWidth', lw) ;
 end
-h3 = quiver3(xxv(:), yyv(:), zzv(:), ...
-    qscale * vx(:), qscale * vy(:), qscale * vz(:), 0, 'k',...
-    'LineWidth', lw) ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % View and axis limits
@@ -140,7 +182,7 @@ if isfield(options, 'zlim')
     zlim(options.zlim) ;
 end
 
-% Labels and plot title
+%% Labels and plot title
 if ~isempty(xlabelstr)
     xlabel(xlabel, 'Interpreter', interpreter)
 end
@@ -157,7 +199,7 @@ end
 hold on;
 
 
-% Add the colorbar in the style set in options struct
+%% Add the colorbar in the style set in options struct
 if strcmp(style, 'phase')
     disp('setting scalar field to phase style')
     %%%%%%%%%%%%%%%%%%%
@@ -221,13 +263,15 @@ elseif strcmp(style, 'diverging')
     c.Face.Texture.CData = cdata;
     c.Label.Interpreter = interpreter ;
     c.Label.String = labelstr ;
-
+    if isfield(options, 'cticks')
+        c.Ticks = options.cticks ;
+    end
 else
-    error('have not coded for this style yet')
+    error(['have not coded for this style: ' style])
 end
 
 
-% Save the image if outfn is supplied
+%% Save the image if outfn is supplied
 if isfield(options, 'outfn')
     disp(['scalarVectorFieldsOnImage: saving ' options.outfn])
     set(gcf, 'PaperUnits', 'centimeters');

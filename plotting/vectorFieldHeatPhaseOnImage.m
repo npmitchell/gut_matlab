@@ -149,6 +149,7 @@ cax.YAxis(2).Color = 'k';
 % folds
 % plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
 if isfield(options, 'outfn')
+    disp(['Saving figure: ', options.outfn])
     saveas(fig, options.outfn) ;   
     close all
 end

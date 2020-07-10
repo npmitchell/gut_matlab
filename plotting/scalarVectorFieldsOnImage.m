@@ -46,6 +46,8 @@ function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
 %       figure width in cm
 %   figHeight : int (optional, default = 10) 
 %       figure height in cm
+%   cticks : numeric 1d array (optional)
+%       colorbar tick values, if specified. Otherwise default.
 %
 % Returns
 % -------
@@ -56,7 +58,6 @@ function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
 % NPMitchell 2020
 
 
-debug = false ;
 % Default options
 labelstr = '' ;
 overlay_quiver = true ;
@@ -108,11 +109,6 @@ fig = figure('units', 'normalized', ...
     'outerposition', [0 0 1 1], 'visible', 'off') ;
 h1 = imshow(im) ;
 hold on;
-
-if debug
-    set(gcf, 'visible', 'on')
-    pause(1)
-end
 
 % Determine if the given scalar field is defined on vertices or faces
 sf_on_faces = false ;
@@ -169,12 +165,6 @@ else
     end
 end
 
-
-if debug
-    set(gcf, 'visible', 'on')
-    pause(1)
-end
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % QUIVER 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -200,11 +190,6 @@ if overlay_quiver
     end
 else
     h3 = [] ;
-end
-
-if debug
-    set(gcf, 'visible', 'on')
-    pause(1)
 end
 
 % Add title (optional)
@@ -266,14 +251,11 @@ elseif strcmp(style, 'diverging')
     c.Face.Texture.CData = cdata;
     c.Label.Interpreter = 'latex' ;
     c.Label.String = labelstr ;
+    if isfield(options, 'cticks')
+        c.Ticks = options.cticks ;
+    end
 else
     error('have not coded for this style yet')
-end
-
-
-if debug
-    set(gcf, 'visible', 'on')
-    pause(1)
 end
 
 % Save the image if outfn is supplied

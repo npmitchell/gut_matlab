@@ -1,14 +1,21 @@
-function timeAverageVelocitiesSimple(QS, options)
+function timeAverageVelocitiesSimple(QS, samplingResolution, options)
 %timeAverageVelocities(QS, options)
-%
+%   Average velocities in time with a tripulse fiter of full-width 5*dt 
+%   (half width of 2.5*dt).
+%   
+%   Note that velocities are all saved as um/timeunits, 
+%   except for v2dM, which is in full-resolution-data pixels / timeunits
+%   and v2dMum, which is not truly in um, but in pixels/min/dilation, so it
+%   is proportional to um/timeunits
+%   
 % Parameters
 % ----------
 % QS : QuapSlap class instance
+% samplingResolution : str specifier ('1x' or '2x', 'single' or 'double)
+%   whether to sample pullback velocities at nU x nV or 2*nU x 2*nV 
 % options : struct with fields 
 %   overwrite : bool
 %       overwrite previous results
-%   preview : bool
-%       view intermediate results
 %   timePoints : numeric 1D array
 %       the timepoints to consider for the measurement. For ex, could
 %       choose subset of the QS experiment timePoints
@@ -16,33 +23,36 @@ function timeAverageVelocitiesSimple(QS, options)
 %
 % Returns
 % -------
+% Saved files on disk containing
+%   vM  : , in um/min rs
+%   vfM : ,  in um/min rs
+%   vnM : , in um/min rs
+%   vvM : , in um
+%   v2dM: , in pixels/ min
+%   v2dMum : , scaled pix/min, but proportional to um/min
 %
 %
 % NPMitchell 2020
 
 %% Default options
-% Declare plotting options for limits
-vtscale = 5 ;      % um / min
-vnscale = 2 ;       % um / min
-vscale = 2 ;        % um / min
-alphaVal = 0.7 ;    % alpha for normal velocity heatmap
-qsubsample = 5 ;   % quiver subsampling in pullback space 
+overwrite = false ;
+timePoints = QS.xp.fileMeta.timePoints ;
+
+%% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
+if strcmp(samplingResolution, '1x') || strcmp(samplingResolution, 'single')
+    doubleResolution = false ;
+elseif strcmp(samplingResolution, '2x') || strcmp(samplingResolution, 'double')
+    doubleResolution = true ;
+else 
+    error("Could not parse samplingResolution: set to '1x' or '2x'")
+end
 
 %% Unpack options
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
-else
-    overwrite = false ;
-end
-if isfield(options, 'preview')
-    preview = options.preview ;
-else
-    preview = false ;
 end
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
-else
-    timePoints = QS.xp.fileMeta.timePoints ;
 end
 if isfield(options, 'pivimCoords')
     pivimCoords = options.pivimCoords ;
@@ -55,25 +65,13 @@ else
     pivimCoords = 'sp_sme' ;
     doubleCovered = true;
 end
-if isfield(options, 'vtscale')
-    vtscale = options.vtscale ;
-end
-if isfield(options, 'vnscale')
-    vnscale = options.vnscale ;
-end
-if isfield(options, 'vscale')
-    vscale = options.vscale ;
-end
-if isfield(options, 'plot_vxyz')
-    plot_vxyz = false ;
-end
 
 %% Unpack QS
 pivDir = QS.dir.piv ;
 piv3dfn = QS.fullFileBase.piv3d ;
 ntps = length(timePoints) ;
-[rot, ~] = QS.getRotTrans() ;
-resolution = QS.APDV.resolution ; 
+% [rot, ~] = QS.getRotTrans() ;
+% resolution = QS.APDV.resolution ; 
 [~, ~, ~, xyzlim_APDV] = QS.getXYZLims() ;
 axis_order = QS.data.axisOrder ;
 blue = QS.plotting.colors(1, :) ;
@@ -85,21 +83,26 @@ timePoints = QS.xp.fileMeta.timePoints ;
 %% Perform/Load simple averaging
 disp('Performing/Loading simple averaging')
 % Create directories
-pivSimAvgDir = QS.dir.pivSimAvg ;
+if doubleResolution
+    % pivSimAvgDir = QS.dir.pivSimAvg2x ;
+    fileNames = QS.fileName.pivSimAvg2x ;
+else
+    % pivSimAvgDir = QS.dir.pivSimAvg ;
+    fileNames = QS.fileName.pivSimAvg ;
+end
 
 % Check if the time smoothed velocities exist already
-v2dsmMumfn = QS.fileName.pivSimAvg.v2dMum ;
-v2dsmMfn = QS.fileName.pivSimAvg.v2dM ;
-vnsmMfn = QS.fileName.pivSimAvg.vnM ;
-vsmMfn = QS.fileName.pivSimAvg.vM ;
-% vertex-based velocities
-vvsmMfn = QS.fileName.pivSimAvg.vvM ;
-% face-based velocities
-vfsmMfn = QS.fileName.pivSimAvg.vfM ;
-if ~exist(v2dsmMumfn, 'file') && exist(v2dsmMfn, 'file') && ...
-        exist(vnsmMfn, 'file') && exist(vsmMfn, 'file') && ...
-        exist(vfsmMfn, 'file') && exist(vvsmMfn, 'file') && ...
-        ~overwrite
+% 2d velocities (pulled back), scaled by dilation of metric are v2dum 
+% 2D velocities (pulled back) are v2d
+% normal velocities on fieldfaces are vn
+% 3d velocities on fieldfaces are v3d
+% vertex-based velocities are vv
+% face-based velocities are vf
+
+if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
+        exist(fileNames.vn, 'file') || ~exist(fileNames.v3d, 'file') || ...
+        exist(fileNames.vf, 'file') || ~exist(fileNames.vv, 'file') || ...
+        overwrite
     
     disp('Could not find time-smoothed velocities on disk')
     disp('Computing them...')
@@ -111,9 +114,17 @@ if ~exist(v2dsmMumfn, 'file') && exist(v2dsmMfn, 'file') && ...
         
         disp(['Filling in velocity matrices, t=' num2str(tp)])
         QS.setTime(tp) ;
-        QS.getCurrentVelocity('piv3d') ;
-        piv3d = QS.currentVelocity.piv3d ;
-        if first 
+        if doubleResolution
+            QS.getCurrentVelocity('piv3d2x') ;
+            piv3d = QS.currentVelocity.piv3d2x ;
+        else
+            QS.getCurrentVelocity('piv3d') ;
+            piv3d = QS.currentVelocity.piv3d ;
+        end
+        
+        % Allocate memory if this is the first timestep. Assume all grids
+        % are equally sized.
+        if first
             vM = zeros(ntps, size(piv3d.v0_rs, 1), size(piv3d.v0_rs, 2));
             vfM = zeros(ntps, size(piv3d.v3dfaces, 1), size(piv3d.v3dfaces, 2)); 
             vvM = zeros(ntps, ...
@@ -124,19 +135,15 @@ if ~exist(v2dsmMumfn, 'file') && exist(v2dsmMfn, 'file') && ...
             v2dMum = zeros(ntps, size(piv3d.v0t2d, 1), size(piv3d.v0t2d, 2));
             first = false ;
         end
-        vM(i, :, :) = piv3d.v0_rs ;          % in um/min rs
-        % try
-        vfM(i, :, :) = piv3d.v3dfaces_rs ;   % in um/min rs
-        % catch
-        %     v3dfaces = piv3d.v3dfaces ;
-        %     vfM(i, :, :) = (rot * v3dfaces')' * resolution / dt ; 
-        % end
-        vnM(i, :, :) = piv3d.v0n_rs ;        % in rs coords, unit length
-        vvM(i, :, :) = (rot * piv3d.v3dvertices')' * resolution ;
-        v2dM(i, :, :) = piv3d.v0t2d ;        % in pixels/ min
-        v2dMum(i, :, 1) = piv3d.v0t2d(:, 1) ./ piv3d.dilation ; % in pix/min, scaled as um/min
-        v2dMum(i, :, 2) = piv3d.v0t2d(:, 2) ./ piv3d.dilation ;
-        v2dMum(i, :, 2) = piv3d.v0t2d(:, 2) ./ piv3d.dilation ;
+        
+        % BUILD ARRAYS
+        vM(i, :, :) = piv3d.v0_rs ;             % in um/min rs
+        vfM(i, :, :) = piv3d.v3dfaces_rs ;      % in um/min rs
+        vnM(i, :, :) = piv3d.v0n_rs ;           % in um/min rs
+        vvM(i, :, :) = QS.dx2APDV(piv3d.v3dvertices) ; % in um/min rs
+        v2dM(i, :, :) = piv3d.v0t2d ;           % in pixels/ min
+        v2dMum(i, :, 1) = piv3d.v0t2d(:, 1) ./ piv3d.dilation ; % in scaled pix/min, but proportional to um/min
+        v2dMum(i, :, 2) = piv3d.v0t2d(:, 2) ./ piv3d.dilation ; % in scaled pix/min, but proportional to um/min
     end
     clearvars first 
     disp('built v0 matrix')
@@ -166,12 +173,14 @@ if ~exist(v2dsmMumfn, 'file') && exist(v2dsmMfn, 'file') && ...
 
     % Save the simpleminded averaging
     disp('Saving the time-smoothed velocities to disk')
-    save(fullfile(pivSimAvgDir, 'v2dMum_simpletimeavg.mat'), 'v2dsmMum') ;  % in scaled pix/min, proportional to um/min 
-    save(fullfile(pivSimAvgDir, 'v2dM_simpletimeavg.mat'), 'v2dsmM') ;      % in pix/min
-    save(fullfile(pivSimAvgDir, 'vnM_simpletimeavg.mat'), 'vnsmM') ;        % in um/min
-    save(fullfile(pivSimAvgDir, 'vM_simpletimeavg.mat'), 'vsmM') ;          % in um/min
-    save(fullfile(pivSimAvgDir, 'vvM_simpletimeavg.mat'), 'vvsmM') ;          % in um/min, rs
-    save(fullfile(pivSimAvgDir, 'vfM_simpletimeavg.mat'), 'vfsmM') ;        % in um/min, rs
+    save(fileNames.v2dum, 'v2dsmMum') ;  % in scaled pix/min, proportional to um/min 
+    save(fileNames.v2d, 'v2dsmM') ;      % in pix/min
+    save(fileNames.vn, 'vnsmM') ;        % in um/min
+    save(fileNames.v3d, 'vsmM') ;          % in um/min
+    save(fileNames.vv, 'vvsmM') ;          % in um/min, rs
+    save(fileNames.vf, 'vfsmM') ;        % in um/min, rs
 
 end
+
 disp('done with timeAverageVelocitiesSimple()')
+

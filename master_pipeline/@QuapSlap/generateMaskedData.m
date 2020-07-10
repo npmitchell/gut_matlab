@@ -1,10 +1,23 @@
-function generateMaskedData(QS)
+function generateMaskedData(QS, options)
 % Given training on midgut cells and spurious (amnioserosa) cells as 
 % h5 files in dir16bit/stabilized_h5s/, mask the original data and save 3d
 % volumes.
+% Save output h5s trained on stabilized h5s from iLastik as 
+%   -->   <QS.fileBase.name>_Probabilities_mask3d.h5
+% and 
+%   -->   <QS.fileBase.name>_Probabilities_maskDorsal.h5
 % Note: if QS.plotting.preview == True, displays intermediate results
 %
 % NPMitchell 2020
+
+% Unpack QS/options
+ssfactorMask = QS.ssfactor ;
+maskedDir = QS.dir.maskedData ;
+if nargin > 1
+    if isfield(options, 'ssfactorMask')
+        ssfactorMask = options.ssfactorMask ;
+    end
+end
 
 % Parameters
 cliplowDorsal = 0.3 ;
@@ -13,7 +26,7 @@ step = 10 ;
 % Naming
 maskBase = [QS.fileBase.name '_Probabilities_mask3d.h5'] ;
 dorsalBase = [QS.fileBase.name '_Probabilities_maskDorsal.h5'] ;
-maskDir = fullfile(QS.dir.dataDir, 'stabilized_h5s') ;
+maskDir = fullfile(QS.dir.data, 'stabilized_h5s') ;
 
 % Change adjustment to allow for dim pixels (needed for MIPS)
 old_adjusthigh = QS.data.adjusthigh ;
@@ -22,11 +35,17 @@ QS.data.adjusthigh = 99.999 ;
 % First create an average stab image to use for training
 preview = QS.plotting.preview ;
 for tt = QS.xp.fileMeta.timePoints
+    disp(['t = ', num2str(tt)])
     maskFn = fullfile(maskDir, sprintf(maskBase, tt)) ;
     dorsalFn = fullfile(maskDir, sprintf(dorsalBase, tt)) ;
     
     % Mask data, rotate to lateral and ventral views
-    maskprob = h5read(maskFn, '/exported_data') ;
+    try
+        maskprob = h5read(maskFn, '/exported_data') ;
+    catch
+        msg = ['Create masked iLastik h5 output as ' maskFn] ;
+        error(msg)
+    end
     mask = squeeze(maskprob(1, :, :, :)) > 0.5 ;
     % Take largest connected component, erode and dilate.
     se2 = strel('sphere', 2);
@@ -159,14 +178,17 @@ for tt = QS.xp.fileMeta.timePoints
     end
     
     % inspect it
-    for ii = 1:length(IV)
+    nChannels = length(IV) ;
+    for ii = 1:nChannels
         if nChannels > 1
-            out16name = fullfile(maskedDir, sprintf([fn '_masked.tif'], tt, ii)) ;
+            out16name = fullfile(maskedDir, ...
+                sprintf([QS.fileBase.name '_masked.tif'], tt, ii)) ;
         else
-            out16name = fullfile(maskedDir, sprintf([fn '_masked.tif'], tt)) ;
+            out16name = fullfile(maskedDir, ...
+                sprintf([QS.fileBase.name '_masked.tif'], tt)) ;
         end
         IVii = IV{ii} ;
-        IVmasked{ii} = uint16(single(IVii) .* mask_final) ;
+        IVmasked{ii} = uint16(single(IVii) .* single(mask_final)) ;
         
         % check it
         if preview
@@ -181,7 +203,7 @@ for tt = QS.xp.fileMeta.timePoints
         
         % Save each image
         disp(['writing data to ' out16name])
-        out = uint16(IVmasked{ii}) ;
+        out = IVmasked{ii} ;
         for z = 1:size(out, 3)
             if mod(z, 100) == 0
                 disp(['page ' num2str(z) ' / ' num2str(size(out,3))])
@@ -192,11 +214,12 @@ for tt = QS.xp.fileMeta.timePoints
                     'Compression','none');
             else
                 imwrite(out(:,:,z), out16name, 'tiff',...
-                    'Compression','none','WriteMode','append');    
+                    'Compression','none', ...
+                    'WriteMode','append');    
             end
         end
+        disp('done now')
     end
-    
 end
 
 % Convert back to old adjust limit

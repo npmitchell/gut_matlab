@@ -124,7 +124,7 @@ t0 = QS.t0set() ;
 redo_piv3d = overwrite ; 
 ii = 1 ;
 while ~redo_piv3d && ii < length(timePoints)
-    redo_piv3d = ~exist(sprintf(piv3dfn, timePoints(ii)), 'file') ;
+    redo_piv3d = ~exist(sprintf(fn, timePoints(ii)), 'file') ;
     ii = ii + 1 ;
 end
 
@@ -784,16 +784,17 @@ else
         end
 
         % Save dilation field as image
-        dilfn = fullfile(dilDir, [sprintf('%04d', tp) '.png']) ;
+        dilfn = fullfile(QS.dir.pivdilation, [sprintf('%04d', tp) '.png']) ;
         if save_ims && (~exist(dilfn, 'file') || overwrite)
             close all
             fig = figure('units', 'normalized', ...
                     'outerposition', [0 0 1 1], 'visible', 'off') ;
             %imagesc(piv.x{i}(:), piv.y{i}(:), piv3d{i}.dilation)
-            scalarFieldOnImage(im, xx, yy, ...
+            labelOptsDil.title = 'dilation, $\log_{10}||J||$' ;
+            scalarFieldOnImage(im, x0, y0, ...
                 reshape(log10(piv3d.dilation), [length(xx), length(yy)]),...
                 alphaVal, 0.5,...
-                'dilation, $\log_{10}||J||$', 'style', 'diverging') ;
+                labelOptsDil, 'style', 'diverging') ;
             ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
             saveas(gcf, dilfn)
             close all

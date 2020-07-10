@@ -36,6 +36,9 @@ function [faces, faceIDgrid] = defineFacesRectilinearGrid(uv, nU, nV)
 % NPMitchell 2020
 
 % check that uv has increasing u, then increasing v
+if length(size(uv)) == 3
+    uv = reshape(uv, [nU * nV, 2]) ;
+end
 assert(uv(1, 1) ~= uv(2, 1))
 assert(uv(1, 2) == uv(2, 2))
 

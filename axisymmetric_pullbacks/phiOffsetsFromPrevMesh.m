@@ -134,31 +134,39 @@ for qq = 1:nU
     % The previous 3d embedding values are stored in prev3d_sphi
     % Choose which previous mesh's hoops against which to compare the 
     % current hoop (qq).
-    if optimize_hoop_distance && qq > 1 && qq < nU
+    if optimize_hoop_distance 
         % two matching hoops are how far away?
         % NOTE: get the first hoop behind, and the first hoop ahead
         [~, ~, ss] = distance2curve(prev_avgpts, avgpts(qq, :), 'linear') ;
         ahead = find(ss < prev_ss, 1) ;
         behind = find(ss > prev_ss, 1, 'last') ; 
         inds = [ahead, behind] ;
-        dists = vecnorm(avgpts(qq, :) - prev_avgpts(inds, :), 2, 2) ; 
-        assert(any(dists)) 
-        % Handle if one of the matches is exact (this should never happen)
-        if dists(1) == 0
-            prev3dvals = squeeze(prev3d_sphi(inds(1), :, :)) ;
-        else
-            % The usual case. There are two hoops nearby. Use both,
-            % weighted by distance.
-            weights = 1 - dists / (dists(1) + dists(2)) ;
-            weights = weights / sum(weights) ;
-            try
-                assert(all(weights < 1))
-                assert((sum(weights) == 1))
-            catch
-                disp('weights not right!')
+        if length(inds) > 1
+            % There are two nearby DV rings: one ahead, one behind. 
+            % This should be the case every time except at endpts
+            dists = vecnorm(avgpts(qq, :) - prev_avgpts(inds, :), 2, 2) ; 
+            assert(any(dists)) 
+            % Handle if one of the matches is exact (this should never happen)
+            if dists(1) == 0
+                prev3dvals = squeeze(prev3d_sphi(inds(1), :, :)) ;
+            else
+                % The usual case. There are two hoops nearby. Use both,
+                % weighted by distance.
+                weights = 1 - dists / (dists(1) + dists(2)) ;
+                weights = weights / sum(weights) ;
+                try
+                    assert(all(weights < 1))
+                    assert((sum(weights) == 1))
+                catch
+                    disp('weights not right!')
+                end
+                prev3dvals = weights(1) * squeeze(prev3d_sphi(inds(1), :, :)) + ...
+                             weights(2) * squeeze(prev3d_sphi(inds(2), :, :)) ;
             end
-            prev3dvals = weights(1) * squeeze(prev3d_sphi(inds(1), :, :)) + ...
-                         weights(2) * squeeze(prev3d_sphi(inds(2), :, :)) ;
+        elseif ~isempty(inds)
+            prev3dvals = squeeze(prev3d_sphi(inds, :, :)) ;
+        else
+            error('No matching hoops. Handle this case here')
         end
     else
         % Here we simply line up the hoop with the previous mesh's hoop 
@@ -331,7 +339,7 @@ for qq = 1:nU
     
     runtimeIter = toc ;
     % Display progress bar
-    if mod(qq, 10) == 1
+    if mod(qq, round(nU * 0.2)) == 1
         prog(min(length(prog), max(1, floor(qq/10)))) = '*' ;
         fprintf([prog '(' num2str(runtimeIter) 's per u value)\n'])
     end

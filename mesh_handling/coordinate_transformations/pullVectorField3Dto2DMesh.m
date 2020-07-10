@@ -1,4 +1,5 @@
-function [vfield2d, jac3d_to_2d] = pullVectorField3Dto2DMesh(vfield3d, v2d, v3d, ff, fieldfaces)
+function [vfield2d, jac3d_to_2d] = ...
+    pullVectorField3Dto2DMesh(vfield3d, v2d, v3d, ff, fieldfaces)
 %PULLVECTORFIELD3DTO2DMESH(vfield2d, v2d, v3d, ff, fieldfaces)
 % Pullback a vector field defined on faces of a mesh from a 3d mesh 
 % embeddingto to its image.
@@ -30,7 +31,7 @@ jac3d_to_2d = jacobian3Dto2DMesh(v2d, v3d, ff) ;
 
 % Pullback Vector Fields to Domain of Parameterization ====================
 vfield2d = zeros(size(fieldfaces, 1), 2);
-for f = 1:size(fieldfaces,1)
+for f = 1:length(fieldfaces)
     vfield2d(f,:) = jac3d_to_2d{fieldfaces(f)} * vfield3d(f,:)';
 end
 

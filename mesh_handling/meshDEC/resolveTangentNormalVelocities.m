@@ -12,11 +12,14 @@ function [v0n, v0t, v0t2d, jac, facenormals, g_ab, dilation] = ...
 % vertices : #vertices x 3 float array
 %   mesh embedding in 3d
 % v0 : N x 3 float array
-%   velocities in 3d evaluated at points living in fieldfaces
+%   velocities in 3d evaluated at points living in faces specified by 
+%   fieldfaces
 % vertices2d : #vertices x 2 float array
 %   mesh embedding in 2d
 % fieldfaces : N x 1 int array 
 %   indices into faces in which velocities v0 are evaluated
+% vertices2d : #vertices x 2 float array
+%   coordinates in 2d pullback, required if more than two output variables
 % varargin : keyword arguments
 %   'facenormals' : #faces x 3 float array, normal vectors for each face
 %
@@ -62,7 +65,6 @@ else
     % aux_alternate_velocity_projection
 end
 
-
 %% Take dot product of flow fields with normals in 3D
 v0n = dot(facenormals(fieldfaces, :), v0, 2) ;
 % Subtract the normal velocity to obtain tangential velocity
@@ -71,7 +73,8 @@ v0t = v0 - v0n .* facenormals(fieldfaces, :) ;
 %% Compute the tangential velocities in plane
 if nargout > 2
     % u is 3d, w is 2d. jac takes u->w, jjac takes w->u
-    [v0t2d, jac] = pullVectorField3Dto2DMesh(v0t, vertices2d, vertices, faces, fieldfaces) ;
+    [v0t2d, jac] = pullVectorField3Dto2DMesh(v0t, vertices2d, ...
+        vertices, faces, fieldfaces) ;
 end
 
 if nargout > 4

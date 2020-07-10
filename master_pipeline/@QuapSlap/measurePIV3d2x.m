@@ -1,6 +1,8 @@
-function measurePIV3d(QS, options)
+function measurePIV3d2x(QS, options)
 % measurePIV3D(QS, options)
-%   Measure 3d flows from PIV results on smoothed (s,phi) MIP pullbacks
+%   Measure 3d flows from PIV results on smoothed (s,phi) MIP pullbacks,
+%   but double the resolution of the smoothed (s,phi) pullbacks using
+%   interpolation before resolving velocities.
 %   
 %   default options for created MIPS (done before this method) are:
 %     pbOptions = struct() ;
@@ -13,7 +15,6 @@ function measurePIV3d(QS, options)
 %     QS.data.adjustlow = 1.00 ;
 %     QS.data.adjusthigh = 99.999 ;
 %     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
-%
 % 
 % Parameters
 % ----------
@@ -30,28 +31,34 @@ function measurePIV3d(QS, options)
 %
 % Returns
 % -------
-% m0XY : Px2 float: 2d mesh vertices in pullback image pixel space [pullback pix[" ;
-% m0f : #facesx3 float: mesh connectivity list" ;
-% m0v3d : Px3 float: 3d mesh coordinates in embedding pixel space [mesh pix / dt]" ;
-% x0 : QxR float: x value of 2d velocity evaluation coordinates in pullback image pixel space [pullback pix]" ;
-% y0 : QxR float: y value of 2d velocity evaluation coordinates in pullback image pixel space [pullback pix]" ;
-% pt0 : Nx3 float: 3d location of evaluation points [mesh pix]" ;
-% pt1 : Nx3 float: 3d location of advected point in next mesh [mesh pix]" ;
-% v0 : Nx3 float: 3d velocity [mesh pix / dt]" ;
-% v0n : Nx1 float: normal velocity [mesh pix / dt]" ;
-% v0t : Nx3 float: tangential velocity in 3d [mesh pix / dt]" ;
-% facenormals : #faces x 3 float: face normals for all faces [unitless, mesh pix / mesh pix]" ;
-% v3dfaces : #faces x 3 float: face-centered velocities in embedding space [mesh pix / dt]" ;
-% v3dvertices : #mesh vertices x 3 float: vertex-centered velocities in embedding space [mesh pix / dt]" ;
-% v0_rs : Nx3 float: rotated/scaled 3d velocities [um/min]" ;
-% v0n_rs : Nx3 float: scaled normal velocities [um/min]" ;
-% v0t_rs : Nx3 float: rotated/scaled tangential 3d velocities [um/min]" ;
-% normals_rs : Nx3 float: normal vector of field faces in 3d [unitless, um/um]" ;
-% v0t2d : Nx2 float: in-plane velocity [pullback pix / dt]" ;
-% g_ab : Nx2x2 float: pullback metric" ;
-% dilation : Nx1 float: dilation of face from 3d to 2d (A_2d [pullback_pix^2] / A_3d [mesh_pix^2])" ;
-% jac : #faces x 1 cell: jacobian of 3d->2d transformation" ;
-% fieldfaces : Nx1 int: face indices into spcutMesh where v defined" ;
+% piv3dDoubleRes : struct with fields
+%     m0XY : Px2 float: 2d mesh vertices in pullback image pixel space [pullback pix[" ;
+%     m0f : #facesx3 float: mesh connectivity list" ;
+%     m0v3d : Px3 float: 3d mesh coordinates in embedding pixel space [mesh pix / dt]" ;
+%     x0 : QxR float: x value of 2d velocity evaluation coordinates in pullback image pixel space [pullback pix]" ;
+%     y0 : QxR float: y value of 2d velocity evaluation coordinates in pullback image pixel space [pullback pix]" ;
+%     pt0 : (Q*R)x3 float: 3d location of evaluation points [mesh pix]" ;
+%     pt1 : Nx3 float: 3d location of advected point in next mesh [mesh pix]" ;
+%     v0 : Nx3 float: 3d velocity [mesh pix / dt]" ;
+%     v0n : Nx1 float: normal velocity [mesh pix / dt]" ;
+%     v0t : Nx3 float: tangential velocity in 3d [mesh pix / dt]" ;
+%     facenormals : #faces x 3 float: face normals for all faces [unitless, mesh pix / mesh pix]" ;
+%     v3dfaces : #faces x 3 float: face-centered velocities in embedding space [mesh pix / dt]" ;
+%     v3dvertices : #mesh vertices x 3 float: vertex-centered velocities in embedding space [mesh pix / dt]" ;
+%     v0_rs : Nx3 float: rotated/scaled 3d velocities [um/min]" ;
+%     v0n_rs : Nx3 float: scaled normal velocities [um/min]" ;
+%     v0t_rs : Nx3 float: rotated/scaled tangential 3d velocities [um/min]" ;
+%     normals_rs : Nx3 float: normal vector of field faces in 3d [unitless, um/um]" ;
+%     v0t2d : Nx2 float: in-plane velocity [pullback pix / dt]" ;
+%     g_ab : Nx2x2 float: pullback metric" ;
+%     dilation : Nx1 float: dilation of face from 3d to 2d (A_2d [pullback_pix^2] / A_3d [mesh_pix^2])" ;
+%     jac : #faces x 1 cell: jacobian of 3d->2d transformation" ;
+%     fieldfaces : Nx1 int: face indices into spcutMesh where v defined" ;
+%
+% See also
+% --------
+% measurePIV3d.m
+%
 %
 % NPMitchell 2020
 
@@ -108,13 +115,13 @@ if isfield(options, 'vnscale')
 end
 
 %% Unpack QS
-piv3dfn = QS.fullFileBase.piv3d ;
+piv3dfn = QS.fullFileBase.piv3d2x ;
 ntps = length(timePoints) ;
 [rot, ~] = QS.getRotTrans() ;
 resolution = QS.APDV.resolution ; 
 [~, ~, ~, xyzlim_APDV] = QS.getXYZLims() ;
 axis_order = QS.data.axisOrder ;
-pivOutDir = QS.dir.piv3d ;
+pivOutDir = QS.dir.piv3d2x ;
 blue = QS.plotting.colors(1, :) ;
 red = QS.plotting.colors(2, :) ;
 green = QS.plotting.colors(4, :) ;
@@ -131,7 +138,7 @@ end
 %% Compute or load results
 if ~redo_piv3d
     disp(['Loading piv3d from ' piv3dfn])
-    piv3d = cell(length(fns)) ;
+    piv3d = cell(length(timePoints), 1) ;
     for ii=1:(ntps-1)
         if mod(timePoints(ii), 10) == 0
             disp(['loading piv3d for time t=' num2str(timePoints(ii))])
@@ -168,18 +175,41 @@ else
         Ysz1 = size(im1, 1) ;
         
         % Load spcutMesh 
-        mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSm, timePoints(ii)), 'spcutMeshSm') ;
-        mesh0 = mesh0.spcutMeshSm ;
+        sp2xfn = sprintf(QS.fullFileBase.spcutMeshSm2x, timePoints(ii)) ;
+        try
+            tmp = load(sp2xfn, 'spcutMeshSm2x') ;
+        catch
+            QS.generateSPCutMeshSm2x()
+            tmp = load(sp2xfn, 'spcutMeshSm2x') ;
+        end
+        mesh0 = tmp.spcutMeshSm2x ;
+        
+        % Check maxima
         umax0 = max(mesh0.u(:, 1)) ;
         vmax0 = max(mesh0.u(:, 2)) ;
+        mesh0a = load(sprintf(QS.fullFileBase.spcutMeshSm, ...
+            timePoints(ii)), 'spcutMeshSm') ;
+        mesh0a = mesh0a.spcutMeshSm ;
+        assert(umax0 == max(mesh0a.u(:, 1)))
+        assert(vmax0 == max(mesh0a.u(:, 2)))
         
         % Load next timepoint's spcutMesh
-        mesh1 = load(sprintf(QS.fullFileBase.spcutMeshSm, timePoints(ii + 1)), 'spcutMeshSm') ;
-        mesh1 = mesh1.spcutMeshSm ;
+        sp2xfn = sprintf(QS.fullFileBase.spcutMeshSm2x, timePoints(ii + 1)) ;
+        try
+            tmp = load(sp2xfn, 'spcutMeshSm2x') ;
+        catch
+            QS.generateSPCutMeshSm2x()
+            tmp = load(sp2xfn, 'spcutMeshSm2x') ;
+        end
+        mesh1 = tmp.spcutMeshSm2x ;
+        
+        % Check maxima
         umax1 = max(mesh1.u(:, 1)) ;
         vmax1 = max(mesh1.u(:, 2)) ;
         
         m0XY = QS.uv2XY(im0, mesh0.u, doubleCovered, umax0, vmax0) ;
+        size(m0XY)
+        error('here')
         % m1XY = QS.uv2XY(im1, mesh1.u, doubleCovered, umax1, vmax1) ;
         m0x = m0XY(:, 1) ;
         m0y = m0XY(:, 2) ;
@@ -263,7 +293,7 @@ else
         disp('Interpolating 3d vertices for tiled mesh 1')
         tileCount = [2, 2] ;
         [tm1f, tm1v2d, tm1v3d, ~] = tileAnnularCutMesh(mesh1, tileCount);
-        tm1XY = QS.uv2XY(im1, tm1v2d, doubleCovered, umax1, vmax1) ;
+        tm1XY = QS.uv2XY(im1, tm1v2d, doubleCovered, umax1, vmax1) ;              
         pt1 = interpolate2Dpts_3Dmesh(tm1f, tm1XY, tm1v3d, [x1(:), y1(:)]) ;
         
         % Old version
@@ -273,19 +303,19 @@ else
         % pt1 = [Xbi(x1(:), y1(:)), Ybi(x1(:), y1(:)), Zbi(x1(:), y1(:))] ;
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        if (preview || save_ims) && show_v3d_on_data
+        if preview && show_v3d_on_data
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Plot the advected mesh
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Load 3D data for coloring mesh pullback
-            disp('loading timepoint data')
+            disp(['loading timepoint data t=' num2str(tp)])
             QS.setTime(tp) ;
             QS.getCurrentData() ;
             IV0 = QS.currentData.IV ;
             
             % also plot the next timepoint
-            t1 = tp + 1 ;
-            disp('loading subsequent timepoint data')
+            t1 = timePoints(ii + 1) ;
+            disp(['loading subsequent timepoint data t=' num2str(t1)])
             QS.setTime(t1);
             QS.getCurrentData() ;
             IV1 = QS.currentData.IV ;            
@@ -563,7 +593,7 @@ else
         readme.v0 = "Nx3 float: 3d velocity [mesh pix / dt]" ;
         readme.v0n = "Nx1 float: normal velocity [mesh pix / dt]" ;
         readme.v0t = "Nx3 float: tangential velocity in 3d [mesh pix / dt]" ;
-        readme.facenormals = "#faces x 3 float: face normals for all faces [unitless, mesh pix / mesh pix]" ;
+        readme.facenormals = "#TiledFaces x 3 float: face normals for all faces, use fieldfaces to index into for relevant normals [unitless, mesh pix / mesh pix]" ;
         readme.v3dfaces = "#faces x 3 float: face-centered velocities in embedding space [mesh pix / dt]" ;
         readme.v3dvertices = "#mesh vertices x 3 float: vertex-centered velocities in embedding space [mesh pix / dt]" ;
         readme.v0_rs = "Nx3 float: rotated/scaled 3d velocities [um/min]" ;
@@ -673,8 +703,8 @@ else
         end
         
         %% Draw 2D flows
-        vtdir2d = QS.dir.pivt2d ;
-        vndir2d = QS.dir.pivn2d ;
+        vtdir2d = QS.dir.pivt2d2x ;
+        vndir2d = QS.dir.pivn2d2x ;
         if ~exist(vtdir2d, 'dir')
             mkdir(vtdir2d)
         end
@@ -784,16 +814,24 @@ else
         end
 
         % Save dilation field as image
+        dilDir = QS.dir.pivdilation2x ;
         dilfn = fullfile(dilDir, [sprintf('%04d', tp) '.png']) ;
         if save_ims && (~exist(dilfn, 'file') || overwrite)
             close all
+            alphaVal = 0.5 ;
             fig = figure('units', 'normalized', ...
                     'outerposition', [0 0 1 1], 'visible', 'off') ;
             %imagesc(piv.x{i}(:), piv.y{i}(:), piv3d{i}.dilation)
-            scalarFieldOnImage(im, xx, yy, ...
-                reshape(log10(piv3d.dilation), [length(xx), length(yy)]),...
+            washout2d = 0.5 ;
+            % Load the image to put flow on top
+            imRGB = cat(3, im0, im0, im0) ;  % convert to rgb for no cmap change
+            im = imRGB * washout2d + max(im0(:)) * (1-washout2d) ;
+            % XY = QS.uv2XY(im, uv, doubleCovered, umax, vmax)
+            labelOptsDil.title = 'dilation, $\log_{10}||J||$' ;
+            scalarFieldOnImage(im, [x0(1,:)', y0(:, 1)], ...
+                reshape(log10(piv3d{ii}.dilation), size(y0)),...
                 alphaVal, 0.5,...
-                'dilation, $\log_{10}||J||$', 'style', 'diverging') ;
+                labelOptsDil, 'style', 'diverging') ;
             ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
             saveas(gcf, dilfn)
             close all

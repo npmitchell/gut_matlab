@@ -289,7 +289,7 @@ if save_phi0patch
     set(gcf, 'visible', 'off')
     % Plot residuals in 3d
     residual3d = residuals ;
-    residual3d(:, 100) = residuals(:, 1) ;
+    residual3d(:, nV) = residuals(:, 1) ;
     newx = new3d(:, :, 1) ;
     newx = newx(:) ;
     newy = new3d(:, :, 2) ;
@@ -318,6 +318,7 @@ if save_phi0patch
     title('Residual from geometric hoop alignment')
     cb = colorbar() ;
     ylabel(cb, 'residual [\mum]')
+    caxis([0, 10])
     % Plot residuals in 2d
     % options_residual.flipy = false ;
     % options_residual.alpha = 0.3 ;
@@ -327,6 +328,5 @@ if save_phi0patch
     disp(['Saving phi0patch: ' patchImFnRes])
     saveas(gcf, patchImFnRes) 
     close all
-   
     
 end
