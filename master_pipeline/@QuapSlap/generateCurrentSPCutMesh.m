@@ -233,7 +233,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     % cids = cids + acID ;
 
     % Plot new centerline
-    aux_plot_clineDVhoop(avgpts, avgpts_ss, cseg, cline, cseg_ss, ...
+    aux_plot_clineDVhoop(QS, avgpts, avgpts_ss, cseg, cline, cseg_ss, ...
         curves3d, xyzlim_um, clineDVhoopFigBase, tt)
     
     % Optional: clean curve with polynomial and point match
@@ -349,7 +349,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
             % Note: the last boolean ensures that if iterative_phi0 is
             % false, we only do one pass. 
             do_iteration = true ;
-            while any(phi0_fit_kk > 0.002) && do_iteration
+            while any(phi0_fit_kk > 0.005) && do_iteration
                 % Make sure we do only one pass if not iterative
                 if ~iterative_phi0 
                     do_iteration = false ;

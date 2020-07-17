@@ -1,4 +1,4 @@
-function helmholtzHodgeSimple(QS, samplingResolution, options) 
+function helmholtzHodgeSimple(QS, options) 
 %helmholtzHodge(QS, options) 
 %   Take divergence and "curl" on 2d evolving surface in 3d
 %
@@ -19,15 +19,6 @@ function helmholtzHodgeSimple(QS, samplingResolution, options)
 %
 % NPMitchell 2020
 
-%% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
-if strcmp(samplingResolution, '1x') || strcmp(samplingResolution, 'single')
-    doubleResolution = false ;
-elseif strcmp(samplingResolution, '2x') || strcmp(samplingResolution, 'double')
-    doubleResolution = true ;
-else 
-    error("Could not parse samplingResolution: set to '1x' or '2x'")
-end
-
 %% Default options
 overwrite = false ;
 overwrite_images = false ;
@@ -40,8 +31,13 @@ preview = false ;
 pivimCoords = 'sp_sme' ;
 doubleCovered = true;
 lambda_smooth = 0.05 ;
+samplingResolution = '1x' ;
+
 
 %% Unpack options
+if isfield(options, 'samplingResolution')
+    samplingResolution = options.samplingResolution ;
+end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
@@ -74,6 +70,16 @@ end
 if isfield(options, 'lambda')
     lambda_smooth = options.lambda ;
 end
+
+% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
+if strcmp(samplingResolution, '1x') || strcmp(samplingResolution, 'single')
+    doubleResolution = false ;
+elseif strcmp(samplingResolution, '2x') || strcmp(samplingResolution, 'double')
+    doubleResolution = true ;
+else 
+    error("Could not parse samplingResolution: set to '1x' or '2x'")
+end
+
 %% Unpack QS
 timePoints = QS.xp.fileMeta.timePoints ;
 fname = QS.fileBase.name ;

@@ -24,7 +24,9 @@ function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
 %   which method to use to find local minima, 'avgpts' recommended
 % first_tp_allowed : int, default=-1
 %   First timepoint in which we allow detected local minumum to be 
-%   considered a true, physical fold
+%   considered a true, physical fold. There may be one value for each fold
+%   passed to the function, for ex [-1 -1 10] would prevent a third fold
+%   from being found before t=10. 
 %
 % Returns
 % -------
@@ -42,6 +44,12 @@ function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
 %
 %
 % NPMitchell 2019
+
+% Default behavior: if threshold time is enforced, enforce for all
+% folds.
+if length(first_tp_allowed) == 1
+    first_tp_allowed = [first_tp_allowed, first_tp_allowed, first_tp_allowed] ;
+end
 
 first1 = true ;
 first2 = true ;
@@ -95,7 +103,7 @@ for kk = 1:length(timePoints)
     % Find the minima in the radius. First make radius 1d
     rad = mean(spcutMesh.radii_from_mean_uniform_rs, 2) ;
     minidx = islocalmin(rad) ;
-    if any(minidx) && (t > (first_tp_allowed - 1))
+    if any(minidx) && any(t > (first_tp_allowed - 1))
         minidx = find(minidx) ;
         % Identify each minimum which fold it may be
         dd = zeros(length(minidx), 1) ;
@@ -114,19 +122,19 @@ for kk = 1:length(timePoints)
         % We instead say 0.3 is fold 1, 0.5 is fold 2, 0.8 is fold 3
         
         % Mark if this is the first appearance of a fold
-        if first1
+        if first1 && t > (first_tp_allowed(1) - 1)
             if any(which_fold == 1)
                 first1 = false ;
                 k1 = kk ;
             end
         end
-        if first2
+        if first2 && t > (first_tp_allowed(2) - 1)
             if any(which_fold == 2)
                 first2 = false ;
                 k2 = kk ;
             end
         end
-        if first3 
+        if first3 && t > (first_tp_allowed(3) - 1)
             if any(which_fold == 3)
                 first3 = false ;
                 k3 = kk ;

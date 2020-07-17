@@ -8,8 +8,9 @@ function extractCenterlineSeries(QS, cntrlineOptions)
 %   uses in particular
 %       timePoints : 
 %       meshDir
-% outDirs : 2 x 1 cell array 
-%   The 2 output directories: centerlineOutDir, outdir for images
+%       flipy : bool (optional, default is true)
+%           APDV coordinate system is mirrored across XZ wrt data coordinate
+%           system XYZ. 
 % Options: struct with fields
 %   - overwrite : bool (optional, default is false)
 %       whether to overwrite previous results on disk
@@ -25,11 +26,13 @@ function extractCenterlineSeries(QS, cntrlineOptions)
 %   - meshAPDVFileName : str (optional)
 %       If supplied, plot rotated and scaled centerline with the previously
 %       saved APDV aligned meshes matching this filename pattern
-%   - flipy : bool (optional, default is true)
-%       APDV coordinate system is mirrored across XZ wrt data coordinate
-%       system XYZ. 
 %   - reorient_faces : bool (optional, default is true)
 %       ensure proper face orientation on each mesh (slower but rigorous)
+%
+% Outputs
+% -------
+% outDirs : 2 x 1 cell array 
+%   The 2 output directories: centerlineOutDir, outdir for images
 %
 % NPMitchell 2020
 
@@ -49,12 +52,13 @@ overwrite_ims = false ;         % overwrite previous images, whether or not cent
 weight = 0.1;                   % for speedup of centerline extraction. Larger is less precise
 exponent = 1.0 ;                % how heavily to scale distance transform for speed through voxel
 res = 1.0 ;                     % resolution of distance tranform grid
-flipy = true ;                  % APDV coordinate system is mirrored across XZ wrt data coords           
+flipy = QS.flipy ;              % APDV coordinate system is mirrored across XZ wrt data coords           
 reorient_faces = true ;         % whether to ensure proper face orientation on each mesh (slower but rigorous)
 preview = false ;               % view intermediate results
 xwidth = 16 ;                   % width of figure in cm
 ywidth = 10 ;                   % height of figure in cm
 useSavedAPDVMeshes = false ;    % load APDV meshes instead of transforming the data space meshes on the fly
+meshAPDVFileName = QS.fullFileBase.alignedMesh ; 
 if isfield(cntrlineOptions, 'overwrite')
     overwrite = cntrlineOptions.overwrite ;
 end
@@ -337,10 +341,13 @@ for tt = timePoints
             % get pathlength at each skeleton point
             ss = [0; cumsum(ds)] ;
             sss = ss * resolution ;
-            skelrs = ((rot * skel')' + trans) * resolution ;
-            if flipy
-                skelrs(:, 2) = -skelrs(:, 2) ;
-            end
+            
+            skelrs = QS.xyz2APDV(skel) ;
+            % The above line does the following transformation(s):
+            % skelrs = ((rot * skel')' + trans) * resolution ;
+            % if flipy
+            %     skelrs(:, 2) = -skelrs(:, 2) ;
+            % end
 
             %% Save the rotated, translated, scaled curve
             disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])

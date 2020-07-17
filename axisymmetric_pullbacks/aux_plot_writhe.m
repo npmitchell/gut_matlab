@@ -76,7 +76,6 @@ t0 = fold_onset(2) ;
 t1 = fold_onset(1) ;
 t3 = fold_onset(3) ;
 ind = find(timepoints == t0) ;
-okinds = 1:148 ;
 [colors, ~] = define_colors ;
 
 for ii = 1:4
@@ -91,7 +90,7 @@ for ii = 1:4
     % fill in boxes
     % if ii == 5
     %     % To make fills, get xlimits from a handle that we clear
-    %     vh = plot(timepoints(okinds) - t0, vvs(okinds) / vvs(ind)) ;
+    %     vh = plot(timepoints - t0, vvs / vvs(ind)) ;
     %     xlims = xlim ;
     %     cla
     % 
@@ -109,17 +108,17 @@ for ii = 1:4
     %     hf3 = fill(xx3, yfill, color3, 'facealpha', 0.5);
     % end
     
-    vh = plot(timepoints(okinds) - t0, vvs(okinds) / vvs(ind),...
+    vh = plot(timepoints - t0, vvs / vvs(ind),...
         'color', colors(1, :), 'linewidth', 2) ;
     ylabel('$V$', 'Interpreter', 'Latex')
     hold on ;
     if ii > 1
-        ah = plot(timepoints(okinds) - t0, aas(okinds) / aas(ind),...
+        ah = plot(timepoints - t0, aas / aas(ind),...
         'color', colors(1, :), 'linewidth', 2) ;
         ylabel('$V$, $A$', 'Interpreter', 'Latex')
     end
     if ii > 2
-        lh = plot(timepoints(okinds) - t0, lengths(okinds) / lengths(ind), ...
+        lh = plot(timepoints - t0, lengths / lengths(ind), ...
             'color', colors(1, :), 'linewidth', 2) ;
         ylabel('$V$, $A$, $L$', 'Interpreter', 'Latex')
     end
@@ -140,7 +139,7 @@ for ii = 1:4
     elseif ii > 3
         % writhe on right
         yyaxis right
-        wh = plot(timepoints(okinds) - t0, Wrc(okinds), 'linewidth', 2) ;
+        wh = plot(timepoints - t0, Wrc, 'linewidth', 2) ;
         xlims = get(gca, 'xlim') ;
         ylims = get(gca, 'ylim') ;
         ylim([ylims(1), ylims(2) + 0.8])
@@ -303,9 +302,9 @@ xlims = get(gca, 'xlim') ;
 ylims = get(gca, 'ylim') ; 
 plot(timepoints - t0, dv / vvs(ind) * 100, '--', 'Color', vcolor) ;
 plot(timepoints - t0, da / aas(ind) * 100, '--', 'Color', acolor) ;
-plot(t0, Wrc(toff), 'k.') ;
-plot(t1 - t0, Wrc(t1 - t0 + toff), 'ko') ;
-plot(t3 - t0, Wrc(t3 - t0 + toff), 'ks') ;
+plot(t0, Wrc(max(toff, 1)), 'k.') ;
+plot(t1 - t0, Wrc(max(t1 - t0 + toff, 1)), 'ko') ;
+plot(t3 - t0, Wrc(max(t3 - t0 + toff, 1)), 'ks') ;
 set(gca, 'xlim', xlims)
 set(gca, 'ylim', ylims)
 xlabel('time [min]', 'Interpreter', 'Latex')

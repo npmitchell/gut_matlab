@@ -24,6 +24,12 @@ cylinderMeshBase = QS.fullFileBase.cylinderMesh ;
 dpFile = QS.fileName.apBoundaryDorsalPts ;
 outadIDxfn = QS.fileName.aBoundaryDorsalPtsClean ;
 outpdIDxfn = QS.fileName.pBoundaryDorsalPtsClean ;
+
+dir2make = fullfile( QS.dir.cylinderMeshClean, 'images') ;
+if ~exist(dir2make, 'dir')
+    mkdir(dir2make)
+end
+
 cylinderMeshCleanFigBase = fullfile( QS.dir.cylinderMeshClean, 'images', ...
     [ QS.fileBase.mesh 'cylindercut_clean.png' ]) ;
 
@@ -53,10 +59,11 @@ for t = QS.xp.fileMeta.timePoints
         % This is saving the cylinder meshes with no ears. Also adIDx
         % is saved in h5file.
         plywrite_with_normals(mesh3dfn, mesh.f, mesh.v, mesh.vn)
+        disp('Saving a/pdIDx to disk')
         % Save adIDx with new indices
-        save_to_h5(outadIDxfn, ['/' sprintf('%06d', t) ], adIDx, ['adIDx for t=' num2str(t) ' already exists'])
+        save_to_h5(outadIDxfn, ['/' sprintf('%06d', t) ], adIDx, ['adIDx for t=' num2str(t) ' already exists, overwriting'])
         % Save pdIDx with new indices
-        save_to_h5(outpdIDxfn, ['/' sprintf('%06d', t) ], pdIDx, ['pdIDx for t=' num2str(t) ' already exists'])
+        save_to_h5(outpdIDxfn, ['/' sprintf('%06d', t) ], pdIDx, ['pdIDx for t=' num2str(t) ' already exists, overwriting'])
         disp('done with cylindermesh cleaning')
 
         % View results --------------------------------------------------------
@@ -93,7 +100,47 @@ for t = QS.xp.fileMeta.timePoints
         % View results --------------------------------------------------------
         mesh3dfigfn = sprintf( cylinderMeshCleanFigBase, t ) ;
         if (~exist(mesh3dfigfn, 'file') || overwrite) && save_ims
-            aux_plot_cleanCylMesh
+            [~, ~, ~, xyzlim] = QS.getXYZLims() ;
+
+            %% Contents of aux_plot_cleanCylMesh.m below
+            close all
+            fig = figure('visible', 'off') ;
+            xyzrs = QS.xyz2APDV(mesh.v) ;
+            trisurf( triangulation( mesh.f, xyzrs ), xyzrs(:, 2), 'EdgeColor', 'none', 'FaceAlpha', 0.5);
+            hold on
+            scatter3( xyzrs(adIDx,1), xyzrs(adIDx,2), xyzrs(adIDx,3), ...
+                'filled', 'r' );
+            scatter3( xyzrs(pdIDx,1), xyzrs(pdIDx,2), xyzrs(pdIDx,3), ...
+                'filled', 'c' );
+            hold off
+            axis equal
+            xlabel('x [\mum]')
+            ylabel('y [\mum]')
+            zlabel('z [\mum]')
+            xlim(xyzlim(1, :)); 
+            ylim(xyzlim(2, :)); 
+            zlim(xyzlim(3, :));
+            title(['cleaned cylinder mesh, t = ' num2str(t)])
+            saveas(fig, mesh3dfigfn)
+            close all
         end
     end
 end
+
+% Collate all ad and pd points and save as txt file as well
+adIDxs = zeros(size(QS.xp.fileMeta.timePoints)) ;
+pdIDxs = zeros(size(QS.xp.fileMeta.timePoints)) ;
+for t = QS.xp.fileMeta.timePoints
+    disp(['t = ', num2str(t)])
+    tidx = QS.xp.tIdx(t) ;
+    adIDx = h5read(QS.fileName.aBoundaryDorsalPtsClean, ['/' sprintf('%06d', t)]) ;
+    pdIDx = h5read(QS.fileName.pBoundaryDorsalPtsClean, ['/' sprintf('%06d', t)]) ;
+    adIDxs(tidx) = adIDx ;
+    pdIDxs(tidx) = pdIDx ;
+end
+fnA = [QS.fileName.aBoundaryDorsalPtsClean(1:end-3) '.txt'] ;
+fnP = [QS.fileName.pBoundaryDorsalPtsClean(1:end-3) '.txt'] ;
+write_txt_with_header(fnA, adIDxs', 'vertex index for anterior dorsal')
+write_txt_with_header(fnP, pdIDxs', 'vertex index for posterior dorsal')
+
+

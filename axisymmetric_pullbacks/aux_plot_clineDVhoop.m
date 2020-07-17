@@ -1,10 +1,20 @@
-function aux_plot_clineDVhoop(avgpts, avgpts_ss, cseg, cline, cseg_ss, curves3d, xyzlim, clineDVhoopFigBase, t)
+function aux_plot_clineDVhoop(QS, avgpts, avgpts_ss, cseg, cline, ...
+    cseg_ss, curves3d, xyzlim, clineDVhoopFigBase, t)
 % aux_plot_clineDVhoop: auxilliary function for
 % Generate_Axisymmetric_Pullbacks_Orbifold script
 %
 % Plots the DVhoop as a scatter plot in 3d.
 %
+% cline has already been transformed to APDV
+%
 % NPMitchell 2019
+
+% Should really transform avgpts back into XYZ coords, then into APDV.
+% Otherwise we are off by a mirroring.
+% if QS.flipy
+%     avgpts(:, 2) = - avgpts(:, 2) ;
+%     curves3d(:, 2) = - curves3d(:, 2) ;
+% end
 
 close all
 fig = figure('visible', 'off') ;

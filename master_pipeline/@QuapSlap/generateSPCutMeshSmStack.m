@@ -61,7 +61,7 @@ for qq = 1:length(QS.xp.fileMeta.timePoints)
     % Generate Output Image File
     %--------------------------------------------------------------
     spacingstr = strrep(sprintf('%0.2fum', layer_spacing * QS.APDV.resolution), '.', 'p') ;
-    imfn_spsm = sprintf( fullfile( QS.dir.im_sp_rsme_stack, ...
+    imfn_spsm = sprintf( fullfile( QS.dir.im_r_sme_stack, ...
         [fileNameBase, '_%02d_%02d_' spacingstr '.tif']), tt, n_outward, n_inward ) ;
     
     if ~exist(imfn_spsm, 'file') || overwrite

@@ -34,7 +34,7 @@ vnscale = 2 ;      % um / min
 vscale = 2 ;       % um / min
 alphaVal = 0.7 ;   % alpha for normal velocity heatmap
 washout2d = 0.5 ;  % lightening factor for data
-qsubsample = 5 ;   % quiver subsampling in pullback space 
+qsubsample = 10 ;   % quiver subsampling in pullback space 
 plot_vxyz = false ;
 overwrite = false ;
 preview = false ;
@@ -56,6 +56,22 @@ end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
+if isfield(options, 'vtscale')
+    vtscale = options.vtscale ;
+end
+if isfield(options, 'vscale')
+    vscale = options.vscale ;
+end
+if isfield(options, 'alphaVal')
+    alphaVal = options.alphaVal ;
+end
+if isfield(options, 'qsubsample')
+    qsubsample = options.qsubsample ;
+end
+if isfield(options, 'pivimCoords')
+    pivimCoords = options.pivimCoords ;
+end
+
     
 %% Unpack QS
 pivSADir = QS.dir.pivSimAvg ;  % Note these fields are sampling independent (not related to pullback coords)
@@ -169,7 +185,8 @@ for i = 1:size(vsmM, 1)
         fig = figure('units', 'normalized', ...
                 'outerposition', [0 0 1 1], 'visible', 'off') ;
         colormap parula ;
-        scalarFieldOnImage(im, xx, yy, reshape(vecnorm(vsm_ii, 2, 2), gridsz),...
+        scalarFieldOnImage(im, [xx', yy], ...
+            reshape(vecnorm(vsm_ii, 2, 2), gridsz),...
             alphaVal, vtscale, '$|v|$ [$\mu$m/min]', 'Style', 'Positive') ;
         ylim([0.25 * size(im, 1), 0.75 * size(im, 1)])
         title(['speed, $|v|$: $t=$' num2str(tp - t0) tunit], ...
@@ -205,7 +222,7 @@ for i = 1:size(vsmM, 1)
         close all
         fig = figure('units', 'normalized', ...
                 'outerposition', [0 0 1 1], 'visible', 'off') ;
-        scalarFieldOnImage(im, xx, yy, vn, alphaVal, vnscale, ...
+        scalarFieldOnImage(im, [xx', yy], vn, alphaVal, vnscale, ...
             '$v_n$ [$\mu$m/min]') ;
         ylim(ylims)
         title(['normal velocity, $v_n$: $t=$' num2str(tp - t0) tunit], ...

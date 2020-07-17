@@ -33,8 +33,10 @@
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
-cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
-% cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
+% cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
+cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
+% cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
+
 dataDir = cd ;
 
 %% PATHS ==================================================================
@@ -67,7 +69,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 1 ;
     channelsUsed = 1 ;
-    timePoints = 1:111 ;
+    timePoints = 0:190 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
@@ -160,6 +162,7 @@ convert32to16bit(timePoints, scale, dir32bit, dir16bit_prestab,...
 % Skip if already done
 mipDir = fullfile(dir16bit_prestab, 'mips') ;
 Options.overwrite_mips = overwrite_mips ;
+Options.scale = -1 ; % do NOT rescale intensities during intensity projection
 makeMips(timePoints, dir16bit_prestab, fn_prestab, mipDir, Options)
 
 %%  -II. stabilizeImagesCorrect.m
@@ -176,8 +179,8 @@ fileNameIn = fullfile(dir16bit_prestab, fn_prestab) ;
 fileNameOut = fullfile(dir16bit, [fn '.tif']) ;
 rgbName = [fn '.png'] ;
 typename = 'uint16' ; 
-overwrite_mips = false ;
-overwrite_tiffs = false ;
+overwrite_mips = true ;
+overwrite_tiffs = true ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     timePoints, timePoints, timePoints(1), ...
     im_intensity, imref_intensity, ...
@@ -187,6 +190,7 @@ stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
 % Skip if already done
 cd(dir16bit)
 dataDir = cd ;
+masterSettings.dir16bit_prestab = dir16bit_prestab ;
 makeH5SeriesPrestabForTraining(masterSettings)
 cd(dir16bit)
 
@@ -308,7 +312,7 @@ else
     lambda1 = 1 ;
     lambda2 = 1 ;
     exit_thres = 0.0001 ;
-    if contains(projectDir, 'LifeAct')
+    if contains(projectDir, 'LifeActRuby')
         nu = 4 ;  % For volumetric
         smoothing = 0.20 ;
     else
@@ -324,7 +328,7 @@ else
     % mlxprogram = fullfile(meshlabCodeDir, ...
     %     'laplace_refine_HCLaplace_LaplaceSPreserve_QuadEdgeCollapse60kfaces.mlx') ;
     mlxprogram = fullfile(meshlabCodeDir, ...
-        'surface_rm_resample20k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
+        'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
     radius_guess = 40 ;
     center_guess = '200,75,75' ;
     dtype = 'h5' ;
@@ -477,7 +481,7 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(109:end)
+    for tp = xp.fileMeta.timePoints(1)
         try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
@@ -489,7 +493,7 @@ else
             detectOpts2.timepoint = xp.currentTime ;
             detectOpts2.fileName = sprintf( fn, xp.currentTime );
             detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-                 'surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
+                 'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
             xp.setDetectOptions( detectOpts2 );
             xp.detectSurface();
             % For next time, use the output mesh as an initial mesh
@@ -789,7 +793,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     % Align the meshes APDV & plot them
     alignAPDVOpts.overwrite_ims = overwrite_alignedMeshIms ;  % overwrite images even if centerlines are not overwritten
     alignAPDVOpts.overwrite = overwrite_APDVCOMs || overwrite_APDVMeshAlignment ; % recompute APDV rotation, translation
-    [rot, trans, ~, xyzlim, xyzlim_um] = QS.alignMeshesAPDV(alignAPDVOpts) ;
+    QS.alignMeshesAPDV(alignAPDVOpts) ;
 else
     disp('Already done')
 end
@@ -873,7 +877,7 @@ cntrlineOpts.exponent = exponent ;       % how heavily to scale distance transfo
 cntrlineOpts.res = res ;                 % resolution of distance tranform grid in which to compute centerlines
 cntrlineOpts.preview = false ;           % preview intermediate results
 cntrlineOpts.reorient_faces = false ;    % not needed for our well-constructed meshes
-cntrlineOpts.dilation = 1 ;              % how many voxels to dilate the segmentation inside/outside before path computation
+cntrlineOpts.dilation = 0 ;              % how many voxels to dilate the segmentation inside/outside before path computation
 
 % Note: this takes about 400s per timepoint for res=2.0
 %
@@ -883,12 +887,19 @@ disp('done with centerlines')
 %% Fix flip in Y for centerlines
 % aux_fix_flip
 
+%% Identify anomalies in centerline data
+% Skip if already done
+idOptions.ssr_thres = 15 ;  % distance of sum squared residuals in um as threshold
+idOptions.overwrite = overwrite_idAnomClines ;
+QS.generateCleanCntrlines(idOptions) ;
+
+
 %% Cylinder cut mesh
 % Skip if already done
-if overwrite_endcapOpts
+if overwrite_endcapOpts || ~exist(QS.fileName.endcapOptions, 'file')
     endcapOpts = ...
-        struct( 'adist_thres', 20, ...  % distance threshold for cutting off anterior in pix
-                'pdist_thres', 25);     % distance threshold for cutting off posterior in pix
+        struct( 'adist_thres', 22, ...  % 20, distance threshold for cutting off anterior in pix
+                'pdist_thres', 20);     % 15-20, distance threshold for cutting off posterior in pix
     QS.setEndcapOptions(endcapOpts) ;
     % Save the options to disk
     QS.saveEndcapOptions() ;
@@ -901,14 +912,8 @@ end
 clearvars methodOpts
 methodOpts.overwrite = overwrite_endcapOpts ;  % recompute sliced endcaps
 methodOpts.save_figs = true ;   % save images of cntrline, etc, along the way
-methodOpts.preview = false ;     % display intermediate results
+methodOpts.preview = false  ;     % display intermediate results
 QS.sliceMeshEndcaps(endcapOpts, methodOpts) ;
-
-%% Identify anomalies in centerline data
-% Skip if already done
-idOptions.ssr_thres = 15 ;  % distance of sum squared residuals in um as threshold
-idOptions.overwrite = overwrite_idAnomClines ;
-QS.generateCleanCntrlines(idOptions) ;
 
 %% Clean Cylinder Meshes
 % May skip if already done
@@ -927,10 +932,6 @@ overwrite_cutMesh = false ;
 overwrite_spcutMesh = false ;
 % Plotting params
 washout2d = 0.5 ;
-% Parameters for spcutMesh creation
-normal_shift = 10 ;
-maxJitter = 100 ;
-maxTwChange = 0.15 ;
 
 %% Iterate Through Time Points to Create Pullbacks ========================
 % Skip if already done
@@ -953,8 +954,9 @@ for tt = xp.fileMeta.timePoints(1:end)
         else
             disp('cutMesh not found on disk. Generating cutMesh... ');
         end
-        error('here')
-        QS.generateCurrentCutMesh()
+        options = struct() ;
+        options.preview = false ;
+        QS.generateCurrentCutMesh(options)
         disp('Saving cutP image')
         % Plot the cutPath (cutP) in 3D
         QS.plotCutPath(QS.currentMesh.cutMesh, QS.currentMesh.cutPath)
@@ -966,7 +968,7 @@ for tt = xp.fileMeta.timePoints(1:end)
     end
     
     spcutMeshOptions.overwrite = overwrite_spcutMesh ;
-    spcutMeshOptions.save_phi0patch = true ;
+    spcutMeshOptions.save_phi0patch = false ;
     spcutMeshOptions.iterative_phi0 = true ;
     spcutMeshOptions.smoothingMethod = 'none' ;
     QS.plotting.preview = false ;
@@ -1015,9 +1017,9 @@ disp('done')
 %% FIND THE FOLDS SEPARATING COMPARTMENTS =================================
 % Skip if already done
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.preview = true ;
-options.first_tp_allowed = -1 ;  % enforce that no folds before this tp
+options.first_tp_allowed = [-1, -1, 40] ;  % enforce that no folds before this tp
 QS.identifyFolds(options)
 disp('done')
 
@@ -1033,7 +1035,7 @@ disp('done')
 %% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
 % Skip if already done
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 QS.measureWrithe(options)
 disp('done')
 
@@ -1043,13 +1045,13 @@ options = struct() ;
 options.overwrite = false ;
 QS.measureLobeDynamics(options) ;
 
-%% plot length, area, and volume for each lobe ============================
+% plot length, area, and volume for each lobe ============================
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
 QS.plotLobes(options)
 
-%% Plot motion of avgpts & DVhoops at folds in yz plane over time ===================
+% Plot motion of avgpts & DVhoops at folds in yz plane over time =========
 % Skip if already done
 overwrite_lobeims = false ;
 QS.plotConstrictionDynamics(overwrite_lobeims) ;
@@ -1058,11 +1060,12 @@ disp('done')
 %% SMOOTH MEAN CENTERLINE RADIUS ==========================================
 % Skip if already done
 % todo: rework this section so that it takes place after smoothing meshes
-aux_smooth_avgptcline_radius_before_mesh_smoothing(overwrite, ...
-    QS.xp.fileMeta.timePoints, QS.fullFileBase.spcutMesh, ...
-    QS.fullFileBase.clineDVhoop, radiusImDir, ...
-    QS.APDV.rot, QS.APDV.trans, QS.APDV.resolution, ...
-    QS.plotting.xyzlim_um, QS.nU, QS.nV)
+% overwrite = false ;
+% aux_smooth_avgptcline_radius_before_mesh_smoothing(overwrite, ...
+%     QS.xp.fileMeta.timePoints, QS.fullFileBase.spcutMesh, ...
+%     QS.fullFileBase.clineDVhoop, radiusImDir, ...
+%     QS.APDV.rot, QS.APDV.trans, QS.APDV.resolution, ...
+%     QS.plotting.xyzlim_um, QS.nU, QS.nV)
 
 %% Smooth the sphi grid meshes in time ====================================
 % Skip if already done
@@ -1078,7 +1081,8 @@ QS.plotSPCutMeshSmRS(options) ;
 %% Images for publication/presentation on method & coordinate system
 % Skip if already done
 % Create coordinate system charts visualization using smoothed meshes
-QS.coordSystemDemo()
+
+% QS.coordSystemDemo()
 
 %% COMPUTE MEAN AND GAUSSIAN CURVATURES OF SMOOTHED MESHES
 % Skip if already done
@@ -1098,11 +1102,10 @@ for tt = QS.xp.fileMeta.timePoints(1:end)
     
     % Load the data for the current time point ------------------------
     QS.setTime(tt) ;
-    
-    % Establish custom Options for MIP
+        % Establish custom Options for MIP
     pbOptions = struct() ;
     pbOptions.overwrite = false ;
-    pbOptions.numLayers = [5, 5] ;
+    pbOptions.numLayers = [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
     pbOptions.generate_rsm = true ;
     pbOptions.generate_spsm = true ;
@@ -1174,12 +1177,28 @@ save(dumpfn)
 load(dumpfn)
 clearvars dumpfn
 
+
 %% PERFORM PIV ON PULLBACK MIPS ===========================================
+% % Compute PIV in PIVLab
+% % ---------------------
+% % Open PIVLab
 % % Select all frames in PullbackImages_extended_shifted/ 
 % % Select Sequencing style 1-2, 2-3, ... 
 % % Load settings: piv_set_pass1.mat
-% % Image Preprocessing > Select All
-% % PIV settings: 128 (32 step), 64 (16 step), 32 (16 step) for three passes
+% % Image Preprocessing (used to select all, but now:)
+% %  --> Enable CLAHE with 20 pix
+% %  --> DO NOT Enable highpass with 15 pix
+% %  --> DO NOT Enable Intensity capping
+% %  --> Wiener2 denoise filter with 3 pix
+% % PIV settings: 
+% %  --> 128 (32 step), 64 (32 step), 32 (16 step), 16 (8 step)
+% %  --> Linear window deformation interpolator
+% %  --> 5x repeated correlation 
+% %  --> Disable auto-correlation
+% % Post-processing
+% %  --> Standard deviation filter: 7 stdev
+% %  --> Local median filter: thres=5, eps=0.1
+% %  --> Interpolate missing data
 disp('Loading PIV results...')
 tmp = load(fullfile(QS.dir.piv, 'piv_results.mat')) ;
 
@@ -1187,7 +1206,7 @@ tmp = load(fullfile(QS.dir.piv, 'piv_results.mat')) ;
 %% Measure velocities =============================================
 disp('Making map from pixel to xyz to compute velocities in 3d for smoothed meshes...')
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.preview = false ;
 options.show_v3d_on_data = false ;
 options.save_ims = true ;
@@ -1230,10 +1249,58 @@ if (redo_acorr || overwrite_autocorrelations) && do_acorr
 end
 
 %% VELOCITY PLOTS
-options.overwrite = false ;
+options.overwrite = true ;
 options.plot_vxyz = false ;
 options.invertImage = true ;
-QS.plotTimeAvgVelSimple(samplingResolution, options)
+QS.plotTimeAvgVelSimple(options)
+
+%% Divergence and Curl (Helmholtz-Hodge)
+options = struct() ;
+options.overwrite = false ; 
+QS.helmholtzHodgeSimple(options) ;
+
+
+
+%% Measure required stress pattern
+options = struct() ;
+options.overwrite = false ;
+QS.measureStressPattern(options) ;
+%% Measure twist (d v_phi / d zeta)
+options = struct() ;
+options.overwrite = false ;
+QS.measureTwist(options)
+
+%% Measure Compressibility (div(v), 2*vn*H, and gdot)
+options = struct() ;
+options.overwrite = true ;
+options.plot_Hgdot = false ;
+options.plot_flows = true ;
+options.plot_factors = true ;
+options.plot_kymographs = true ;
+options.plot_kymographs_cumsum = true ;
+options.plot_correlations = true ;
+options.plot_gdot_correlations = false ;
+options.plot_gdot_decomp = true ;
+options.lambda_mesh = 0.002 ;
+options.lambda = 0.02 ;
+options.lambda_err = 0.03 ;
+QS.measureMetricKinematics(options)
+
+%% Correlations over time in compressibility measurements
+options = struct() ;
+options.overwrite = false ;
+QS.measureMetricKinematicCorrelations(options) 
+
+%% Decompose growth into isotropic and inhomogeneous components
+options = struct() ;
+options.overwrite = true ;
+QS.measureMetricKinematicDecomposition(options)
+
+%% Measure surface area growh of lobes and folds
+options = struct() ;
+options.overwrite = true ;
+options.preview = false ;
+QS.measureEulerianMetricDynamics(options)
 
 %% Plot texture map in 3d with velocities
 for i = 1:size(vM, 1)
@@ -1386,10 +1453,6 @@ axis on
 set(gcf, 'visible', 'on')
 waitfor(gcf)
 
-%% Divergence and Curl (Helmholtz-Hodge)
-options = struct() ;
-options.overwrite = false ; 
-QS.helmholtzHodgeSimple(options) ;
 
 %% Simpleminded streamlines from velocity scaled by dilation
 % Build 3d grid of positions and velocities
@@ -1507,41 +1570,3 @@ else
         close all
     end
 end
-
-%% Measure twist (d v_phi / d zeta)
-options = struct() ;
-options.overwrite = false ;
-QS.measureTwist(options)
-
-%% Measure required stress pattern
-options = struct() ;
-options.overwrite = false ;
-QS.measureStressPattern(options) ;
-
-%% Measure Compressibility (div(v), 2*vn*H, and gdot)
-options = struct() ;
-options.overwrite = false ;
-options.plot_Hgdot = true ;
-options.plot_flows = true ;
-options.plot_factors = true ;
-options.plot_kymographs = false ;
-options.plot_correlations = false ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.02 ;
-options.lambda_err = 0.03 ;
-QS.measureMetricKinematics(options)
-
-%% Correlations over time in compressibility measurements
-options = struct() ;
-options.overwrite = false ;
-QS.measureMetricKinematicCorrelations(options) 
-
-%% Decompose growth into isotropic and inhomogeneous components
-options = struct() ;
-options.overwrite = true ;
-QS.measureMetricKinematicDecomposition(options)
-
-%% Measure surface area growh of lobes and folds
-options = struct() ;
-options.overwrite = true ;
-QS.measureEulerianMetricDynamics(options)

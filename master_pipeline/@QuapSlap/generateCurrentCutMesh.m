@@ -28,6 +28,7 @@ function generateCurrentCutMesh(QS, cutMeshOptions)
 nsegs4path = 5 ;
 maxJitter = 100 ;
 maxTwChange = 0.15 ;
+preview = false ;
 nargin
 if nargin > 1
     if isfield(cutMeshOptions, 'nsegs4path')
@@ -39,17 +40,23 @@ if nargin > 1
     if isfield(cutMeshOptions, 'maxTwChange')
         maxTwChange = cutMeshOptions.maxTwChange ;
     end
+    if isfield(cutMeshOptions, 'preview')
+        preview = cutMeshOptions.preview ;
+    end
 end
 
 % Unpack parameters
 tt = QS.currentTime ;
 cutMeshfn = sprintf(QS.fullFileBase.cutMesh, tt) ;
 QS.getCleanCntrlines() ;
+
+% Used to save time if mesh is loaded, but this can lead to problems
+% mesh = QS.currentMesh.cylinderMeshClean ;
+% if isempty(mesh)
+QS.loadCurrentCylinderMeshClean() ;
 mesh = QS.currentMesh.cylinderMeshClean ;
-if isempty(mesh)
-    QS.loadCurrentCylinderMeshClean() ;
-    mesh = QS.currentMesh.cylinderMeshClean ;
-end
+% end
+
 cylinderMeshCleanBase = QS.fullFileBase.cylinderMeshClean ;
 outcutfn = QS.fullFileBase.cutPath ;
 % centerlines from QS
@@ -64,12 +71,66 @@ pdIDx = h5read(QS.fileName.pBoundaryDorsalPtsClean,...
 
 % try geodesic if first timepoint
 if tt == QS.xp.fileMeta.timePoints(1)
-    cutOptions.method = 'fastest' ;
-    disp(['Cutting mesh using method ' cutOptions.method])
-    cutMesh = cylinderCutMesh( mesh.f, mesh.v, mesh.vn, adIDx, pdIDx, cutOptions );
-    cutP = cutMesh.pathPairs(:, 1) ;
-    adIDx = cutP(1) ;
-    pdIDx = cutP(end) ;
+    cutPath_ok = false ;
+    dmyk = 0 ;
+    bbWeight = 10 ;
+    while ~cutPath_ok
+        disp(['Attempting to cutMesh with bbWeight = ', num2str(bbWeight)])
+        cutOptions.method = 'fastest' ;
+        cutOptions.bbWeight = bbWeight ;
+        disp(['Cutting mesh using method ' cutOptions.method])
+        cutMesh = cylinderCutMesh( mesh.f, mesh.v, mesh.vn, adIDx, pdIDx, cutOptions );
+        cutP = cutMesh.pathPairs(:, 1) ;
+        assert(adIDx == cutP(1)) ;
+        assert(pdIDx == cutP(end)) ;
+
+        bndy = freeBoundary(triangulation(mesh.f, mesh.v)) ;
+        % Count number of cutP vertices that are on freeBoundary
+        nPVertsOnBndy = length(intersect(bndy, cutP)) ;
+        if nPVertsOnBndy == 2
+            cutPath_ok = true ;
+        else
+            % increase bulk-boundary edge weight in graph G
+            bbWeight = bbWeight * 5 ;
+        end
+        if dmyk > 10
+            error('Could not make proper cutPath after 10 attempts')
+        end
+    end
+    
+    if preview 
+        trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), ...
+            cutMesh.v(:, 3), 'edgecolor', 'none', 'facealpha', 1.)
+        hold on;
+        plot3(cutMesh.v(cutP, 1), cutMesh.v(cutP, 2), cutMesh.v(cutP, 3), '.-')
+        title('Cut mesh with cutPath')
+        disp('Showing cutMesh with cutPath. Close figure to continue')
+        waitfor(gcf)
+        % 
+        % % Reduce the mesh and check the results this way
+        % fv.faces = mesh.f ;
+        % fv.vertices = mesh.v ;
+        % fv = reducepatch(fv, 0.99) ;    
+        % [~, adIDx2] = min(vecnorm(fv.vertices - mesh.v(adIDx, :), 2, 2)) ;
+        % [~, pdIDx2] = min(vecnorm(fv.vertices - mesh.v(pdIDx, :), 2, 2)) ;
+        % vn2 = per_vertex_normals(fv.vertices, fv.faces, 'Weighting', 'angle') ;
+        % cutMesh2 = cylinderCutMesh(fv.faces, fv.vertices, vn2, adIDx2, pdIDx2, cutOptions );
+        % bdyIDx = freeBoundary( triangulation( cutMesh2.f, cutMesh2.v ) ) ;
+        % idx = bdyIDx(:, 1) ;
+        % % plot the remeshing
+        % trisurf(cutMesh2.f, cutMesh2.v(:, 1), cutMesh2.v(:, 2), ...
+        %     cutMesh2.v(:, 3), 'edgecolor', 'none', 'facealpha', 1.)
+        % hold on;
+        % plot3(cutMesh2.v(idx, 1), cutMesh2.v(idx, 2), cutMesh2.v(idx, 3), '-')
+        % title('Remeshing of cutMesh with resampling of cutPath')
+        % disp('Showing remeshing of cutMesh with cutPath. Close figure to continue')
+        % waitfor(gcf)
+        
+        % check normals to faces
+        % nn = faceNormals(cutMesh.f, cutMesh.v)
+        % cc = incenter(triangulation(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), cutMesh.v(:, 3)))
+        % quiver3(cc(:, 1), cc(:, 2), cc(:, 3), nn(:, 1), nn(:, 2), nn(:, 3), 1)
+    end
 else 
     % If a previous Twist is not held in RAM, compute it
     % if ~exist('prevTw', 'var')
@@ -171,7 +232,46 @@ clearvars header
 % Generate Pullback to Annular Orbifold Domain
 %----------------------------------------------------------------------
 fprintf('Relaxing network via Affine transformation... ');
-cutMesh = flattenAnnulus( cutMesh );
+try
+    cutMesh = flattenAnnulus( cutMesh );
+catch
+    disp('Bad boundary! Remeshing')
+
+    % Reduce the mesh and check the results this way
+    fv.faces = mesh.f ;
+    fv.vertices = mesh.v ;
+    fv = reducepatch(fv, 0.9) ;    
+    [~, adIDx2] = min(vecnorm(fv.vertices - mesh.v(adIDx, :), 2, 2)) ;
+    [~, pdIDx2] = min(vecnorm(fv.vertices - mesh.v(pdIDx, :), 2, 2)) ;
+    vn2 = per_vertex_normals(fv.vertices, fv.faces, 'Weighting', 'angle') ;
+    cutMesh = cylinderCutMesh(fv.faces, fv.vertices, vn2, adIDx2, pdIDx2, cutOptions );
+    bdyIDx = freeBoundary( triangulation( cutMesh.f, cutMesh.v ) ) ;
+    idx = bdyIDx(:, 1) ;
+    
+    % plot the remeshing
+    if preview
+        trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), ...
+            cutMesh.v(:, 3), 'edgecolor', 'none', 'facealpha', 1.)
+        hold on;
+        plot3(cutMesh.v(idx, 1), cutMesh.v(idx, 2), cutMesh.v(idx, 3), '.-')
+        title('Remeshed the surface and took new cutPath. Will retry flattening')
+        disp('Remeshed the surface and took new cutPath. Close figure to retry flattening')
+        waitfor(gcf)
+    end
+    
+    cutMesh = flattenAnnulus( cutMesh );
+end
+
+if preview
+    figure('visible', 'on');
+    trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), ...
+        cutMesh.v(:, 3), 'edgecolor', 'none')
+    axis equal
+    figure('visible', 'on');
+    trisurf(cutMesh.f, cutMesh.u(:, 1), cutMesh.u(:, 2), ...
+        0*cutMesh.u(:, 2), 'facecolor', 'none')
+    waitfor(gcf)
+end
 
 % Find lateral scaling that minimizes spring network energy
 ar = minimizeIsoarealAffineEnergy( cutMesh.f, cutMesh.v, cutMesh.u );

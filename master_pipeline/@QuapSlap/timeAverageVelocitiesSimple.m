@@ -136,6 +136,28 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
             first = false ;
         end
         
+        % Assert no NaNs    
+        try
+            assert(~any(isnan(piv3d.v0_rs(:))))
+            assert(~any(isnan(piv3d.v3dfaces_rs(:))))
+            assert(~any(isnan(piv3d.v0n_rs(:))))
+            assert(~any(isnan(piv3d.v0t2d(:))))
+        catch
+           % disp('inpainting NaNs in pt0 & pt1')
+           error(['There are NaNs in the velocity data. Could use ', ...
+               'inpaint_nans, but why/how are they there?'])
+           % pt0 = inpaint_nans(pt0) ;
+           % pt1 = inpaint_nans(pt1) ;
+           close all
+           figure ;
+           scatter(piv3d.x0(:), piv3d.y0(:), 10, piv3d.v0_rs(:, 1))
+           bad = find(isnan(piv3d.v0_rs(:, 1))) ;
+           hold on; 
+           xx1 = piv3d.x0(:) ;
+           yy1 = piv3d.y0(:) ;
+           scatter(xx1(bad), yy1(bad), 30, 'k')
+        end
+        
         % BUILD ARRAYS
         vM(i, :, :) = piv3d.v0_rs ;             % in um/min rs
         vfM(i, :, :) = piv3d.v3dfaces_rs ;      % in um/min rs
@@ -144,6 +166,7 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         v2dM(i, :, :) = piv3d.v0t2d ;           % in pixels/ min
         v2dMum(i, :, 1) = piv3d.v0t2d(:, 1) ./ piv3d.dilation ; % in scaled pix/min, but proportional to um/min
         v2dMum(i, :, 2) = piv3d.v0t2d(:, 2) ./ piv3d.dilation ; % in scaled pix/min, but proportional to um/min
+        
     end
     clearvars first 
     disp('built v0 matrix')

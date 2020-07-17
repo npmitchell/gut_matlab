@@ -99,7 +99,12 @@ end
 h1 = imshow(im) ; hold on;
 if isnumeric(xy_or_fxy)
     % Overlay the scalar field defined on vertices/xy points
-    h2 = imagesc(xy_or_fxy(:, 1), xy_or_fxy(:, 2), sf) ;
+    % Are xy supplied as two 1d arrays spanning a 2d outer product space?
+    if size(xy_or_fxy, 1) == size(sf, 1) * size(sf, 2)
+        h2 = imagesc(xy_or_fxy(:, 1), xy_or_fxy(:, 2), sf) ;
+    else
+        h2 = imagesc(xy_or_fxy(:, 1), xy_or_fxy(:, 2), sf) ;
+    end
     if strcmp(style, 'phasemap')
         caxis(gca, [0, 2*pi]) ;
         colormap(bwr) ;

@@ -32,13 +32,15 @@ plot_Hgdot = true ;
 plot_flows = true ;
 plot_factors = true ;
 plot_kymographs = true ;
+plot_kymographs_cumsum = true ;
 plot_correlations = true ;
+plot_gdot_correlations = false ;
 plot_gdot_decomp = true ;
 lambda = 0.01 ; 
 % by default, lambda_mesh = lambda, whether defined here or in options
 lambda_err = 0.01 ;
-climit = 0.1 ;
-climit_err = 0.1 ;
+climit = 0.2 ;
+climit_err = 0.2 ;
 climit_veln = climit * 10 ;
 climit_H = climit * 2 ;
 
@@ -61,8 +63,14 @@ end
 if isfield(options, 'plot_kymographs')
     plot_kymographs = options.plot_kymographs ;
 end
+if isfield(options, 'plot_kymographs_cumsum')
+    plot_kymographs_cumsum = options.plot_kymographs_cumsum ;
+end
 if isfield(options, 'plot_correlations')
     plot_correlations = options.plot_correlations ;
+end
+if isfield(options, 'plot_gdot_correlations')
+    plot_gdot_correlations = options.plot_gdot_correlations ;
 end
 if isfield(options, 'plot_gdot_decomp')
     plot_gdot_decomp = options.plot_gdot_decomp ;
@@ -97,7 +105,9 @@ QS.getXYZLims ;
 xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
-mKDir = QS.dir.metricKinematics ;
+mKDir = fullfile(QS.dir.metricKinematics, ...
+    strrep(sprintf('lambda%0.3f_lerr%0.3f_lmesh%0.3f', ...
+    lambda, lambda_err, lambda_mesh), '.', 'p'));
 folds = load(QS.fileName.fold) ;
 fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 
@@ -149,7 +159,7 @@ gdot_vM = zeros(ntps, nU) ;
 lastIdx = length(QS.xp.fileMeta.timePoints) - 1 ;
 coarseIdx = 1:10:lastIdx ;
 fineIdx = setdiff(1:lastIdx, coarseIdx) ;
-allIdx = [coarseIdx, fineIdx ] ;
+allIdx = [65, coarseIdx, fineIdx ] ;
 tp2do = QS.xp.fileMeta.timePoints(allIdx) ;
 
 % Output directory is inside metricKinematics dir
@@ -167,7 +177,6 @@ vunitstr = [ '[' QS.spaceunits '/' QS.timeunits ']' ];
 for tp = tp2do
     close all
     disp(['t = ' num2str(tp)])
-    titlestr = ['$t=$' sprintf('%03d', tp - tfold) ' ' QS.timeunits ] ;
     tidx = QS.xp.tIdx(tp) ;
 
     % Check for timepoint measurement on disk
@@ -202,11 +211,20 @@ for tp = tp2do
                 lambda_mesh, 'implicit', mesh.v) ;
         end
         DEC = DiscreteExteriorCalculus(mesh.f, mesh.v) ;
-        HH = sum(mesh.vn .* DEC.laplacian(mesh.v), 2) * 0.5 ;
+        H3d = sum(mesh.vn .* DEC.laplacian(mesh.v), 2) * 0.5 ;
+        
+        % OPTION1: Could compute divergence anew on smoothed mesh
         fvel = squeeze(face_vels(tidx, :, :)) ;
-        divv = DEC.divergence(fvel) ;
-        divv = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
-                                lambda, 'implicit', divv) ;
+        divv3d_test = DEC.divergence(fvel) ;
+        
+        % OPTION2: Load divv from disk and convert using smoothed mesh
+        % [~, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
+        dec_tp = load(sprintf(QS.fullFileBase.dec, tp)) ;
+        % Check it: divv3d = reshape(dec_tp.divs.raw, [nU, nV-1]) ;
+        
+        % Smooth divergence(v) [divv]
+        divv3d = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
+                                lambda, 'implicit', dec_tp.divs.raw) ;
 
         % veln = divv / (2H) ; 
         % veln_pred = DEC.divergence(fvel) ./ (2.0 * H) ;
@@ -224,13 +242,12 @@ for tp = tp2do
         vzs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
             lambda, 'implicit', vz') ;
 
-
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % This should not be necessary, since vertex_vels should already
         % account for APDV framing! Debug this issue earlier
-        if QS.flipy
-            vys = -vys ;
-        end
+        % if QS.flipy
+        %     vys = -vys ;
+        % end
         % DEBUG THE FLIP
         % vv = squeeze(vertex_vels(tidx, 1:nU*(nV-1), :)) ;
         % trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
@@ -250,319 +267,47 @@ for tp = tp2do
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         % Actual normal velocity
-        veln = sum(cat(2, vxs, vys, vzs) .* mesh.vn, 2) ;
+        veln3d = sum(cat(2, vxs, vys, vzs) .* mesh.vn, 2) ;
 
         % Predict the divergence
-        div_pred = 2 * HH .* veln ;
+        H2vn3d = 2 * H3d .* veln3d ;
 
         % Extend to have another row for 2d map
-        divv2d = divv ;
-        divv2d(nU*(nV-1) + 1:nU*nV) = divv(1:nU) ;
-        HH2d = HH ;
-        HH2d(nU*(nV-1)+1:(nU*nV)) = HH(1:nU) ;
-        veln2d = veln ;
-        veln2d(nU*(nV-1)+1:(nU*nV)) = veln(1:nU) ;
-        % div_pred2d = div_pred ;
-        % div_pred2d(nU*(nV-1)+1:(nU*nV)) = div_pred(1:nU) ;
-        div_pred2d = 2 * HH2d .* veln2d ;
+        divv2d = divv3d ;
+        divv2d(nU*(nV-1) + 1:nU*nV) = divv3d(1:nU) ;
+        H2d = H3d ;
+        H2d(nU*(nV-1)+1:(nU*nV)) = H3d(1:nU) ;
+        veln2d = veln3d ;
+        veln2d(nU*(nV-1)+1:(nU*nV)) = veln3d(1:nU) ;
+        % H2vn2d = H2vn ;
+        % H2vn2d(nU*(nV-1)+1:(nU*nV)) = H2vn(1:nU) ;
+        H2vn2d = 2 * H2d .* veln2d ;
 
         % The difference
         if lambda_err > 0 
-            err3d = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
-                lambda_err, 'implicit', divv-div_pred) ;
+            gdot3d = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
+                lambda_err, 'implicit', divv3d - H2vn3d) ;
             % expand error to 2d map
-            err2d = err3d ;
-            err2d(nU*(nV-1)+1:nU*nV) = err3d(1:nU) ;
+            gdot2d = gdot3d ;
+            gdot2d(nU*(nV-1)+1:nU*nV) = gdot3d(1:nU) ;
         else
-            err2d = divv2d - div_pred2d ;
-            err3d = divv - div_pred ;
+            gdot2d = divv2d - H2vn2d ;
+            gdot3d = divv3d - H2vn3d ;
         end
-
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Plot the prediction, the measurement, and the difference
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        colors2d = {div_pred2d, divv2d, err2d} ; 
-        colors3d = {div_pred, divv, err3d} ;
-        dimDirs = {QS.dir.metricKinematics2d, QS.dir.metricKinematics3d} ;
-        set(gcf, 'visible', 'off') ;
-        colormap bwr
-        % Check if files already exist
-        fn2 = fullfile(dimDirs{1}, sprintf('incompr_%1dd_%06d.png', 2, tp)) ;
-        fn3 = fullfile(dimDirs{2}, sprintf('incompr_%1dd_%06d.png', 3, tp)) ;
-        fns = {fn2, fn3} ;
-        redo_prediction = ~exist(fn2, 'file') || ...
-                          ~exist(fn3, 'file') || overwrite ;
-        if plot_flows && redo_prediction
-            for dim = 2:3    
-                % Create all panels in 2d or 3d
-                for row = 1:2  % row
-                    for col = 1:3  % column
-                        % create panel
-                        subplot(3, length(colors2d), col + (row - 1) * 3)
-
-                        % If 2d, plot in pullback space
-                        % if 3d, plot in embedding space
-                        if dim == 2 && row == 2
-                            ss = cutMesh.u(:, 1) ;
-                            ssvals = QS.a_fixed * ss / max(ss) ;
-                            trisurf(cutMesh.f, ssvals, ...
-                                cutMesh.u(:, 2), zeros(size(cutMesh.u(:,1))),...
-                                colors2d{col}, 'edgecolor', 'none')
-                            xlim([0, QS.a_fixed])
-                            ylim([0, 1]) 
-                            caxis([-climit, climit]) 
-                            axis off
-                        else
-                            trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
-                                colors3d{col}, 'edgecolor', 'none')
-                            axis equal
-                            axis off
-                            caxis([-climit, climit]) 
-
-                            % xlabel('AP position, [$\mu$m]', 'Interpreter', 'Latex')
-                            % ylabel('lateral position, [$\mu$m]', 'Interpreter', 'Latex')
-                            % zlabel('DV position, [$\mu$m]', 'Interpreter', 'Latex')
-                            xlim(xyzlim(1, :))
-                            ylim(xyzlim(2, :))
-                            zlim(xyzlim(3, :))
-                        end
-
-                        % Set title and colorbars
-                        if col == 1 && row == 1
-                            % title(['$v_n 2 H$', ...
-                            %     ', $t=$' sprintf('%03d', tp - tfold)], ...
-                            %     'Interpreter', 'Latex')
-                            view(0, 0)
-                            caxis([-climit, climit]) 
-                        elseif col == 2 && row == 1
-                            % title(['$\nabla \cdot \bf{v}_\parallel$', ...
-                            %     ', $t=$' sprintf('%03d', tp - tfold)], ...
-                            %     'Interpreter', 'Latex')
-                            title(titlestr, 'Interpreter', 'Latex')
-                            view(0, 0)
-                            caxis([-climit, climit]) 
-                        elseif col == 3 && row == 1
-                            % title(['$\textrm{Tr}[g^{-1} \dot{g}]$', ...
-                            %     ', $t=$' sprintf('%03d', tp - tfold)], ...
-                            %     'Interpreter', 'Latex')
-                            view(0, 0)
-                            caxis([-climit_err, climit_err]) 
-                        elseif col == 1 && row == 2
-                            view(0, 270)
-                            cb = colorbar('south') ;
-                            % set(cb, 'position',[.17 .1 .2 .03])
-                            set(cb, 'position',[.165 .2 .15 .03])     
-                            ylabel(cb, ['$v_n 2H$ ' unitstr], ...
-                                'Interpreter', 'Latex')                    
-                            caxis([-climit, climit]) 
-                        elseif col == 2 && row == 2
-                            view(0, 270)
-                            cb = colorbar('south') ;
-                            % set(cb, 'position',[.63 .1 .2 .03])
-                            set(cb, 'position',[.445 .2 .15 .03])
-                            ylabel(cb, ...
-                                ['$\nabla \cdot \bf{v}_\parallel$ ' unitstr ], ...
-                                'Interpreter', 'Latex')
-                            caxis([-climit, climit]) 
-                        elseif col == 3 && row == 2
-                            view(0, 270)
-                            cb = colorbar('south') ;
-                            set(cb, 'position',[.725 .2 .15 .03], ...
-                                'XTick', [-climit_err, 0, climit_err])
-                            ylabel(cb, ...
-                                ['$\textrm{Tr}[g^{-1} \dot{g}]$ ' unitstr], ...
-                                'Interpreter', 'Latex')
-                            % xticks(cb, [-climit_err, climit_err]) 
-                            caxis([-climit_err, climit_err]) 
-                       end
-                    end
-                end
-
-                % Save the plot
-                fn = fns{dim-1} ;
-                disp(['saving ', fn])
-                export_fig(fn, '-png', '-nocrop', '-r200') 
-            end
-        end
-
-        %% Plot the residual with separate factors of vn, H, div, and gdot
-        gdot_H_dir = fullfile(mKDir, 'gdot_vs_H') ;
-        fn = fullfile(gdot_H_dir, sprintf('gdot_vn_H_2d_%06d.png', tp)) ;
-        if plot_Hgdot && (~exist(fn, 'file') || overwrite)
-            % Plot mean curvature, normal velocity, divv and error
-            colors2d = {veln2d, HH2d, divv2d, err2d} ; 
-            colors3d = {veln, HH, divv, err3d} ; 
-            climits = [climit_veln, climit_H, climit, climit_err] ;
-            if ~exist(gdot_H_dir, 'dir')
-                mkdir(gdot_H_dir) ;
-            end
-            for row = 1:2  % row
-                for col = 1:4  % column
-                    % create panel
-                    subplot(3, length(colors2d), col + (row - 1) * 4)
-
-                    % plot in pullback space
-                    if row == 2
-                        ss = cutMesh.u(:, 1) ;
-                        ssvals = QS.a_fixed * ss / max(ss) ;
-                        trisurf(cutMesh.f, ssvals, ...
-                            cutMesh.u(:, 2), zeros(size(cutMesh.u(:,1))),...
-                            colors2d{col}, 'edgecolor', 'none')
-                        xlim([0, QS.a_fixed])
-                        ylim([0, 1]) 
-                        caxis([-climits(col), climits(col) ]) 
-                        axis off
-                    else
-                        trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
-                            colors3d{col}, 'edgecolor', 'none')
-                        axis equal
-                        axis off
-                        caxis([-climits(col), climits(col)])
-
-                        % xlabel('AP position, [$\mu$m]', 'Interpreter', 'Latex')
-                        % ylabel('lateral position, [$\mu$m]', 'Interpreter', 'Latex')
-                        % zlabel('DV position, [$\mu$m]', 'Interpreter', 'Latex')
-                        xlim(xyzlim(1, :))
-                        ylim(xyzlim(2, :))
-                        zlim(xyzlim(3, :))
-                    end
-
-                    % Set title and colorbars
-                    if col == 2 && row == 1
-                        % 3d view with title
-                        title(titlestr, 'Interpreter', 'Latex')
-                        view(0, 0)
-                    elseif row == 1
-                        % 3d view
-                        view(0, 0)
-                    elseif col == 1 && row == 2
-                        view(0, 270)
-                        cb = colorbar('south') ;
-                        set(cb, 'position',[.15 .2 .12 .03], 'Xtick', ...
-                            [-climits(col), 0, climits(col)]) 
-                        ylabel(cb, ['$v_n$ ' vunitstr], 'Interpreter', 'Latex')
-                    elseif col == 2 && row == 2
-                        view(0, 270)
-                        cb = colorbar('south') ;
-                        set(cb, 'position',[.355 .2 .12 .03], 'Xtick', ...
-                            [-climits(col), 0, climits(col)])
-                        ylabel(cb, ['$H$ ' Hunitstr], ...
-                            'Interpreter', 'Latex')
-                    elseif col == 3 && row == 2
-                        view(0, 270)
-                        cb = colorbar('south') ;
-                        set(cb, 'position',[.565 .2 .12 .03], 'Xtick', ...
-                            [-climits(col), 0, climits(col)])
-                        ylabel(cb, ['$\nabla \cdot \mathbf{v}$ ' unitstr], ...
-                            'Interpreter', 'Latex')
-                    elseif col == 4 && row == 2
-                        view(0, 270)
-                        cb = colorbar('south') ;
-                        set(cb, 'position',[.765 .2 .12 .03], 'Xtick', ...
-                            [-climits(col), 0, climits(col)])
-                        ylabel(cb, ['$\textrm{Tr}[g^{-1} \dot{g}]$ ' unitstr], ...
-                            'Interpreter', 'Latex')
-                   end
-                   caxis([-climits(col), climits(col)])
-                end
-            end
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')    
-
-        end
-
-        %% Plot the factors separately of vn, 2H, and vn*2H
-        factorsDir = fullfile(mKDir, 'factors') ;
-        fn = fullfile(factorsDir, sprintf('factors_2d_%06d.png', tp)) ;
-        if plot_factors && (~exist(fn, 'file') || overwrite)
-            % ensure output directory
-            if ~exist(factorsDir, 'dir')
-                mkdir(factorsDir)
-            end
-
-            % Plot mean curvature, normal velocity, and product
-            colors2d = {veln2d, HH2d, div_pred2d} ; 
-            colors3d = {veln, HH, div_pred} ; 
-            climits = [climit_veln, climit_H, climit] ;
-            for row = 1:2  % row
-                for col = 1:3  % column
-                    % create panel
-                    subplot(3, length(colors2d), col + (row - 1) * 3)
-
-                    % plot in pullback space
-                    if row == 2
-                        ss = cutMesh.u(:, 1) ;
-                        ssvals = QS.a_fixed * ss / max(ss) ;
-                        trisurf(cutMesh.f, ssvals, ...
-                            cutMesh.u(:, 2), zeros(size(cutMesh.u(:,1))),...
-                            colors2d{col}, 'edgecolor', 'none')
-                        xlim([0, QS.a_fixed])
-                        ylim([0, 1]) 
-                        caxis([-climits(col), climits(col) ]) 
-                        axis off
-                    else
-                        trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
-                            colors3d{col}, 'edgecolor', 'none')
-                        axis equal
-                        axis off
-                        caxis([-climits(col), climits(col)])
-
-                        % xlabel('AP position, [$\mu$m]', 'Interpreter', 'Latex')
-                        % ylabel('lateral position, [$\mu$m]', 'Interpreter', 'Latex')
-                        % zlabel('DV position, [$\mu$m]', 'Interpreter', 'Latex')
-                        xlim(xyzlim(1, :))
-                        ylim(xyzlim(2, :))
-                        zlim(xyzlim(3, :))
-                    end
-
-                    % Set title and colorbars
-                    if col == 2 && row == 1
-                        % 3d view with title
-                        title(titlestr, 'Interpreter', 'Latex')
-                        view(0, 0)
-                    elseif row == 1
-                        % 3d view
-                        view(0, 0)
-                    elseif col == 1 && row == 2
-                        view(0, 270)
-                        cb = colorbar('south') ;
-                        set(cb, 'position',[.165 .2 .15 .03])     
-                        ylabel(cb, ['$v_n$ ' vunitstr], 'Interpreter', 'Latex')
-                    elseif col == 2 && row == 2
-                        view(0, 270)
-                        cb = colorbar('south') ;
-                        set(cb, 'position',[.445 .2 .15 .03])
-                        ylabel(cb, ['$H$ ' Hunitstr ], ...
-                            'Interpreter', 'Latex')
-                    elseif col == 3 && row == 2
-                        view(0, 270)
-                        cb = colorbar('south') ;
-                        set(cb, 'position',[.725 .2 .15 .03])
-                        ylabel(cb, ['$v_n 2H$ ' unitstr], ...
-                            'Interpreter', 'Latex') 
-                   end
-                   caxis([-climits(col), climits(col)])
-                end
-            end
-
-            % Save figure
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')    
-        end
-
-        % Store data on disk
-        HH = reshape(HH2d, [nU,nV]) ;
-        gdot = reshape(err2d, [nU,nV]) ;
+    
+        %% Store data on disk
+        HH = reshape(H2d, [nU,nV]) ;
+        gdot = reshape(gdot2d, [nU,nV]) ;
         divv = reshape(divv2d, [nU,nV]) ;
         veln = reshape(veln2d, [nU,nV]) ;
-        H2vn = reshape(HH2d .* veln2d, [nU, nV]) ;
+        H2vn = reshape(H2d .* veln2d, [nU, nV]) ;
         
-        % Average along DV
-        HH_ap = mean(HH, 2) ;
-        gdot_ap = mean(gdot, 2) ;
-        divv_ap = mean(divv, 2) ;
-        veln_ap = mean(veln, 2) ;
-        H2vn_ap = mean(H2vn, 2) ;
+        % Average along DV -- ignore last redudant row at nV
+        HH_ap = mean(HH(:, 1:nV-1), 2) ;
+        gdot_ap = mean(gdot(:, 1:nV-1), 2) ;
+        divv_ap = mean(divv(:, 1:nV-1), 2) ;
+        veln_ap = mean(veln(:, 1:nV-1), 2) ;
+        H2vn_ap = mean(H2vn(:, 1:nV-1), 2) ;
         
         % quarter bounds
         q0 = round(nV * 0.125) ;
@@ -618,12 +363,57 @@ for tp = tp2do
         toc
     else
         % Load timeseries measurements
-        load(Hfn, 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
-        load(efn, 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
-        load(dfn, 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
-        load(nfn, 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
-        load(H2vnfn, 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
-    end
+        load(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
+        load(efn, 'gdot', 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
+        load(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
+        load(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
+        load(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
+        
+        H2d = HH ;
+        H3d = HH(:, 1:nV-1) ;
+        gdot2d = gdot ;
+        gdot3d = gdot(:, 1:nV-1);
+        divv2d = divv ;
+        divv3d = divv(:, 1:nV-1) ;
+        veln2d = veln ;
+        veln3d = veln(:, 1:nV-1) ;
+        H2vn2d = H2vn ;
+        H2vn3d = H2vn(:, 1:nV-1) ;
+        
+        % Ensure that mesh and cutMesh are not assumed to be some other
+        % timepoint's meshes
+        mesh = []; 
+        cutMesh = [] ;
+    end    
+
+    %% Plot results
+    % operational plotting options
+    pOptions.overwrite = overwrite ;
+    pOptions.plot_flows = plot_flows ;
+    pOptions.plot_Hgdot = plot_Hgdot ;
+    pOptions.plot_factors = plot_factors ;
+    % parameter plotting options
+    pOptions.lambda = lambda ;
+    pOptions.lambda_err = lambda_err ;
+    pOptions.lambda_mesh = lambda_mesh ;
+    pOptions.H2vn2d = H2vn2d ;
+    pOptions.divv2d = divv2d ;
+    pOptions.gdot2d = gdot2d ;
+    pOptions.veln2d = veln2d ;
+    pOptions.H2d = H2d ;
+    pOptions.H2vn3d = H2vn3d ;
+    pOptions.divv3d = divv3d ;
+    pOptions.gdot3d = gdot3d ;
+    pOptions.veln3d = veln3d ;
+    pOptions.H3d = H3d ;
+    pOptions.cutMesh = cutMesh ;
+    pOptions.mesh = mesh ;
+    pOptions.tp = tp ;
+    pOptions.climit = climit ;
+    pOptions.climit_err = climit ;
+    pOptions.climit_veln = climit_veln ;
+    pOptions.climit_H = climit_H ;
+    QS.plotMetricKinematics(pOptions)
     
     %% Store in matrices
     % dv averaged
@@ -710,41 +500,130 @@ if plot_kymographs
 
         %% Plot gdot/HH/divv/veln/H2vn DV-averaged kymograph
         for pp = 1:length(m2plot)
-            close all
-            set(gcf, 'visible', 'off')
-            colormap bwr
-            imagesc((1:nU)/nU, tps, m2plot{pp})
-            caxis([-climits(pp), climits(pp)])
-            % Add folds to plot
-            hold on;
-            fons1 = fons(1) ;
-            fons2 = fons(2) ;
-            fons3 = fons(3) ;
-            plot(folds.folds(fons1:end-1, 1) / nU, tps(fons1:end))
-            plot(folds.folds(fons2:end-1, 2) / nU, tps(fons2:end))
-            plot(folds.folds(fons3:end-1, 3) / nU, tps(fons3:end))
-
-            % title and save
-            title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
-            ylabel(['time [' QS.timeunits ']'], 'Interpreter', 'Latex')
-            xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
-            cb = colorbar() ;
-            ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
+            
+            % Check if images already exist on disk
             fn = fullfile(odir, [ names{pp} '.png']) ;
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')   
+            fn_zoom = fullfile(odir, [names{pp} '_zoom_early.png']) ;
+            
+            if ~exist(fn, 'file') || ~exist(fn_zoom, 'file') || overwrite
+                close all
+                set(gcf, 'visible', 'off')
+                colormap bwr
+                imagesc((1:nU)/nU, tps, m2plot{pp})
+                caxis([-climits(pp), climits(pp)])
+                % Add folds to plot
+                hold on;
+                fons1 = max(1, fons(1)) ;
+                fons2 = max(1, fons(2)) ;
+                fons3 = max(1, fons(3)) ;
+                plot(folds.folds(fons1:end-1, 1) / nU, tps(fons1:end))
+                plot(folds.folds(fons2:end-1, 2) / nU, tps(fons2:end))
+                plot(folds.folds(fons3:end-1, 3) / nU, tps(fons3:end))
 
-            % Zoom in on small values
-            caxis([-climits(pp)/3, climits(pp)/3])
-            fn = fullfile(odir, [names{pp} '_zoom.png']) ;
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')   
-            % Zoom in on early times
-            ylim([min(tps), max(fons) + 10])
-            caxis([-climits(pp)/3, climits(pp)/3])
-            fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')   
+                % title and save
+                title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeunits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+                cb = colorbar() ;
+                ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
+                fn = fullfile(odir, [ names{pp} '.png']) ;
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+
+                % Zoom in on small values
+                caxis([-climits(pp)/3, climits(pp)/3])
+                fn = fullfile(odir, [names{pp} '_zoom.png']) ;
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+                % Zoom in on early times
+                ylim([min(tps), max(fons) + 10])
+                caxis([-climits(pp)/3, climits(pp)/3])
+                fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+            end
+        end
+    end
+end
+
+%% kymographs of cumulative sums
+if plot_kymographs_cumsum
+    % Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
+    dvDir = fullfile(mKDir, 'avgDV') ;
+    lDir = fullfile(mKDir, 'avgLeft') ;
+    rDir = fullfile(mKDir, 'avgRight') ;
+    dDir = fullfile(mKDir, 'avgDorsal') ;
+    vDir = fullfile(mKDir, 'avgVentral') ;
+    outdirs = {dvDir, lDir, rDir, dDir, vDir} ;
+    titleadd = {': circumferentially averaged', ...
+        ': left side', ': right side', ': dorsal side', ': ventral side'} ;
+
+    for qq = 1:length(outdirs)
+        % Prep the output directory for this averaging
+        odir = outdirs{qq} ;
+        if ~exist(odir, 'dir')
+            mkdir(odir)
+        end
+
+        % Unpack what to plot (averaged kymographs, vary averaging region)
+        HHK = HHsK{qq} ;
+        gdotK = cumsum(gdotsK{qq}, 1) ;
+        divvK = cumsum(divvsK{qq}, 1) ;
+        velnK = cumsum(velnsK{qq}, 1) ;
+        H2vnK = cumsum(H2vnsK{qq}, 1) ;
+        m2plot = {gdotK, divvK, velnK, H2vnK} ;
+        titles = {'$\int_0^t\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
+            'divergence of flow, $\nabla \cdot \mathbf{v}$', ...
+            'normal velocity, $\int_0^tv_n$', ...
+            'normal motion, $\int_0^t v_n 2 H$'} ;
+        labels = {['$\int_0^t\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
+            ['$\int_0^t \nabla \cdot \mathbf{v}$ ' unitstr], ...
+            ['normal velocity, $\int_0^tv_n$ ' vunitstr] , ...
+            ['normal motion, $\int_0^t v_n 2 H $ ' unitstr]} ;
+        names = {'Igdot', 'Idivv', 'Iveln', 'IH2vn'} ;
+        climits = [climit, climit, climit_veln, climit] ;
+        climits = climits * 3; 
+        
+        %% Plot gdot/HH/divv/veln/H2vn DV-averaged kymograph
+        for pp = 1:length(m2plot)
+            % Check if images already exist on disk
+            fn = fullfile(odir, [ names{pp} '.png']) ;
+            fn_zoom = fullfile(odir, [names{pp} '_zoom_early.png']) ;
+            if ~exist(fn, 'file') || ~exist(fn_zoom, 'file') || overwrite
+                close all
+                set(gcf, 'visible', 'off')
+                colormap bwr
+                imagesc((1:nU)/nU, tps, m2plot{pp})
+                caxis([-climits(pp), climits(pp)])
+                % Add folds to plot
+                hold on;
+                fons1 = max(1, fons(1)) ;
+                fons2 = max(1, fons(2)) ;
+                fons3 = max(1, fons(3)) ;
+                plot(folds.folds(fons1:end-1, 1) / nU, tps(fons1:end))
+                plot(folds.folds(fons2:end-1, 2) / nU, tps(fons2:end))
+                plot(folds.folds(fons3:end-1, 3) / nU, tps(fons3:end))
+
+                % title and save
+                title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeunits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+                cb = colorbar() ;
+                ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+
+                % Zoom in on small values
+                caxis([-climits(pp)/3, climits(pp)/3])
+                fn = fullfile(odir, [names{pp} '_zoom.png']) ;
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+                % Zoom in on early times
+                ylim([min(tps), max(fons) + 10])
+                caxis([-climits(pp)/3, climits(pp)/3])
+                disp(['saving ', fn_zoom])
+                export_fig(fn_zoom, '-png', '-nocrop', '-r200')   
+            end
         end
     end
 end
@@ -752,7 +631,191 @@ end
 %% Metric Kinematic Correlations
 % Plot both all time and select times
 timeSpans = {tps, tps(tps < max(fons) + 11)} ;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Plot correlation between terms div(v) and 2Hvn
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+padN = round(0.1 * nU) ;
+cols = padN:nU - padN ;
 if plot_correlations
+    corrDir = fullfile(mKDir, 'correlations') ;
+    if ~exist(corrDir, 'dir')
+        mkdir(corrDir)
+    end
+    
+    for sigma = 0:3
+        outputFileNames = {fullfile(corrDir, ...
+            sprintf('correlation_sigma%02d_alltime_div_2Hvn', sigma)), ...
+            fullfile(corrDir, ...
+            sprintf('correlation_sigma%02d_earlytimes_div_2Hvn', sigma))} ;
+        alphaVal = 0.6 ;
+        sz = 10 ;
+        cmap = parula ;
+        close all
+        set(gcf, 'visible', 'off')
+        % Consider each timespan (early or entire series)
+        for tspanIdx = 1:2
+            fnout = outputFileNames{tspanIdx} ;
+            timeSpan_i = timeSpans{tspanIdx} ;
+            ntspan = length(timeSpan_i) ;
+            titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
+            markers = QS.plotting.markers ;
+            colors = mapValueToColor(1:ntspan, [1, ntspan], cmap) ;
+            close all
+            sphCollection = cell(4, 1) ;
+            sposCollection = cell(4, 1) ;
+            sphCollection2 = cell(4, 1) ;
+            sposCollection2 = cell(4, 1) ;
+            sphCollection3 = cell(4, 1) ;
+            sposCollection3 = cell(4, 1) ;
+            for qq = 1:4  % consider left, right, dorsal, ventral
+                disp(['qq = ', num2str(qq), ': ', titles{qq}])
+                divv = divvsK{qq + 1}(:, cols) ;    
+                H2vn = H2vnsK{qq + 1}(:, cols) ;
+
+                % Optional: smooth here
+                if sigma > 0
+                    divv = imgaussfilt(divv, sigma);            
+                    H2vn = imgaussfilt(H2vn, sigma);  
+                end
+                
+                % Check the smoothing on kymographs
+                figure(2) ;
+                sphCollection2{qq} = subplot(2, 2, qq) ;
+                imagesc(cols/nU, tps, divv); 
+                caxis([-climit, climit])
+                colormap bluewhitered
+                figure(3) ;
+                sphCollection3{qq} = subplot(2, 2, qq) ;
+                imagesc(cols/nU, tps, H2vn); 
+                caxis([-climit, climit])
+                colormap bluewhitered
+
+                figure(1) ;
+                sphCollection{qq} = subplot(2, 2, qq) ;
+                for row = 1:ntspan
+                    disp(['row = ', num2str(row)])
+                    scatter(divv(row, :), H2vn(row, :), sz, ...
+                        markers{qq}, 'MarkerFaceColor', 'none', ...
+                        'MarkerEdgeColor', colors(row, :), ...
+                        'MarkerEdgeAlpha', alphaVal) ;
+                    hold on ;
+                end
+
+                % Label the x axis if on the bottom row
+                if qq > 2
+                    figure(1)
+                    xlabel(['$\nabla \cdot \bf{v}_\parallel$ ' unitstr], ...
+                            'Interpreter', 'Latex') ;
+                    figure(2)
+                    xlabel(['ap position, $\zeta/L$'], ...
+                        'Interpreter', 'Latex') ;
+                    figure(3)
+                    xlabel(['ap position, $\zeta/L$'], ...
+                        'Interpreter', 'Latex') ;
+                end
+                figure(1)
+                axis equal
+                % Add dashed y=x line
+                xlims = get(gca, 'xlim') ;
+                ylims = get(gca, 'ylim') ;
+                xlim([max(-2 * climit, xlims(1)), min(2 * climit, xlims(2))])
+                ylim([max(-2 * climit, ylims(1)), min(2 * climit, ylims(2))])
+                xlims = get(gca, 'xlim') ;
+                ylims = get(gca, 'ylim') ;
+                leftdot = max(xlims(1), ylims(1)) ;
+                rightdot = min(xlims(2), ylims(2)) ;
+                plot([leftdot, rightdot], [leftdot, rightdot], 'k--')
+
+                % Label the y axis if on the left column
+                ylabel(['$2Hv_n$ ' unitstr], 'Interpreter', 'Latex') ;
+                title(titles{qq}, 'Interpreter', 'Latex')
+                
+                figure(2)
+                ylabel(['time [' QS.timeunits, ']'], 'Interpreter', 'Latex') ;
+                title(titles{qq}, 'Interpreter', 'Latex')
+                figure(3)
+                ylabel(['time [' QS.timeunits, ']'], 'Interpreter', 'Latex') ;
+                title(titles{qq}, 'Interpreter', 'Latex')
+
+                % Grab axis position
+                sposCollection{qq} = get(sphCollection{qq}, 'Position');
+                sposCollection2{qq} = get(sphCollection2{qq}, 'Position');
+                sposCollection3{qq} = get(sphCollection3{qq}, 'Position');
+            end
+
+            % Move subplots left a bit for colorbar space
+            for qq = 1:length(sphCollection)
+                spos = sposCollection{qq} ;
+                wh = min(spos(3)-0.05, spos(4)) ;
+                if mod(qq, 2) == 1
+                    set(sphCollection{qq}, 'Position', [spos(1)-0.01, spos(2), wh, wh])
+                    set(sphCollection2{qq}, 'Position', [spos(1)-0.01, spos(2), wh, wh])
+                    set(sphCollection3{qq}, 'Position', [spos(1)-0.01, spos(2), wh, wh])
+                else
+                    set(sphCollection{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
+                    set(sphCollection2{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
+                    set(sphCollection3{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
+                end
+            end
+
+            % master titles (suptitles)
+            figure(1) ;
+            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ',...
+                '$\sigma=$', num2str(sigma), ' ', QS.timeunits], ...
+                'Interpreter', 'Latex') ;
+            
+            figure(2) ;
+            sgtitle(['$\nabla \cdot \bf{v}_\parallel,$ $\sigma=$', ...
+                num2str(sigma), ' ', QS.timeunits], ...
+                    'Interpreter', 'Latex') ;
+            figure(3) ;
+            sgtitle(['$2Hv_n$ $\sigma=$', ...
+                num2str(sigma), ' ', QS.timeunits], 'Interpreter', 'Latex') ;
+                
+            % Add colorbar
+            figure(1) ;
+            c = colorbar('Position',[.9 .333 .02 .333]) ;
+            % Make colorbar share the alpha of the image
+            % Manually flush the event queue and force MATLAB to render the colorbar
+            % necessary on some versions
+            drawnow
+            % Get the color data of the object that correponds to the colorbar
+            cdata = c.Face.Texture.CData;
+            % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+            cdata(end,:) = uint8(alphaVal * cdata(end,:));
+            % Ensure that the display respects the alpha channel
+            c.Face.Texture.ColorType = 'truecoloralpha';
+            % Update the color data with the new transparency information
+            c.Face.Texture.CData = cdata;
+            c.Label.Interpreter = 'Latex' ;
+            c.Label.String = ['time [' QS.timeunits ']'] ;
+            c.Ticks = [0, 1] ;
+            c.TickLabels = [tps(1), max(timeSpan_i)] ;
+            
+            figure(2) ;
+            c = colorbar('Position',[.9 .333 .02 .333]) ;
+            figure(3) ;
+            c = colorbar('Position',[.9 .333 .02 .333]) ;
+            
+            % Save figure
+            figure(1)
+            saveas(gcf, [fnout '.png']) ;
+            figure(2)
+            saveas(gcf, [fnout '_kymo_divv.png']) ;
+            figure(3)
+            saveas(gcf, [fnout '_kymo_H2vn.png']) ;
+            close all
+            set(gcf, 'visible', 'off')
+        end
+        disp('done with correlation plots betweeen divv and H2vn')
+    end
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Plot correlations between gdot and each term in the sum
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if plot_gdot_correlations
     outputFileNames = cell(2, 1) ;
     outputFileNames{1} = {fullfile(mKDir, 'correlation_alltime_div_gdot'), ...
                        fullfile(mKDir, 'correlation_earlytimes_div_gdot')} ;
@@ -893,9 +956,15 @@ if plot_gdot_decomp
         ': left side', ': right side', ': dorsal side', ': ventral side'} ;
 
     gdotK0 = gdotsK{1} ;
-    isogrowth = sum(gdot0, 2) ;
+    isogrowth = sum(gdotK0, 2) ;
     
+    %% Plot as 1d Curve
+    plot(tps, isogrowth); 
+    xlabel(['time [' QS.timeunits ']'], 'Interpreter', 'Latex')
+    ylabel('Isotropic component of growth') 
+    saveas(gcf, fullfile(odir, 'average_growth.png'))  
     
+    %% Plot quadrant contributions
     for qq = 1:length(outdirs)
         % Prep the output directory for this averaging
         odir = outdirs{qq} ;
@@ -923,30 +992,32 @@ if plot_gdot_decomp
         climits = [climit, climit_H, climit, climit_veln, climit_err] ;
 
         %% Plot gdot/HH/divv/veln/H2vn DV-averaged kymograph
-        for pp = 1:length(m2plot)
-            close all
-            set(gcf, 'visible', 'off')
-            colormap bwr
-            imagesc((1:nU)/nU, tps, m2plot{pp})
-            caxis([-climits(pp), climits(pp)])
-            % Add folds to plot
-            hold on;
-            fons1 = fons(1) ;
-            fons2 = fons(2) ;
-            fons3 = fons(3) ;
-            plot(folds.folds(fons1:end-1, 1) / nU, tps(fons1:end))
-            plot(folds.folds(fons2:end-1, 2) / nU, tps(fons2:end))
-            plot(folds.folds(fons3:end-1, 3) / nU, tps(fons3:end))
-
-            % title and save
-            title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
-            ylabel(['time [' QS.timeunits ']'], 'Interpreter', 'Latex')
-            xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
-            cb = colorbar() ;
-            ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
+        for pp = 1:length(m2plot)            
             fn = fullfile(odir, [ names{pp} '.png']) ;
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')   
+            if ~exist(fn, 'file') || overwrite
+                close all
+                set(gcf, 'visible', 'off')
+                colormap bwr
+                imagesc((1:nU)/nU, tps, m2plot{pp})
+                caxis([-climits(pp), climits(pp)])
+                % Add folds to plot
+                hold on;
+                fons1 = max(1, fons(1)) ;
+                fons2 = max(1, fons(2)) ;
+                fons3 = max(1, fons(3)) ;
+                plot(folds.folds(fons1:end-1, 1) / nU, tps(fons1:end))
+                plot(folds.folds(fons2:end-1, 2) / nU, tps(fons2:end))
+                plot(folds.folds(fons3:end-1, 3) / nU, tps(fons3:end))
+
+                % title and save
+                title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeunits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+                cb = colorbar() ;
+                ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+            end
         end
     end
 end

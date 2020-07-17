@@ -124,14 +124,14 @@ t0 = QS.t0set() ;
 redo_piv3d = overwrite ; 
 ii = 1 ;
 while ~redo_piv3d && ii < length(timePoints)
-    redo_piv3d = ~exist(sprintf(fn, timePoints(ii)), 'file') ;
+    redo_piv3d = ~exist(sprintf(piv3dfn, timePoints(ii)), 'file') ;
     ii = ii + 1 ;
 end
 
 %% Compute or load results
 if ~redo_piv3d
     disp(['Loading piv3d from ' piv3dfn])
-    piv3d = cell(length(fns)) ;
+    piv3d = cell(ntps - 1, 1) ;
     for ii=1:(ntps-1)
         if mod(timePoints(ii), 10) == 0
             disp(['loading piv3d for time t=' num2str(timePoints(ii))])
@@ -189,11 +189,19 @@ else
         y0 = piv.y{ii} ;
         uu = piv.u_filtered{ii} ;
         vv = piv.v_filtered{ii} ; 
+        
+        % Ensure no NaNs in uu and vv
+        if any(isnan(uu(:))) || any(isnan(vv(:)))
+           disp('inpainting NaNs in uu & vv')
+           uu = inpaint_nans(uu) ;
+           vv = inpaint_nans(vv) ;
+        end
+        
         % Get position in next timepoint in pixels (in XY pixel plane)
         % Clip the x position to the size of the image, and wrap the y position
         x1 = x0 + uu ;
-        eps = 1e-9 ;
-        x1 = max(x1, eps) ;
+        eps = 1e-8 ;
+        x1 = max(x1, 1.0 + eps) ;  % the minimum value of tm1XY(:, 1) is 1.0
         x1 = min(x1, Xsz0 - eps) ;
         y1 = mod(y0 + vv, Ysz1) ;  
 
@@ -265,6 +273,22 @@ else
         [tm1f, tm1v2d, tm1v3d, ~] = tileAnnularCutMesh(mesh1, tileCount);
         tm1XY = QS.uv2XY(im1, tm1v2d, doubleCovered, umax1, vmax1) ;
         pt1 = interpolate2Dpts_3Dmesh(tm1f, tm1XY, tm1v3d, [x1(:), y1(:)]) ;
+        
+        % Ensure no NaNs in pt0 and pt1
+        if any(isnan(pt0(:))) || any(isnan(pt1(:)))
+           % disp('inpainting NaNs in pt0 & pt1')
+           error('why nans?')
+           % pt0 = inpaint_nans(pt0) ;
+           % pt1 = inpaint_nans(pt1) ;
+           close all
+           figure ;
+           scatter(x1(:), y1(:), 10, pt1(:, 1))
+           bad = find(isnan(pt1(:, 1))) ;
+           hold on; 
+           xx1 = x1(:) ;
+           yy1 = y1(:) ;
+           scatter(xx1(bad), yy1(bad), 10, 'k')
+        end
         
         % Old version
         % Xbi = scatteredInterpolant(tm1X, tm1Y, tm1v3d(:, 1)) ;
@@ -429,6 +453,14 @@ else
         [v0n, v0t, v0t2d, jac, facenormals, g_ab, dilation] = ...
             resolveTangentNormalVelocities(tm0f, tm0v3d, v0, fieldfaces, tm0XY) ;
         
+        % Ensure no NaNs in uu and vv
+        if any(isnan(v0t(:))) || any(isnan(v0n(:)))
+            error('why do we have NaNs in v0t?')
+            disp('inpainting NaNs in v0t & v0n')
+            v0t = inpaint_nans(reshape(v0t, [])) ;
+            v0n = inpaint_nans(reshape(v0n, [])) ;
+        end
+        
         % I have checked that det(jac * jac') = det(jjac * jjac') for a
         % triangle. 
                 
@@ -463,49 +495,77 @@ else
             clf
         end
         
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Assign one velocity per face via interpolation
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Obtain circumcenters for the current timepoint's 2D mesh
-        % tr0 = triangulation(tm0f, tm0XY) ;  <-- already done in interpolate2dpts_3Dmesh
-        % bc = circumcenter(tr0) ;
+        % If the velocity sampling is finer than 3 vectors on each face,
+        % do one averaging pass before resolving onto faces
+        [bincounts] = histc(fieldfaces, min(fieldfaces)-1:max(fieldfaces)+1) ;
+        if mean(bincounts(bincounts > 0)) > 3
+            error('Velocity is much finer than mesh -- do averaging step here. Have not needed to do this yet.')
+        else
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Assign one velocity per face via interpolation
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Obtain circumcenters for the current timepoint's 2D mesh
+            % tr0 = triangulation(tm0f, tm0XY) ;  <-- already done in interpolate2dpts_3Dmesh
+            % bc = circumcenter(tr0) ;
 
-        % Calculate centroid of faces -- here evaluate only on untiled mesh
-        bc = cat( 3, mesh_for_interp.u(mesh_for_interp.f(:,1), :), ...
-            mesh_for_interp.u(mesh_for_interp.f(:,2), :),...
-            mesh_for_interp.u(mesh_for_interp.f(:,3), :) );
-        bc = mean( bc, 3 );
-                
-        % cast as NxMx3, then as N*M x 1 arrays for vx,vy,vz separately
-        v3dgrid = reshape(v0, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
-        xvel = squeeze(v3dgrid(:, :, 1)) ;
-        yvel = squeeze(v3dgrid(:, :, 2)) ;
-        zvel = squeeze(v3dgrid(:, :, 3)) ;
-        % Find the velocity at the face barycenter using only 2d coords
-        Fx = griddedInterpolant(x0', y0', xvel', 'linear', 'nearest') ;
-        Fy = griddedInterpolant(x0', y0', yvel', 'linear', 'nearest') ;
-        Fz = griddedInterpolant(x0', y0', zvel', 'linear', 'nearest') ;
-        v3dfaces = [Fx(bc(:, 1), bc(:, 2)), ...
-            Fy(bc(:, 1), bc(:, 2)), Fz(bc(:, 1), bc(:, 2))] ;
+            % Calculate centroid of faces -- here evaluate only on untiled mesh
+            bc = cat( 3, mesh_for_interp.u(mesh_for_interp.f(:,1), :), ...
+                mesh_for_interp.u(mesh_for_interp.f(:,2), :),...
+                mesh_for_interp.u(mesh_for_interp.f(:,3), :) );
+            bc = mean( bc, 3 );
+
+            % cast as NxMx3, then as N*M x 1 arrays for vx,vy,vz separately
+            v3dgrid = reshape(v0, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
+            xvel = squeeze(v3dgrid(:, :, 1)) ;
+            yvel = squeeze(v3dgrid(:, :, 2)) ;
+            zvel = squeeze(v3dgrid(:, :, 3)) ;
+            % Find the velocity at the face barycenter using only 2d coords
+            Fx = griddedInterpolant(x0', y0', xvel', 'linear', 'nearest') ;
+            Fy = griddedInterpolant(x0', y0', yvel', 'linear', 'nearest') ;
+            Fz = griddedInterpolant(x0', y0', zvel', 'linear', 'nearest') ;
+            v3dfaces = [Fx(bc(:, 1), bc(:, 2)), ...
+                Fy(bc(:, 1), bc(:, 2)), Fz(bc(:, 1), bc(:, 2))] ;
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Assign one tangential velocity per face via interpolation
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            v3dvertices = [Fx(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2)), ...
+                Fy(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2)), ...
+                Fz(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2))] ;
+            % %% Convert pivSimAvg to evaluated at vertices of simple smoothed meshes
+            % piv3dfn = fullfile(fullfile(pivDir, 'piv3d'), 'piv3d_%04d.mat') ;
+            % % load piv3d as a cell array
+            % disp(['Loading piv3d from ' piv3dfn])
+            % piv3d = cell(ntps) ;
+            % for i=1:(ntps-1)
+            %     if mod(time(i), 10) == 0
+            %         disp(['loading piv3d for time t=' num2str(time(i))])
+            %     end
+            %     load(sprintf(piv3dfn, time(i)), 'piv3dstruct')
+            %     piv3d{i} = piv3dstruct ;
+            % end
+        end
         
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % Assign one tangential velocity per face via interpolation
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        v3dvertices = [Fx(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2)), ...
-            Fy(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2)), ...
-            Fz(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2))] ;
-        % %% Convert pivSimAvg to evaluated at vertices of simple smoothed meshes
-        % piv3dfn = fullfile(fullfile(pivDir, 'piv3d'), 'piv3d_%04d.mat') ;
-        % % load piv3d as a cell array
-        % disp(['Loading piv3d from ' piv3dfn])
-        % piv3d = cell(ntps) ;
-        % for i=1:(ntps-1)
-        %     if mod(time(i), 10) == 0
-        %         disp(['loading piv3d for time t=' num2str(time(i))])
-        %     end
-        %     load(sprintf(piv3dfn, time(i)), 'piv3dstruct')
-        %     piv3d{i} = piv3dstruct ;
-        % end
+        % Test validity of result
+        v0_rs =  QS.dx2APDV(v0) / dt ;
+        if any(isnan(v0_rs(:))) || any(isnan(v0_rs(:)))
+           % disp('inpainting NaNs in pt0 & pt1')
+           error('why nans?')
+           % pt0 = inpaint_nans(pt0) ;
+           % pt1 = inpaint_nans(pt1) ;
+           close all
+           figure ;
+           scatter(x1(:), y1(:), 10, v0_rs(:, 1))
+           bad = find(isnan(v0_rs(:, 1))) ;
+           hold on; 
+           xx1 = x1(:) ;
+           yy1 = y1(:) ;
+           scatter(xx1(bad), yy1(bad), 10, 'k')
+        end
+        
+        % Check 
+        % save(sprintf([piv3dfn 'test'], timePoints(ii)-5), 'piv3dstruct')
+        % error('out')
         
         %% Save the results in datstruct ----------------------------------
         % v0, v0n, v0t are in units of um/min,  
@@ -701,7 +761,14 @@ else
             options.title = ['tangential velocity, $t=$', ...
                 sprintf('%03d', tp-t0), ' ', QS.timeunits] ;
             options.outfn = outimfn_t ;
-            % plot the 2d tangential flow, adjusted for dilation 
+            if length(x0(1, :)) > 200
+                options.qsubsample = 10 ;
+                options.qscale = 10 ;
+            else
+                options.qsubsample = 5 ;
+                options.qscale = 5 ;
+            end
+            % plot the 2d tangential flow, adjusted for dilation
             % Control for dilation in quiver
             v0t2dsc = v0t2d ./ dilation * resolution ;
             vectorFieldHeatPhaseOnImage(im, x0(1,:), y0(:,1)', ...
@@ -791,11 +858,15 @@ else
                     'outerposition', [0 0 1 1], 'visible', 'off') ;
             %imagesc(piv.x{i}(:), piv.y{i}(:), piv3d{i}.dilation)
             labelOptsDil.title = 'dilation, $\log_{10}||J||$' ;
-            scalarFieldOnImage(im, x0, y0, ...
-                reshape(log10(piv3d.dilation), [length(xx), length(yy)]),...
-                alphaVal, 0.5,...
+            alphaVal = 0.5 ;
+            scale = 0.5 ;
+            imRGB = cat(3, im0, im0, im0) ;  % convert to rgb for no cmap change
+            scalarFieldOnImage(imRGB, [x0(1, :)', y0(:, 1)], ...
+                reshape(log10(piv3d{ii}.dilation), ...
+                    [length(x0(1,:)), length(y0(:,1))]),...
+                alphaVal, scale,...
                 labelOptsDil, 'style', 'diverging') ;
-            ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
+            ylim([size(im0, 2) * 0.25, size(im0, 2) * 0.75])
             saveas(gcf, dilfn)
             close all
         end

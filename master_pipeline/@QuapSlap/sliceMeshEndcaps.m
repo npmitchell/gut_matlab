@@ -41,6 +41,9 @@ pdist_thres = 15 ;  % distance threshold for cutting off posterior in pix
 overwrite = false ;  % recompute sliced endcaps
 save_figs = true ;  % save images of cntrline, etc, along the way
 preview = false ;  % display intermediate results
+posterior_phi_subtractCOM = true ;  % For posterior pole determination 
+                                    % of dorsal point, subtract the center
+                                    % of mass 
 if isfield(opts, 'adist_thres')
     adist_thres = opts.adist_thres ;
 end
@@ -89,7 +92,7 @@ for ii=1:length(timePoints)
     outfn = sprintf(QS.fullFileBase.cylinderMesh, tt) ;
     keepfn = sprintf(QS.fullFileBase.cylinderKeep, tt) ; 
     boundaryfn = sprintf(QS.fullFileBase.apBoundary, tt) ;
-    outapd_boundaryfn = sprintf(QS.fullFileBase.apBoundaryDorsalPts, tt) ;
+    outapd_boundaryfn = QS.fileName.apBoundaryDorsalPts ;  % not a base name
     
     %% Read the mesh
     disp(['Loading mesh ' name]) ;
@@ -106,16 +109,17 @@ for ii=1:length(timePoints)
         else
             disp(['Keep indices not on disk: ' keepfn])
         end
-        
-        error('Debug: do not overwrite, does not exist. DEBUG')
         disp(['Computing endcaps for ' name])
                
         mesh = read_ply_mod(sprintf(meshfn, tt));
         % subsample the mesh to match acom, pcom
         vtx = mesh.v / ssfactor ;
-        fv = struct('f', mesh.f, 'v', vtx, 'vn', mesh.vn) ;
-        disp('loaded mesh.')
-
+        
+        % Remove unreferenced vertices
+        [ mesh.f, vtx, ~, oldVertexIDx] = remove_unreferenced_vertices_from_mesh( mesh.f, vtx ) ;
+        fv = struct('f', mesh.f, 'v', vtx, 'vn', mesh.vn(oldVertexIDx, :)) ;
+        disp('loaded closed mesh.')
+        
         %% Remove anterior endcap    
         % Measure distance to the posterior
         adist2 = sum((vtx - acom) .^ 2, 2);
@@ -128,7 +132,7 @@ for ii=1:length(timePoints)
         allpts = linspace(1, length(vtx), length(vtx)) ;
         all_but_acut = uint16(setdiff(allpts', pts_to_remove)) ;
         [ acutfaces, acutvtx, ~] = remove_vertex_from_mesh( fv.f, fv.v, all_but_acut ) ;
-        [ acutface, acutvtx, connected_indices, npieces ] = ...
+        [ ~, ~, connected_indices, npieces ] = ...
             remove_isolated_mesh_components( acutfaces, acutvtx ) ;
         if npieces > 1
             disp('Ensuring that only a single component is removed')
@@ -164,7 +168,7 @@ for ii=1:length(timePoints)
             allpts = linspace(1, length(vtx), length(vtx)) ;
             all_but_pcut = uint16(setdiff(allpts, pts_to_remove)) ;
             [ pcutfaces, pcutvtx, ~] = remove_vertex_from_mesh( faces, vtx, all_but_pcut ) ;
-            [ pcutface, pcutvtx, connected_indices, npieces ] = remove_isolated_mesh_components( pcutfaces, pcutvtx ) ;
+            [ ~, ~, connected_indices, npieces ] = remove_isolated_mesh_components( pcutfaces, pcutvtx ) ;
             % If there were more than one piece selected, remove the bigger one only
             if npieces > 1
                 pts_to_remove = pts_to_remove(connected_indices) ;
@@ -205,7 +209,8 @@ for ii=1:length(timePoints)
         
         %% Check that the remainder is a single connected component
         % currently have faces, vtx. 
-        [ faces, vtx, keep_final_pass, npieces ] = remove_isolated_mesh_components( faces, vtx ) ;
+        [ faces, vtx, keep_final_pass, npieces ] = ...
+            remove_isolated_mesh_components( faces, vtx ) ;
         nremain = length(keep_final_pass) ;
         nbefore = length(keep) ;
         disp(['Removed ' num2str(nbefore - nremain) ' vertices with final pass'])
@@ -267,7 +272,7 @@ for ii=1:length(timePoints)
     pb = bb(adist > pdist) ;
     % check them
     if preview
-        fig = figure;
+        fig = figure('visible', 'on');
         trisurf(faces, vtx(:, 1), vtx(:, 2), vtx(:, 3),...
             'edgecolor', 'none', 'facealpha', 0.1)
         hold on;
@@ -276,7 +281,8 @@ for ii=1:length(timePoints)
         plot3(acom(1), acom(2), acom(3), 'o')
         plot3(pcom(1), pcom(2), pcom(3), 'o')
         axis equal
-        waitfor(fig)
+        pause(5)
+        close all
     end
     
     % Save the anterior and posterior boundary indices (after endcap cut)
@@ -293,7 +299,15 @@ for ii=1:length(timePoints)
         vrs = QS.xyz2APDV(vtx * ssfactor) ;
         % subtract pi/2 to make dorsal be zero
         a_phipi = mod(atan2(vrs(ab, 3), vrs(ab, 2)) - pi * 0.5, 2*pi) ;
-        p_phipi = mod(atan2(vrs(pb, 3), vrs(pb, 2)) - pi * 0.5, 2*pi) ;
+        % For posterior, subtract COM of the boundary in z -- this is a bit
+        % of a hack, but sometimes the boundary is not well centered around
+        % the posterior pole.
+        if posterior_phi_subtractCOM
+            p_phipi = mod(atan2(vrs(pb, 3) - mean(vrs(pb, 2)), vrs(pb, 2))...
+                            - pi * 0.5, 2*pi) ;
+        else
+            p_phipi = mod(atan2(vrs(pb, 3), vrs(pb, 2)) - pi * 0.5, 2*pi) ;
+        end
         % Now make the range go from -pi to pi with dorsal being zero
         a_phipi(a_phipi > pi) = a_phipi(a_phipi > pi) - 2 * pi ;
         p_phipi(p_phipi > pi) = p_phipi(p_phipi > pi) - 2 * pi ;
@@ -317,8 +331,24 @@ for ii=1:length(timePoints)
             caxis([-pi, pi])
             colorbar()
             axis equal
-            title('Identification of dorsal points through phi')
-            waitfor(gcf)
+            title('Identification of dorsal points through phi [pix/ssfactor]')
+            pause(5)
+            close all 
+            
+            % Plot in RS coords
+            clf; set(gcf, 'visible', 'on')
+            trisurf(faces, vrs(:, 1), vrs(:, 2), vrs(:, 3), 0*vrs(:, 1),...
+                'edgecolor', 'none', 'facealpha', 0.1)
+            hold on;
+            scatter3(vrs(ab, 1), vrs(ab, 2), vrs(ab, 3), 10, a_phipi)
+            scatter3(vrs(pb, 1), vrs(pb, 2), vrs(pb, 3), 10, p_phipi)
+            plot3(vrs(adb, 1), vrs(adb, 2), vrs(adb, 3), 'ks')
+            plot3(vrs(pdb, 1), vrs(pdb, 2), vrs(pdb, 3), 'k^')
+            caxis([-pi, pi])
+            colorbar()
+            axis equal
+            title('Identification of dorsal points through phi [microns, APDV]')
+            pause(5)
             close all 
         end
     else
@@ -335,12 +365,12 @@ for ii=1:length(timePoints)
     try 
         h5create(outapd_boundaryfn, ['/' name '/adorsal'], size(adb)) ;
     catch
-        disp('adorsal pt already exists') ;
+        disp('adorsal pt already exists --> overwriting ') ;
     end
     try
         h5create(outapd_boundaryfn, ['/' name '/pdorsal'], size(pdb)) ;
     catch
-        disp('pdorsal pt already exists') ;
+        disp('pdorsal pt already exists --> overwriting') ;
     end
     h5write(outapd_boundaryfn, ['/' name '/adorsal'], adb) ;
     h5write(outapd_boundaryfn, ['/' name '/pdorsal'], pdb) ;
@@ -352,10 +382,12 @@ for ii=1:length(timePoints)
         fig = figure('Visible', 'Off');
         vrs = QS.xyz2APDV(vtx * ssfactor) ;
         tmp = trisurf(faces, vrs(:, 1), vrs(:, 2), vrs(:, 3), ...
-            vrs(:, 3), 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+            vrs(:, 3), 'edgecolor', 'none', 'FaceAlpha', 0.4) ;
         hold on
         plot3(vrs(adb, 1), vrs(adb, 2), vrs(adb, 3), 's')
         plot3(vrs(pdb, 1), vrs(pdb, 2), vrs(pdb, 3), '^')
+        plot3(acom(1), acom(2), acom(3), 'ko')
+        plot3(pcom(1), pcom(2), pcom(3), 'ko')
         axis equal
         xlim(xyzlim_um(1, :))
         ylim(xyzlim_um(2, :))
@@ -371,6 +403,9 @@ for ii=1:length(timePoints)
         set(gcf, 'PaperUnits', 'centimeters');
         set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); %x_width=10cm y_width=16cm
         saveas(fig, figfn)
+        % view(2)
+        % figfn = fullfile(figoutdir, [name '_xy.png']) ;
+        % saveas(fig, figfn)
 
         if preview
             set(fig, 'Visible', 'On') ;

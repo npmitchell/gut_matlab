@@ -481,7 +481,7 @@ classdef QuapSlap < handle
         end
         
         % cutMesh
-        generateCurrentCutMesh(QS)
+        generateCurrentCutMesh(QS, options)
         plotCutPath(QS, cutMesh, cutPath)
         function loadCurrentCutMesh(QS)
             if isempty(QS.currentTime)
@@ -777,6 +777,7 @@ classdef QuapSlap < handle
         
         % compressible/incompressible flow on evolving surface
         [cumerr, HHs, divvs, velns] = measureMetricKinematics(QS, options)
+        plotMetricKinematics(QS, options)
         
     end
     

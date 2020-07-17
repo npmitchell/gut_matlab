@@ -75,8 +75,62 @@ E2 = cutMesh.pathPairs(end,2);
 %==========================================================================
 
 % Extract an ordered list of all boundary vertex IDs ----------------------
-bdyIDx = freeBoundary( triangulation( cutMesh.f, cutMesh.v ) );
-assert( isequal( bdyIDx(:,1), [ bdyIDx(end,2); bdyIDx(1:end-1,2) ] ) );
+bdyIDx = freeBoundary( triangulation( cutMesh.f, cutMesh.v ) ) ;
+% check 
+try
+    assert( isequal( bdyIDx(:,1), [ bdyIDx(end,2); bdyIDx(1:end-1,2) ] ) ) ;
+catch
+    disp('try to reorient faces to obtain correctly-oriented boundary')
+    cutMesh.f = reorient_facets( cutMesh.v, cutMesh.f );
+    bdyIDx = freeBoundary( triangulation( cutMesh.f, cutMesh.v ) ) ;
+
+    tmp = [bdyIDx(:, 1), [ bdyIDx(end,2); bdyIDx(1:end-1,2) ] ] ;
+    tmp(:, 1) - tmp(:, 2) ;
+    figure;
+    % plot(bdyIDx); hold on
+    % plot([ bdyIDx(end,2); bdyIDx(1:end-1,2) ], 'o')
+    trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), cutMesh.v(:, 3), ...
+        'edgecolor', 'none') ;
+    hold on;
+    plot3(cutMesh.v(tmp(:, 1), 1), cutMesh.v(tmp(:, 1), 2), ...
+        cutMesh.v(tmp(:, 1), 3), '-')
+    plot3(cutMesh.v(tmp(:, 2), 1), cutMesh.v(tmp(:, 2), 2), ...
+        cutMesh.v(tmp(:, 2), 3), '-') 
+    title('Boundary paths are not equal! Close to continue')
+    disp('Bad free boundary: showing result. Close to continue')
+    waitfor(gcf)
+
+    % Find offending indices
+    ids = find(cutMesh.f == 18)
+    [rows, cols] = ind2sub(size(cutMesh.f), ids)
+    tris = cutMesh.f(rows,:) ;
+    clf
+    trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), cutMesh.v(:, 3), ...
+        'edgecolor', 'none', 'facealpha', 0.1) ;
+    hold on;
+    vtx = cutMesh.v ;
+    pp = cutMesh.pathPairs(:, 1) ;
+    plot3(vtx(pp, 1), vtx(pp, 2), vtx(pp, 3), 'k-')
+
+    plot3(vtx(bdyIDx(:,1), 1), vtx(bdyIDx(:,1), 2), vtx(bdyIDx(:,1), 3), 'b-')
+    % idx =  [ bdyIDx(end,2); bdyIDx(1:end-1,2) ]  ;
+    ind = find( bdyIDx(:, 1) == S1 );
+    if length(ind) == 1
+        disp('Start point appears just once. Attempting to fix bdyIDx')
+        b2 = bdyIDx( [ ind:end, 1:ind-1 ], 1 );
+    end
+    % plot3(vtx(idx, 1), vtx(idx, 2), vtx(idx, 3), 'r-')
+    plot3(vtx(b2, 1), cutMesh.v(b2, 2), vtx(b2, 3), 'r-') 
+    plot3(cutMesh.v(tris(:), 1), cutMesh.v(tris(:), 2), ...
+        cutMesh.v(tris(:), 3), 's')
+    plot3(cutMesh.v([S1, S2], 1), cutMesh.v([S1, S2], 2), ...
+        cutMesh.v([S1, S2], 3), 'o')
+    title('Bad free boundary: showing result')
+    waitfor(gcf)
+
+    disp('Bad free boundary: showing result')
+    error('Bad free boundary: left column and circshift right column are not equal')
+end
 bdyIDx = bdyIDx(:,1);
 
 % Shift the list so that the original start point is in the first position
@@ -157,7 +211,7 @@ v2 = [1,1]; % The final coordinates of the target line
 d = sqrt( sum( (cutMesh.v(segIDx(1:end-1),:) ...
     - cutMesh.v(segIDx(2:end),:)).^2, 2 ) );
 
-% Convert these to a fractional distance along the lenght of the line
+% Convert these to a fractional distance along the length of the line
 d = [ 0; cumsum(d)/sum(d) ];
 
 % Interpolate to find the (u,v)-coordinates of each vertex

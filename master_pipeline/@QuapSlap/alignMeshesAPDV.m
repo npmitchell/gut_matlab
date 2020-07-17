@@ -131,7 +131,7 @@ alignedMeshBase = QS.fullFileBase.alignedMesh ;
 alignedMeshXYFigBaseName = [QS.fileBase.alignedMesh '_xy.png'] ;
 alignedMeshXZFigBaseName = [QS.fileBase.alignedMesh '_xz.png'] ;
 alignedMeshYZFigBaseName = [QS.fileBase.alignedMesh '_yz.png'] ;
-fn = QS.fileBase.fn ;
+fn = QS.fileBase.name ;
 
 % rotname
 if isfield(opts, 'rotname')
@@ -681,7 +681,7 @@ for tidx = 1:length(timePoints)
     figs_do_not_exist = ~exist(fig1outname, 'file') || ...
         ~exist(fig2outname, 'file') || ~exist(fig3outname, 'file');
     
-    if overwrite || overwrite_ims || figs_do_not_exist
+    if overwrite_ims || figs_do_not_exist
         disp('Saving rotated & translated figure (xy)...')    
         close all
         fig = figure('Visible', 'Off') ;
