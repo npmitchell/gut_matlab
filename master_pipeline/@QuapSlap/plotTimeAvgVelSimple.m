@@ -40,6 +40,8 @@ overwrite = false ;
 preview = false ;
 pivimCoords = 'sp_sme' ;
 doubleCovered = true;
+samplingResolution = '1x' ;
+
 
 %% Unpack options
 if isfield(options, 'plot_vxyz')
@@ -71,10 +73,26 @@ end
 if isfield(options, 'pivimCoords')
     pivimCoords = options.pivimCoords ;
 end
+if isfield(options, 'samplingResolution')
+    samplingResolution = options.samplingResolution ;
+end
 
     
+%% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
+if strcmp(samplingResolution, '1x') || strcmp(samplingResolution, 'single')
+    doubleResolution = false ;
+elseif strcmp(samplingResolution, '2x') || strcmp(samplingResolution, 'double')
+    doubleResolution = true ;
+else 
+    error("Could not parse samplingResolution: set to '1x' or '2x'")
+end
+
 %% Unpack QS
-pivSADir = QS.dir.pivSimAvg ;  % Note these fields are sampling independent (not related to pullback coords)
+if doubleResolution
+    pivSADir = QS.dir.pivSimAvg2x ;
+else
+    pivSADir = QS.dir.pivSimAvg ;
+end
 timePoints = QS.xp.fileMeta.timePoints ;
 QS.getFeatures('ssfold')
 ssfold_frac = QS.features.ssfold / QS.nU ;
@@ -117,10 +135,15 @@ piv = load(QS.fileName.pivRaw) ;
 gridsz = size(piv.x{1}) ;
 
 %% Load simple average piv results
-disp('Loading single Resolution velocity sampling')
-QS.getVelocitySimpleAverage('v3d', 'v2dum', 'vn')
-velstruct = QS.velocitySimpleAverage ;
-
+if doubleResolution
+    disp('Loading double Resolution velocity sampling')
+    QS.getVelocitySimpleAverage2x()
+    velstruct = QS.velocitySimpleAverage2x ;
+else
+    disp('Loading single Resolution velocity sampling')
+    QS.getVelocitySimpleAverage()
+    velstruct = QS.velocitySimpleAverage ;
+end
 vsmM = velstruct.v3d ;
 v2dsmMum = velstruct.v2dum ;
 vnsmM = velstruct.vn ;

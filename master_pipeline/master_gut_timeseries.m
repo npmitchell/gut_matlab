@@ -34,8 +34,9 @@
 clear; close all; clc;
 % change this path, for convenience
 % cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
-cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
+% cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
 
 dataDir = cd ;
 
@@ -61,7 +62,6 @@ overwrite_TextureMeshOpts = false ;
 overwrite_endcapOpts = false ;
 overwrite_idAnomClines = false ;
 overwrite_cleanCylMesh = false ;
-overwrite_cutMesh = true ;
 
 %% DEFINE NEW MASTER SETTINGS
 if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
@@ -69,7 +69,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 1 ;
     channelsUsed = 1 ;
-    timePoints = 0:190 ;
+    timePoints = 0:318 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
@@ -161,7 +161,7 @@ convert32to16bit(timePoints, scale, dir32bit, dir16bit_prestab,...
 %% -III. make MIPs for 16bit images
 % Skip if already done
 mipDir = fullfile(dir16bit_prestab, 'mips') ;
-Options.overwrite_mips = overwrite_mips ;
+Options.overwrite_mips = false ;
 Options.scale = -1 ; % do NOT rescale intensities during intensity projection
 makeMips(timePoints, dir16bit_prestab, fn_prestab, mipDir, Options)
 
@@ -179,8 +179,8 @@ fileNameIn = fullfile(dir16bit_prestab, fn_prestab) ;
 fileNameOut = fullfile(dir16bit, [fn '.tif']) ;
 rgbName = [fn '.png'] ;
 typename = 'uint16' ; 
-overwrite_mips = true ;
-overwrite_tiffs = true ;
+overwrite_mips = false ;
+overwrite_tiffs = false ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     timePoints, timePoints, timePoints(1), ...
     im_intensity, imref_intensity, ...
@@ -481,7 +481,7 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(1)
+    for tp = xp.fileMeta.timePoints(189:end)
         try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
@@ -517,8 +517,8 @@ opts.nV = 100 ;
 opts.nU = 100 ;
 opts.normalShift = 10 ;
 opts.a_fixed = 2.0 ;
-opts.adjustlow = 1.00 ;                  %  floor for intensity adjustment
-opts.adjusthigh = 99.9 ;                 % ceil for intensity adjustment (clip)
+opts.adjustlow = 1.00 ;         % floor for intensity adjustment
+opts.adjusthigh = 99.9 ;        % ceil for intensity adjustment (clip)
 opts.phiMethod = 'curves3d' ;
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
@@ -527,11 +527,10 @@ disp('done')
 %% Inspect a single mesh
 % Skip if already done
 tp = 50 ;
-meshfn = fullfile(meshDir, sprintf([ QS.fileBase.mesh '.ply'], tp)) ;    
-xp.loadTime(tp)
-xp.rescaleStackToUnitAspect() ;
-IV = xp.stack.image.apply() ;
-IV = IV{1} ;
+meshfn = sprintf(QS.fullFileBase.mesh, tp) ;  
+QS.setTime(tp)
+QS.getCurrentData() ;
+IV = QS.currentData.IV ;
 mesh = read_ply_mod(meshfn) ;
 for leaf=1:40:size(IV, 1)
     inds = find(abs(mesh.v(:, 1) - leaf) < 5) ;
@@ -591,16 +590,18 @@ end
 % Skip if already done
 
 % Make an output directory for the quick-and-dirty inspection
-outputdir = fullfile(meshDir, 'quick_mesh_inspect') ;
-for tp = xp.fileMeta.timePoints
+for tp = xp.fileMeta.timePoints(180:end)
     % Load the mesh
-    meshfn = fullfile(meshDir, sprintf([ meshFileBase '.ply'], tp)) ;    
+    meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;    
     mesh = read_ply_mod(meshfn) ;
     % Plot the mesh in 3d. Color here by Y coordinate
     trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
-        mesh.v(:, 2), 'edgecolor', 'none', 'Facealpha', 0.5)
-    saveas(gcf, fullfile(outputdir, sprintf('inspect_%04d.png', tp)))
-    close all
+        mesh.v(:, 3), 'edgecolor', 'none', 'Facealpha', 0.5)
+    % saveas(gcf, fullfile(outputdir, sprintf('inspect_%04d.png', tp)))
+    title(['t=' num2str(tp)])
+    axis equal
+    view(2)
+    pause(0.1)
 end
                     
 
@@ -682,7 +683,7 @@ clearvars msls_exten msls_detOpts_fn niter niter0 nu
 % Try to load the results to test if we must do calculation 
 try
     [rot, trans] = QS.getRotTrans() ;
-    [xyzlim_raw, xyzlim, xyzlim_um] = getXYZLims(QS) ;
+    [xyzlim_raw, xyzlim, xyzlim_um, xyzlim_buff] = getXYZLims(QS) ;
     assert(exist(QS.fileName.startendPt, 'file') ~= 0)
     redo_alignmesh = false ;
     
@@ -840,8 +841,9 @@ overwrite = true ;
 
 % Get limits and create output dir
 % Establish texture patch options
-metafn = fullfile(figoutdir, 'metadat.mat') ;
+metafn = fullfile(QS.dir.texturePatchIm, 'metadat.mat') ;
 if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
+    [~,~,~,xyzbuff] = QS.getXYZLims() ;
     % Define & Save metadata
     metadat.xyzlim = xyzbuff ;                  % xyzlimits
     metadat.reorient_faces = false ;            % if some normals are inverted
@@ -854,11 +856,15 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     Options.Dilation = QS.APDV.resolution ;
     Options.numLayers = [2, -2];  % at layerSpacing 2, 2 marches ~0.5 um 
     Options.layerSpacing = 2 ;
+    
     % Save it
     save(metafn, 'metadat', 'Options')
 else
     load(metafn, 'metadat', 'Options')
 end
+
+% Use first timepoint's intensity limits throughout
+% QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.95)
 
 % Plot on surface for all TP
 QS.plotSeriesOnSurfaceTexturePatch(overwrite, metadat, Options)
@@ -1102,7 +1108,14 @@ for tt = QS.xp.fileMeta.timePoints(1:end)
     
     % Load the data for the current time point ------------------------
     QS.setTime(tt) ;
-        % Establish custom Options for MIP
+    
+    % Keep constant luminosity throughout, modify default intensity lims
+    if tidx == 1        
+        % Use first timepoint's intensity limits throughout
+        QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.995)
+    end
+    
+    % Establish custom Options for MIP
     pbOptions = struct() ;
     pbOptions.overwrite = false ;
     pbOptions.numLayers = [7, 7] ;  % previously [5,5]
@@ -1110,8 +1123,8 @@ for tt = QS.xp.fileMeta.timePoints(1:end)
     pbOptions.generate_rsm = true ;
     pbOptions.generate_spsm = true ;
     pbOptions.generate_sphi = false ;
-    QS.data.adjustlow = 1.00 ;
-    QS.data.adjusthigh = 99.999 ;
+    QS.data.adjustlow = adjustlow ;
+    QS.data.adjusthigh = adjusthigh ;
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
 end
 
@@ -1212,29 +1225,6 @@ options.show_v3d_on_data = false ;
 options.save_ims = true ;
 QS.measurePIV3d(options) ;
 
-%% Measure velocities at 2*nU x 2*nV resolution
-options = struct() ;
-options.overwrite = true ;
-options.preview = false ;
-options.show_v3d_on_data = false ;
-options.save_ims = true ;
-QS.generateSPCutMeshSm2x(options.overwrite) ;
-QS.measurePIV3d2x(options) ;
-% time average the velocities
-options.overwrite = true ;
-options.plot_vxyz = true ;
-QS.timeAverageVelocitiesSimple('2x', options) ;
-% Velocity plots -- same as single resolution case!
-options.overwrite = false ;
-options.plot_vxyz = false ;
-options.invertImage = true ;
-QS.plotTimeAvgVelSimple(options)
-% Divergence and Curl (Helmholtz-Hodge) for 2x
-options = struct() ;
-options.overwrite = true ; 
-QS.helmholtzHodgeSimple('2x', options) ;
-
-
 %% First do very simpleminded averaging of velocities
 options.overwrite = false ;
 options.plot_vxyz = true ;
@@ -1259,12 +1249,6 @@ options = struct() ;
 options.overwrite = false ; 
 QS.helmholtzHodgeSimple(options) ;
 
-
-
-%% Measure required stress pattern
-options = struct() ;
-options.overwrite = false ;
-QS.measureStressPattern(options) ;
 %% Measure twist (d v_phi / d zeta)
 options = struct() ;
 options.overwrite = false ;
@@ -1272,7 +1256,7 @@ QS.measureTwist(options)
 
 %% Measure Compressibility (div(v), 2*vn*H, and gdot)
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.plot_Hgdot = false ;
 options.plot_flows = true ;
 options.plot_factors = true ;
@@ -1284,23 +1268,70 @@ options.plot_gdot_decomp = true ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.02 ;
 options.lambda_err = 0.03 ;
+options.samplingResolution = '1x'; 
 QS.measureMetricKinematics(options)
 
-%% Correlations over time in compressibility measurements
+%% doubleResolution compressibility
+% options.samplingResolution = '2x'; 
+% QS.measureMetricKinematics(options)
+
+%% Measure required stress pattern
 options = struct() ;
 options.overwrite = false ;
-QS.measureMetricKinematicCorrelations(options) 
-
-%% Decompose growth into isotropic and inhomogeneous components
-options = struct() ;
-options.overwrite = true ;
-QS.measureMetricKinematicDecomposition(options)
+QS.measureStressPattern(options) ;
 
 %% Measure surface area growh of lobes and folds
 options = struct() ;
 options.overwrite = true ;
 options.preview = false ;
 QS.measureEulerianMetricDynamics(options)
+
+%% DOUBLE RESOLUTION
+%% Measure velocities at 2*nU x 2*nV resolution
+options = struct() ;
+options.overwrite = false ;
+options.preview = false ;
+options.show_v3d_on_data = false ;
+options.save_ims = true ;
+QS.generateSPCutMeshSm2x(options.overwrite) ;
+QS.measurePIV3d2x(options) ;
+%% time average the velocities
+options.overwrite = false ;
+options.plot_vxyz = true ;
+QS.timeAverageVelocitiesSimple('2x', options) ;
+%% Velocity plots -- same as single resolution case!
+options.overwrite = false ;
+options.plot_vxyz = false ;
+options.invertImage = true ;
+options.samplingResolution = '2x'; 
+QS.plotTimeAvgVelSimple(options)
+%% Divergence and Curl (Helmholtz-Hodge) for 2x
+options = struct() ;
+options.overwrite = true ;
+options.samplingResolution = '2x' ;
+QS.helmholtzHodgeSimple(options) ;
+%% doubleResolution compressibility
+options = struct() ;
+options.overwrite = false ;
+options.plot_Hgdot = false ;
+options.plot_flows = true ;
+options.plot_factors = true ;
+options.plot_kymographs = true ;
+options.plot_kymographs_cumsum = true ;
+options.plot_correlations = true ;
+options.plot_gdot_correlations = false ;
+options.plot_gdot_decomp = true ;
+options.lambda_mesh = 0.002 ;
+options.lambda = 0.02 ;
+options.lambda_err = 0.03 ;
+options.samplingResolution = '2x'; 
+QS.measureMetricKinematics(options)
+
+
+%% Pullback streamlines
+options = struct() ;
+options.overwrite = false ;
+QS.measurePullbackStreamlines(options)
 
 %% Plot texture map in 3d with velocities
 for i = 1:size(vM, 1)

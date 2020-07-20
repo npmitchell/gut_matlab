@@ -208,8 +208,7 @@ else
         vmax1 = max(mesh1.u(:, 2)) ;
         
         m0XY = QS.uv2XY(im0, mesh0.u, doubleCovered, umax0, vmax0) ;
-        size(m0XY)
-        error('here')
+        
         % m1XY = QS.uv2XY(im1, mesh1.u, doubleCovered, umax1, vmax1) ;
         m0x = m0XY(:, 1) ;
         m0y = m0XY(:, 2) ;
@@ -219,11 +218,19 @@ else
         y0 = piv.y{ii} ;
         uu = piv.u_filtered{ii} ;
         vv = piv.v_filtered{ii} ; 
+                                                        
+        % Ensure no NaNs in uu and vv                   
+        if any(isnan(uu(:))) || any(isnan(vv(:)))    
+            disp('inpainting NaNs in uu & vv')      
+            uu = inpaint_nans(uu) ;
+            vv = inpaint_nans(vv) ;
+        end           
+        
         % Get position in next timepoint in pixels (in XY pixel plane)
         % Clip the x position to the size of the image, and wrap the y position
         x1 = x0 + uu ;
-        eps = 1e-9 ;
-        x1 = max(x1, eps) ;
+        eps = 1e-8 ;
+        x1 = max(x1, 1.0 + eps) ;  % the minimum value of tmXY(:, 1) is 1.0
         x1 = min(x1, Xsz0 - eps) ;
         y1 = mod(y0 + vv, Ysz1) ;  
 
@@ -296,6 +303,22 @@ else
         tm1XY = QS.uv2XY(im1, tm1v2d, doubleCovered, umax1, vmax1) ;              
         pt1 = interpolate2Dpts_3Dmesh(tm1f, tm1XY, tm1v3d, [x1(:), y1(:)]) ;
         
+         % Ensure no NaNs in pt0 and pt1             
+         if any(isnan(pt0(:))) || any(isnan(pt1(:))) 
+            % disp('inpainting NaNs in pt0 & pt1') 
+            error('why nans?')            
+            % pt0 = inpaint_nans(pt0) ;   
+            % pt1 = inpaint_nans(pt1) ;   
+            close all                     
+            figure ;                                 
+            scatter(x1(:), y1(:), 10, pt1(:, 1))          
+            bad = find(isnan(pt1(:, 1))) ;            
+            hold on;                                
+            xx1 = x1(:) ;                          
+            yy1 = y1(:) ;                  
+            scatter(xx1(bad), yy1(bad), 10, 'k')            
+         end        
+         
         % Old version
         % Xbi = scatteredInterpolant(tm1X, tm1Y, tm1v3d(:, 1)) ;
         % Ybi = scatteredInterpolant(tm1X, tm1Y, tm1v3d(:, 2)) ;
@@ -459,6 +482,14 @@ else
         [v0n, v0t, v0t2d, jac, facenormals, g_ab, dilation] = ...
             resolveTangentNormalVelocities(tm0f, tm0v3d, v0, fieldfaces, tm0XY) ;
         
+        % Ensure no NaNs in uu and vv
+        if any(isnan(v0t(:))) || any(isnan(v0n(:)))
+            error('why do we have NaNs in v0t?')
+            disp('inpainting NaNs in v0t & v0n')
+            v0t = inpaint_nans(reshape(v0t, [])) ;
+            v0n = inpaint_nans(reshape(v0n, [])) ;
+        end
+        
         % I have checked that det(jac * jac') = det(jjac * jjac') for a
         % triangle. 
                 
@@ -536,6 +567,23 @@ else
         %     load(sprintf(piv3dfn, time(i)), 'piv3dstruct')
         %     piv3d{i} = piv3dstruct ;
         % end
+        
+        % Test validity of result
+        v0_rs =  QS.dx2APDV(v0) / dt ;
+        if any(isnan(v0_rs(:))) || any(isnan(v0_rs(:)))
+           % disp('inpainting NaNs in pt0 & pt1')
+           error('why nans?')
+           % pt0 = inpaint_nans(pt0) ;
+           % pt1 = inpaint_nans(pt1) ;
+           close all
+           figure ;
+           scatter(x1(:), y1(:), 10, v0_rs(:, 1))
+           bad = find(isnan(v0_rs(:, 1))) ;
+           hold on; 
+           xx1 = x1(:) ;
+           yy1 = y1(:) ;
+           scatter(xx1(bad), yy1(bad), 10, 'k')
+        end
         
         %% Save the results in datstruct ----------------------------------
         % v0, v0n, v0t are in units of um/min,  
@@ -731,7 +779,14 @@ else
             options.title = ['tangential velocity, $t=$', ...
                 sprintf('%03d', tp-t0), ' ', QS.timeunits] ;
             options.outfn = outimfn_t ;
-            % plot the 2d tangential flow, adjusted for dilation 
+            if length(x0(1, :)) > 200
+                options.qsubsample = 10 ;
+                options.qscale = 10 ;
+            else
+                options.qsubsample = 5 ;
+                options.qscale = 5 ;
+            end
+            % plot the 2d tangential flow, adjusted for dilation
             % Control for dilation in quiver
             v0t2dsc = v0t2d ./ dilation * resolution ;
             vectorFieldHeatPhaseOnImage(im, x0(1,:), y0(:,1)', ...
@@ -828,9 +883,11 @@ else
             im = imRGB * washout2d + max(im0(:)) * (1-washout2d) ;
             % XY = QS.uv2XY(im, uv, doubleCovered, umax, vmax)
             labelOptsDil.title = 'dilation, $\log_{10}||J||$' ;
+            alphaVal = 0.5 ;
+            scale = 0.5 ;
             scalarFieldOnImage(im, [x0(1,:)', y0(:, 1)], ...
                 reshape(log10(piv3d{ii}.dilation), size(y0)),...
-                alphaVal, 0.5,...
+                alphaVal, scale,...
                 labelOptsDil, 'style', 'diverging') ;
             ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
             saveas(gcf, dilfn)

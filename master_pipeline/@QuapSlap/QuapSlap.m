@@ -92,6 +92,7 @@ classdef QuapSlap < handle
         end
         initializeQuapSlap(QS, xp, opts)
         plotSPCutMeshSmSeriesUtility(QS, coordsys, options)
+        plotMetricKinematicsTimePoint(QS, options)
     end
     
     % Public methods, accessible from outside the class and reliant on 
@@ -108,22 +109,27 @@ classdef QuapSlap < handle
             %   QS.xp.fileMeta.timePoints
             %
             if tt ~= QS.currentTime
-                QS.currentMesh.cylinderMesh = [] ;
-                QS.currentMesh.cylinderMeshClean = [] ;
-                QS.currentMesh.cutMesh = [] ;
-                QS.currentMesh.cutPath = [] ;
-                QS.currentMesh.spcutMesh = [] ;
-                QS.currentMesh.cutMesh = [] ;
-                QS.currentMesh.spcutMesh = [] ;
-                QS.currentMesh.spcutMeshSm = [] ;
-                QS.currentData.IV = [] ;
-                QS.currentData.adjustlow = 0 ;
-                QS.currentData.adjusthigh = 0 ;
-                QS.currentVelocity.piv3d = struct() ;
-                QS.currentVelocity.piv3d2x = struct() ;                
+                QS.clearTime() ;
             end
             QS.currentTime = tt ;
             QS.xp.setTime(tt) ;
+        end
+        
+        function clearTime(QS)
+            % clear current timepoint's data for QS instance
+            QS.currentMesh.cylinderMesh = [] ;
+            QS.currentMesh.cylinderMeshClean = [] ;
+            QS.currentMesh.cutMesh = [] ;
+            QS.currentMesh.cutPath = [] ;
+            QS.currentMesh.spcutMesh = [] ;
+            QS.currentMesh.cutMesh = [] ;
+            QS.currentMesh.spcutMesh = [] ;
+            QS.currentMesh.spcutMeshSm = [] ;
+            QS.currentData.IV = [] ;
+            QS.currentData.adjustlow = 0 ;
+            QS.currentData.adjusthigh = 0 ;
+            QS.currentVelocity.piv3d = struct() ;
+            QS.currentVelocity.piv3d2x = struct() ;
         end
         
         function t0 = t0set(QS, t0)
@@ -183,29 +189,58 @@ classdef QuapSlap < handle
             if ~isempty(QS.plotting.xyzlim_raw)
                 xyzlim_raw = QS.plotting.xyzlim_raw ;
             else
-                xyzlim_raw = dlmread(QS.fileName.xyzlim_raw, ',', 1, 0) ; 
-                QS.plotting.xyzlim_raw = xyzlim_raw ;
+                try
+                    xyzlim_raw = dlmread(QS.fileName.xyzlim_raw, ',', 1, 0) ; 
+                    QS.plotting.xyzlim_raw = xyzlim_raw ;
+                catch
+                    [QS.plotting.xyzlim_raw, QS.plotting.xyzlim_pix, ...
+                        QS.plotting.xyzlim_um, ...
+                        QS.plotting.xyzlim_um_buff] = ...
+                        QS.measureXYZLims() ;
+                    xyzlim_raw = QS.plotting.xyzlim_raw ;
+                end
             end
             % rotated scaled in full resolution pix
             if ~isempty(QS.plotting.xyzlim_pix)
                 xyzlim_pix = QS.plotting.xyzlim_pix ;
             else
-                xyzlim_pix = dlmread(QS.fileName.xyzlim_pix, ',', 1, 0) ; 
-                QS.plotting.xyzlim_pix = xyzlim_pix ;
+                try
+                    xyzlim_pix = dlmread(QS.fileName.xyzlim_pix, ',', 1, 0) ; 
+                    QS.plotting.xyzlim_pix = xyzlim_pix ;
+                catch
+                    [~, QS.plotting.xyzlim_pix, ...
+                        QS.plotting.xyzlim_um, ...
+                        QS.plotting.xyzlim_um_buff] = ...
+                        QS.measureXYZLims() ;
+                    xyzlim_pix = QS.plotting.xyzlim_pix ;
+                end
             end
             % rotated scaled APDV in micron
             if ~isempty(QS.plotting.xyzlim_um)
                 xyzlim_um = QS.plotting.xyzlim_um ;
             else
-                xyzlim_um = dlmread(QS.fileName.xyzlim_um, ',', 1, 0) ;
-                QS.plotting.xyzlim_um = xyzlim_um ;
+                try
+                    xyzlim_um = dlmread(QS.fileName.xyzlim_um, ',', 1, 0) ;
+                    QS.plotting.xyzlim_um = xyzlim_um ;
+                catch
+                    [~, ~, QS.plotting.xyzlim_um, ...
+                        QS.plotting.xyzlim_um_buff] = ...
+                        QS.measureXYZLims() ;
+                    xyzlim_um = QS.plotting.xyzlim_um ;
+                end
             end
             % rotated scaled APDV in micron, with padding
             if ~isempty(QS.plotting.xyzlim_um_buff)
                 xyzlim_um_buff = QS.plotting.xyzlim_um_buff ;
             else
-                xyzlim_um_buff = dlmread(QS.fileName.xyzlim_um_buff, ',', 1, 0) ;
-                QS.plotting.xyzlim_um = xyzlim_um_buff ;
+                try
+                    xyzlim_um_buff = dlmread(QS.fileName.xyzlim_um_buff, ',', 1, 0) ;
+                    QS.plotting.xyzlim_um_buff = xyzlim_um_buff ;
+                catch
+                    [~, ~, ~, QS.plotting.xyzlim_um_buff] = ...
+                        QS.measureXYZLims() ;
+                    xyzlim_um_buff = QS.plotting.xyzlim_um_buff ;
+                end
             end
         end
         
@@ -318,6 +353,27 @@ classdef QuapSlap < handle
             end
         end
         
+        function setDataLimits(QS, tp, adjustlow_pctile, adjusthigh_pctile)
+            % Use timepoint (tp) to obtain hard values for intensity limits
+            % so that data is rescaled to fixed limits instead of
+            % percentile. This is useful to avoid flickering of overall
+            % intensity in data in which a few voxels vary a lot in
+            % intensity.
+            QS.xp.loadTime(tp);
+            QS.xp.rescaleStackToUnitAspect();
+            IV = QS.xp.stack.image.apply() ;
+            try
+                assert(adjusthigh_pctile > 0 && adjustlow_pctile < 100)
+                assert(adjusthigh_pctile > adjustlow_pctile)
+            catch
+                error('adjustment values must be 0<=val<=100 and increasing')
+            end
+            adjustlow = prctile(IV{1}(:), adjustlow_pctile) ;
+            adjusthigh = prctile(IV{1}(:), adjusthigh_pctile) ;
+            QS.data.adjustlow = adjustlow ;
+            QS.data.adjusthigh = adjusthigh ;
+        end
+        
         function getCurrentData(QS)
             if isempty(QS.currentTime)
                 error('No currentTime set. Use QuapSlap.setTime()')
@@ -349,8 +405,8 @@ classdef QuapSlap < handle
                 for ii = 1:length(IV)
                     IV{ii} = imadjustn(IV{ii});
                 end
-            else
-                disp('Taking custom limits for imadjustn')
+            elseif adjustlow < 100 && adjusthigh < 100
+                disp('Taking custom limits for imadjustn as prctile')
                 for ii = 1:length(IV)
                     IVii = IV{ii} ;
                     vlo = double(prctile( IVii(:) , adjustlow )) / double(max(IVii(:))) ;
@@ -358,6 +414,20 @@ classdef QuapSlap < handle
                     disp(['--> ', num2str(vlo), ', ', num2str(vhi), ...
                         ' for ', num2str(adjustlow), '/', num2str(adjusthigh)])
                     IV{ii} = imadjustn(IVii, [double(vlo); double(vhi)]) ;
+                end
+            else
+                % adjusthigh is > 100, so interpret as an intensity value
+                disp('Taking custom limits for imadjustn as direct intensity limit values')
+                for ii = 1:length(IV)
+                    IVii = IV{ii} ;
+                    vlo = double(adjustlow) ;
+                    vhi = double(adjusthigh) ;
+                    disp(['--> ', num2str(vlo), ', ', num2str(vhi), ...
+                        ' for ', num2str(adjustlow), '/', num2str(adjusthigh)])
+                    tmp = (double(IVii) - vlo) / (vhi - vlo) ;
+                    tmp(tmp > (vhi - vlo)) = 1.0 ;
+                    IV{ii} = uint16(2^16 * tmp) ;
+                    % cast(tmp, class(IVii)) ;  
                 end
             end
             if nargout > 0
@@ -668,11 +738,27 @@ classdef QuapSlap < handle
             for tp = QS.xp.fileMeta.timePoints 
                 sp2xfn = sprintf(QS.fullFileBase.spcutMeshSm2x, tp) ;
                 if overwrite || ~exist(sp2xfn, 'file')
-                    mesh1x = load(sprintf(QS.fullFileBase.spcutMeshSm, tp), 'spcutMeshSm') ;
+                    mesh1x = load(sprintf(QS.fullFileBase.spcutMeshSm, tp),...
+                        'spcutMeshSm') ;
                     mesh1x = mesh1x.spcutMeshSm ;
                     spcutMeshSm2x = QS.doubleResolution(mesh1x) ;
                     disp(['saving ' sp2xfn])
                     save(sp2xfn, 'spcutMeshSm2x')
+                end
+                sp2xfn = sprintf(QS.fullFileBase.spcutMeshSmRS2x, tp) ;
+                spC2fn = sprintf(QS.fullFileBase.spcutMeshSmRSC2x, tp) ;
+                if overwrite || ~exist(sp2xfn, 'file') || ...
+                        ~exist(spC2fn, 'file')
+                    mesh1x = load(...
+                        sprintf(QS.fullFileBase.spcutMeshSmRS, tp), ...
+                        'spcutMeshSmRS') ;
+                    mesh1x = mesh1x.spcutMeshSmRS ;
+                    [spcutMeshSmRS2x, spcutMeshSmRSC2x] = ...
+                        QS.doubleResolution(mesh1x) ;
+                    disp(['saving ' sp2xfn])
+                    save(sp2xfn, 'spcutMeshSmRS2x')
+                    disp(['saving ' spC2fn])
+                    save(spC2fn, 'spcutMeshSmRSC2x')
                 end
             end
         end
@@ -883,163 +969,8 @@ classdef QuapSlap < handle
             % Now map the coornates
         end
         
-        function cutMesh2x = doubleResolution(cutMesh, preview)
-            % 
-            if nargin < 2
-                preview = false;
-            end
-            
-            % Double resolution in uv
-            uv0 = cutMesh.u ;
-            v3 = cutMesh.v ;
-            vn0 = cutMesh.vn ;
-            nU = cutMesh.nU ;
-            nV = cutMesh.nV ;
-            
-            nU2 = nU * 2 - 1;
-            nV2 = nV * 2 - 1;
-            
-            % Double resolution in V
-            unew = zeros(nU, nV2, 2) ;
-            v3new = zeros(nU, nV2, 3) ;
-            ugrid = reshape(uv0, [nU, nV, 2]) ;
-            v3grid = reshape(v3, [nU, nV, 3]) ;
-            for qq = 1:nV - 1
-                % Duplicate column of u=const in 2d
-                unew(:, 2*qq-1, :) = ugrid(:, qq, :) ;
-                unew(:, 2 * qq, :) = 0.5 * (ugrid(:, qq, :) ...
-                                          + ugrid(:, qq + 1, :)) ;
-                % Duplicate column of u=const in 3d
-                v3new(:, 2*qq-1, :) = v3grid(:, qq, :) ;
-                v3new(:, 2 * qq, :) = 0.5 * (v3grid(:, qq, :) ...
-                                          + v3grid(:, qq + 1, :)) ;
-            end
-            unew(:, nV2, :) = ugrid(:, nV, :) ;
-            v3new(:, nV2, :) = v3grid(:, nV, :) ;
-            
-            % Double resolution in U
-            uv = zeros(nU2, nV2, 2) ;
-            v3d = zeros(nU2, nV2, 3) ;
-            for qq = 1:nU - 1
-                uv(2*qq-1, :, :) = unew(qq, :, :) ;
-                uv(2 * qq, :, :) = 0.5 * (unew(qq, :, :) ...
-                                           + unew(qq + 1, :, :)) ;
-                % Duplicate column of v=const in 3d
-                v3d(2*qq-1, :, :) = v3new(qq, :, :) ;
-                v3d(2 * qq, :, :) = 0.5 * (v3new(qq, :, :) ...
-                                          + v3new(qq + 1, :, :)) ;
-            end
-            uv(nU2, :, :) = unew(nU, :, :) ;
-            v3d(nU2, :, :) = v3new(nU, :, :) ;
-            
-            % Check it
-            if preview
-                % check it
-                imagesc(squeeze(v3new(:, :, 2)))
-                waitfor(gcf)
-                clf
-                hold on;
-                for qq = 1:length(v3d)
-                    plot3(v3d(qq, :, 1), v3d(qq, :, 2), v3d(qq, :, 3), '.')
-                    pause(0.0001)
-                end
-            end
-            
-            % Reshape uv and v3d
-            uv = reshape(uv, [nU2 * nV2, 2]) ;
-            v3d = reshape(v3d, [nU2 * nV2, 3]) ;
-            
-            % Check it
-            if preview
-                clf
-                hold on;
-                nn = 50 ;
-                for qq = 1:nn:length(v3d)
-                    plot3(v3d(qq:qq+nn, 1), v3d(qq:qq+nn, 2), v3d(qq:qq+nn, 3), '.')
-                    pause(0.00001)
-                end
-            end
-            
-            % Output variables
-            faces = defineFacesRectilinearGrid(uv, nU2, nV2) ;
-            % Store in output cutMesh struct
-            cutMesh2x = struct() ;
-            cutMesh2x.v = v3d ;
-            cutMesh2x.u = uv ;
-            cutMesh2x.f = faces ;
-            cutMesh2x.nU = nU2 ;
-            cutMesh2x.nV = nV2 ;
-            cutMesh2x.pathPairs = [1:nU2; (nV2-1)*nU2 + (1:nU2)]' ;
-            
-            cutMesh2xC = glueCylinderCutMeshSeam(cutMesh2x) ;
-            vn = zeros(size(cutMesh2x.v)) ;
-            vn(1:nU2*(nV2-1), :) = cutMesh2xC.vn ;
-            vn(nU2*(nV2-1)+1:nU2*nV2, :) = cutMesh2xC.vn(1:nU2, :) ;
-            cutMesh2x.vn = vn ;
-            
-            %%% ALTERNATE APPROACH
-            % % Create vertex normals via interpolation
-            % % push boundaries inward slightly by epsilon
-            % leftId = uv(:, 1) < min(uv0(:, 1)) + eps ;
-            % rightId = uv(:, 1) > max(uv0(:, 1)) - eps ;
-            % uv(leftId, 1) = uv(leftId, 1) + eps ; 
-            % uv(rightId, 1) = uv(rightId, 1) + eps ;
-            % [ TF, TV2D, ~, TVN3D ] = tileAnnularCutMesh(cutMesh, [1, 1]) ;
-            % vn = interpolate2Dpts_3Dmesh(TF, TV2D, TVN3D, uv) ;
-            % vn = vn ./ vecnorm(vn, 2, 2) ;
-            % 
-            % dmyk = 0;
-            % while any(isnan(vn(:))) && dmyk < 1000 
-            %     % Fix bad normals
-            %     bad = find(isnan(vn(:, 1))) ;
-            %     disp(['found ', num2str(length(bad)), ...
-            %         ' bad vertex normals, attempting to fix...'])
-            %     jitter = 1e-14 * rand([size(bad, 1), 2]) ;
-            %     size(vn(bad, :))
-            %     vn(bad, :) = interpolate2Dpts_3Dmesh(TF, TV2D, TVN3D, uv(bad, :)+jitter) ;
-            %     dmyk = dmyk + 1 ;
-            % end
-            % if any(isnan(vn(:)))
-            %     error(['bad vertex normals. ', ...
-            %         'Cannot use cutMesh normals to define ', ...
-            %         'double Resolution cutMesh.'])
-            % end
-            % 
-            % % Check normals
-            % vn2 = per_vertex_normals(v3d, faces, 'Weighting', 'angle') ;
-            % distant = find(abs(vn(:) - vn2(:)) > 0.25) ;
-            % [distant, colind] = ind2sub(size(vn), distant) ;
-            % plot(vn(:), vn2(:), '.')
-            % waitfor(gcf)
-            % 
-            % % Check it
-            % % % bad indices have NaNs
-            % umax = max(uv(:, 1)) ;
-            % bad = find(isnan(vn(:, 1))) ;
-            if preview
-                clf
-                trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2),...
-                    cutMesh.v(:, 3), 'edgecolor', 'none') ; 
-                hold on; 
-                % plot3(v3d(distant, 1), v3d(distant, 2), v3d(distant, 3), 'o')
-                quiver3(v3d(:, 1), v3d(:, 2), v3d(:, 3), vn(:, 1), vn(:, 2), ...
-                    vn(:, 3), 1, 'r')
-                % quiver3(v3d(:, 1), v3d(:, 2), v3d(:, 3), vn2(:, 1), vn2(:, 2), ...
-                %     vn2(:, 3), 1, 'y')
-                axis equal
-                waitfor(gcf)
-            end
-            % % % plot(uv(:, 1)/umax, uv(:, 2), '.')
-            % % trisurf(TF, TV2D(:, 1)/umax, TV2D(:, 2), 0*TV2D(:, 1)) ; 
-            % % plot(uv(bad, 1)/umax, uv(bad, 2), 'o')
-            
-            if preview
-                trimesh(faces, v3d(:, 1), v3d(:, 2), v3d(:, 3), ...
-                    v3d(:, 1), 'Edgecolor', 'k', 'FaceColor', 'Interp')
-                axis equal
-                title('Preview double-resolution cutMesh')
-            end
-        end
+        [cutMesh, cutMeshC] = doubleResolution(cutMesh, preview)
+       
     end
     
 end

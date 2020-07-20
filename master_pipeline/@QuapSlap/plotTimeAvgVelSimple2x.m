@@ -28,6 +28,8 @@ function plotTimeAvgVelSimple2x(QS, samplingResolution, options)
 %
 % NPMitchell 2020
 
+error('depricated')
+
 %% Default options
 % Declare plotting options for limits
 vtscale = 5 ;      % um / min

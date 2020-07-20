@@ -302,14 +302,14 @@ else
             % Plot the advected mesh
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Load 3D data for coloring mesh pullback
-            disp('loading timepoint data')
+            disp(['loading timepoint data t=' num2str(tp)])
             QS.setTime(tp) ;
             QS.getCurrentData() ;
             IV0 = QS.currentData.IV ;
             
             % also plot the next timepoint
-            t1 = tp + 1 ;
-            disp('loading subsequent timepoint data')
+            t1 = timePoints(ii + 1) ;
+            disp(['loading subsequent timepoint data t=' num2str(t1)])
             QS.setTime(t1);
             QS.getCurrentData() ;
             IV1 = QS.currentData.IV ;            
@@ -562,11 +562,7 @@ else
            yy1 = y1(:) ;
            scatter(xx1(bad), yy1(bad), 10, 'k')
         end
-        
-        % Check 
-        % save(sprintf([piv3dfn 'test'], timePoints(ii)-5), 'piv3dstruct')
-        % error('out')
-        
+                
         %% Save the results in datstruct ----------------------------------
         % v0, v0n, v0t are in units of um/min,  
         % while v0t2d, g_ab, and jacobian are in pullback pixels

@@ -114,8 +114,8 @@ if isfield(opts, 'timeunits')
 end
 
 % Data file names
-rotname = fullfile(meshDir, 'rotation_APDV.txt') ;
-transname = fullfile(meshDir, 'translation_APDV.txt') ;
+rotname = QS.fileName.rot ;
+transname = QS.fileName.trans ;
 xyzlimname_raw = QS.fileName.xyzlim_raw ;
 xyzlimname_pix = QS.fileName.xyzlim_pix ;
 xyzlimname_um = QS.fileName.xyzlim_um ;
@@ -147,22 +147,6 @@ if isfield(opts, 'transname')
 end
 if ~strcmp(transname(end-3:end), '.txt') 
     transname = [transname '.txt'] ;
-end
-
-% xyzlimname_raw
-if isfield(opts, 'xyzlimname_raw')
-    xyzlimname_raw = opts.xyzlimname_raw ;
-end
-if ~strcmp(xyzlimname_raw(end-3:end), '.txt') 
-    xyzlimname_raw = [xyzlimname_raw '.txt'] ;
-end
-
-% xyzlimname_um
-if isfield(opts, 'xyzlimname_um')
-    xyzlimname_um = opts.xyzlimname_um ;
-end
-if ~strcmp(xyzlimname_um(end-3:end), '.txt') 
-    xyzlimname_um = [xyzlimname_um '.txt'] ;
 end
 
 if isfield(opts, 'outapdvname')
@@ -235,7 +219,9 @@ if exist(xyzlimname_raw, 'file')
 else
     disp('Extracting xyzlimits for raw meshes...')
     disp([' ... since ' xyzlimname_raw ' does not exist'])
-    for tt = timePoints
+    for tidx = 1:length(timePoints)
+        tt = timePoints(tidx) ;
+        disp(['tt = ', num2str(tt)])
         % Get the timestamp string from the name of the mesh
         mesh = read_ply_mod(sprintf(meshFileName, tt)) ;
 
@@ -259,18 +245,16 @@ else
     end
 
     % Save xyzlimits 
-    disp('Saving raw mesh xyzlimits for plotting')
+    % disp('Saving raw mesh xyzlimits for plotting')
     header = 'xyzlimits for original meshes in units of full resolution pixels' ; 
     write_txt_with_header(xyzlimname_raw, [xmin, xmax; ymin, ymax; zmin, zmax], header) ;
     % Now read it back in
     xyzlim_raw = dlmread(xyzlimname_raw, ',', 1, 0) ;
+    % xyzlim_raw = [xmin, xmax; ymin, ymax; zmin, zmax] ;
 end
 disp('done')
 
 %% With acoms and pcoms in hand, we compute dorsal and rot/trans ==========
-xminrs = 0 ; xmaxrs = 0;
-yminrs = 0 ; ymaxrs = 0;
-zminrs = 0 ; zmaxrs = 0;
 for tidx = 1:length(timePoints)
     tic
     tt = timePoints(tidx) ;
@@ -577,37 +561,19 @@ for tidx = 1:length(timePoints)
     end
     
     %% Update our estimate for the true xyzlims
-    xminrs = min(xminrs, min(xyzrs(:, 1))) ;
-    yminrs = min(yminrs, min(xyzrs(:, 2))) ;
-    zminrs = min(zminrs, min(xyzrs(:, 3))) ;
-    xmaxrs = max(xmaxrs, max(xyzrs(:, 1))) ;
-    ymaxrs = max(ymaxrs, max(xyzrs(:, 2))) ;
-    zmaxrs = max(zmaxrs, max(xyzrs(:, 3))) ;
     
     %% Get a guess for the axis limits if this is first TP
     if tidx == 1 
-        % Check if already saved. If so, load it. Otherwise, guess.
-        fntmp = xyzlimname_um ;
-        if exist(fntmp, 'file')
-            xyzlims = dlmread(fntmp, ',', 1, 0) ;
-            xminrs = xyzlims(1) ;
-            yminrs = xyzlims(2) ;
-            zminrs = xyzlims(3) ;
-            xmaxrs = xyzlims(4) ;
-            ymaxrs = xyzlims(5) ;
-            zmaxrs = xyzlims(6) ;
-            % Note that we can't simply rotate the bounding box, since it will
-            % be tilted in the new frame. We must guess xyzlims for plotting
-            % and update the actual xyzlims
-            % this works for new box: resolution * ((rot * box')' + trans) ;
-        end
+        % Check if already saved, and load or recompute
+        % fntmp = xyzlimname_um ;
+        [~, ~, ~, xyzlim_um_buff] = QS.getXYZLims() ;
         % Expand xyzlimits for plots
-        xminrs_plot = xminrs - plot_buffer ;
-        yminrs_plot = yminrs - plot_buffer ;
-        zminrs_plot = zminrs - plot_buffer ;
-        xmaxrs_plot = xmaxrs + plot_buffer ;
-        ymaxrs_plot = ymaxrs + plot_buffer ;
-        zmaxrs_plot = zmaxrs + plot_buffer ;    
+        xminrs_plot = xyzlim_um_buff(1,1) - plot_buffer ;
+        yminrs_plot = xyzlim_um_buff(2,1) - plot_buffer ;
+        zminrs_plot = xyzlim_um_buff(3,1) - plot_buffer ;
+        xmaxrs_plot = xyzlim_um_buff(1,2) + plot_buffer ;
+        ymaxrs_plot = xyzlim_um_buff(2,2) + plot_buffer ;
+        zmaxrs_plot = xyzlim_um_buff(3,2) + plot_buffer ;    
     end
     
     %% Check the rotation
@@ -616,7 +582,11 @@ for tidx = 1:length(timePoints)
         fig = figure('Visible', 'off') ;
         tmp = trisurf(mesh.f, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
                     xyzrs(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.5) ;
-        [~,~,~] = apply_ambient_occlusion(tmp, 'SoftLighting', true) ; % 'ColorMap', viridis) ;
+        try
+            [~,~,~] = apply_ambient_occlusion(tmp, 'SoftLighting', true) ; % 'ColorMap', viridis) ;
+        catch
+            disp('Could not apply ambient occlusion! GPToolbox likely not configured')
+        end
         hold on;
         xyz = vtx_sub;
         
@@ -865,42 +835,41 @@ for tidx = 1:length(timePoints)
     toc
 end
 
-% Todo: save raw xyzlim in full resolution pixels but not rotated/scaled
-% Save xyzlim_raw
-if overwrite || ~exist(xyzlimname_raw, 'file')
-    disp('Saving rot/trans mesh xyzlimits for plotting')
-    header = 'xyzlimits for raw meshes in units of full resolution pixels' ;
-    xyzlim = [xmin, xmax; ymin, ymax; zmin, zmax] ;
-    write_txt_with_header(xyzlimname_raw, xyzlim, header) ;
-else
-    xyzlim_raw = [xmin, xmax; ymin, ymax; zmin, zmax] ;
-end
-
-% Save xyzlimits 
-if overwrite || ~exist(xyzlimname_pix, 'file')
-    disp('Saving rot/trans mesh xyzlimits for plotting')
-    header = 'xyzlimits for rotated translated meshes in units of full resolution pixels' ;
-    xyzlim = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] / resolution;
-    write_txt_with_header(xyzlimname_pix, xyzlim, header) ;
-else
-    xyzlim = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] / resolution;
-end
-
-% Save xyzlimits in um
-if overwrite || ~exist(xyzlimname_um, 'file')
-    disp('Saving rot/trans mesh xyzlimits for plotting, in microns')
-    header = 'xyzlimits for rotated translated meshes in microns' ;
-    xyzlim_um = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] ;
-    write_txt_with_header(xyzlimname_um, xyzlim_um, header) ;
-end
-
-% Save buffered xyzlimits in um
-if overwrite || ~exist(xyzlimname_um_buff, 'file')
-    disp('Saving rot/trans mesh xyzlimits for plotting, in microns')
-    header = 'xyzlimits for rotated translated meshes in microns, with padding (buffered)' ;
-    xyzlim_um = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] ;
-    xyzlim_um_buff = xyzlim_um + QS.normalShift * resolution * [-1, 1] ;
-    write_txt_with_header(xyzlimname_um_buff, xyzlim_um_buff, header) ;
-end
+% % Save xyzlim_raw
+% if overwrite || ~exist(xyzlimname_raw, 'file')
+%     disp('Saving rot/trans mesh xyzlimits for plotting')
+%     header = 'xyzlimits for raw meshes in units of full resolution pixels' ;
+%     xyzlim = [xmin, xmax; ymin, ymax; zmin, zmax] ;
+%     write_txt_with_header(xyzlimname_raw, xyzlim, header) ;
+% else
+%     xyzlim_raw = [xmin, xmax; ymin, ymax; zmin, zmax] ;
+% end
+% 
+% % Save xyzlimits 
+% if overwrite || ~exist(xyzlimname_pix, 'file')
+%     disp('Saving rot/trans mesh xyzlimits for plotting')
+%     header = 'xyzlimits for rotated translated meshes in units of full resolution pixels' ;
+%     xyzlim = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] / resolution;
+%     write_txt_with_header(xyzlimname_pix, xyzlim, header) ;
+% else
+%     xyzlim = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] / resolution;
+% end
+% 
+% % Save xyzlimits in um
+% if overwrite || ~exist(xyzlimname_um, 'file')
+%     disp('Saving rot/trans mesh xyzlimits for plotting, in microns')
+%     header = 'xyzlimits for rotated translated meshes in microns' ;
+%     xyzlim_um = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] ;
+%     write_txt_with_header(xyzlimname_um, xyzlim_um, header) ;
+% end
+% 
+% % Save buffered xyzlimits in um
+% if overwrite || ~exist(xyzlimname_um_buff, 'file')
+%     disp('Saving rot/trans mesh xyzlimits for plotting, in microns')
+%     header = 'xyzlimits for rotated translated meshes in microns, with padding (buffered)' ;
+%     xyzlim_um = [xminrs, xmaxrs; yminrs, ymaxrs; zminrs, zmaxrs] ;
+%     xyzlim_um_buff = xyzlim_um + 2 * abs(QS.normalShift) * resolution * [-1, 1] ;
+%     write_txt_with_header(xyzlimname_um_buff, xyzlim_um_buff, header) ;
+% end
 
 disp('done')

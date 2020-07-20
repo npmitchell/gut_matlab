@@ -5,7 +5,7 @@ function plotSeriesOnSurfaceTexturePatch(QS,...
 %
 % Parameters
 % ----------
-% QS :
+% QS : QuapSlap class instance
 % overwrite : bool
 % metadat : struct with fields
 % TexturePatchOptions: struct with fields
@@ -236,7 +236,8 @@ for tp = QS.xp.fileMeta.timePoints
                 % lateral view 2
                 view(0, 180)
             else
-                error('Exhausted DVLR indices. What is going on here?')
+                error(['Exhausted DorsalVentralLeftRight indices. ',...
+                    'What is going on here?'])
             end
 
             % Use export_fig instead, from plotting/export_fig/
