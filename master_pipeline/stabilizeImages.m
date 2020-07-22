@@ -76,7 +76,7 @@ disp('Defining shifts...')
 shiftfn = fullfile(mipDir, 'shifts_stab.mat') ;
 if exist(shiftfn, 'file') && ~overwrite_mips
     disp('Loading shifts from disk')
-    load(shiftfn, 'shifts')      
+    load(shiftfn, 'shifts', 't_ref', 't_ref_ind')
     x_1 = cat(1,shifts.x_1); % rows        (x) 
     y_1 = cat(1,shifts.y_1); % columns     (y)
     x_2 = cat(1,shifts.x_2); % columns #2  (y)
@@ -164,7 +164,7 @@ else
     saveas(gcf, fullfile(mipDir, 'jitter_stabilization.png'))
     disp('done plotting shifts, see Figure')
     disp('Saving shifts to shifts_stab.mat in mipDir')
-    save(fullfile(mipDir, 'shifts_stab.mat'), 'shifts')
+    save(fullfile(mipDir, 'shifts_stab.mat'), 'shifts', 't_ref', 't_ref_ind')
 end
 
 %% Clear the individual shift values
@@ -199,8 +199,11 @@ disp('done creating reference MIP')
 
 %% Build image for each timepoint =========================================
 disp('Running through timepoints to build ims...')
-for tid = 1 : length(timePoints)
-    disp(['considering tid = ' num2str(tid)])
+tidx_todoA = 1:10:length(timePoints) ;
+tidx_todoB = setdiff(1:length(timePoints), tidx_todoA) ;
+tidx_todo = [tidx_todoA, tidx_todoB] ;
+for tid = tidx_todo
+    disp(['considering tidx = ' num2str(tid)])
     time = timePoints(tid);
     if ismember(time, times_todo)
         % The original image in 3d

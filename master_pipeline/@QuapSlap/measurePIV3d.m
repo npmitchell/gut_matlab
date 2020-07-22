@@ -321,8 +321,8 @@ else
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Plot the advected tissue on top of the next frame
             % interpolate velocities at (x0, y0) onto mesh (m0XY)
-            uuinterp = griddedInterpolant(x0', y0', uu') ; % in inverted Y
-            vvinterp = griddedInterpolant(x0', y0', vv') ; 
+            uuinterp = griddedInterpolant(x0', y0', uu', 'linear', 'nearest') ; % in inverted Y
+            vvinterp = griddedInterpolant(x0', y0', vv', 'linear', 'nearest') ; 
             umeshpix = uuinterp(m0x, m0y) ; % interpolate in correct Y
             vmeshpix = vvinterp(m0x, m0y) ;
             addx = umeshpix ;
@@ -526,7 +526,7 @@ else
             v3dfaces = [Fx(bc(:, 1), bc(:, 2)), ...
                 Fy(bc(:, 1), bc(:, 2)), Fz(bc(:, 1), bc(:, 2))] ;
 
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Assign one tangential velocity per face via interpolation
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             v3dvertices = [Fx(mesh_for_interp.u(:, 1), mesh_for_interp.u(:, 2)), ...

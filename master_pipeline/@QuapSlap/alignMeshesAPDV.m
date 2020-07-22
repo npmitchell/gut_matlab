@@ -63,10 +63,6 @@ function [rot, trans, xyzlim_raw, xyzlim, xyzlim_um, xyzlim_um_buff] = ...
 %   coord system. Note that this coord system is mirrored if flipy==true.
 %   Also contains raw acom,pcom,dcom in subsampled pixels.
 %   Saved to fullfile(meshDir, 'centerline/apdv_coms_rs.h5')
-% apdv_coms_from_training.h5 (rawapdvname)
-%   Raw centers of mass for A, P, and D in subsampled pixels, in 
-%   probability data space coordinate system
-%   Saved to fullfile(meshDir, 'centerline/apdv_coms_from_training.h5')
 % startendpt.h5
 %   Starting and ending points
 %   Saved to fullfile(meshDir, 'centerline/startendpt_rs.h5') ;
@@ -131,7 +127,7 @@ alignedMeshBase = QS.fullFileBase.alignedMesh ;
 alignedMeshXYFigBaseName = [QS.fileBase.alignedMesh '_xy.png'] ;
 alignedMeshXZFigBaseName = [QS.fileBase.alignedMesh '_xz.png'] ;
 alignedMeshYZFigBaseName = [QS.fileBase.alignedMesh '_yz.png'] ;
-fn = QS.fileBase.name ;
+% Note: used to define fn = QS.fileBase.name ;
 
 % rotname
 if isfield(opts, 'rotname')
@@ -160,10 +156,6 @@ end
 if ~strcmp(dcomname(end-3:end), '.txt') 
     dcomname = [dcomname '.txt'] ;
 end
-
-if isfield(opts, 'rawapdvname')
-    rawapdvname = opts.rawapdvname ;
-end
 if isfield(opts, 'rawapdvname')
     apdvoutdir = opts.apdvOutDir ;
 end
@@ -179,7 +171,8 @@ green = colors(5, :) ;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Checks, directories, and assertions
 % Ensure that PLY files exist
-for tt = timePoints 
+for tidx = 1:length(timePoints)
+    tt = timePoints(tidx) ;
     if ~exist(sprintf(meshFileName, tt), 'file')
         msg = ['Found no matching PLY files ', ...
                 sprintf(meshFileName, tt), ' in ', meshDir ]; 
@@ -303,10 +296,12 @@ for tidx = 1:length(timePoints)
     % mesh.vertex.y = ys ;
     % mesh.vertex.z = zs ;
     try
-        name = sprintf(fn, tt) ;
+        name = sprintf(QS.fileBase.name, tt) ;
         spt = h5read(outstartendptname, ['/' name '/spt']) ;
         ept = h5read(outstartendptname, ['/' name '/ept']) ;
-        spt_ept_exist = true ;
+        if any(spt) && any(ept)
+            spt_ept_exist = true ;
+        end
     catch
         spt_ept_exist = false;
     end
@@ -498,7 +493,7 @@ for tidx = 1:length(timePoints)
     %% Rotate and translate (and mirror) acom, pcom, dcom
     try 
         apdcoms_rs_exist = true ;
-        name = sprintf(fn, tt) ;
+        name = sprintf(QS.fileBase.name, tt) ;
         acom_rs = h5read(outapdvname, ['/' name '/acom_rs']) ;
         pcom_rs = h5read(outapdvname, ['/' name '/pcom_rs']) ;
         dcom_rs = h5read(outapdvname, ['/' name '/dcom_rs']) ;
@@ -739,7 +734,7 @@ for tidx = 1:length(timePoints)
     
     % Save acom, pcom and their aligned counterparts as attributes in an
     % hdf5 file            
-    name = sprintf(fn, tt) ;
+    name = sprintf(QS.fileBase.name, tt) ;
     % Save if overwrite
     if overwrite || ~apdcoms_rs_exist
         try
@@ -787,7 +782,7 @@ for tidx = 1:length(timePoints)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Save acom, pcom and their aligned counterparts as attributes in an
     % hdf5 file
-    name = sprintf(fn, tt) ;
+    name = sprintf(QS.fileBase.name, tt) ;
     
     if overwrite || ~spt_ept_exist
         disp('Saving the startpt/endpt...')

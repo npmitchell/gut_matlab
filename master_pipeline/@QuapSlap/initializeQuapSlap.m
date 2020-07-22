@@ -147,6 +147,7 @@ QS.fileName.xyzlim_um_buff = ...
 QS.fullFileBase.apdProb = fullfile(QS.dir.data, QS.fileBase.apdProb) ;
 QS.fileName.apdv = ...
     fullfile(clineDir, 'apdv_coms_from_training.h5') ;
+QS.fileName.dcom = fullfile(meshDir, 'dcom_for_rot.txt') ;
 QS.fileName.startendPt = fullfile(clineDir, 'startendpt.h5') ;
 QS.fileName.cleanCntrlines = ...
     fullfile(clineDir, 'centerlines_anomalies_fixed.mat') ;
@@ -219,16 +220,19 @@ QS.dir.spcutMesh = sphiDir ;
 QS.dir.spcutMeshSm = sphiSmDir ;
 QS.dir.spcutMeshSmRS = sphiSmRSDir ;
 QS.dir.spcutMeshSmRSC = sphiSmRSCDir ;
-% double resolution
+
+%% double resolution cutMeshes
 QS.dir.spcutMeshSm2x = sphiSmDir2x ;
 QS.dir.spcutMeshSmRS2x = sphiSmRSDir2x ;
 QS.dir.spcutMeshSmRSC2x = sphiSmRSCDir2x ;
-% centerlines
+
+%% centerlines
 QS.dir.clineDVhoop = ...
     fullfile(QS.dir.uvCoord, ...
     ['centerline_from_DVhoops' shiftstr]) ;
 QS.dir.writhe =  fullfile(QS.dir.clineDVhoop, 'writhe') ;
-% Images
+
+%% Images
 QS.dir.im_uv = [imFolderBase '_uv'] ;
 QS.dir.im_uve = [imFolderBase '_uv_extended'] ;
 QS.dir.im_r = [imFolderBase '_sphi_relaxed'] ;
@@ -257,7 +261,8 @@ QS.fullFileBase.phi0fit = ...
 QS.fullFileBase.clineDVhoop = ...
     fullfile(QS.dir.clineDVhoop,...
     'centerline_from_DVhoops_%06d.mat');
-% filenames for lobe dynamics
+
+%% filenames for lobe dynamics
 QS.fileName.fold = fullfile(lobeDir, ...
     ['fold_locations_sphi' uvexten '_avgpts.mat']) ;
 QS.fileName.lobeDynamics = ...
@@ -265,7 +270,7 @@ QS.fileName.lobeDynamics = ...
 QS.fileName.writhe = fullfile(QS.dir.writhe, ...
     ['writhe_sphi' uvexten '_avgpts.mat']) ;
 
-%  spcutMesh and pullbacks
+%%  spcutMesh and pullbacks
 QS.fullFileBase.spcutMesh = ...
     fullfile(sphiDir, 'mesh_apical_stab_%06d_spcutMesh.mat') ;
 QS.fileBase.spcutMesh = 'mesh_apical_stab_%06d_spcutMesh' ;
@@ -280,7 +285,8 @@ QS.fullFileBase.spcutMeshSmRSC = ...
 QS.fullFileBase.spcutMeshSmRSCPLY = ...
     fullfile(sphiSmRSCDir, '%06d_spcMSmRSC.ply') ;
 QS.fileBase.spcutMeshSmRSC = '%06d_spcMSmRSC' ;
-% double resolution spcutMeshSm's
+
+%% double resolution spcutMeshSm's
 QS.fullFileBase.spcutMeshSm2x = ...
     fullfile(sphiSmDir2x, '%06d_spcutMeshSm2x.mat') ;
 QS.fileBase.spcutMeshSm2x = '%06d_spcutMeshSm2x' ;
@@ -308,7 +314,8 @@ QS.fullFileBase.im_sp = ...
 QS.fileBase.im_up = [QS.fileBase.name, '_pbup.tif'] ;
 QS.fullFileBase.im_up = ...
      fullfile(QS.dir.im_up, QS.fileBase.im_up) ;
-% Smoothed pullbacks (pb)
+
+ %% Smoothed pullbacks (pb)
 QS.fileBase.im_sp_sm = [QS.fileBase.name, '_pbspsm.tif'] ;
 QS.fileBase.im_sp_sme = [QS.fileBase.name, '_pbspsme.tif'] ;
 QS.fullFileBase.im_sp_sm = ...
@@ -328,17 +335,45 @@ QS.fileBase.cellID = [QS.fileBase.name, '_pbrsme_cells'] ;
 QS.fullFileBase.cellID = fullfile(QS.dir.cellID, ...
      [QS.fileBase.cellID '.mat']) ;
 
-% PIV
+%% PIV
 QS.dir.piv = fullfile(uvDir, 'piv') ;
 QS.dir.piv3d = fullfile(QS.dir.piv, 'piv3d') ;
 QS.dir.pivt2d = fullfile(QS.dir.piv, 'vt2d') ;
 QS.dir.pivn2d = fullfile(QS.dir.piv, 'vn2d') ;
 QS.dir.pivdilation = fullfile(QS.dir.piv, 'dilation') ;
-QS.dir.pivSimAvg = fullfile(QS.dir.piv, 'simpleAvg') ;
-QS.dir.pivSimAvgCurl = fullfile(QS.dir.pivSimAvg, 'curl') ;
-QS.dir.pivSimAvgDvg = fullfile(QS.dir.pivSimAvg, 'dvg') ;
 QS.fileName.pivRaw = fullfile(QS.dir.piv, 'piv_results.mat') ;
 QS.fullFileBase.piv3d = fullfile(QS.dir.piv3d, 'piv3d_%04d.mat') ;
+
+%% Velocities -- Lagrangian averaging
+QS.dir.pivAvg = fullfile(QS.dir.piv, 'lagrangianAvg') ;
+% QS.dir.pivAvgCurl = fullfile(QS.dir.pivAvg, 'curl') ;
+% QS.dir.pivAvgDvg = fullfile(QS.dir.pivAvg, 'dvg') ;
+QS.fileName.pivAvg = struct() ;
+QS.fileName.pivAvg.v2dum = fullfile(QS.dir.pivAvg, 'v2dMum_simpletimeavg.mat') ;
+QS.fileName.pivAvg.v2d = fullfile(QS.dir.pivAvg, 'v2dM_simpletimeavg.mat') ;
+QS.fileName.pivAvg.vn  = fullfile(QS.dir.pivAvg, 'vnM_simpletimeavg.mat') ;
+QS.fileName.pivAvg.v3d = fullfile(QS.dir.pivAvg, 'vM_simpletimeavg.mat') ;
+QS.fileName.pivAvg.vv  = fullfile(QS.dir.pivAvg, 'vvM_simpletimeavg.mat') ;
+QS.fileName.pivAvg.vf  = fullfile(QS.dir.pivAvg, 'vfM_simpletimeavg.mat');
+
+%% Helmholtz-Hodge and DEC -- Lagrangian averaging
+QS.dir.pivAvgDEC = struct() ;
+QS.dir.pivAvgDEC.data   = fullfile(QS.dir.pivAvg, 'dec') ;
+QS.dir.pivAvgDEC.div2d  = fullfile(QS.dir.pivAvg, 'dec_div2d') ;
+QS.dir.pivAvgDEC.div3d  = fullfile(QS.dir.pivAvg, 'dec_div3d') ;
+QS.dir.pivAvgDEC.div3dTexture = fullfile(QS.dir.pivAvg, 'dec_div3dTexture') ;
+QS.dir.pivAvgDEC.rot2d  = fullfile(QS.dir.pivAvg, 'dec_rot2d') ;
+QS.dir.pivAvgDEC.rot3d  = fullfile(QS.dir.pivAvg, 'dec_rot3d') ;
+QS.dir.pivAvgDEC.rot3dTexture = fullfile(QS.dir.pivAvg, 'dec_rot3dTexture') ;
+QS.dir.pivAvgDEC.harm2d = fullfile(QS.dir.pivAvg, 'dec_harm2d') ;
+QS.dir.pivAvgDEC.harm3d = fullfile(QS.dir.pivAvg, 'dec_harm3d') ;
+QS.fullFileBase.decAvg = fullfile(QS.dir.pivAvgDEC.data, ...
+                              [QS.fileBase.name '_dec.mat'] ) ;
+                          
+%% Velocities -- simple/surface-Lagrangian averaging
+QS.dir.pivSimAvg = fullfile(QS.dir.piv, 'simpleAvg') ;
+% QS.dir.pivSimAvgCurl = fullfile(QS.dir.pivSimAvg, 'rot') ;
+% QS.dir.pivSimAvgDvg = fullfile(QS.dir.pivSimAvg, 'dvg') ;
 QS.fileName.pivSimAvg = struct() ;
 QS.fileName.pivSimAvg.v2dum = fullfile(QS.dir.pivSimAvg, 'v2dMum_simpletimeavg.mat') ;
 QS.fileName.pivSimAvg.v2d = fullfile(QS.dir.pivSimAvg, 'v2dM_simpletimeavg.mat') ;
@@ -346,8 +381,7 @@ QS.fileName.pivSimAvg.vn  = fullfile(QS.dir.pivSimAvg, 'vnM_simpletimeavg.mat') 
 QS.fileName.pivSimAvg.v3d = fullfile(QS.dir.pivSimAvg, 'vM_simpletimeavg.mat') ;
 QS.fileName.pivSimAvg.vv  = fullfile(QS.dir.pivSimAvg, 'vvM_simpletimeavg.mat') ;
 QS.fileName.pivSimAvg.vf  = fullfile(QS.dir.pivSimAvg, 'vfM_simpletimeavg.mat');
-
-% Helmholtz-Hodge and DEC
+% Helmholtz-Hodge and DEC -- simple/surface-Lagrangian averaging
 QS.dir.pivSimAvgDEC = struct() ;
 QS.dir.pivSimAvgDEC.data   = fullfile(QS.dir.pivSimAvg, 'dec') ;
 QS.dir.pivSimAvgDEC.div2d  = fullfile(QS.dir.pivSimAvg, 'dec_div2d') ;
@@ -358,16 +392,38 @@ QS.dir.pivSimAvgDEC.rot3d  = fullfile(QS.dir.pivSimAvg, 'dec_rot3d') ;
 QS.dir.pivSimAvgDEC.rot3dTexture = fullfile(QS.dir.pivSimAvg, 'dec_rot3dTexture') ;
 QS.dir.pivSimAvgDEC.harm2d = fullfile(QS.dir.pivSimAvg, 'dec_harm2d') ;
 QS.dir.pivSimAvgDEC.harm3d = fullfile(QS.dir.pivSimAvg, 'dec_harm3d') ;
-QS.fullFileBase.dec = fullfile(QS.dir.pivSimAvgDEC.data, ...
+QS.fullFileBase.decSimAvg = fullfile(QS.dir.pivSimAvgDEC.data, ...
                               [QS.fileBase.name '_dec.mat'] ) ;
 
-% Double resolution
+%% Double resolution
 QS.dir.piv3d2x = fullfile(QS.dir.piv, 'piv3dDoubleRes') ;
 QS.dir.pivt2d2x = fullfile(QS.dir.piv, 'vt2dDoubleRes') ;
 QS.dir.pivn2d2x = fullfile(QS.dir.piv, 'vn2dDoubleRes') ;
 QS.dir.pivdilation2x = fullfile(QS.dir.piv, 'dilationDoubleRes') ;
-QS.dir.pivSimAvg2x = fullfile(QS.dir.piv, 'simpleAvgDoubleRes') ;
 QS.fullFileBase.piv3d2x = fullfile(QS.dir.piv3d2x, 'piv3dDoubleRes_%04d.mat') ;
+%% 2x Velocities -- Lagrangian averaging
+QS.dir.pivAvg2x = fullfile(QS.dir.piv, 'lagrangianAvgDoubleRes') ;
+QS.fileName.pivAvg2x = struct() ;
+QS.fileName.pivAvg2x.v2dum = fullfile(QS.dir.pivAvg2x, 'v2dMum_timeavg2x.mat') ;
+QS.fileName.pivAvg2x.v2d = fullfile(QS.dir.pivAvg2x, 'v2dM_timeavg2x.mat') ;
+QS.fileName.pivAvg2x.vn  = fullfile(QS.dir.pivAvg2x, 'vnM_timeavg2x.mat') ;
+QS.fileName.pivAvg2x.v3d = fullfile(QS.dir.pivAvg2x, 'vM_timeavg2x.mat') ;
+QS.fileName.pivAvg2x.vv  = fullfile(QS.dir.pivAvg2x, 'vvM_timeavg2x.mat') ;
+QS.fileName.pivAvg2x.vf  = fullfile(QS.dir.pivAvg2x, 'vfM_timeavg2x.mat') ;
+QS.dir.pivAvgDEC2x = struct() ;
+QS.dir.pivAvgDEC2x.data   = fullfile(QS.dir.pivAvg2x, 'dec') ;
+QS.dir.pivAvgDEC2x.div2d  = fullfile(QS.dir.pivAvg2x, 'dec_div2d') ;
+QS.dir.pivAvgDEC2x.div3d  = fullfile(QS.dir.pivAvg2x, 'dec_div3d') ;
+QS.dir.pivAvgDEC2x.div3dTexture = fullfile(QS.dir.pivAvg2x, 'dec_div3dTexture') ;
+QS.dir.pivAvgDEC2x.rot2d  = fullfile(QS.dir.pivAvg2x, 'dec_rot2d') ;
+QS.dir.pivAvgDEC2x.rot3d  = fullfile(QS.dir.pivAvg2x, 'dec_rot3d') ;
+QS.dir.pivAvgDEC2x.rot3dTexture = fullfile(QS.dir.pivAvg2x, 'dec_rot3dTexture') ;
+QS.dir.pivAvgDEC2x.harm2d = fullfile(QS.dir.pivAvg2x, 'dec_harm2d') ;
+QS.dir.pivAvgDEC2x.harm3d = fullfile(QS.dir.pivAvg2x, 'dec_harm3d') ;
+QS.fullFileBase.decAvg2x = fullfile(QS.dir.pivAvgDEC2x.data, ...
+                              [QS.fileBase.name '_dec.mat'] ) ;
+%% 2x Velocities -- simple/surface-Lagrangian averaging
+QS.dir.pivSimAvg2x = fullfile(QS.dir.piv, 'simpleAvgDoubleRes') ;
 QS.fileName.pivSimAvg2x = struct() ;
 QS.fileName.pivSimAvg2x.v2dum = fullfile(QS.dir.pivSimAvg2x, 'v2dMum_simpletimeavg2x.mat') ;
 QS.fileName.pivSimAvg2x.v2d = fullfile(QS.dir.pivSimAvg2x, 'v2dM_simpletimeavg2x.mat') ;
@@ -385,7 +441,7 @@ QS.dir.pivSimAvgDEC2x.rot3d  = fullfile(QS.dir.pivSimAvg2x, 'dec_rot3d') ;
 QS.dir.pivSimAvgDEC2x.rot3dTexture = fullfile(QS.dir.pivSimAvg2x, 'dec_rot3dTexture') ;
 QS.dir.pivSimAvgDEC2x.harm2d = fullfile(QS.dir.pivSimAvg2x, 'dec_harm2d') ;
 QS.dir.pivSimAvgDEC2x.harm3d = fullfile(QS.dir.pivSimAvg2x, 'dec_harm3d') ;
-QS.fullFileBase.dec2x = fullfile(QS.dir.pivSimAvgDEC2x.data, ...
+QS.fullFileBase.decSimAvg2x = fullfile(QS.dir.pivSimAvgDEC2x.data, ...
                               [QS.fileBase.name '_dec.mat'] ) ;
 
 % Ensure directories

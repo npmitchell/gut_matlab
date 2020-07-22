@@ -97,6 +97,7 @@ xyzlim = metadat.xyzlim ;
 reorient_faces = metadat.reorient_faces ;
 timeinterval = QS.timeinterval ;
 timeunits = QS.timeunits ;
+timePoints = QS.xp.fileMeta.timePoints ;
 
 % Unpack xyzlim
 xmin = xyzlim(1, 1); xmax = xyzlim(1, 2) ;
@@ -108,7 +109,14 @@ zmin = xyzlim(3, 1); zmax = xyzlim(3, 2) ;
 xwidth = 16 ; % cm
 ywidth = 10 ; % cm
 
-for tp = QS.xp.fileMeta.timePoints
+tidx_todoA = 1:20:length(timePoints) ;
+tidx_todoB = setdiff(1:10:length(timePoints), tidx_todoA) ;
+tidx_todo = [tidx_todoA, tidx_todoB] ;
+tidx_todoC = setdiff(1:length(timePoints), tidx_todo) ;
+tidx_todo = [tidx_todo, tidx_todoC] ;
+
+for tidx = tidx_todo
+    tp = timePoints(tidx) ;
     ondisk = true ;
     for ii = 1:length(fns)
         ondisk = ondisk && exist(sprintf(fns{ii}, tp), 'file') ;

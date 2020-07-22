@@ -66,7 +66,8 @@ classdef QuapSlap < handle
             'adjustlow', 0, ...
             'adjusthigh', 0 )    % image intensity data in 3d and scaling
         currentVelocity = struct('piv3d', struct(), ...
-            'piv3d2x', struct()) ; 
+            'piv3d2x', struct()) ;     
+        pivimCoords = 'sp_sme' ;  % image coord system for measuring PIV / optical flow
         velocitySimpleAverage = struct('v3d', [], ...
             'v2d', [], ...
             'v2dum', [], ...
@@ -153,8 +154,8 @@ classdef QuapSlap < handle
             % Load the anterior and posterior 'centers of mass' ie the
             % endpoints of the object's centerline
             try
-                acom_sm = h5read(QS.fileName.apdv, '/acom') ;
-                pcom_sm = h5read(QS.fileName.apdv, '/pcom') ;
+                acom_sm = h5read(QS.fileName.apdv, '/acom_sm') ;
+                pcom_sm = h5read(QS.fileName.apdv, '/pcom_sm') ;
             catch
                 [acom_sm, pcom_sm] = QS.computeAPDCOMs() ;
             end
@@ -794,6 +795,7 @@ classdef QuapSlap < handle
         % Note: To timeAverage Velocities at Double resolution, pass
         % options.doubleResolution == true
         
+        %% Velocities -- simple/surface-Lagrangian averaging
         function loadVelocitySimpleAverage(QS, varargin)
             % Load and pack into struct
             if any(strcmp(varargin, 'v3d'))
@@ -821,7 +823,6 @@ classdef QuapSlap < handle
             % todo: check if all varargin are already loaded
             loadVelocitySimpleAverage(QS, varargin{:})
         end
-        
         function loadVelocitySimpleAverage2x(QS, varargin)
             % Load and pack into struct
             if isempty(varargin)
@@ -857,11 +858,76 @@ classdef QuapSlap < handle
                 loadVelocitySimpleAverage2x(QS, varargin{:})
             end
         end
-        
         plotTimeAvgVelSimple(QS, samplingResolution, options)
         helmoltzHodgeSimple(QS, options)
         
-        % compressible/incompressible flow on evolving surface
+        %% Velocities -- Lagrangian Averaging
+        function loadVelocityAverage(QS, varargin)
+            % Load and pack into struct
+            if any(strcmp(varargin, 'v3d'))
+                load(QS.fileName.pivSimAvg.v3d, 'vsmM') ;
+                QS.velocityAverage.v3d = vsmM ;
+            end
+            if any(strcmp(varargin, 'v2dum'))
+                load(QS.fileName.pivSimAvg.v2dum, 'v2dsmMum') ;
+                QS.velocityAverage.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'vn'))
+                load(QS.fileName.pivSimAvg.vn, 'vnsmM') ;
+                QS.velocityAverage.vn = vnsmM ;
+            end
+            if any(strcmp(varargin, 'vf'))
+                load(QS.fileName.pivSimAvg.vf, 'vfsmM') ;
+                QS.velocityAverage.vf = vfsmM ;
+            end
+            if any(strcmp(varargin, 'v2v'))
+                load(QS.fileName.pivSimAvg.vf, 'vvsmM') ;
+                QS.velocityAverage.vv = vvsmM ;
+            end
+        end
+        function getVelocityAverage(QS, varargin)
+            % todo: check if all varargin are already loaded
+            loadVelocityAverage(QS, varargin{:})
+        end
+        function loadVelocityAverage2x(QS, varargin)
+            % Load and pack into struct
+            if isempty(varargin)
+                varargin = {'v3d', 'v2dum', 'v2d', 'vn', 'vf', 'vv'};
+            end
+            if any(strcmp(varargin, 'v3d'))
+                load(QS.fileName.pivSimAvg2x.v3d, 'vsmM') ;
+                QS.velocityAverage2x.v3d = vsmM ;
+            end
+            if any(strcmp(varargin, 'v2dum'))
+                load(QS.fileName.pivSimAvg2x.v2dum, 'v2dsmMum') ;
+                QS.velocityAverage2x.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'v2d'))
+                load(QS.fileName.pivSimAvg2x.v2dum, 'v2dsmMum') ;
+                QS.velocityAverage2x.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'vn'))
+                load(QS.fileName.pivSimAvg2x.vn, 'vnsmM') ;
+                QS.velocityAverage2x.vn = vnsmM ;
+            end
+            if any(strcmp(varargin, 'vf'))
+                load(QS.fileName.pivSimAvg2x.vf, 'vfsmM') ;
+                QS.velocityAverage2x.vf = vfsmM ;
+            end
+            if any(strcmp(varargin, 'vv'))
+                load(QS.fileName.pivSimAvg2x.vv, 'vvsmM') ;
+                QS.velocityAverage2x.vv = vvsmM ;
+            end
+        end
+        function getVelocityAverage2x(QS, varargin)
+            if isempty(QS.velocityAverage2x.v3d)
+                loadVelocityAverage2x(QS, varargin{:})
+            end
+        end
+        plotTimeAvgVelLagrangian(QS, samplingResolution, options)
+        helmoltzHodgeLagrangian(QS, options)
+        
+        %% compressible/incompressible flow on evolving surface
         [cumerr, HHs, divvs, velns] = measureMetricKinematics(QS, options)
         plotMetricKinematics(QS, options)
         
@@ -874,6 +940,11 @@ classdef QuapSlap < handle
             %   (0, umax) and (0, vmax) of pullback space if singleCover,
             %   or y coords are mapped to (-0.5, 1.5)*vmax if doubleCover
             % 
+            % NOTE THAT MAP IS
+            % [xesz, yesz] = [size(im, 1), size(im, 2)]
+            % uv(:, 1) = umax * (XY(:, 1) - 1) / xesz ;
+            % uv(:, 2) = vmax * 2.0 * (XY(:, 2) - 1) / yesz - 0.5 ;
+            %
             % NOTE THAT INVERSE MAP IS
             % x--> (xy(:, 1) * (Xsz-1)) / (1*umax) + 1 , ...
             % y--> (xy(:, 2) * (Ysz-1)) / (2*vmax) + 1 + (Ysz-1)*0.25 ;
@@ -951,6 +1022,15 @@ classdef QuapSlap < handle
                 % singleCover image of physical cylindrical object
                 XY(:, 2) = uv(:, 2) * (Ysz-1) / (1*vmax) + 1  ;
             end        
+        end
+        
+        function [xx, yy] = clipXY(xx, yy, Lx, Ly)
+            % Clip x at (1, Lx) and clip Y as periodic (1=Ly, Ly=1), for
+            % image that is periodic in Y.
+            xx(xx > Lx) = Lx ;
+            xx(xx < 1 ) = 1 ;
+            yy(yy > Ly) = yy(yy > Ly) - Ly + 1;
+            yy(yy < 1) = yy(yy < 1) + Ly ;
         end
         
         function uv2pix_old(im, aspect)

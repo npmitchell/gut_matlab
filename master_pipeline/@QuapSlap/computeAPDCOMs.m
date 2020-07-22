@@ -13,7 +13,6 @@ function [acom_sm, pcom_sm, dcom] = computeAPDCOMs(QS, opts)
 %   - overwrite : bool
 %   - apdvoutdir : string
 %   - meshDir : string
-%   - apdProbFileName : string
 %   - preview_com : bool
 %   - check_slices : bool
 %   - axorder : length 3 int array
@@ -24,8 +23,15 @@ function [acom_sm, pcom_sm, dcom] = computeAPDCOMs(QS, opts)
 %
 % OUTPUTS
 % -------
-% apdv_coms_from_training
+% apdv_coms_from_training.h5 (rawapdvname, QS.fileName.apdv)
+%   Raw centers of mass for A, P, and D in subsampled pixels, in 
+%   probability data space coordinate system
+%   Saved to fullfile(meshDir, 'centerline/apdv_coms_from_training.h5')
+% QS.fileName.dcom 
+%   txt file with dorsal COM for APDV definition
+% rawapdvmatname=fullfile(QS.dir.cntrline, 'apdv_coms_from_training.mat')
 % 
+%
 % NPMitchell 2020
 
 timePoints = QS.xp.fileMeta.timePoints ;
@@ -60,7 +66,7 @@ if isfield(opts, 'smwindow')
     smwindow = opts.smwindow ;
 end
 
-dcomname = fullfile(meshDir, 'dcom_for_rot.txt') ;
+dcomname = QS.fileName.dcom ;
 rawapdvname = QS.fileName.apdv ;
 rawapdvmatname = fullfile(apdvoutdir, 'apdv_coms_from_training.mat') ;
 preview = false ;
@@ -72,25 +78,27 @@ end
 acoms = zeros(length(timePoints), 3) ;
 pcoms = zeros(length(timePoints), 3) ;
 load_from_disk = false ;
-if exist(rawapdvname, 'file') && ~overwrite
+if exist(QS.fileName.apdv, 'file') && ~overwrite
     load_from_disk = true ;
     try
-        h5create(rawapdvname, '/acom_sm', size(acoms)) ;
+        h5create(QS.fileName.apdv, '/acom_sm', size(acoms)) ;
         load_from_disk = false ;
     catch
         try
-            acom_sm = h5read(rawapdvname, '/acom_sm') ;
+            acom_sm = h5read(QS.fileName.apdv, '/acom_sm') ;
+            acoms = h5read(QS.fileName.apdv, '/acom') ;
             disp('acom_sm already exists')
         catch
             load_from_disk = false;
         end
     end
     try
-        h5create(rawapdvname, '/pcom_sm', size(pcoms)) ;
+        h5create(QS.fileName.apdv, '/pcom_sm', size(pcoms)) ;
         load_from_disk = false ;
     catch
         try
-            pcom_sm = h5read(rawapdvname, '/pcom_sm') ;
+            pcom_sm = h5read(QS.fileName.apdv, '/pcom_sm') ;
+            pcoms = h5read(QS.fileName.apdv, '/pcom') ;
             disp('pcom_sm already exists')
         catch
             load_from_disk = false;
@@ -103,8 +111,9 @@ end
 
 disp(['Load from disk? =>', num2str(load_from_disk)])
 
-%% Compute acom and pcom if not loaded from disk -- RAW XYZ coords
+%% Compute smoothed acom and pcom if not loaded from disk -- RAW XYZ coords
 if ~load_from_disk || overwrite
+    % Compute raw acom and pcom if not loaded from disk -- RAW XYZ coords
     if ~exist(rawapdvmatname, 'file') || overwrite
         for tidx = 1:length(timePoints)
             tt = timePoints(tidx) ;
@@ -138,7 +147,7 @@ if ~load_from_disk || overwrite
             % [~, acom] = match_training_to_vertex(adat, thres, vertices, options) ;
             % [~, pcom] = match_training_to_vertex(pdat, thres, vertices, options) ;
             acoms(tidx, :) = acom ;
-            pcoms(tidx, :) = pcom ; 
+            pcoms(tidx, :) = pcom 
         end
         % Save raw data to .mat
         save(rawapdvmatname, 'acoms', 'pcoms')
@@ -310,6 +319,23 @@ if preview
     axis equal
     %%%%%%%%%%%%%%%%%%%%%%
     waitfor(fig)
+end
+
+%% Display APDV COMS over time
+[xyzlim, ~, ~, ~] = QS.getXYZLims() ;
+for tidx = 1:length(timePoints)
+    tp = timePoints(tidx) ;
+    % Plot the APDV points
+    clf
+    plot3(acom_sm(tidx, 1), acom_sm(tidx, 2), acom_sm(tidx, 3), 'ro')
+    hold on;
+    plot3(acoms(tidx, 1), acoms(tidx, 2), acoms(tidx, 3), 'r.')
+    plot3(pcom_sm(tidx, 1), pcom_sm(tidx, 2), pcom_sm(tidx, 3), 'b^')
+    plot3(pcoms(tidx, 1), pcoms(tidx, 2), pcoms(tidx, 3), 'b.')
+    plot3(dcom(1, 1), dcom(1, 2), dcom(1, 3), 'cs')
+    axis equal
+    title(['t = ', num2str(tp)]) 
+    pause(0.01)
 end
 
 

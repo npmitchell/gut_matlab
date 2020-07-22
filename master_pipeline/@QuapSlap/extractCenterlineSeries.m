@@ -1,6 +1,6 @@
 function extractCenterlineSeries(QS, cntrlineOptions)
 % EXTRACTCENTERLINESERIES(QS, cntrlineOptions)
-%
+%   Extract centerlines for all timepoints in the QuapSlap instance
 %
 % Parameters
 % ----------
@@ -46,7 +46,7 @@ resolution = QS.APDV.resolution ;
 [rot, trans] = QS.getRotTrans() ;
 
 % Unpack optional options
-[xyzlim, ~, xyzlim_um] = QS.getXYZLims() ;  % xyz maxima for grid formation if xx,yy,zz not supplied
+[xyzlim, ~, ~, xyzlim_um] = QS.getXYZLims() ;  % xyz maxima for grid formation if xx,yy,zz not supplied
 overwrite = false ;             % overwrite previous results
 overwrite_ims = false ;         % overwrite previous images, whether or not centerline is new
 weight = 0.1;                   % for speedup of centerline extraction. Larger is less precise
@@ -365,7 +365,7 @@ for tt = timePoints
             disp('WARNING: PATH FAILED. SKIPPING THIS TIMEPOINT')
             % Preview D2
             clf ;
-            for kk=[1:2:size(D2,3), size(D2,3):-1:1] 
+            for kk=[1:2:size(D2,1), size(D2,1):-1:1] 
                 imagesc(squeeze(D2(kk,:,:)))
                 title(['D2 for plane z=' num2str(kk)])
                 pause(0.001)

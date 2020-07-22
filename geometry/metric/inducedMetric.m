@@ -1,6 +1,10 @@
 function g = inducedMetric(F, V3D, V2D)
-%INDUCEDMETRIC Calculates the discrete induced metric of a surface
-%represented by a mesh triangulation
+%INDUCEDMETRIC 
+%   Calculates the discrete induced metric of a surface
+%   represented by a mesh triangulation. 
+%   Unlike constructFundamentalForms.m, this one is not gradient-based, so 
+%   it is cleaner. However, constructFundamentalForms.m also computes the 
+%   second fundamental form.
 %
 %   INPUT PARAMETERS
 %
@@ -12,6 +16,9 @@ function g = inducedMetric(F, V3D, V2D)
 %
 %       - g:    #Fx1 cell array. Each entry is a 2x2 matrix representing
 %               the induced metric on a face
+%
+%   SEE ALSO
+%   constructFundamentalForms.m : gives first and second fundamental form 
 %
 %   by Dillon Cislo 05/12/2020
 

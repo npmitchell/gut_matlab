@@ -165,7 +165,7 @@ Options.overwrite_mips = false ;
 Options.scale = -1 ; % do NOT rescale intensities during intensity projection
 makeMips(timePoints, dir16bit_prestab, fn_prestab, mipDir, Options)
 
-%%  -II. stabilizeImagesCorrect.m
+%%  -II. stabilize images, based on script stabilizeImagesCorrect.m
 % Skip if already done
 % name of directory to check the stabilization of mips
 mips_stab_check = fullfile(mipDir, 'stab_check') ;
@@ -182,7 +182,7 @@ typename = 'uint16' ;
 overwrite_mips = false ;
 overwrite_tiffs = false ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
-    timePoints, timePoints, timePoints(1), ...
+    timePoints, timePoints, timePoints(200), ...
     im_intensity, imref_intensity, ...
     mipDir, mipoutdir, mips_stab_check, overwrite_mips, overwrite_tiffs)
 
@@ -312,7 +312,7 @@ else
     lambda1 = 1 ;
     lambda2 = 1 ;
     exit_thres = 0.0001 ;
-    if contains(projectDir, 'LifeActRuby')
+    if contains(projectDir, 'LifeActRuby') || contains(projectDir, 'CAAXmCherry') 
         nu = 4 ;  % For volumetric
         smoothing = 0.20 ;
     else
@@ -796,6 +796,29 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     alignAPDVOpts.overwrite = overwrite_APDVCOMs || overwrite_APDVMeshAlignment ; % recompute APDV rotation, translation
     QS.alignMeshesAPDV(alignAPDVOpts) ;
 else
+    % Display APDV COMS over time
+    acom_sm = h5read(QS.fileName.apdv, '/acom_sm') ;
+    pcom_sm = h5read(QS.fileName.apdv, '/pcom_sm') ;
+    acoms = h5read(QS.fileName.apdv, '/acom') ;
+    pcoms = h5read(QS.fileName.apdv, '/pcom') ;
+    dcom = dlmread(QS.fileName.dcom) ;
+    for tidx = 1:length(timePoints)
+        tp = timePoints(tidx) ;
+        % Plot the APDV points
+        clf
+        plot3(acom_sm(tidx, 1), acom_sm(tidx, 2), acom_sm(tidx, 3), 'ro')
+        hold on;
+        plot3(acoms(tidx, 1), acoms(tidx, 2), acoms(tidx, 3), 'r.')
+        plot3(pcom_sm(tidx, 1), pcom_sm(tidx, 2), pcom_sm(tidx, 3), 'b^')
+        plot3(pcoms(tidx, 1), pcoms(tidx, 2), pcoms(tidx, 3), 'b.')
+        plot3(dcom(1, 1), dcom(1, 2), dcom(1, 3), 'cs')
+        axis equal
+        title(['t = ', num2str(tp)]) 
+        pause(0.01)
+        if tp > 135
+            pause(1)
+        end
+    end
     disp('Already done')
 end
 disp('done')
@@ -837,7 +860,7 @@ QS.alignMaskedDataAPDV()
 
 %% PLOT ALL TEXTURED MESHES IN 3D =========================================
 % Skip if already done
-overwrite = true ;
+overwrite = false ;
 
 % Get limits and create output dir
 % Establish texture patch options
@@ -848,7 +871,7 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     metadat.xyzlim = xyzbuff ;                  % xyzlimits
     metadat.reorient_faces = false ;            % if some normals are inverted
     % Psize is the linear dimension of the grid drawn on each triangular face
-    Options.PSize = 5;
+    Options.PSize = 5 ;
     Options.EdgeColor = 'none';
     QS.getRotTrans() ;
     Options.Rotation = QS.APDV.rot ;
@@ -864,7 +887,7 @@ else
 end
 
 % Use first timepoint's intensity limits throughout
-% QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.95)
+QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.95)
 
 % Plot on surface for all TP
 QS.plotSeriesOnSurfaceTexturePatch(overwrite, metadat, Options)
@@ -903,9 +926,8 @@ QS.generateCleanCntrlines(idOptions) ;
 %% Cylinder cut mesh
 % Skip if already done
 if overwrite_endcapOpts || ~exist(QS.fileName.endcapOptions, 'file')
-    endcapOpts = ...
-        struct( 'adist_thres', 22, ...  % 20, distance threshold for cutting off anterior in pix
-                'pdist_thres', 20);     % 15-20, distance threshold for cutting off posterior in pix
+    endcapOpts = struct( 'adist_thres', 20, ...  % 20, distance threshold for cutting off anterior in pix
+                'pdist_thres', 18);     % 15-20, distance threshold for cutting off posterior in pix
     QS.setEndcapOptions(endcapOpts) ;
     % Save the options to disk
     QS.saveEndcapOptions() ;
@@ -1328,10 +1350,13 @@ options.samplingResolution = '2x';
 QS.measureMetricKinematics(options)
 
 
-%% Pullback streamlines
+%% Pullback streamlines connecting Lagrangian grids
 options = struct() ;
 options.overwrite = false ;
+options.preview = true ;
+options.debug = false ;
 QS.measurePullbackStreamlines(options)
+QS.timeAverageVelocities(options)
 
 %% Plot texture map in 3d with velocities
 for i = 1:size(vM, 1)
