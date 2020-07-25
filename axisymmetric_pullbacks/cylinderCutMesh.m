@@ -189,8 +189,7 @@ end
 if (nargin < 6), cutOptions = struct(); end
 
 % Check that a valid cut method is supplied
-allCutMethods = { 'fastest', 'nearest', ...
-    'ricci', 'ricciWinding', 'custom' };
+allCutMethods = { 'fastest', 'nearest', 'ricci', 'ricciWinding', 'custom' };
 if ~isfield(cutOptions, 'method')
     cutOptions.method = 'fastest';
 elseif ~any(strcmp(cutOptions.method, allCutMethods))
@@ -198,7 +197,7 @@ elseif ~any(strcmp(cutOptions.method, allCutMethods))
 end
 
 % Obtain bulk-boundary edge weighting factor (multiplicative factor for G)
-bbWeight = 10 ;
+bbWeight = 50 ;
 if isfield(cutOptions, 'bbWeight')
     bbWeight = cutOptions.bbWeight ;
 end
@@ -244,7 +243,7 @@ if strcmp(cutOptions.method, 'custom')
     if ~isfield(cutOptions, 'path')
         error('User must supply a custom cut path');
     else
-        P = cutOptions.path;
+        P = cutOptions.path ;
     end
     
     % Verify the custom path has the proper dimensions
@@ -279,6 +278,7 @@ end
 % Calculate the Shortest Path Between Input Points Along Mesh Edges
 %==========================================================================
 
+% Perform fastest, nearest, ricci, or ricciWinding methods
 if ~strcmp(cutOptions.method, 'custom')
     
     % Find edge lengths used to calculate the cut path --------------------

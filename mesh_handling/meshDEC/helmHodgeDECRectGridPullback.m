@@ -13,7 +13,7 @@ function [divs, rots, harms, glueMesh] = ...
 % Options : struct with fields
 %   lambda : smoothing diffusion constant
 % varargin : keyword arguments (optional)
-%   niterSmoothing : int or two ints 
+%   niterSmoothing : int or three ints 
 %       how many smoothing steps to perform. 
 %       If two values given, applies to div, rot separately
 %       If method is 'both', applies to 
@@ -29,6 +29,8 @@ function [divs, rots, harms, glueMesh] = ...
 %       values to clip the rotation field
 %   clipRot : list of two floats
 %       values to clip the curl field
+%   preview : bool 
+%       view intermediate results
 %
 % Returns
 % -------
@@ -42,20 +44,24 @@ function [divs, rots, harms, glueMesh] = ...
 
 
 % Method options
-max_niter_div = 0 ;
-max_niter_rot = 0 ;
+max_niter_div = 1000 ;
+max_niter_rot = 1000 ;
 niterU2d_div = 0 ;
 niterU2d_rot = 0 ;
 niterU2d_harm = 0 ;
 clipDiv = [-Inf, Inf] ;  
 clipRot = [-Inf, Inf] ;  
-lambda_smooth = 0.02 ;
+lambda_smooth = 0.01 ;
+lambda_mesh = 0.001 ;
 method = 'smooth' ;     % options: smooth, denoise
 eps = 1e-16 ;
 preview = false ;
 %% Unpack options
 if isfield(Options, 'lambda')
-    labmda_smooth = Options.lambda ;
+    lambda_smooth = Options.lambda ;
+end
+if isfield(Options, 'lambda_mesh')
+    lambda_mesh = Options.lambda_mesh ;
 end
 
 %% varargin options
@@ -72,9 +78,11 @@ for i = 1:length(varargin)
         niter = varargin{i+1} ;
         % Allow for different niters for divergence and rotation
         if length(niter) > 1
-            max_niter_div = niter(1) ;
-            max_niter_rot = niter(2) ;
+            max_niter_mesh = niter(1) ;
+            max_niter_div = niter(2) ;
+            max_niter_rot = niter(3) ;
         else
+            max_niter_mesh = niter ;
             max_niter_div = niter ;
             max_niter_rot = niter ;
         end
@@ -144,9 +152,41 @@ nV = cutM.nV ;
 
 % Take divergence and curl
         
-% TODO: glue the mesh back together, FF will change
+%% Glue the mesh back together, FF will change
 % cutMC is cutM that is Closed at the seam
 [glueMesh, glue2cut] = glueCylinderCutMeshSeam(cutM) ;  
+
+% Check smoothing
+if preview
+    clf
+    subplot(1, 2, 1)
+    trisurf(glueMesh.f, glueMesh.v(:, 1), glueMesh.v(:, 2), ...
+        glueMesh.v(:, 3), 'edgecolor', 'none')
+    axis equal
+    view(0, 0)
+    title('before smoothing')
+end
+
+% Laplacian smooth mesh vertices (lightly)
+triglued = triangulation(glueMesh.f, glueMesh.v) ;
+% Fix free boundaries of glued mesh, let others vary in space
+fixed_verts = triglued.freeBoundary ; 
+fixed_verts = fixed_verts(:, 1) ;
+glueMesh.v = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+    lambda_mesh, 'explicit', glueMesh.v, max_niter_mesh) ;
+
+if preview
+    subplot(1, 2, 2)
+    trisurf(glueMesh.f, glueMesh.v(:, 1), glueMesh.v(:, 2), ...
+        glueMesh.v(:, 3), 'edgecolor', 'none')
+    axis equal
+    view(0, 0)
+    title('after smoothing')
+    pause(1)
+    close all
+end
+
+%% Create DEC instance
 DEC = DiscreteExteriorCalculus( glueMesh.f, glueMesh.v ) ;
 
 % Now resolve the vector field for decomposition
@@ -177,7 +217,7 @@ if preview
     pause(1)
 end
 
-% LAPLACIAN SMOOTHING on vertices (divergence field)
+%% LAPLACIAN SMOOTHING for divergence field
 fixed_verts = [] ;  % note: could use boundaries here, seems unnecessary
 divvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
     lambda_smooth, 'explicit', divv, max_niter_div) ;

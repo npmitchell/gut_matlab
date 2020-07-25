@@ -6,9 +6,9 @@
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
-% cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
+cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
-cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
+% cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
 
 dataDir = cd ;
 
@@ -46,7 +46,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
-    timeinterval = 1 ;  % physical interval between timepoints
+    timeInterval = 1 ;  % physical interval between timepoints
     timeunits = 'min' ; % physical unit of time between timepoints
     scale = 0.02 ;      % scale for conversion to 16 bit
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
@@ -61,7 +61,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'timePoints', timePoints, ...
         'ssfactor', ssfactor, ...
         'flipy', flipy, ...
-        'timeinterval', timeinterval, ...
+        'timeInterval', timeInterval, ...
         'timeunits', timeunits, ...
         'scale', scale, ...
         'file32Base', file32Base, ...
@@ -98,8 +98,9 @@ if loadMaster
     ssfactor = masterSettings.ssfactor ;
     % whether the data is stored inverted relative to real position
     flipy = masterSettings.flipy ; 
-    timeinterval = masterSettings.timeinterval ;  % physical interval between timepoints
-    timeunits = masterSettings.timeunits ; % physical unit of time between timepoints
+    timeInterval = masterSettings.timeInterval ;  % physical interval between timepoints
+    timeunits = masterSettings.timeUnits ; % physical unit of time between timepoints
+    spaceUnits = masterSettings.spaceUnits ;  % microns as $\mu$m
     scale = masterSettings.scale ;      % scale for conversion to 16 bit
     file32Base = masterSettings.file32Base ; 
     fn = masterSettings.fn ;
@@ -338,9 +339,9 @@ disp('done')
 %% QS DEFINITION
 opts.meshDir = meshDir ;
 opts.flipy = flipy ;
-opts.timeinterval = timeinterval ;
-opts.timeunits = timeunits ;
-opts.spaceunits = '$\mu$m' ;
+opts.timeInterval = timeInterval ;
+opts.timeUnits = timeunits ;
+opts.spaceUnits = '$\mu$m' ;
 opts.nV = 100 ;
 opts.nU = 100 ;
 opts.normalShift = 10 ;

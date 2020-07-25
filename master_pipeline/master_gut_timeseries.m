@@ -73,8 +73,9 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
-    timeinterval = 1 ;  % physical interval between timepoints
-    timeunits = 'min' ; % physical unit of time between timepoints
+    timeInterval = 1 ;  % physical interval between timepoints
+    timeUnits = 'min' ; % physical unit of time between timepoints
+    spaceUnits = '$\mu$m' ; % physical unit of time between timepoints
     scale = 0.02 ;      % scale for conversion to 16 bit
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
     file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
@@ -88,8 +89,8 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'timePoints', timePoints, ...
         'ssfactor', ssfactor, ...
         'flipy', flipy, ...
-        'timeinterval', timeinterval, ...
-        'timeunits', timeunits, ...
+        'timeInterval', timeInterval, ...
+        'timeUnits', timeUnits, ...
         'scale', scale, ...
         'file32Base', file32Base, ...
         'fn', fn,...
@@ -125,8 +126,9 @@ if loadMaster
     ssfactor = masterSettings.ssfactor ;
     % whether the data is stored inverted relative to real position
     flipy = masterSettings.flipy ; 
-    timeinterval = masterSettings.timeinterval ;  % physical interval between timepoints
-    timeunits = masterSettings.timeunits ; % physical unit of time between timepoints
+    timeInterval = masterSettings.timeInterval ;  % physical interval between timepoints
+    timeUnits = masterSettings.timeUnits ; % physical unit of time between timepoints
+    spaceUnits = masterSettings.spaceUnits ; % unit of distance of full resolution data pixels ('$\mu$m')
     scale = masterSettings.scale ;      % scale for conversion to 16 bit
     file32Base = masterSettings.file32Base ; 
     fn = masterSettings.fn ;
@@ -510,9 +512,9 @@ end
 %% Define QuapSlap object
 opts.meshDir = meshDir ;
 opts.flipy = flipy ;
-opts.timeinterval = timeinterval ;
-opts.timeunits = timeunits ;
-opts.spaceunits = '$\mu$m' ;
+opts.timeInterval = timeInterval ;
+opts.timeUnits = timeUnits ;
+opts.spaceUnits = spaceUnits ;
 opts.nV = 100 ;
 opts.nU = 100 ;
 opts.normalShift = 10 ;
@@ -964,7 +966,7 @@ washout2d = 0.5 ;
 %% Iterate Through Time Points to Create Pullbacks ========================
 % Skip if already done
 % outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
-for tt = xp.fileMeta.timePoints(1:end)
+for tt = xp.fileMeta.timePoints(101:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
     
@@ -1247,35 +1249,32 @@ options.show_v3d_on_data = false ;
 options.save_ims = true ;
 QS.measurePIV3d(options) ;
 
+
+%% AUTOCORRELATIONS
+% overwrite_autocorrelations = false ;
+% do_acorr = false ;
+% redo_acorr = ~exist(fullfile(pivSimAvgDir, 'autocorr_velocities.png'), 'file') ;
+% if (redo_acorr || overwrite_autocorrelations) && do_acorr
+%     aux_autocorrelations
+% end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% First do very simpleminded averaging of velocities
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 options.overwrite = false ;
 options.plot_vxyz = true ;
 QS.timeAverageVelocitiesSimple('1x', options)
-
-%% AUTOCORRELATIONS
-overwrite_autocorrelations = false ;
-do_acorr = false ;
-redo_acorr = ~exist(fullfile(pivSimAvgDir, 'autocorr_velocities.png'), 'file') ;
-if (redo_acorr || overwrite_autocorrelations) && do_acorr
-    aux_autocorrelations
-end
-
 %% VELOCITY PLOTS
 options.overwrite = true ;
 options.plot_vxyz = false ;
 options.invertImage = true ;
 QS.plotTimeAvgVelSimple(options)
-
 %% Divergence and Curl (Helmholtz-Hodge)
 options = struct() ;
-options.overwrite = false ; 
-QS.helmholtzHodgeSimple(options) ;
-
-%% Measure twist (d v_phi / d zeta)
-options = struct() ;
 options.overwrite = false ;
-QS.measureTwist(options)
-
+options.samplingResolution = '1x' ; 
+options.averagingStyle = 'simple' ;
+QS.helmholtzHodge(options) ;
 %% Measure Compressibility (div(v), 2*vn*H, and gdot)
 options = struct() ;
 options.overwrite = false ;
@@ -1293,22 +1292,9 @@ options.lambda_err = 0.03 ;
 options.samplingResolution = '1x'; 
 QS.measureMetricKinematics(options)
 
-%% doubleResolution compressibility
-% options.samplingResolution = '2x'; 
-% QS.measureMetricKinematics(options)
-
-%% Measure required stress pattern
-options = struct() ;
-options.overwrite = false ;
-QS.measureStressPattern(options) ;
-
-%% Measure surface area growh of lobes and folds
-options = struct() ;
-options.overwrite = true ;
-options.preview = false ;
-QS.measureEulerianMetricDynamics(options)
-
-%% DOUBLE RESOLUTION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% DOUBLE RESOLUTION Simple average
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Measure velocities at 2*nU x 2*nV resolution
 options = struct() ;
 options.overwrite = false ;
@@ -1321,7 +1307,7 @@ QS.measurePIV3d2x(options) ;
 options.overwrite = false ;
 options.plot_vxyz = true ;
 QS.timeAverageVelocitiesSimple('2x', options) ;
-%% Velocity plots -- same as single resolution case!
+%% Velocity plots for 2x
 options.overwrite = false ;
 options.plot_vxyz = false ;
 options.invertImage = true ;
@@ -1349,14 +1335,65 @@ options.lambda_err = 0.03 ;
 options.samplingResolution = '2x'; 
 QS.measureMetricKinematics(options)
 
-
-%% Pullback streamlines connecting Lagrangian grids
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lagrangian dynamics
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Pullback pathlines connecting Lagrangian grids
 options = struct() ;
 options.overwrite = false ;
 options.preview = true ;
-options.debug = false ;
-QS.measurePullbackStreamlines(options)
+options.debug = false ; 
+QS.measurePullbackPathlines(options)
+% Optional:
+QS.measurePathlineVelocities(options)
+%% Pullback pathline time averaging of velocities
+options = struct() ;
+options.overwrite = false ;
 QS.timeAverageVelocities(options)
+%% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
+options = struct() ;
+options.overwrite = false ;
+options.samplingResolution = '1x' ;
+options.averagingStyle = 'Lagrangian' ;
+QS.helmholtzHodge(options) ;
+%% Compressibility & kinematics for Lagrangian
+options = struct() ;
+options.overwrite = false ;
+options.lambda_mesh = 0.002 ;
+options.lambda = 0.02 ;
+options.lambda_err = 0.03 ;
+options.samplingResolution = '1x'; 
+QS.measureMetricKinematics(options)
+%% Metric Kinematics Kymographs & Correlations
+options = struct() ;
+options.plot_Hgdot = false ;
+options.plot_flows = true ;
+options.plot_factors = true ;
+options.plot_kymographs = true ;
+options.plot_kymographs_pathlines = true ;
+options.plot_kymographs_cumsum = true ;
+options.plot_correlations = true ;
+options.plot_gdot_correlations = false ;
+options.plot_gdot_decomp = true ;
+QS.plotMetricKinematics(options)
+
+
+%% Measure twist (d v_phi / d zeta)
+options = struct() ;
+options.overwrite = false ;
+QS.measureTwist(options)
+
+%% Measure required stress pattern
+options = struct() ;
+options.overwrite = false ;
+QS.measureStressPattern(options) ;
+
+%% Measure surface area growh of lobes and folds
+options = struct() ;
+options.overwrite = true ;
+options.preview = false ;
+QS.measureEulerianMetricDynamics(options)
+
 
 %% Plot texture map in 3d with velocities
 for i = 1:size(vM, 1)
@@ -1511,118 +1548,23 @@ waitfor(gcf)
 
 
 %% Simpleminded streamlines from velocity scaled by dilation
-% Build 3d grid of positions and velocities
-% Assume that x0, y0 are fixed for all time
-ntimes = length(piv.x) ;
-x0 = piv.x{i} ;
-y0 = piv.y{i} ;
-xlen = size(v2dsmM, 1) ;
-ylen = size(v2dsmM, 2) ;
-vdat = v2dsmM(:) ;
-vxdat = reshape(vdat(:, 1), [ntimes, xlen, ylen]) ;
-vydat = reshape(vdat(:, 2), [ntimes, xlen, ylen]) ;
-vzdat = ones(size(vydat)) ; % we march through time at 1 index / timestep
-% Define positions we track through the streamlines
-startx = x0(1:200:end) ;
-starty = y0(1:200:end) ;
-startz = zeros(size(starty)) ;
-streamline(x0, y0, z0, vxdat, vydat, vzdat, startx, starty, startz)
-view(2)
-save(gcf, fullfile(pivDir, 'streamlines.png')) 
-error('break')
+% % Build 3d grid of positions and velocities
+% % Assume that x0, y0 are fixed for all time
+% ntimes = length(piv.x) ;
+% x0 = piv.x{i} ;
+% y0 = piv.y{i} ;
+% xlen = size(v2dsmM, 1) ;
+% ylen = size(v2dsmM, 2) ;
+% vdat = v2dsmM(:) ;
+% vxdat = reshape(vdat(:, 1), [ntimes, xlen, ylen]) ;
+% vydat = reshape(vdat(:, 2), [ntimes, xlen, ylen]) ;
+% vzdat = ones(size(vydat)) ; % we march through time at 1 index / timestep
+% % Define positions we track through the streamlines
+% startx = x0(1:200:end) ;
+% starty = y0(1:200:end) ;
+% startz = zeros(size(starty)) ;
+% streamline(x0, y0, z0, vxdat, vydat, vzdat, startx, starty, startz)
+% view(2)
+% save(gcf, fullfile(pivDir, 'streamlines.png')) 
+% error('break')
 
-
-%% Smooth velocities in time ==============================================
-% Make correspondences between faces in t_i, t_{i-1}, and t_{i+1} 
-% Interpolate velocities on grid to smooth them in time
-piv3dfn = fullfile(pivDir, 'piv3d.mat') ;
-if exist(piv3dfn, 'file')
-    load(piv3dfn)
-else
-    piv3d = cell(ntps, 1) ;
-    for i=1:ntps - 1
-        % Average in time by advecting v3d along correlation vector 
-        x0 = piv.x{i} ;
-        y0 = piv.y{i} ;
-        uu = piv.u_filtered{i} ;
-        v0 = piv.v_filtered{i} ; 
-        v3d0 = piv3d{i}.v0 ;
-        v3d0grid = reshape(v3d0, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
-        x0vel = squeeze(v3d0grid(:, :, 1)) ;
-        y0vel = squeeze(v3d0grid(:, :, 2)) ;
-        z0vel = squeeze(v3d0grid(:, :, 3)) ;
-                
-        % Advect 0 -> 1
-        x0ad1 = x0 + u0 ;
-        y0ad1 = y0 + v0 ;
-        
-        % Advect 0 -> -1
-        x0ad1 = x0 - u0 ;
-        y0ad1 = y0 - v0 ;
-        
-        % next timept
-        tpid = i + 1 ;
-        if tpid < ntps
-            x1 = piv.x{tpid} ;
-            y1 = piv.y{tpid} ;
-            u1 = piv.u_filtered{tpid} ;
-            v1 = piv.v_filtered{tpid} ; 
-            v3d1 = piv3d{tpid}.v0 ;
-            % cast as NxMx3, then as N*M x 1 arrays for vx,vy,vz separately
-            v3d1grid = reshape(v3d1, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
-            x1vel = squeeze(v3d1grid(:, :, 1)) ;
-            y1vel = squeeze(v3d1grid(:, :, 2)) ;
-            z1vel = squeeze(v3d1grid(:, :, 3)) ;
-            % Find the velocity at the advected position using only 2d coords
-            Fx = griddedInterpolant(x1', y1', x1vel') ;
-            Fy = griddedInterpolant(x1', y1', y1vel') ;
-            Fz = griddedInterpolant(x1', y1', z1vel') ;
-            v3d1 = [Fx(x0ad1(:), y0ad1(:)), ...
-                Fy(x0ad1(:), y0ad1(:)), Fz(x0ad1(:), y0ad1(:))] ;
-        else
-            v3d1 = v3d0 ;
-        end
-        
-        % previous timept
-        tpid = i - 1; 
-        if tpid > 0
-            x2 = piv.x{tpid} ;
-            y2 = piv.y{tpid} ;
-            u2 = piv.u_filtered{tpid} ;
-            v2 = piv.v_filtered{tpid} ; 
-            v3d2 = piv3d{tpid}.v0 ;
-            % cast as NxMx3, then as N*M x 1 arrays for vx,vy,vz separately
-            v3d2grid = reshape(v3d2, [size(piv.x{1}, 1), size(piv.x{1}, 2), 3]) ;
-            x2vel = squeeze(v3d2grid(:, :, 1)) ;
-            y2vel = squeeze(v3d2grid(:, :, 2)) ;
-            z2vel = squeeze(v3d2grid(:, :, 3)) ;
-            % Find the velocity at the advected position using only 2d coords
-            Fx = griddedInterpolant(x0', y0', x2vel') ;
-            Fy = griddedInterpolant(x0', y0', y2vel') ;
-            Fz = griddedInterpolant(x0', y0', z2vel') ;
-            v3d2 = [Fx(x0ad2(:), y0ad2(:)), ...
-                Fy(x0ad2(:), y0ad2(:)), Fz(x0ad2(:), y0ad2(:))] ;
-        else
-            v3d2 = v3d0 ;
-        end
-        
-        % Perform a boxcar average & store the result
-        v0avg = (1/3) * (v3d0 + v3d1 + v3d2) ;
-        piv3d{i}.v0avg = v0avg ;
-        
-        % Decompose the result into tangential and normal components
-        
-        % Plot the tangential velocity as heatmap on top of the image
-        fig = figure('units', 'normalized', ...
-            'outerposition', [0 0 1 1], 'visible', 'off') ;
-        imshow(im * washout2d + max(im) * (1-washout2d)) ;
-        hold on;
-        h2 = imagesc(piv.x{i}(1, :), piv.y{i}(:, 1), vangle) ;
-        colormap phasemap
-        % phasebar
-        set(h2, 'AlphaData', speed)
-        plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
-        saveas(fig, fullfile(pivSimAvgImTDir, [sprintf('%04d', time(i)) '.png'])) ;    
-        close all
-    end
-end

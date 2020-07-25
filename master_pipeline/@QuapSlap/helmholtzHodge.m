@@ -1,4 +1,4 @@
-function helmholtzHodgeSimple(QS, options) 
+function helmholtzHodge(QS, options) 
 %helmholtzHodge(QS, options) 
 %   Take divergence and "curl" on 2d evolving surface in 3d
 %
@@ -10,7 +10,8 @@ function helmholtzHodgeSimple(QS, options)
 %       overwrite previous results
 %   preview : bool
 %       view intermediate results
-%   
+%   averagingStyle : str ('Lagrangian', 'simple')
+%       style in which velocities were averaged over time
 %   alphaVal : float
 %       the opacity of the heatmap to overlay
 %   invertImage : bool
@@ -24,15 +25,15 @@ overwrite = false ;
 overwrite_images = false ;
 qsubU = 5 ; 
 qsubV = 10 ;
-niter_smoothing = [1000, 1000] ;
+niter_smoothing = [1000, 1000, 1000] ;
 plot_dec_pullback = true ;
 plot_dec_texturepatch = false ;
 preview = false ;
-pivimCoords = 'sp_sme' ;
-doubleCovered = true;
-lambda_smooth = 0.05 ;
+pivimCoords = QS.piv.imCoords ;
+lambda_smooth = 0.01 ;
+lambda_mesh = 0.001 ;
 samplingResolution = '1x' ;
-
+averagingStyle = 'Lagrangian' ;
 
 %% Unpack options
 if isfield(options, 'samplingResolution')
@@ -61,14 +62,12 @@ if isfield(options, plot_dec_texturepatch)
 end
 if isfield(options, 'pivimCoords')
     pivimCoords = options.pivimCoords ;
-    if strcmp(pivimCoords(-1), 'e')
-        doubleCovered = true ;
-    else
-        doubleCovered = false ;
-    end
 end
 if isfield(options, 'lambda')
     lambda_smooth = options.lambda ;
+end
+if isfield(options, 'lambda_mesh')
+    lambda_mesh = options.lambda_mesh ;
 end
 
 % Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
@@ -86,23 +85,50 @@ fname = QS.fileBase.name ;
 [rot, trans] = QS.getRotTrans() ;
 resolution = QS.APDV.resolution ;
 if doubleResolution
-    QS.getVelocitySimpleAverage2x('vf', 'v2dum') ;
-    vf = QS.velocitySimpleAverage2x.vf ;
-    v2dum = QS.velocitySimpleAverage2x.v2dum ;
-    decDirRoot = QS.dir.pivSimAvgDEC2x ;
     nU = 2 * QS.nU - 1 ;
     nV = 2 * QS.nV - 1 ;
     piv3dFileBase = QS.fullFileBase.piv3d2x ;
-    decFnBase = QS.fullFileBase.dec2x ;
 else
-    QS.getVelocitySimpleAverage('vf', 'v2dum') ;
-    vf = QS.velocitySimpleAverage.vf ;
-    v2dum = QS.velocitySimpleAverage.v2dum ;
-    decDirRoot = QS.dir.pivSimAvgDEC ;
     nU = QS.nU ;
     nV = QS.nV ;
     piv3dFileBase = QS.fullFileBase.piv3d ;
-    decFnBase = QS.fullFileBase.dec ;
+end
+if strcmp(averagingStyle, 'Lagrangian')
+    if doubleResolution
+        QS.getVelocityAverage2x('vf', 'v2dum') ;
+        vf = QS.velocityAverage2x.vf ;
+        v2dum = QS.velocityAverage2x.v2dum ;
+        decDirRoot = QS.dir.pivAvgDEC2x ;
+        decFnBase = QS.fullFileBase.decAvg2x ;
+    else
+        QS.getVelocityAverage('vf', 'v2dum') ;
+        vf = QS.velocityAverage.vf ;
+        v2dum = QS.velocityAverage.v2dum ;
+        decDirRoot = QS.dir.pivAvgDEC ;
+        decFnBase = QS.fullFileBase.decAvg ;    
+    end
+elseif strcmp(averagingStyle, 'simple') 
+    if doubleResolution
+        QS.getVelocitySimpleAverage2x('vf', 'v2dum') ;
+        vf = QS.velocitySimpleAverage2x.vf ;
+        v2dum = QS.velocitySimpleAverage2x.v2dum ;
+        decDirRoot = QS.dir.pivSimAvgDEC2x ;
+        nU = 2 * QS.nU - 1 ;
+        nV = 2 * QS.nV - 1 ;
+        piv3dFileBase = QS.fullFileBase.piv3d2x ;
+        decFnBase = QS.fullFileBase.decSimAvg2x ;
+    else
+        QS.getVelocitySimpleAverage('vf', 'v2dum') ;
+        vf = QS.velocitySimpleAverage.vf ;
+        v2dum = QS.velocitySimpleAverage.v2dum ;
+        decDirRoot = QS.dir.pivSimAvgDEC ;
+        nU = QS.nU ;
+        nV = QS.nV ;
+        piv3dFileBase = QS.fullFileBase.piv3d ;
+        decFnBase = QS.fullFileBase.decSimAvg ;
+    end
+else
+    error('averagingStyle not recognized. Use Lagrangian or simple')
 end
  
 t0 = QS.t0set() ;
@@ -204,7 +230,8 @@ for tidx = tidx2do
         %% Compute divs and rots. Note that smoothing occurs inside func
         disp('Decomposing flow into div/rot...')
         Options = struct() ;
-        Options.lambda = lambda_smooth ;        
+        Options.lambda = lambda_smooth ;   
+        Options.lambda_mesh = lambda_mesh ;        
         [divs, rots, harms, glueMesh] = ...
             helmHodgeDECRectGridPullback(cutM, vfsm, Options,...
             'niterSmoothing', niter_smoothing, ...
@@ -252,7 +279,8 @@ for tidx = tidx2do
             error(['Have not coded for this pivimCoords option. Do so here: ' pivimCoords])
         end
         im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
-        addTitleStr = [': $t=$', num2str(tp - t0), ' ', QS.timeunits] ;
+        addTitleStr = [': $t=$', num2str((tp - t0)*QS.timeInterval), ...
+                       ' ', QS.timeUnits] ;
         Options = struct() ;
         Options.addTitleStr = addTitleStr ;
         Options.div2dfn = div2dfn ;

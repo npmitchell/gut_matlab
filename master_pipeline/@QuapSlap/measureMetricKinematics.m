@@ -1,5 +1,4 @@
-function [gdot_apM, HH_apM, divv_apM, veln_apM] = ...
-    measureMetricKinematics(QS, options)
+function measureMetricKinematics(QS, options)
 %[gdot_apM, HH_apM, divv_apM, veln_apM] = measureMetricKinematics(QS, options)
 %   Measure degree of incompressibility of the flow on the evolving surface
 %   Out-of-plane motion is v_n * 2H, where v_n is normal velocity and H is
@@ -9,7 +8,7 @@ function [gdot_apM, HH_apM, divv_apM, veln_apM] = ...
 %   The difference div(v_t) - vn*2H = Tr[g^{-1} dot{g}], which is a measure
 %   of isotropic metric change over time (dot is the partial derivative wrt
 %   time). 
-
+%
 % Parameters
 % ----------
 % QS : QuapSlap class instance
@@ -449,7 +448,7 @@ for tp = tp2do
     pOptions.climit_err = climit ;
     pOptions.climit_veln = climit_veln ;
     pOptions.climit_H = climit_H ;
-    QS.plotMetricKinematics(pOptions)
+    QS.plotMetricKinematicsTimePoint(pOptions)
     
     % %% Store in matrices
     % % dv averaged

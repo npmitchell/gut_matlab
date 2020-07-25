@@ -1,12 +1,7 @@
-function timeAverageVelocitiesLagrangian(QS, options)
+function timeAverageVelocities(QS, options)
 %measurePullbackStreamlines(QS, options)
-%   Use streamlines of optical flow in pullback space. 
-%   These streamlines can then be used to query velocities or other
-%   properties that are parameterized by pullback coordinates. 
-%   For example, to build a Lagrangian-frame measure of divergence of 
-%   tangential velocity, div(v_t), we can query div(v_t) at the positions
-%   of the PullbackStreamlines (via interpolation of div(v_t) defined on
-%   pullback mesh vertices).
+%   Use pathlines of optical flow in pullback space to query velocities
+%   and average along pathlines.
 %
 % Parameters
 % ----------
@@ -35,16 +30,13 @@ end
 %% Unpack options
 % Default values for options are to use sphi smoothed extended coords
 % as PIV reference coord sys
-pivimCoords = QS.pivimCoords ;
+pivimCoords = QS.piv.imCoords ;
 
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
-end
-if isfield(options, 'pivimCoords')
-    pivimCoords = options.pivimCoords ;
 end
 if strcmp(pivimCoords(-1), 'e')
     doubleCovered = true ;
@@ -70,10 +62,8 @@ timePoints = QS.xp.fileMeta.timePoints ;
 disp('Performing/Loading simple averaging')
 % Create directories
 if doubleResolution
-    % pivSimAvgDir = QS.dir.pivSimAvg2x ;
     fileNames = QS.fileName.pivAvg2x ;
 else
-    % pivSimAvgDir = QS.dir.pivSimAvg ;
     fileNames = QS.fileName.pivAvg ;
 end
 
@@ -95,6 +85,14 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
     
     disp('Could not find time-smoothed velocities on disk')
     disp('Computing them...')
+    
+    % Load lagrangian pathlines
+    disp('Loading pathlines: XY')
+    load(sprintf(QS.fileName.pathlines.XY, t0), 'pivPathlines')
+    load(sprintf(QS.fileName.pathlines.vXY, t0), 'vertexPathlines')
+    load(sprintf(QS.fileName.pathlines.XY, t0), 'facePathlines')
+    
+    
     ntps = length(timePoints)-1;
     
     %% Now load 3d piv and smooth in Lagrangian coords (along streamlines)
@@ -149,12 +147,18 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
            scatter(xx1(bad), yy1(bad), 30, 'k')
         end
         
-        %% For all streamlines, query velocity at each time
+        %% For all pathlines, query velocity at this current time
+        % Query velocities at eval coords, mesh vertices, mesh faces via 
+        % interpolation. Also query vn, v2d (ie vt), and v2dum (vt/|g|). 
+        
+        % xa,ya are advected positions at this time
+        
         % Interpolate velocities
-        griddedInterpolant(x0, y0, 
-
+        ui = scatteredInterpolant(xa, ya, uu(:), 'natural', 'nearest') ;
+        vi = scatteredInterpolant(xa, ya, vv(:), 'natural', 'nearest') ;
+        
         % Load streamline positions at this time
-        sLXY = strLinesM(tp, :, :, :)
+        sLXY = pathlines(tp, :, :, :)
         
         % First do v0_rs
         Fx = griddedInterpolant(x0', y0', piv3d.v0_rs(:, 1)', 'linear', 'nearest') ;

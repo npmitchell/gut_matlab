@@ -15,16 +15,16 @@ function initializeQuapSlap(QS, xp, opts)
 QS.xp = xp ;
 QS.flipy = opts.flipy ;
 meshDir = opts.meshDir ;
-QS.timeunits = opts.timeunits ;
-QS.spaceunits = opts.spaceunits ;
+QS.timeUnits = opts.timeUnits ;
+QS.spaceUnits = opts.spaceUnits ;
 QS.fileBase.fn = xp.fileMeta.filenameFormat ;
 QS.ssfactor = xp.detectOptions(1).ssfactor ;
 QS.nV = opts.nV ;
 QS.nU = opts.nU ;
 if isfield(opts, 'timeinterval')
-    QS.timeinterval = opts.timeinterval ;
+    QS.timeInterval = opts.timeInterval ;
 else
-    QS.timeinterval = 1 ;
+    QS.timeInterval = 1 ;
 end
 
 QS.normalShift = opts.normalShift ;
@@ -343,18 +343,47 @@ QS.dir.pivn2d = fullfile(QS.dir.piv, 'vn2d') ;
 QS.dir.pivdilation = fullfile(QS.dir.piv, 'dilation') ;
 QS.fileName.pivRaw = fullfile(QS.dir.piv, 'piv_results.mat') ;
 QS.fullFileBase.piv3d = fullfile(QS.dir.piv3d, 'piv3d_%04d.mat') ;
+QS.dir.pathlines = struct() ;
+QS.dir.pathlines.data = fullfile(QS.dir.piv, 'pathlines') ; 
+QS.dir.pathlines.XY = fullfile(QS.dir.pathlines.data, 'images_XY') ;
+QS.dir.pathlines.XYZ = fullfile(QS.dir.pathlines.data, 'images_XYZ') ;
+QS.dir.pathlines.vXY = fullfile(QS.dir.pathlines.data, 'images_vXY') ;
+QS.dir.pathlines.fXY = fullfile(QS.dir.pathlines.data, 'images_fXY') ;
+QS.dir.pathlines.v3d = fullfile(QS.dir.pathlines.data, 'images_v3d') ;
+QS.dir.pathlines.f3d = fullfile(QS.dir.pathlines.data, 'images_f3d') ;
+QS.fileName.pathlines = struct() ;
+pdir = QS.dir.pathlines.data ;
+QS.fileName.pathlines.XY = fullfile(pdir, 'piv_pathlines_%04dt0_XY.mat') ;
+QS.fileName.pathlines.XYZ = fullfile(pdir, 'piv_pathlines_%04dt0_XYZ.mat') ;
+QS.fileName.pathlines.vXY = fullfile(pdir, 'piv_pathlines_%04dt0_vXY.mat') ;
+QS.fileName.pathlines.v3d = fullfile(pdir, 'piv_pathlines_%04dt0_v3d.mat') ;
+QS.fileName.pathlines.fXY = fullfile(pdir, 'piv_pathlines_%04dt0_fXY.mat') ;
+QS.fileName.pathlines.f3d = fullfile(pdir, 'piv_pathlines_%04dt0_f3d.mat') ;
+% pathline velocities
+QS.fileName.pathlines.v3d = fullfile(pdir, 'vM_avg%04dt0.mat')  ;
+QS.fileName.pathlines.vn  = fullfile(pdir, 'vnM_avg%04dt0.mat') ;
+QS.fileName.pathlines.vv  = fullfile(pdir, 'vvM_avg%04dt0.mat') ;
+QS.fileName.pathlines.vf  = fullfile(pdir, 'vfM_avg%04dt0.mat') ;
+QS.fileName.pathlines.v2d = fullfile(pdir, 'v2dM_avg%04dt0.mat') ;
+QS.fileName.pathlines.v2dum = fullfile(pdir, 'v2dMum_avg%04dt0.mat') ;
+QS.fileName.pathlines.v3dsm   = fullfile(pdir, 'vsmM_%04dt0.mat') ;
+QS.fileName.pathlines.vnsm    = fullfile(pdir, 'vnsmM_%04dt0.mat') ;
+QS.fileName.pathlines.vvsm    = fullfile(pdir, 'vvsmM_%04dt0.mat') ;
+QS.fileName.pathlines.vfsm    = fullfile(pdir, 'vfsmM_%04dt0.mat') ;
+QS.fileName.pathlines.v2dsm   = fullfile(pdir, 'v2dsmM_%04dt0.mat') ;
+QS.fileName.pathlines.v2dsmum = fullfile(pdir, 'v2dsmMum_%04dt0.mat') ;
 
 %% Velocities -- Lagrangian averaging
 QS.dir.pivAvg = fullfile(QS.dir.piv, 'lagrangianAvg') ;
 % QS.dir.pivAvgCurl = fullfile(QS.dir.pivAvg, 'curl') ;
 % QS.dir.pivAvgDvg = fullfile(QS.dir.pivAvg, 'dvg') ;
 QS.fileName.pivAvg = struct() ;
-QS.fileName.pivAvg.v2dum = fullfile(QS.dir.pivAvg, 'v2dMum_simpletimeavg.mat') ;
-QS.fileName.pivAvg.v2d = fullfile(QS.dir.pivAvg, 'v2dM_simpletimeavg.mat') ;
-QS.fileName.pivAvg.vn  = fullfile(QS.dir.pivAvg, 'vnM_simpletimeavg.mat') ;
-QS.fileName.pivAvg.v3d = fullfile(QS.dir.pivAvg, 'vM_simpletimeavg.mat') ;
-QS.fileName.pivAvg.vv  = fullfile(QS.dir.pivAvg, 'vvM_simpletimeavg.mat') ;
-QS.fileName.pivAvg.vf  = fullfile(QS.dir.pivAvg, 'vfM_simpletimeavg.mat');
+QS.fileName.pivAvg.v2dum = fullfile(QS.dir.pivAvg, 'v2dMum_avg.mat') ;
+QS.fileName.pivAvg.v2d = fullfile(QS.dir.pivAvg, 'v2dM_avg.mat') ;
+QS.fileName.pivAvg.vn  = fullfile(QS.dir.pivAvg, 'vnM_avg.mat') ;
+QS.fileName.pivAvg.v3d = fullfile(QS.dir.pivAvg, 'vM_avg.mat')  ;
+QS.fileName.pivAvg.vv  = fullfile(QS.dir.pivAvg, 'vvM_avg.mat') ;
+QS.fileName.pivAvg.vf  = fullfile(QS.dir.pivAvg, 'vfM_avg.mat') ;
 
 %% Helmholtz-Hodge and DEC -- Lagrangian averaging
 QS.dir.pivAvgDEC = struct() ;

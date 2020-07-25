@@ -25,12 +25,16 @@ function timeAverageVelocitiesSimple(QS, samplingResolution, options)
 % -------
 % Saved files on disk containing
 %   vM  : , in um/min rs
+%       3d velocities at PIV evaluation points in um/dt in APDV coords
 %   vfM : ,  in um/min rs
+%       3d velocities at face barycenters in um/dt in APDV coords
 %   vnM : , in um/min rs
+%       normal velocities at PIV evaluation points in um/dt in APDV coords
 %   vvM : , in um
-%   v2dM: , in pixels/ min
-%   v2dMum : , scaled pix/min, but proportional to um/min
-%
+%   v2dM: , in pix/dt 
+%       in pix/dt at PIV evaluation coords
+%   v2dMum : , 
+%       scaled pix/dt, but proportional to um/min at PIV evaluation coords
 %
 % NPMitchell 2020
 
@@ -102,8 +106,8 @@ end
 QS.clearTime() ;
 
 if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
-        exist(fileNames.vn, 'file') || ~exist(fileNames.v3d, 'file') || ...
-        exist(fileNames.vf, 'file') || ~exist(fileNames.vv, 'file') || ...
+        ~exist(fileNames.vn, 'file') || ~exist(fileNames.v3d, 'file') || ...
+        ~exist(fileNames.vf, 'file') || ~exist(fileNames.vv, 'file') || ...
         overwrite
     
     disp('Could not find time-smoothed velocities on disk')
@@ -161,13 +165,13 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         end
         
         % BUILD ARRAYS
-        vM(i, :, :) = piv3d.v0_rs ;             % in um/min rs
-        vfM(i, :, :) = piv3d.v3dfaces_rs ;      % in um/min rs
-        vnM(i, :, :) = piv3d.v0n_rs ;           % in um/min rs
-        vvM(i, :, :) = QS.dx2APDV(piv3d.v3dvertices) ; % in um/min rs
-        v2dM(i, :, :) = piv3d.v0t2d ;           % in pixels/ min
-        v2dMum(i, :, 1) = piv3d.v0t2d(:, 1) ./ piv3d.dilation ; % in scaled pix/min, but proportional to um/min
-        v2dMum(i, :, 2) = piv3d.v0t2d(:, 2) ./ piv3d.dilation ; % in scaled pix/min, but proportional to um/min
+        vM(i, :, :) = piv3d.v0_rs ;             % in um/min rs at PIV evaluation coords
+        vfM(i, :, :) = piv3d.v3dfaces_rs ;      % in um/min rs at mesh face barycenters
+        vnM(i, :, :) = piv3d.v0n_rs ;           % in um/min rs at PIV evaluation coords
+        vvM(i, :, :) = QS.dx2APDV(piv3d.v3dvertices) ; % in um/min rs at mesh vertices
+        v2dM(i, :, :) = piv3d.v0t2d ;           % in pix/dt at PIV evaluation coords
+        v2dMum(i, :, 1) = piv3d.v0t2d(:, 1) ./ piv3d.dilation ; % in scaled pix/min, but proportional to um/min, at PIV evaluation coords
+        v2dMum(i, :, 2) = piv3d.v0t2d(:, 2) ./ piv3d.dilation ; % in scaled pix/min, but proportional to um/min, at PIV evaluation coords
         
     end
     clearvars first 

@@ -180,6 +180,7 @@ else
         vmax1 = max(mesh1.u(:, 2)) ;
         
         m0XY = QS.uv2XY(im0, mesh0.u, doubleCovered, umax0, vmax0) ;
+        % Note: no need for m1XY since we only use tiled mesh (tm1XY)
         % m1XY = QS.uv2XY(im1, mesh1.u, doubleCovered, umax1, vmax1) ;
         m0x = m0XY(:, 1) ;
         m0y = m0XY(:, 2) ;
@@ -507,6 +508,7 @@ else
             % Obtain circumcenters for the current timepoint's 2D mesh
             % tr0 = triangulation(tm0f, tm0XY) ;  <-- already done in interpolate2dpts_3Dmesh
             % bc = circumcenter(tr0) ;
+            % bc = barycenter(tm0XY, tm0f) ; % this is in gptoolbox
 
             % Calculate centroid of faces -- here evaluate only on untiled mesh
             bc = cat( 3, mesh_for_interp.u(mesh_for_interp.f(:,1), :), ...
@@ -620,13 +622,13 @@ else
         readme.v0n = "Nx1 float: normal velocity [mesh pix / dt]" ;
         readme.v0t = "Nx3 float: tangential velocity in 3d [mesh pix / dt]" ;
         readme.facenormals = "#faces x 3 float: face normals for all faces [unitless, mesh pix / mesh pix]" ;
-        readme.v3dfaces = "#faces x 3 float: face-centered velocities in embedding space [mesh pix / dt]" ;
+        readme.v3dfaces = "#faces x 3 float: face-centered velocities in embedding space (eval at face barycenters) [mesh pix / dt]" ;
         readme.v3dvertices = "#mesh vertices x 3 float: vertex-centered velocities in embedding space [mesh pix / dt]" ;
-        readme.v0_rs = "Nx3 float: rotated/scaled 3d velocities [um/min]" ;
-        readme.v0n_rs = "Nx3 float: scaled normal velocities [um/min]" ;
-        readme.v0t_rs = "Nx3 float: rotated/scaled tangential 3d velocities [um/min]" ;
-        readme.normals_rs = "Nx3 float: normal vector of field faces in 3d [unitless, um/um]" ;
-        readme.v0t2d = "Nx2 float: in-plane velocity [pullback pix / dt]" ;
+        readme.v0_rs = "Nx3 float: rotated/scaled 3d velocities at PIV evaluation points [um/min]" ;
+        readme.v0n_rs = "Nx3 float: scaled normal velocities at PIV evaluation points [um/min]" ;
+        readme.v0t_rs = "Nx3 float: rotated/scaled tangential 3d velocities at PIV evaluation points [um/min]" ;
+        readme.normals_rs = "Nx3 float: normal vector of field faces in 3d (at PIV evaluation points) [unitless, um/um]" ;
+        readme.v0t2d = "Nx2 float: in-plane velocity (at PIV evaluation points) [pullback pix / dt]" ;
         readme.g_ab = "Nx2x2 float: pullback metric" ;
         readme.dilation = "Nx1 float: dilation of face from 3d to 2d (A_2d [pullback_pix^2] / A_3d [mesh_pix^2])" ;
         readme.jac = "#faces x 1 cell: jacobian of 3d->2d transformation" ;

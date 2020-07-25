@@ -131,7 +131,7 @@ if tt == QS.xp.fileMeta.timePoints(1)
         % cc = incenter(triangulation(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), cutMesh.v(:, 3)))
         % quiver3(cc(:, 1), cc(:, 2), cc(:, 3), nn(:, 1), nn(:, 2), nn(:, 3), 1)
     end
-else 
+else
     % If a previous Twist is not held in RAM, compute it
     % if ~exist('prevTw', 'var')
     % Load previous mesh and previous cutP

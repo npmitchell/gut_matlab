@@ -9,9 +9,9 @@ classdef QuapSlap < handle
     % trans         % APDV translation 
     properties
         xp
-        timeinterval
-        timeunits
-        spaceunits
+        timeInterval
+        timeUnits
+        spaceUnits
         dir
         dirBase
         fileName
@@ -67,7 +67,23 @@ classdef QuapSlap < handle
             'adjusthigh', 0 )    % image intensity data in 3d and scaling
         currentVelocity = struct('piv3d', struct(), ...
             'piv3d2x', struct()) ;     
-        pivimCoords = 'sp_sme' ;  % image coord system for measuring PIV / optical flow
+        piv = struct( ...
+            'imCoords', 'sp_sme', ... % image coord system for measuring PIV / optical flow) ;
+            'Lx', [], ...
+            'Ly', [], ...
+            'raw', struct()) ;  
+        velocityAverage = struct('v3d', [], ...
+            'v2d', [], ...
+            'v2dum', [], ...
+            'vn', [], ...
+            'vf', [], ...       
+            'vv', []) ;          % velocity field after Lagrangian avg
+        velocityAverage2x = struct('v3d', [], ...
+            'v2d', [], ...
+            'v2dum', [], ...
+            'vn', [], ...
+            'vf', [], ...       
+            'vv', []) ;          % velocity field after Lagrangian avg
         velocitySimpleAverage = struct('v3d', [], ...
             'v2d', [], ...
             'v2dum', [], ...
@@ -82,7 +98,9 @@ classdef QuapSlap < handle
             'vv', []) ;          % velocity field after in-place (uv) avg
         cleanCntrlines
         pivPullback = 'sp_sme' ; % coordinate system used for velocimetry
-        
+        pathlines = struct('piv', [], ...  % Lagrangian pathlines from piv coords
+            'vertices', [], ...            % Lagrangian pathlines from mesh vertices
+            'faces', []) ;                 % Lagrangian pathlines from mesh face barycenters
     end
     
     % Some methods are hidden from public view. These are used internally
@@ -94,6 +112,7 @@ classdef QuapSlap < handle
         initializeQuapSlap(QS, xp, opts)
         plotSPCutMeshSmSeriesUtility(QS, coordsys, options)
         plotMetricKinematicsTimePoint(QS, options)
+        [XX, YY] = pullbackPathlines(QS, x0, y0, t0, options) 
     end
     
     % Public methods, accessible from outside the class and reliant on 
@@ -789,13 +808,65 @@ classdef QuapSlap < handle
         coordinateSystemDemo(QS)
         
         % flow measurements
+        function getPIV(QS, options)
+            % Load PIV results and store in QS.piv if not already loaded
+            if isempty(fieldnames(QS.piv.raw)) || isempty(QS.piv.Lx) ...
+                    || isempty(QS.piv.Lx) 
+                % Load raw PIV results
+                if nargin > 1
+                    QS.loadPIV(options)
+                else
+                    QS.loadPIV() 
+                end
+            end
+        end
+        function loadPIV(QS, options)
+            % Load PIV results from disk and store in QS.piv
+            if ~isempty(fieldnames(QS.piv.raw)) && isempty(QS.piv.Lx) ...
+                    && isempty(QS.piv.Lx) 
+                disp("WARNING: Overwriting QS.piv with piv from disk")
+            end
+            QS.piv.raw = load(QS.fileName.pivRaw) ;  
+            timePoints = QS.xp.fileMeta.timePoints ;
+            if strcmp(QS.piv.imCoords, 'sp_sme')
+                im0 = imread(sprintf(QS.fullFileBase.im_sp_sme, ...
+                    timePoints(1))) ;
+                % for now assume all images are the same size
+                QS.piv.Lx = size(im0, 1) * ones(length(timePoints), 1) ;
+                QS.piv.Ly = size(im0, 2) * ones(length(timePoints), 1) ;
+            end
+        end
         measurePIV3d(QS, options)
         measurePIV3dDoubleResolution(QS, options)
-        timeAverageVelocitiesSimple(QS, samplingResolution, options)
         % Note: To timeAverage Velocities at Double resolution, pass
         % options.doubleResolution == true
         
+        %% Pathlines
+        measurePullbackPathlines(QS, options)
+        function loadPullbackPathlines(QS, t0, varargin)
+            if nargin < 2
+                t0 = QS.t0set() ;
+            end
+            if nargin < 3
+                varargin = {'pivPathlines', 'vertexPathlines', ...
+                    'facePathlines'} ;
+            end
+            if any(contains(varargin, 'pivPathlines'))
+                load(sprintf(QS.fileName.pathlines.XY, t0), 'pivPathlines')
+                QS.pathlines.piv = pivPathlines ;
+            end
+            if any(contains(varargin, 'vertexPathlines'))
+                load(sprintf(QS.fileName.pathlines.vXY, t0), 'vertexPathlines')
+                QS.pathlines.vertices = vertexPathlines ;
+            end
+            if any(contains(varargin, 'facePathlines'))
+                load(sprintf(QS.fileName.pathlines.fXY, t0), 'facePathlines')
+                QS.pathlines.faces = facePathlines ;
+            end
+        end
+        
         %% Velocities -- simple/surface-Lagrangian averaging
+        timeAverageVelocitiesSimple(QS, samplingResolution, options)
         function loadVelocitySimpleAverage(QS, varargin)
             % Load and pack into struct
             if any(strcmp(varargin, 'v3d'))
@@ -859,9 +930,10 @@ classdef QuapSlap < handle
             end
         end
         plotTimeAvgVelSimple(QS, samplingResolution, options)
-        helmoltzHodgeSimple(QS, options)
+        helmholtzHodge(QS, options)
         
         %% Velocities -- Lagrangian Averaging
+        timeAverageVelocities(QS, samplingResolution, options)
         function loadVelocityAverage(QS, varargin)
             % Load and pack into struct
             if any(strcmp(varargin, 'v3d'))
@@ -925,11 +997,11 @@ classdef QuapSlap < handle
             end
         end
         plotTimeAvgVelLagrangian(QS, samplingResolution, options)
-        helmoltzHodgeLagrangian(QS, options)
         
         %% compressible/incompressible flow on evolving surface
         [cumerr, HHs, divvs, velns] = measureMetricKinematics(QS, options)
         plotMetricKinematics(QS, options)
+        
         
     end
     
@@ -958,12 +1030,14 @@ classdef QuapSlap < handle
             % doubleCovered : bool
             %   the image is a double cover of the pullback (extended/tiled
             %   so that the "top" half repeats below the bottom and the
-            %   "bottom" half repeats above the top
+            %   "bottom" half repeats above the top. That is, 
+            %   consider im to be a double cover in Y (periodic in Y and 
+            %   covers pullback space twice (-0.5 * Ly, 1.5 * Ly)
             % umax : float
-            %   maximum extent of the pullback x coordinate
+            %   extent of pullback mesh coordinates in u direction (X)
             % vmax : float
-            %   maximum extent of the pullback y coordinate (BEFORE double 
-            %   covering/tiling)
+            %   extent of pullback mesh coordinates in v direction (Y)
+            %   before double covering/tiling
             
             if nargin < 3
                 doubleCovered = true ;
@@ -1000,6 +1074,23 @@ classdef QuapSlap < handle
             % x--> (xy(:, 1) * (size(im, 2)-1)) / (1*umax) + 1 , ...
             % y--> (xy(:, 2) * (size(im, 1)-1)) / (2*vmax) + 0.75 + (size(im,1)-1)*0.25
             %
+            % Parameters
+            % ----------
+            % im : NxM numeric array or length(2) int array
+            %   2D image into whose pixel space to map or size(im)
+            % uv : Q*2 numeric array
+            %   mesh coordinates to convert to pullback pixel space (XY)
+            % doubleCovered: bool
+            %   the image is a double cover of the pullback (extended/tiled
+            %   so that the "top" half repeats below the bottom and the
+            %   "bottom" half repeats above the top. That is, 
+            %   consider im to be a double cover in Y (periodic in Y and 
+            %   covers pullback space twice (-0.5 * Ly, 1.5 * Ly)
+            % umax : float
+            %   extent of pullback mesh coordinates in u direction (X)
+            % vmax : float 
+            %   extent of pullback mesh coordinates in v direction (Y)
+            %   before double covering/tiling
             if nargin < 3
                 doubleCovered = true ;
             end
@@ -1010,8 +1101,14 @@ classdef QuapSlap < handle
                 vmax = 1.0 ;
             end
             
-            Xsz = size(im, 2) ;
-            Ysz = size(im, 1) ;
+            if any(size(im) > 2) 
+                Xsz = size(im, 2) ;
+                Ysz = size(im, 1) ;
+            else
+                % Interpret im as imsize
+                Xsz = im(1) ;
+                Ysz = im(2) ;
+            end
             XY = 0*uv ;
             XY(:, 1) = uv(:, 1) * (Xsz-1) / (1*umax) + 1 ;
             if doubleCovered
@@ -1026,28 +1123,28 @@ classdef QuapSlap < handle
         
         function [xx, yy] = clipXY(xx, yy, Lx, Ly)
             % Clip x at (1, Lx) and clip Y as periodic (1=Ly, Ly=1), for
-            % image that is periodic in Y.
+            % image that is periodic in Y. Consider Y in (1, Ly).
             xx(xx > Lx) = Lx ;
             xx(xx < 1 ) = 1 ;
             yy(yy > Ly) = yy(yy > Ly) - Ly + 1;
             yy(yy < 1) = yy(yy < 1) + Ly ;
         end
         
-        function uv2pix_old(im, aspect)
-            % map from network xy to pixel xy
-            % Note that we need to flip the image (Yscale - stuff) since saved ims had
-            % natural ydirection.
-            % Assume here a coord system xy ranging from (0, xscale) and (0, 1) 
-            % maps to a coord system XY ranging from (0, Yscale * 0.5) and (0, Yscale)
-            x2Xpix = @(x, Yscale, xscale) (Yscale * 0.5) * aspect * x / xscale ;
-            % y2Ypix = @(y, h, Yscale) Yscale - (Yscale*0.5)*(y+0.5) + h ;
-            y2Ypix = @(y, h, Yscale) (Yscale*0.5)*(y+0.5) + h ;
-            
-            dx2dX = @ (y, Yscale, xscale) (Yscale * 0.5) * aspect * x / xscale ;
-            dy2dY = @ (y, Yscale) (Yscale*0.5)*y ;
-            
-            % Now map the coornates
-        end
+        % function uv2pix_old(im, aspect)
+        %     % map from network xy to pixel xy
+        %     % Note that we need to flip the image (Yscale - stuff) since saved ims had
+        %     % natural ydirection.
+        %     % Assume here a coord system xy ranging from (0, xscale) and (0, 1) 
+        %     % maps to a coord system XY ranging from (0, Yscale * 0.5) and (0, Yscale)
+        %     x2Xpix = @(x, Yscale, xscale) (Yscale * 0.5) * aspect * x / xscale ;
+        %     % y2Ypix = @(y, h, Yscale) Yscale - (Yscale*0.5)*(y+0.5) + h ;
+        %     y2Ypix = @(y, h, Yscale) (Yscale*0.5)*(y+0.5) + h ;
+        % 
+        %     dx2dX = @ (y, Yscale, xscale) (Yscale * 0.5) * aspect * x / xscale ;
+        %     dy2dY = @ (y, Yscale) (Yscale*0.5)*y ;
+        % 
+        %     % Now map the coornates
+        % end
         
         [cutMesh, cutMeshC] = doubleResolution(cutMesh, preview)
        
