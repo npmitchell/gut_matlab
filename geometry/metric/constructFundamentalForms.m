@@ -1,11 +1,10 @@
 function [g, b] = constructFundamentalForms(F, V, x)
-%[g, b] = constructFundamentalForms(F, V, x)
-%   Constructs the first and second fundamental forms of a surface
-%   represented by a mesh triangulation. 
+%Constructs the second fundamental form of a surface
+%represented by a mesh triangulation.
 %
 %   INPUT PARAMETERS
 %
-%       - F:      #Fx3 face connectivity list
+%       - F:        #Fx3 face connectivity list
 %       - V:      #Vx3 3D vertex coordinate list
 %       - x:      #Vx2 2D vertex coordinate list
 %
@@ -16,9 +15,6 @@ function [g, b] = constructFundamentalForms(F, V, x)
 %
 %       - b:    #Fx1 cell array. Entries are a 2x2 matrix representing the
 %               second fundamental form on each face
-%   
-%   SEE ALSO
-%   inducedMetric.m : gives first fundamental form only
 %
 %   by Dillon Cislo 07/09/2020
 
@@ -158,10 +154,16 @@ for f = 1:size(F,1)
         dot( DFy(f,:), DFy(f,:), 2 ) ];
     
     % The second fundamental form
-    b{f} = -[ dot( DFx(f,:), DNx(f,:), 2), ...
-        dot( DFx(f,:), DNy(f,:), 2); ...
-        dot( DFy(f,:), DNx(f,:), 2), ...
-        dot( DFy(f,:), DNy(f,:), 2) ];
+    % b{f} = -[ dot( DFx(f,:), DNx(f,:), 2), ...
+    %     dot( DFx(f,:), DNy(f,:), 2); ...
+    %     dot( DFy(f,:), DNx(f,:), 2), ...
+    %     dot( DFy(f,:), DNy(f,:), 2) ];
+    
+    % The second fundamental form
+    bxy = mean( [ dot( DFx(f,:), DNy(f,:), 2), ...
+        dot( DFy(f,:), DNx(f,:), 2) ] );
+    b{f} = -[ dot( DFx(f,:), DNx(f,:), 2), bxy; ...
+        bxy, dot( DFy(f,:), DNy(f,:), 2) ];
     
 end
 

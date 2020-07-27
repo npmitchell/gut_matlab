@@ -1350,6 +1350,13 @@ QS.measurePathlineVelocities(options)
 options = struct() ;
 options.overwrite = false ;
 QS.timeAverageVelocities(options)
+%% Velocity plots for pathline time averaging 
+options.overwrite = false ;
+options.plot_vxyz = false ;
+options.invertImage = true ;
+options.averagingStyle = 'Lagrangian'; 
+options.samplingResolution = '1x'; 
+QS.plotTimeAvgVelocities(options)
 %% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
 options = struct() ;
 options.overwrite = false ;
@@ -1360,22 +1367,43 @@ QS.helmholtzHodge(options) ;
 options = struct() ;
 options.overwrite = false ;
 options.lambda_mesh = 0.002 ;
-options.lambda = 0.02 ;
-options.lambda_err = 0.03 ;
+options.lambda = 0.01 ;
+options.lambda_err = 0.01 ;
 options.samplingResolution = '1x'; 
 QS.measureMetricKinematics(options)
 %% Metric Kinematics Kymographs & Correlations
 options = struct() ;
+options.overwrite = false ;
+options.overwrite_timePoints = false ;
 options.plot_Hgdot = false ;
 options.plot_flows = true ;
 options.plot_factors = true ;
 options.plot_kymographs = true ;
-options.plot_kymographs_pathlines = true ;
-options.plot_kymographs_cumsum = true ;
 options.plot_correlations = true ;
+options.plot_raw_correlations = true ;
 options.plot_gdot_correlations = false ;
 options.plot_gdot_decomp = true ;
+options.lambda_mesh = 0.002 ;
+options.lambda = 0.01 ;
+options.lambda_err = 0.01 ;
 QS.plotMetricKinematics(options)
+%% Measure Pathline Kinematics
+options = struct() ;
+options.overwrite = false ;
+options.lambda_mesh = 0.002 ;
+options.lambda = 0.01 ;
+options.lambda_err = 0.01 ;
+QS.measurePathlineMetricKinematics(options)
+%% Plot Pathline Kinematics
+options = struct() ;
+options.overwrite = false ;
+options.plot_kymographs_pathlines = true ;
+options.plot_kymographs_cumsum = true ;
+options.lambda_mesh = 0.002 ;
+options.lambda = 0.01 ;
+options.lambda_err = 0.01 ;
+options.climit = 0.10 ;
+QS.plotPathlineMetricKinematics(options)
 
 
 %% Measure twist (d v_phi / d zeta)

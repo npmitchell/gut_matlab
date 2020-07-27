@@ -32,8 +32,8 @@ divv3d = options.divv3d ;
 gdot3d = options.gdot3d ;
 veln3d = options.veln3d ;
 H3d = options.H3d ;
-cutMesh = options.cutMesh ;
-mesh = options.mesh ;
+cutMesh = options.cutMesh ;  % can be empty to save computation time if not overwrite
+mesh = options.mesh ;        % can be empty to save computation time if not overwrite
 tp = options.tp ;
 climit = options.climit ;
 climit_err = options.climit_err ;
@@ -45,6 +45,7 @@ if doubleResolution
     nU = QS.nU * 2 - 1 ;
     nV = QS.nV * 2 - 1 ;
 else
+    sresStr = '' ;
     nU = QS.nU ;
     nV = QS.nV ;
 end
@@ -70,15 +71,15 @@ for qq = 1:length(dimDirs)
 end
        
 % Unit definitions for axis labels
-unitstr = [ '[1/' QS.timeunits ']' ];
-Hunitstr = [ '[1/' QS.spaceunits ']' ];
-vunitstr = [ '[' QS.spaceunits '/' QS.timeunits ']' ];
+unitstr = [ '[1/' QS.timeUnits ']' ];
+Hunitstr = [ '[1/' QS.spaceUnits ']' ];
+vunitstr = [ '[' QS.spaceUnits '/' QS.timeUnits ']' ];
     
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Timepoint specific operations
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-titlestr = ['$t=$' sprintf('%03d', tp - tfold) ' ' QS.timeunits ] ;
+titlestr = ['$t=$' sprintf('%03d', tp - tfold) ' ' QS.timeUnits ] ;
 
 % Load meshes if not supplied    
 if isempty(mesh) 

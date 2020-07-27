@@ -98,7 +98,8 @@ classdef QuapSlap < handle
             'vv', []) ;          % velocity field after in-place (uv) avg
         cleanCntrlines
         pivPullback = 'sp_sme' ; % coordinate system used for velocimetry
-        pathlines = struct('piv', [], ...  % Lagrangian pathlines from piv coords
+        pathlines = struct('t0', [], ...   % timestamp (not an index) at which pathlines form regular grid in space
+            'piv', [], ...                 % Lagrangian pathlines from piv coords
             'vertices', [], ...            % Lagrangian pathlines from mesh vertices
             'faces', []) ;                 % Lagrangian pathlines from mesh face barycenters
     end
@@ -592,6 +593,12 @@ classdef QuapSlap < handle
             tmp = load(spcutMeshfn, 'spcutMesh') ;
             QS.currentMesh.spcutMesh = tmp.spcutMesh ;
         end
+        function mesh = getCurrentSPCutMeshSm(QS)
+            if isempty(QS.currentMesh.spcutMesh)
+                QS.loadCurrentSPCutMeshSm() ;
+            end
+            mesh = QS.currentMesh.spcutMeshSm ;
+        end
         function loadCurrentSPCutMeshSm(QS)
             spcutMeshfn = sprintf(QS.fullFileBase.spcutMeshSm, QS.currentTime) ;
             tmp = load(spcutMeshfn, 'spcutMeshSm') ;
@@ -843,10 +850,90 @@ classdef QuapSlap < handle
         
         %% Pathlines
         measurePullbackPathlines(QS, options)
+        function getPullbackPathlines(QS, t0, varargin)
+            % Discern if we must load pathlines or if already loaded
+            if nargin > 1 
+                if QS.pathlines.t0 ~= t0
+                    % The timestamp at which pathlines form grid that is 
+                    % requested is different than the one that is loaded,
+                    % if any are indeed already loaded. Therefore, we load
+                    % anew
+                    if nargin > 2
+                        % pass varargin along to load method
+                        QS.loadPullbackPathlines(t0, varargin)
+                    else
+                        QS.loadPullbackPathlines(t0)
+                    end
+                end
+            else
+                % No t0 supplied, assume t0 is the same as what is stored
+                % in QS.pathlines.t0, if any is already stored (ie if any
+                % pathlines are already loaded)
+                if isempty(QS.pathlines.t0)
+                    % no pathlines loaded. Load here
+                    if nargin > 2
+                        QS.loadPullbackPathlines(t0, varargin)
+                    elseif narargin > 1
+                        QS.loadPullbackPathlines(t0)
+                    else
+                        QS.loadPullbackPathlines()
+                    end
+                else
+                    % There are pathlines loaded already. Which are
+                    % requested here in varargin? First check if varargin 
+                    % is empty or not  
+                    if nargin > 2            
+                        if any(contains(varargin, 'pivPathlines'))
+                            if isempty(QS.pathlines.piv)
+                                QS.loadPullbackPathlines(t0, 'pivPathlines')
+                            end          
+                        end
+                        if any(contains(varargin, 'vertexPathlines'))
+                            if isempty(QS.pathlines.vertices)
+                                QS.loadPullbackPathlines(t0, 'vertexPathlines')
+                            end            
+                        end            
+                        if any(contains(varargin, 'facePathlines'))
+                            if isempty(QS.pathlines.faces)
+                                QS.loadPullbackPathlines(t0, 'facePathlines')
+                            end
+                        end
+                    else
+                        % varargin is not supplied, so load all three if
+                        % not already loaded
+                        % First grab t0
+                        if nargin < 2
+                            t0 = QS.t0set() ;
+                        end
+                        if isempty(QS.pathlines.piv)
+                            QS.loadPullbackPathlines(t0, 'pivPathlines')
+                        end            
+                        if isempty(QS.pathlines.vertices)
+                            QS.loadPullbackPathlines(t0, 'vertexPathlines')
+                        end            
+                        if isempty(QS.pathlines.faces)
+                            QS.loadPullbackPathlines(t0, 'facePathlines')
+                        end
+                    end
+                end
+                        
+                    
+            end
+        end
         function loadPullbackPathlines(QS, t0, varargin)
             if nargin < 2
                 t0 = QS.t0set() ;
+            elseif isempty(t0)
+                t0 = QS.t0set() ;
+            else
+                try
+                    assert(isnumeric(t0))
+                catch
+                    error('t0 supplied must be numeric')
+                end
             end
+            % assign t0 as the pathline t0
+            QS.pathlines.t0 = t0 ;
             if nargin < 3
                 varargin = {'pivPathlines', 'vertexPathlines', ...
                     'facePathlines'} ;
@@ -864,6 +951,76 @@ classdef QuapSlap < handle
                 QS.pathlines.faces = facePathlines ;
             end
         end
+                
+        %% Velocities -- Lagrangian Averaging
+        timeAverageVelocities(QS, samplingResolution, options)
+        function loadVelocityAverage(QS, varargin)
+            % Load and pack into struct
+            if isempty(varargin)
+                varargin = {'v3d', 'v2dum', 'v2d', 'vn', 'vf', 'vv'};
+            end
+            if any(strcmp(varargin, 'v3d'))
+                load(QS.fileName.pivSimAvg.v3d, 'vsmM') ;
+                QS.velocityAverage.v3d = vsmM ;
+            end
+            if any(strcmp(varargin, 'v2dum'))
+                load(QS.fileName.pivSimAvg.v2dum, 'v2dsmMum') ;
+                QS.velocityAverage.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'vn'))
+                load(QS.fileName.pivSimAvg.vn, 'vnsmM') ;
+                QS.velocityAverage.vn = vnsmM ;
+            end
+            if any(strcmp(varargin, 'vf'))
+                load(QS.fileName.pivSimAvg.vf, 'vfsmM') ;
+                QS.velocityAverage.vf = vfsmM ;
+            end
+            if any(strcmp(varargin, 'v2v'))
+                load(QS.fileName.pivSimAvg.vf, 'vvsmM') ;
+                QS.velocityAverage.vv = vvsmM ;
+            end
+        end
+        function getVelocityAverage(QS, varargin)
+            % todo: check if all varargin are already loaded
+            loadVelocityAverage(QS, varargin{:})
+        end
+        function loadVelocityAverage2x(QS, varargin)
+            % Load and pack into struct
+            if isempty(varargin)
+                varargin = {'v3d', 'v2dum', 'v2d', 'vn', 'vf', 'vv'};
+            end
+            if any(strcmp(varargin, 'v3d'))
+                load(QS.fileName.pivSimAvg2x.v3d, 'vsmM') ;
+                QS.velocityAverage2x.v3d = vsmM ;
+            end
+            if any(strcmp(varargin, 'v2dum'))
+                load(QS.fileName.pivSimAvg2x.v2dum, 'v2dsmMum') ;
+                QS.velocityAverage2x.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'v2d'))
+                load(QS.fileName.pivSimAvg2x.v2dum, 'v2dsmMum') ;
+                QS.velocityAverage2x.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'vn'))
+                load(QS.fileName.pivSimAvg2x.vn, 'vnsmM') ;
+                QS.velocityAverage2x.vn = vnsmM ;
+            end
+            if any(strcmp(varargin, 'vf'))
+                load(QS.fileName.pivSimAvg2x.vf, 'vfsmM') ;
+                QS.velocityAverage2x.vf = vfsmM ;
+            end
+            if any(strcmp(varargin, 'vv'))
+                load(QS.fileName.pivSimAvg2x.vv, 'vvsmM') ;
+                QS.velocityAverage2x.vv = vvsmM ;
+            end
+        end
+        function getVelocityAverage2x(QS, varargin)
+            if isempty(QS.velocityAverage2x.v3d)
+                loadVelocityAverage2x(QS, varargin{:})
+            end
+        end
+        plotTimeAvgVelocities(QS, options)
+        helmholtzHodge(QS, options)
         
         %% Velocities -- simple/surface-Lagrangian averaging
         timeAverageVelocitiesSimple(QS, samplingResolution, options)
@@ -929,80 +1086,18 @@ classdef QuapSlap < handle
                 loadVelocitySimpleAverage2x(QS, varargin{:})
             end
         end
-        plotTimeAvgVelSimple(QS, samplingResolution, options)
-        helmholtzHodge(QS, options)
-        
-        %% Velocities -- Lagrangian Averaging
-        timeAverageVelocities(QS, samplingResolution, options)
-        function loadVelocityAverage(QS, varargin)
-            % Load and pack into struct
-            if any(strcmp(varargin, 'v3d'))
-                load(QS.fileName.pivSimAvg.v3d, 'vsmM') ;
-                QS.velocityAverage.v3d = vsmM ;
-            end
-            if any(strcmp(varargin, 'v2dum'))
-                load(QS.fileName.pivSimAvg.v2dum, 'v2dsmMum') ;
-                QS.velocityAverage.v2dum = v2dsmMum ;
-            end
-            if any(strcmp(varargin, 'vn'))
-                load(QS.fileName.pivSimAvg.vn, 'vnsmM') ;
-                QS.velocityAverage.vn = vnsmM ;
-            end
-            if any(strcmp(varargin, 'vf'))
-                load(QS.fileName.pivSimAvg.vf, 'vfsmM') ;
-                QS.velocityAverage.vf = vfsmM ;
-            end
-            if any(strcmp(varargin, 'v2v'))
-                load(QS.fileName.pivSimAvg.vf, 'vvsmM') ;
-                QS.velocityAverage.vv = vvsmM ;
-            end
-        end
-        function getVelocityAverage(QS, varargin)
-            % todo: check if all varargin are already loaded
-            loadVelocityAverage(QS, varargin{:})
-        end
-        function loadVelocityAverage2x(QS, varargin)
-            % Load and pack into struct
-            if isempty(varargin)
-                varargin = {'v3d', 'v2dum', 'v2d', 'vn', 'vf', 'vv'};
-            end
-            if any(strcmp(varargin, 'v3d'))
-                load(QS.fileName.pivSimAvg2x.v3d, 'vsmM') ;
-                QS.velocityAverage2x.v3d = vsmM ;
-            end
-            if any(strcmp(varargin, 'v2dum'))
-                load(QS.fileName.pivSimAvg2x.v2dum, 'v2dsmMum') ;
-                QS.velocityAverage2x.v2dum = v2dsmMum ;
-            end
-            if any(strcmp(varargin, 'v2d'))
-                load(QS.fileName.pivSimAvg2x.v2dum, 'v2dsmMum') ;
-                QS.velocityAverage2x.v2dum = v2dsmMum ;
-            end
-            if any(strcmp(varargin, 'vn'))
-                load(QS.fileName.pivSimAvg2x.vn, 'vnsmM') ;
-                QS.velocityAverage2x.vn = vnsmM ;
-            end
-            if any(strcmp(varargin, 'vf'))
-                load(QS.fileName.pivSimAvg2x.vf, 'vfsmM') ;
-                QS.velocityAverage2x.vf = vfsmM ;
-            end
-            if any(strcmp(varargin, 'vv'))
-                load(QS.fileName.pivSimAvg2x.vv, 'vvsmM') ;
-                QS.velocityAverage2x.vv = vvsmM ;
-            end
-        end
-        function getVelocityAverage2x(QS, varargin)
-            if isempty(QS.velocityAverage2x.v3d)
-                loadVelocityAverage2x(QS, varargin{:})
-            end
-        end
-        plotTimeAvgVelLagrangian(QS, samplingResolution, options)
+        % NOTE: the following have a simple option for averagingStyle
+        % plotTimeAvgVelocities(QS, options)
+        % helmholtzHodge(QS, options)
         
         %% compressible/incompressible flow on evolving surface
-        [cumerr, HHs, divvs, velns] = measureMetricKinematics(QS, options)
+        measureMetricKinematics(QS, options)
         plotMetricKinematics(QS, options)
+        measurePathlineMetricKinematics(QS, options)
+        plotPathlineMetricKinematics(QS, options)
         
-        
+        %% timepoint-specific coordinate transformations
+        sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)
     end
     
     methods (Static)
@@ -1091,6 +1186,12 @@ classdef QuapSlap < handle
             % vmax : float 
             %   extent of pullback mesh coordinates in v direction (Y)
             %   before double covering/tiling
+            %
+            % Returns
+            % -------
+            % XY : N x 2 float array
+            %   positions of uv coordinates in pullback pixel space
+            %
             if nargin < 3
                 doubleCovered = true ;
             end
@@ -1123,11 +1224,42 @@ classdef QuapSlap < handle
         
         function [xx, yy] = clipXY(xx, yy, Lx, Ly)
             % Clip x at (1, Lx) and clip Y as periodic (1=Ly, Ly=1), for
-            % image that is periodic in Y. Consider Y in (1, Ly).
+            % image that is periodic in Y. Consider Y in [1, Ly]. If the
+            % pullback is a doubleCover, Ly = 2*mesh width in pixels
+            %
+            % Parameters
+            % ----------
+            % xx : 
+            % yy : 
+            % Lx : int
+            %   number of pixels along x dimension
+            % Ly : int
+            %   number of pixels along y dimension
+            % 
+            % Returns
+            % -------
+            % [xx, yy] : x and y coordinates clipped to [1, Lx] and [1, Ly]
             xx(xx > Lx) = Lx ;
             xx(xx < 1 ) = 1 ;
             yy(yy > Ly) = yy(yy > Ly) - Ly + 1;
             yy(yy < 1) = yy(yy < 1) + Ly ;
+        end
+        
+        function XY = doubleToSingleCover(XY, Ly)
+            % detect if XY is passed as a pair of grids
+            if length(size(XY)) > 2 && size(XY, 2) > 2
+                % XY is a pair of position grids each as 2D arrays. Clip Y
+                tmp = XY(:, :, 2) ;
+                tmp(tmp < Ly * .25) = tmp(tmp < Ly * .25) + Ly * 0.5 ;
+                tmp(tmp > Ly * .75) = tmp(tmp > Ly * .75) - Ly * 0.5 ;
+                XY(:, :, 2) = tmp ;
+            elseif size(XY, 2) == 2
+                % XY is input as Nx2 array
+                XY(XY(:, 2) < Ly * .25, 2) = XY(XY(:, 2) < Ly * .25, 2) + Ly * 0.5 ;
+                XY(XY(:, 2) > Ly * .75, 2) = XY(XY(:, 2) > Ly * .75, 2) - Ly * 0.5 ;
+            else
+                error('XY must be passed as Nx2 or QxRx2 array')
+            end
         end
         
         % function uv2pix_old(im, aspect)

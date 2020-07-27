@@ -47,6 +47,7 @@ climit_veln = climit * 10 ;
 climit_H = climit * 2 ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
+averagingStyle = 'Lagrangian' ;
 
 %% Unpack options & assign defaults
 if nargin < 2
@@ -91,6 +92,9 @@ end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
 end
+if isfield(options, 'averagingStyle')
+    averagingStyle = options.averagingStyle ;
+end
 
 %% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
 if strcmp(samplingResolution, '1x') || strcmp(samplingResolution, 'single')
@@ -108,9 +112,15 @@ QS.getXYZLims ;
 xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
-mKDir = fullfile(QS.dir.metricKinematics, ...
-    strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
-    lambda, lambda_err, lambda_mesh), '.', 'p'));
+if strcmp(averagingStyle, 'simple')
+    mKDir = fullfile(QS.dir.metricKinematicsSimple, ...
+        strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
+        lambda, lambda_err, lambda_mesh), '.', 'p'));
+else
+    mKDir = fullfile(QS.dir.metricKinematics, ...
+        strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
+        lambda, lambda_err, lambda_mesh), '.', 'p'));
+end
 folds = load(QS.fileName.fold) ;
 fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 
@@ -118,18 +128,27 @@ fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 bwr256 = bluewhitered(256) ;
 
 %% Load vertex-based velocity measurements
-if doubleResolution
-    vvsmMfn = fullfile(QS.dir.pivSimAvg2x, 'vvM_simpletimeavg2x.mat')  ;
-    tmp = load(vvsmMfn) ;
-    vertex_vels = tmp.vvsmM ;
-else
-    vvsmMfn = fullfile(QS.dir.pivSimAvg, 'vvM_simpletimeavg.mat')  ; 
-    tmp = load(vvsmMfn) ;
-    vertex_vels = tmp.vvsmM ;   
+if strcmp(averagingStyle, 'Lagrangian')
+    if doubleResolution
+        vvsmMfn = fullfile(QS.dir.pivAvg2x, 'vvM_avg2x.mat')  ;
+        tmp = load(vvsmMfn) ;
+        vertex_vels = tmp.vvsmM ;
+    else
+        vvsmMfn = fullfile(QS.dir.pivAvg, 'vvM_avg.mat')  ; 
+        tmp = load(vvsmMfn) ;
+        vertex_vels = tmp.vvsmM ;   
+    end
+elseif strcmp(averagingStyle, 'simple')
+    if doubleResolution
+        vvsmMfn = fullfile(QS.dir.pivSimAvg2x, 'vvM_simpletimeavg2x.mat')  ;
+        tmp = load(vvsmMfn) ;
+        vertex_vels = tmp.vvsmM ;
+    else
+        vvsmMfn = fullfile(QS.dir.pivSimAvg, 'vvM_simpletimeavg.mat')  ; 
+        tmp = load(vvsmMfn) ;
+        vertex_vels = tmp.vvsmM ;   
+    end
 end
-% vfsmMfn = fullfile(QS.dir.pivSimAvg, 'vfM_simpletimeavg.mat') ;
-% tmp = load(vfsmMfn) ;
-% face_vels = tmp.vfsmM ;
 
 %% Load time offset for first fold, t0
 QS.t0set() ;
@@ -185,9 +204,9 @@ if ~exist(outdir, 'dir')
 end
 
 % Unit definitions for axis labels
-unitstr = [ '[1/' QS.timeunits ']' ];
-Hunitstr = [ '[1/' QS.spaceunits ']' ];
-vunitstr = [ '[' QS.spaceunits '/' QS.timeunits ']' ];
+unitstr = [ '[1/' QS.timeUnits ']' ];
+Hunitstr = [ '[1/' QS.spaceUnits ']' ];
+vunitstr = [ '[' QS.spaceUnits '/' QS.timeUnits ']' ];
     
 % Compute or load all timepoints
 for tp = tp2do
@@ -246,10 +265,18 @@ for tp = tp2do
         
         % OPTION2: Load divv from disk and convert using smoothed mesh
         % [~, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
-        if doubleResolution
-            dec_tp = load(sprintf(QS.fullFileBase.dec2x, tp)) ;
+        if strcmp(averagingStyle, 'Lagrangian')
+            if doubleResolution
+                dec_tp = load(sprintf(QS.fullFileBase.decAvg2x, tp)) ;
+            else
+                dec_tp = load(sprintf(QS.fullFileBase.decAvg, tp)) ;
+            end
         else
-            dec_tp = load(sprintf(QS.fullFileBase.dec, tp)) ;
+            if doubleResolution
+                dec_tp = load(sprintf(QS.fullFileBase.decSimAvg2x, tp)) ;
+            else
+                dec_tp = load(sprintf(QS.fullFileBase.decSimAvg, tp)) ;
+            end
         end
         
         % Smooth divergence(v) [divv]

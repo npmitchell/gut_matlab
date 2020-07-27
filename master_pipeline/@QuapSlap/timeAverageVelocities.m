@@ -113,14 +113,14 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         % Allocate memory if this is the first timestep. Assume all grids
         % are equally sized.
         if first
-            vM = zeros(ntps, size(piv3d.v0_rs, 1), size(piv3d.v0_rs, 2));
-            vfM = zeros(ntps, size(piv3d.v3dfaces, 1), size(piv3d.v3dfaces, 2)); 
-            vvM = zeros(ntps, ...
+            vsmM = zeros(ntps, size(piv3d.v0_rs, 1), size(piv3d.v0_rs, 2));
+            vfsmM = zeros(ntps, size(piv3d.v3dfaces, 1), size(piv3d.v3dfaces, 2)); 
+            vvsmM = zeros(ntps, ...
                 size(piv3d.v3dvertices, 1), ...
                 size(piv3d.v3dvertices, 2)); 
-            vnM = zeros(ntps, size(piv3d.v0n_rs, 1), size(piv3d.v0n_rs, 2));
-            v2dM = zeros(ntps, size(piv3d.v0t2d, 1), size(piv3d.v0t2d, 2));
-            v2dMum = zeros(ntps, size(piv3d.v0t2d, 1), size(piv3d.v0t2d, 2));
+            vnsmM = zeros(ntps, size(piv3d.v0n_rs, 1), size(piv3d.v0n_rs, 2));
+            v2dsmM = zeros(ntps, size(piv3d.v0t2d, 1), size(piv3d.v0t2d, 2));
+            v2dsmMum = zeros(ntps, size(piv3d.v0t2d, 1), size(piv3d.v0t2d, 2));
             first = false ;
         end
         
@@ -193,12 +193,12 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         end
         
         % Preallocate
-        vMtp  = zeros(size(vM, 2), size(vM, 3)) ;    % in um/dt rs at PIV evaluation points
-        vfMtp = zeros(size(vfM, 2), size(vfM, 3)) ;  % in um/dt rs at face barycenters
-        vnMtp = zeros(size(vnM, 2), size(vnM, 3)) ;  % in um/dt rs at 
-        vvMtp = zeros(size(vvM, 2), size(vvM, 3)) ;  % in um/min rs
-        v2dMtp   = zeros(size(v2dM, 2), size(v2dM, 3)) ;  % in pixels/ min
-        v2dMumtp = zeros(size(v2dMum, 2), size(v2dMum, 3)) ;  % in scaled pix/min, but proportional to um/min
+        vMtp  = zeros(size(vsmM, 2), size(vsmM, 3)) ;    % in um/dt rs at PIV evaluation points
+        vfMtp = zeros(size(vfsmM, 2), size(vfsmM, 3)) ;  % in um/dt rs at face barycenters
+        vnMtp = zeros(size(vnsmM, 2), size(vnsmM, 3)) ;  % in um/dt rs at 
+        vvMtp = zeros(size(vvsmM, 2), size(vvsmM, 3)) ;  % in um/min rs
+        v2dMtp   = zeros(size(v2dsmM, 2), size(v2dsmM, 3)) ;  % in pixels/ min
+        v2dMumtp = zeros(size(v2dsmMum, 2), size(v2dsmMum, 3)) ;  % in scaled pix/min, but proportional to um/min
         for qq = 1:length(tp2do)
             disp(['timeAverageVelocities: Interpolating t0=', ...
                 num2str(tp) ' coords onto pathline at t=', ...
@@ -278,12 +278,12 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         end
         
         %% BUILD ARRAYS by collating timepoints
-        vM(tidx, :, :) = v0_rs ;             % in um/dt rs at PIV evaluation points
-        vfM(tidx, :, :) = v3dfaces_rs ;      % in um/dt rs at face barycenters
-        vnM(tidx, :, :) = v0n_rs ;           % in um/dt rs at 
-        vvM(tidx, :, :) = v3dvertices ;      % in um/min rs
-        v2dM(tidx, :, :) = v0t2d ;           % in pixels/ min
-        v2dMum(tidx, :, :) = v0t2dum ;       % in scaled pix/min, but proportional to um/min
+        vsmM(tidx, :, :) = v0_rs ;             % in um/dt rs at PIV evaluation points
+        vfsmM(tidx, :, :) = v3dfaces_rs ;      % in um/dt rs at face barycenters
+        vnsmM(tidx, :, :) = v0n_rs ;           % in um/dt rs at 
+        vvsmM(tidx, :, :) = v3dvertices ;      % in um/min rs
+        v2dsmM(tidx, :, :) = v0t2d ;           % in pixels/ min
+        v2dsmMum(tidx, :, :) = v0t2dum ;       % in scaled pix/min, but proportional to um/min
         
     end
     
@@ -291,20 +291,20 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
     disp('built v0 matrix')
     
     % Check that no NaNs
-    assert(~any(isnan(vM(:))))
-    assert(~any(isnan(vvM(:))))
-    assert(~any(isnan(vnM(:))))
-    assert(~any(isnan(v2dM(:))))
-    assert(~any(isnan(v2dMum(:))))
-    assert(~any(isnan(vfM(:))))
+    assert(~any(isnan(vsmM(:))))
+    assert(~any(isnan(vvsmM(:))))
+    assert(~any(isnan(vnsmM(:))))
+    assert(~any(isnan(v2dsmM(:))))
+    assert(~any(isnan(v2dsmMum(:))))
+    assert(~any(isnan(vfsmM(:))))
     
     %% Save raw matrices
-    save(fileNames.v3d, 'vM') 
-    save(fileNames.vf, 'vfM') 
-    save(fileNames.vn, 'vnM') 
-    save(fileNames.vv, 'vvM') 
-    save(fileNames.v2d, 'v2dM') 
-    save(fileNames.v2dum, 'v2dMum') 
+    save(fileNames.v3d, 'vsmM') 
+    save(fileNames.vf, 'vfsmM') 
+    save(fileNames.vn, 'vnsmM') 
+    save(fileNames.vv, 'vvsmM') 
+    save(fileNames.v2d, 'v2dsmM') 
+    save(fileNames.v2dum, 'v2dsmMum') 
     
     disp('done')
 
