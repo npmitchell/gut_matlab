@@ -5,9 +5,9 @@ function plotMetricKinematics(QS, options)
 %   mean curvature.
 %   In-plane motion considered here is div(v_t) where v_t is tangential
 %   velocity on the curved surface.
-%   The difference div(v_t) - vn*2H = Tr[g^{-1} dot{g}], which is a measure
-%   of isotropic metric change over time (dot is the partial derivative wrt
-%   time). 
+%   The difference div(v_t) - vn*2H = 1/2 Tr[g^{-1} dot{g}], which is a 
+%   measure of isotropic metric change over time (dot is the partial
+%   derivative wrt time). 
 % 
 % Parameters
 % ----------
@@ -252,14 +252,13 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     pOptions.gdot3d = gdot3d ;
     pOptions.veln3d = veln3d ;
     pOptions.H3d = H3d ;
-    pOptions.tp = tp ;
     pOptions.cutMesh = [] ;
     pOptions.mesh = [] ;
     pOptions.climit = climit ;
     pOptions.climit_err = climit ;
     pOptions.climit_veln = climit_veln ;
     pOptions.climit_H = climit_H ;
-    QS.plotMetricKinematicsTimePoint(pOptions)
+    QS.plotMetricKinematicsTimePoint(tp, pOptions)
     
     %% Store in matrices
     HH_M(tidx, :, :) = HH ;
@@ -337,12 +336,12 @@ if plot_kymographs
         velnK = velnsK{qq} ;
         H2vnK = H2vnsK{qq} ;
         m2plot = {gdotK, HHK, divvK, velnK, H2vnK} ;
-        titles = {'$\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
+        titles = {'$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
             'mean curvature, $H$', ...
             'divergence of flow, $\nabla \cdot \mathbf{v}$', ...
             'normal velocity, $v_n$', ...
             'normal motion, $v_n 2 H$'} ;
-        labels = {['$\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
+        labels = {['$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
             ['mean curvature, $H$ ' Hunitstr], ...
             ['$\nabla \cdot \mathbf{v}$ ' unitstr], ...
             ['normal velocity, $v_n$ ' vunitstr] , ...
@@ -498,7 +497,7 @@ if plot_raw_correlations
             % Add dashed y=x line
             xlim([xmin, xmax])
             ylim([ymin, ymax])
-            plot(-2 * climit * [-1, 1], 2 * climit * [-1, 1], 'k--')
+            plot(2 * climit * [-1, 1], 2 * climit * [-1, 1], 'k--')
             sposCollection{qq} = get(sphCollection{qq}, 'Position');
         end
         
@@ -830,7 +829,7 @@ if plot_gdot_correlations
 
                 % Label the y axis if on the left column
                 if qq == 1 || qq == 3
-                    ylabel(['$\textrm{Tr}[g^{-1} \dot{g}]$ ' unitstr], ...
+                    ylabel(['$\frac{1}{2}\textrm{Tr}[g^{-1} \dot{g}]$ ' unitstr], ...
                             'Interpreter', 'Latex')
                 end
                 title(titles{qq}, 'Interpreter', 'Latex')
@@ -915,12 +914,12 @@ if plot_gdot_decomp
         velnK = velnsK{qq} ;
         H2vnK = H2vnsK{qq} ;
         m2plot = {gdotK, HHK, divvK, velnK, H2vnK} ;
-        titles = {'$\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
+        titles = {'$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
             'mean curvature, $H$', ...
             'divergence of flow, $\nabla \cdot \mathbf{v}$', ...
             'normal velocity, $v_n$', ...
             'normal motion, $v_n 2 H$'} ;
-        labels = {['$\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
+        labels = {['$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
             ['mean curvature, $H$ ' Hunitstr], ...
             ['$\nabla \cdot \mathbf{v}$ ' unitstr], ...
             ['normal velocity, $v_n$ ' vunitstr] , ...

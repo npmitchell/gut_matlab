@@ -4,7 +4,7 @@ function [g, b] = constructFundamentalForms(F, V, x)
 %
 %   INPUT PARAMETERS
 %
-%       - F:        #Fx3 face connectivity list
+%       - F:      #Fx3 face connectivity list
 %       - V:      #Vx3 3D vertex coordinate list
 %       - x:      #Vx2 2D vertex coordinate list
 %

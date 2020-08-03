@@ -42,7 +42,6 @@ lambda = 0.01 ;
 % by default, lambda_mesh = lambda, whether defined here or in options
 lambda_err = 0.01 ;
 climit = 0.2 ;
-climit_err = 0.2 ;
 climit_veln = climit * 10 ;
 climit_H = climit * 2 ;
 % Sampling resolution: whether to use a double-density mesh
@@ -259,11 +258,21 @@ for tp = tp2do
         DEC = DiscreteExteriorCalculus(mesh.f, mesh.v) ;
         H3d = sum(mesh.vn .* DEC.laplacian(mesh.v), 2) * 0.5 ;
         
-        % OPTION1: Could compute divergence anew on smoothed mesh
+        %% Test that this measurement of H is correct using sphere
+        % [mesh] = sphericalTriangulation('numIterations', 5) ;
+        % DEC = DiscreteExteriorCalculus(mesh.ConnectivityList, mesh.Points) ;
+        % H3d = sum(mesh.Points .* DEC.laplacian(mesh.Points), 2) * 0.5 ;
+        % % unit normals are same as vertex positions
+        % trisurf(mesh, 'faceVertexCData', H3d, 'facecolor', 'interp', 'edgecolor', 'none')
+        % title('Mean curvature as $\frac{1}{2} \nabla^2(\vec{X}) \cdot \hat{e}$', 'Interpreter', 'Latex')
+        % xlabel('x'); ylabel('y'); zlabel('z')
+        % colorbar(); axis equal
+        
+        %% OPTION1: Could compute divergence anew on smoothed mesh
         % fvel = squeeze(face_vels(tidx, :, :)) ;
         % divv3d_test = DEC.divergence(fvel) ;
         
-        % OPTION2: Load divv from disk and convert using smoothed mesh
+        %% OPTION2: Load divv from disk and convert using smoothed mesh
         % [~, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
         if strcmp(averagingStyle, 'Lagrangian')
             if doubleResolution
@@ -323,12 +332,12 @@ for tp = tp2do
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        % Actual normal velocity
+        % Actual normal velocity -- currently using ORIGINAL mesh normals
         veln3d = sum(cat(2, vxs, vys, vzs) .* mesh.vn, 2) ;
 
         % Predict the divergence
         H2vn3d = 2 * H3d .* veln3d ;
-
+        
         % Extend to have another row for 2d map
         divv2d = divv3d ;
         divv2d(nU*(nV-1) + 1:nU*nV) = divv3d(1:nU) ;
@@ -355,7 +364,7 @@ for tp = tp2do
         gdot = reshape(gdot2d, [nU,nV]) ;
         divv = reshape(divv2d, [nU,nV]) ;
         veln = reshape(veln2d, [nU,nV]) ;
-        H2vn = reshape(H2d .* veln2d, [nU, nV]) ;
+        H2vn = reshape(H2vn2d, [nU, nV]) ;
         
         % Average along DV -- ignore last redudant row at nV
         HH_ap = mean(HH(:, 1:nV-1), 2) ;
@@ -470,12 +479,11 @@ for tp = tp2do
     pOptions.H3d = H3d ;
     pOptions.cutMesh = cutMesh ;
     pOptions.mesh = mesh ;
-    pOptions.tp = tp ;
     pOptions.climit = climit ;
     pOptions.climit_err = climit ;
     pOptions.climit_veln = climit_veln ;
     pOptions.climit_H = climit_H ;
-    QS.plotMetricKinematicsTimePoint(pOptions)
+    QS.plotMetricKinematicsTimePoint(tp, pOptions)
     
     % %% Store in matrices
     % % dv averaged

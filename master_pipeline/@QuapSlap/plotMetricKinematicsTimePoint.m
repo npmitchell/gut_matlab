@@ -1,4 +1,4 @@
-function plotMetricKinematicsTimePoint(QS, options)
+function plotMetricKinematicsTimePoint(QS, tp, options)
 % 
 % Plot the metric Kinematics, either for all timepoints or for a single 
 % timepoint. This function is called by measureMetricKinematics()
@@ -34,7 +34,6 @@ veln3d = options.veln3d ;
 H3d = options.H3d ;
 cutMesh = options.cutMesh ;  % can be empty to save computation time if not overwrite
 mesh = options.mesh ;        % can be empty to save computation time if not overwrite
-tp = options.tp ;
 climit = options.climit ;
 climit_err = options.climit_err ;
 climit_H = options.climit_H ;

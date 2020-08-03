@@ -1,12 +1,22 @@
-function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, xx, yy, vx, vy, vscale, ...
-    options)
-%VECTORFIELDHEATPHASEONIMAGE(im, xx, yy, vx, vy, vscale, options)
+function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, ...
+    xyfstruct, vx, vy, vscale, options)
+%VECTORFIELDHEATPHASEONIMAGE(im, xyfstruct, vx, vy, vscale, options)
 %   Plot a vector field (vx,vy) evaluated at grid[xx, yy] on an image im
 %
-% xx : N x 1 float array
-%   x values of PIV grid evaluation points
-% yy : M x 1 float array
-%   y values of PIV grid evaluation points
+% Parameters
+% ----------
+% im : PxQ numeric array
+%   RGB or grayscale image
+% xyfstruct : struct with fields 
+%   x : Nx1 or (N*M)x1 or NxM float array (required if no field v)
+%       x coordinates of vector field
+%   y : Mx1 or (N*M)x1 or NxM float array (required if no field v)
+%       y coordinates of vector field
+%   v : (N*M)x2 float array (required if no fields x,y)
+%       x and y coordinates of vector field
+%   f : optional #faces x 3 int array
+%       connectivity list of the mesh to color over the image, use only if
+%       data is not in 
 % vx : N*M x 1 float array
 %   velocity in x direction
 % vy : N*M x 1 float array
@@ -18,8 +28,14 @@ function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, xx, yy, vx
 %       path to save image if given
 %   label : str (default='$|v|$ [$\mu$m / min]')
 %       colorbar label. Default is '$|v|$ [$\mu$m / min]' 
+%   
 %   qsubsample : int (default=10)
 %       subsampling factor of the quiver field
+%   subsamplingMethod : str ('farthestPoint' or 'random')
+%       if nPts > 0 and data is not a structured grid, then subsample the 
+%       vector field according to this method. 
+%       FarthestPoint is slow but gives approximately equally spaced 
+%       vectors in the plane.
 %   overlay_quiver : bool (default=true)
 %       whether to show the quiverplot overlay
 %   qscale : float
@@ -43,49 +59,95 @@ function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, xx, yy, vx
 labelstr = '$|v|$ [$\mu$m / min]' ;
 overlay_quiver = true ;
 qsubsample = 5 ;
+nPts = 0 ;
+subsamplingMethod = 'farthestPoint' ;  % ('farthestPoint' 'random' 'custom')
 qscale = 5 ;
 quiver_vecfield = [] ;
 
 % Unpack options
-if isfield(options, 'label')
-    labelstr = options.label ;
-end
-if isfield(options, 'overlay_quiver')
-    overlay_quiver = options.overlay_quiver ;
-end
-if isfield(options, 'qsubsample')
-    qsubsample = options.qsubsample ;
-end
-if isfield(options, 'qscale') 
-    qscale = options.qscale ;
-end
-if isfield(options, 'quiver_vecfield') 
-    quiver_vecfield = options.quiver_vecfield ;
+if nargin > 5
+    if isfield(options, 'label')
+        labelstr = options.label ;
+    end
+    if isfield(options, 'overlay_quiver')
+        overlay_quiver = options.overlay_quiver ;
+    end
+    if isfield(options, 'qsubsample')
+        qsubsample = options.qsubsample ;
+    end
+    if isfield(options, 'nPts')
+        nPts = options.nPts ;
+    end
+    if isfield(options, 'qscale') 
+        qscale = options.qscale ;
+    end
+    if isfield(options, 'quiver_vecfield') 
+        quiver_vecfield = options.quiver_vecfield ;
+    end
+    if isfield(options, 'fig')
+        figure(options.fig)
+    else
+        close all
+        fig = figure('units', 'normalized', ...
+            'outerposition', [0 0 1 1], 'visible', 'off') ;
+    end
+    if isfield(options, 'subsamplingMethod')
+        subsamplingMethod = options.subsamplingMethod ;
+    end
+else
+    options = struct() ;
 end
 
-
-% 
-% vangle = reshape(mod(atan2(vy, -vx), 2* pi), gridsz) ;
-% speed = reshape(vecnorm([v2dsm_ii(:, 1), v2dsm_ii(:, 2)], 2, 2), gridsz);
-ww = length(xx) ;
-hh = length(yy) ;
-vangle = mod(atan2(vy, -vx), 2* pi) ;
-speed = reshape(vecnorm([vx(:), vy(:)], 2, 2), [hh, ww]);
-
-% Compute angle of the velocity vector
-if ~all(size(vangle) == [hh, ww])
-    vangle = reshape(vangle, [hh, ww]) ;
-end
-
-% Set up the figure
-close all
-fig = figure('units', 'normalized', ...
-    'outerposition', [0 0 1 1], 'visible', 'off') ;
+%% Set up the figure
 h1 = imshow(im) ;
 hold on;
-h2 = imagesc(xx, yy, vangle) ;
-set(h2, 'AlphaData', speed / vscale)
+
+%% Unpack xystruct. If faces are supplied, then we will use patch
+try
+    try
+        xx = xyfstruct.x ;
+        yy = xyfstruct.y ;
+    catch
+        xx = xyfstruct.v(:, 1) ;
+        yy = xyfstruct.v(:, 2) ;
+    end
+catch
+    error('Must supply either fields x,y or field v to xyfstruct')
+end
+vangle = mod(atan2(vy, -vx), 2* pi) ;
+speed = vecnorm([vx(:), vy(:)], 2, 2) ;
+if size(speed, 1) == numel(xx) && size(speed, 2) == numel(yy)
+    gridded_data = true ;
+    ww = length(xx) ;
+    hh = length(yy) ;
+    speed = reshape(speed, [hh, ww]);
+
+    % Compute angle of the velocity vector
+    if ~all(size(vangle) == [hh, ww])
+        vangle = reshape(vangle, [hh, ww]) ;
+    end
+
+    h2 = imagesc(xx, yy, vangle) ;
+    set(h2, 'AlphaData', speed / vscale)
+elseif isfield(xyfstruct, 'f')   
+    gridded_data = false ;
+    ff = xyfstruct.f ;
+    if numel(speed) == numel(xx)
+        h2 = patch( 'Faces', ff, 'Vertices', [xx(:), yy(:)], ...
+            'FaceVertexCData', vangle, 'FaceColor', 'flat', ...
+            'EdgeColor', 'none', 'FaceVertexAlphaData', speed / vscale, ...
+            'FaceAlpha', 'interp') ;
+    elseif length(speed) == size(ff, 1) 
+        error('Consider case of speeds defined on faces instead of vertices')
+    else
+        error('Vector field size does not match coordinates')
+    end
+else
+    error('Consider this case here')
+end
+
 ax = gca() ;
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % QUIVER 
@@ -98,15 +160,56 @@ if overlay_quiver
         qvx = quiver_vecfield(:, 1) ;
         qvy = quiver_vecfield(:, 2) ;
     end
-    qvx = reshape(qvx, [hh, ww]) ;
-    qvy = reshape(qvy, [hh, ww]) ;
-    QX = imresize(qvx, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
-    QY = imresize(qvy, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
-    xq = 1:qsubsample:ww ;
-    yq = 1:qsubsample:hh ;
-    [xg, yg] = meshgrid(xx(xq), yy(yq)) ;
-
-    h3 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, 'k', 'LineWidth', 1.2) ;
+    if gridded_data
+        disp('Taking grid subsampling since data is gridded')
+        qvx = reshape(qvx, [hh, ww]) ;
+        qvy = reshape(qvy, [hh, ww]) ;
+        QX = imresize(qvx, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
+        QY = imresize(qvy, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
+        xq = 1:qsubsample:ww ;
+        yq = 1:qsubsample:hh ;
+        [xg, yg] = meshgrid(xx(xq), yy(yq)) ;
+    elseif nPts == 0
+        disp('Taking linear subsampling since nPts == 0')
+        rx = xx(:) ;
+        ry = yy(:) ;
+        xg = rx(1:qsubsample:end) ;
+        yg = ry(1:qsubsample:end) ;
+        rvx = qvx(:) ;
+        rvy = qvy(:) ;
+        QX = rvx(1:qsubsample:end) ;
+        QY = rvy(1:qsubsample:end) ;
+    else
+        if strcmp(subsamplingMethod, 'farthestPoint')
+            disp('Subsampling via farthestPoint')
+            findpt = [mean(xx(:)), mean(yy(:))] ;
+            seedIDx = pointMatch(findpt, [xx(:), yy(:)]) ;
+            fpvsOpts = struct() ;
+            fpvsOpts.preview = true ;
+            sampleIDx = farthestPointVertexSampling(nPts, [xx(:), yy(:)], ...
+                ff, seedIDx, fpvsOpts) ;
+        elseif strcmp(subsamplingMethod, 'random')
+            disp('Subsampling via random sampling')
+            sampleIDx = round(random(nPts) * length(xx(:))) ;
+        elseif strcmp(subsamplingMethod, 'custom')
+            try
+                sampleIDx = options.sampleIDx ;
+            catch
+                error('With custom subsampling method, must supply sampleIDx')
+            end
+        end
+        rx = xx(:) ;
+        ry = yy(:) ;
+        xg = rx(sampleIDx) ;
+        yg = ry(sampleIDx) ;
+        rvx = qvx(:) ;
+        rvy = qvy(:) ;
+        QX = rvx(sampleIDx) ;
+        QY = rvy(sampleIDx) ;
+    end
+    
+    h3 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, ...
+        'k', 'LineWidth', 1.2) ;
 else
     h3 = [] ;
 end

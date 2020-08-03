@@ -3,7 +3,9 @@ function cutMesh = ...
 %CYLINDERCUTMESH creates a cut mesh structure from a an input mesh.  Input
 %mesh should be a topological cylinder.  Output mesh will be a topological
 %disk.  The mesh is cut along an edge-based mesh curve between two input
-%points.  Currently this method can only support a single cut path
+%points.  Currently this method can only support a single cut path.
+%Predefined cutPath is allowed via cutOptions.method='custom' and
+%cutOptions.path=[vertex index list].
 %
 %   INPUT PARAMETERS:
 %
@@ -84,7 +86,10 @@ function cutMesh = ...
 %   OUTPUT PARAMETERS:
 %
 %       - cutMesh:      An ImSAnE-style mesh struct with additional fields
-%                       to describe the cut mesh properties
+%                       to describe the cut mesh properties:
+%               pathPairs : Q x 2 int array
+%                   cutPath of the seam
+%               
 %
 % By Dillon Cislo and Noah Mitchell 11/21/2019
 % NPMitchell added higher weight for bulk-boundary edges to discourage

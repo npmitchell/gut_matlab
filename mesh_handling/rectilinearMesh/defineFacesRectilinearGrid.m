@@ -36,11 +36,13 @@ function [faces, faceIDgrid] = defineFacesRectilinearGrid(uv, nU, nV)
 % NPMitchell 2020
 
 % check that uv has increasing u, then increasing v
-if length(size(uv)) == 3
-    uv = reshape(uv, [nU * nV, 2]) ;
+if ~isempty(uv)
+    if length(size(uv)) == 3
+        uv = reshape(uv, [nU * nV, 2]) ;
+    end
+    assert(uv(1, 1) ~= uv(2, 1))
+    assert(uv(1, 2) == uv(2, 2))
 end
-assert(uv(1, 1) ~= uv(2, 1))
-assert(uv(1, 2) == uv(2, 2))
 
 % Define faces with normals facing in (u x v) direction 
 % Note that this is out of page when drawn as follows:

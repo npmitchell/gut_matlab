@@ -1338,20 +1338,13 @@ QS.measureMetricKinematics(options)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lagrangian dynamics
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Pullback pathlines connecting Lagrangian grids
-options = struct() ;
-options.overwrite = false ;
-options.preview = true ;
-options.debug = false ; 
-QS.measurePullbackPathlines(options)
-% Optional:
-QS.measurePathlineVelocities(options)
 %% Pullback pathline time averaging of velocities
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
+options.preview = false ;
 QS.timeAverageVelocities(options)
 %% Velocity plots for pathline time averaging 
-options.overwrite = false ;
+options.overwrite = true ;
 options.plot_vxyz = false ;
 options.invertImage = true ;
 options.averagingStyle = 'Lagrangian'; 
@@ -1359,13 +1352,13 @@ options.samplingResolution = '1x';
 QS.plotTimeAvgVelocities(options)
 %% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.samplingResolution = '1x' ;
 options.averagingStyle = 'Lagrangian' ;
 QS.helmholtzHodge(options) ;
 %% Compressibility & kinematics for Lagrangian
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 options.lambda_err = 0.01 ;
@@ -1377,19 +1370,32 @@ options.overwrite = false ;
 options.overwrite_timePoints = false ;
 options.plot_Hgdot = false ;
 options.plot_flows = true ;
-options.plot_factors = true ;
+options.plot_factors = false ;
 options.plot_kymographs = true ;
 options.plot_correlations = true ;
 options.plot_raw_correlations = true ;
 options.plot_gdot_correlations = false ;
-options.plot_gdot_decomp = true ;
+options.plot_gdot_decomp = false ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 options.lambda_err = 0.01 ;
+options.climit = 0.1 ;
 QS.plotMetricKinematics(options)
+
+%% Pullback pathlines connecting Lagrangian grids
+options = struct() ;
+options.overwrite = true ;
+options.preview = true ;
+options.debug = false ; 
+QS.measurePullbackPathlines(options)
+%% Query velocities along pathlines
+QS.measurePathlineVelocities(options)
+%% plot the pathline velocities 
+QS.plotPathlineVelocities(options)
+
 %% Measure Pathline Kinematics
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 options.lambda_err = 0.01 ;
@@ -1398,7 +1404,9 @@ QS.measurePathlineMetricKinematics(options)
 options = struct() ;
 options.overwrite = false ;
 options.plot_kymographs_pathlines = true ;
+options.plot_kymographs = true ;
 options.plot_kymographs_cumsum = true ;
+options.plot_kymographs_cumprod = true ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 options.lambda_err = 0.01 ;
@@ -1416,12 +1424,19 @@ options = struct() ;
 options.overwrite = false ;
 QS.measureStressPattern(options) ;
 
-%% Measure surface area growh of lobes and folds
+%% Measure metric strain rate (gdot)
+option = struct() ;
+options.overwrite = true ;
+options.preview = false ;
+options.lambda_mesh = 0.001 ;
+options.lambda = 0.005 ;
+QS.measureMetricStrainRate(options) 
+
+%% Measure surface area growh of lobes and folds in Eulerian frame
 options = struct() ;
 options.overwrite = true ;
 options.preview = false ;
 QS.measureEulerianMetricDynamics(options)
-
 
 %% Plot texture map in 3d with velocities
 for i = 1:size(vM, 1)

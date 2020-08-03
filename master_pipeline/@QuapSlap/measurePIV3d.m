@@ -454,6 +454,13 @@ else
         [v0n, v0t, v0t2d, jac, facenormals, g_ab, dilation] = ...
             resolveTangentNormalVelocities(tm0f, tm0v3d, v0, fieldfaces, tm0XY) ;
         
+        % check this
+        % imagesc(x0(:, 1), y0(1, :), reshape(v0n, size(x0)))
+        % error('checking here -- erase this check if no debug')
+        % trisurf(triangulation(tm0f, tm0v3d), 'edgecolor', 'none')
+        % hold on;
+        % plot3(pt1(:, 1), pt1(:, 2), pt1(:, 3)) ;
+        
         % Ensure no NaNs in uu and vv
         if any(isnan(v0t(:))) || any(isnan(v0n(:)))
             error('why do we have NaNs in v0t?')
@@ -590,9 +597,10 @@ else
         datstruct.v0_rs = QS.dx2APDV(v0) / dt ;
         datstruct.v0t_rs = QS.dx2APDV(v0t) / dt ;
         if QS.flipy
+            % Direct normals inward
             datstruct.v0n_rs = -v0n * resolution / dt ;
             normals_rs = (rot * facenormals')' ;            
-            % Put the normal direction as inward
+            % Put the normal direction as inward -- revert X,Z
             datstruct.normals_rs = normals_rs ;
             datstruct.normals_rs(:, 1) = -normals_rs(:, 1) ;
             datstruct.normals_rs(:, 3) = -normals_rs(:, 3) ;            
@@ -601,6 +609,12 @@ else
             datstruct.normals_rs = (rot * facenormals')' ;
         end
         
+        inds = 1:10:length(x0(:)) ;
+        xx = x0(:) ;
+        yy = y0(:) ;
+        h3 = quiver(xx(inds), yy(inds), ...
+            v0t2d(inds, 1), v0t2d(inds,2), 1, 'k', 'LineWidth', 1.2) ;
+
         % 2d pullback velocities
         datstruct.v0t2d = v0t2d ;           % in pullback pix / dt
         datstruct.g_ab = g_ab ;             % pullback metric

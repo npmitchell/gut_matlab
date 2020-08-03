@@ -67,9 +67,6 @@ else
 end
 
 %% Unpack QS
-pivDir = QS.dir.piv ;
-piv3dfn = QS.fullFileBase.piv3d ;
-ntps = length(timePoints) ;
 % [rot, ~] = QS.getRotTrans() ;
 % resolution = QS.APDV.resolution ; 
 [~, ~, ~, xyzlim] = QS.getXYZLims() ;
@@ -77,8 +74,27 @@ axis_order = QS.data.axisOrder ;
 blue = QS.plotting.colors(1, :) ;
 red = QS.plotting.colors(2, :) ;
 green = QS.plotting.colors(4, :) ;
+
+% Define t0 at which pathlines form grid
 t0 = QS.t0set() ;
 tIdx0 = QS.xp.tIdx(t0) ;
+
+%% Create directory for pathlines
+pdir = sprintf(QS.dir.pathlines.data, t0) ;
+XYdir = sprintf(QS.dir.pathlines.XY, t0) ;
+XYZdir = sprintf(QS.dir.pathlines.XYZ, t0) ;
+vXYdir = sprintf(QS.dir.pathlines.vXY, t0) ;
+fXYdir = sprintf(QS.dir.pathlines.fXY, t0) ;
+v3ddir = sprintf(QS.dir.pathlines.v3d, t0) ;
+f3ddir = sprintf(QS.dir.pathlines.f3d, t0) ;
+dirs2make = {pdir, XYdir, XYZdir, vXYdir, fXYdir, v3ddir, f3ddir} ;
+for qq = 1:length(dirs2make)
+    dir2make = dirs2make{qq} ;
+    if ~exist(dir2make, 'dir')
+        disp(['Making dir: ' dir2make])
+        mkdir(dir2make)
+    end
+end
 
 %% Perform/Load pathline calculations
 
@@ -100,6 +116,7 @@ if ~exist(plineXY, 'file') || overwrite
     disp('Computing piv Pathlines for XY(t0)')
     % Load 'initial' positions for pathlines to intersect at t=t0
     QS.getPIV() 
+    piv = QS.piv.raw ;
     x0 = piv.x{QS.xp.tIdx(t0)} ;
     y0 = piv.y{QS.xp.tIdx(t0)} ;
     
@@ -140,17 +157,17 @@ if ~exist(plineFig, 'file') || overwrite
     end
     
     % Plot the pathlines -- NOTE that we flip YY coordinates (MATLAB)
-    qsubX = round(size(XX, 2) / nY2plot ) ;
+    qsubX = round(size(XX, 2) / nY2plot * QS.a_fixed) ;
     if doubleCovered
-        qsubY = round(size(XX, 3) / nY2plot * 2 * QS.a_fixed) ;
+        qsubY = round(size(XX, 3) / nY2plot * 2);
     else
-        qsubY = qsubX ;
+        qsubY = round(size(XX, 3) / nY2plot) ;
     end
     colors = parula(length(timePoints)) ;
     clf
     for qq = fliplr(1:length(timePoints))
-        xx = XX(qq, 1:qsubY:end, 1:qsubX:end) ;
-        yy = YY(qq, 1:qsubY:end, 1:qsubX:end) ;
+        xx = XX(qq, 1:qsubX:end, 1:qsubY:end) ;
+        yy = YY(qq, 1:qsubX:end, 1:qsubY:end) ;
         scatter(xx(:) / double(Lx(qq)), ...
             (1 - (yy(:) / double(Ly(qq))) - Yoffset) / (1 - 2*Yoffset), ...
             scatterSz, ...
@@ -181,7 +198,7 @@ for tidx = 1:length(timePoints)
     if mod(tidx, 10) == 0
         disp(['t = ', num2str(timePoints(tidx))])
     end
-    fn = fullfile(QS.dir.pathlines.XY, ...
+    fn = fullfile(sprintf(QS.dir.pathlines.XY, t0), ...
         [sprintf(QS.fileBase.name, timePoints(tidx)) '.png']) ;
     
     if ~exist(fn, 'file') || overwrite
@@ -238,7 +255,8 @@ if ~exist(plinevXY, 'file') || overwrite
     mesh0 = mesh0.spcutMeshSm ;
     umax0 = max(mesh0.u(:, 1)) ;
     vmax0 = max(mesh0.u(:, 2)) ;
-    m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], mesh0.u, doubleCovered, umax0, vmax0) ;
+    m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], mesh0.u, doubleCovered, ...
+        umax0, vmax0) ;
     m0X = m0XY(:, 1) ;
     m0Y = m0XY(:, 2) ;
     
@@ -316,7 +334,7 @@ for tidx = 1:length(timePoints)
     if mod(tidx, 10) == 0
         disp(['t = ', num2str(timePoints(tidx))])
     end
-    fn = fullfile(QS.dir.pathlines.vXY, ...
+    fn = fullfile(sprintf(QS.dir.pathlines.vXY, t0), ...
         [sprintf(QS.fileBase.name, timePoints(tidx)) '.png']) ;
     
     if ~exist(fn, 'file') || overwrite

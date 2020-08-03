@@ -1,12 +1,45 @@
 classdef QuapSlap < handle
     % Quasi-Axisymmetric Pipeline for Surface Lagrangian Pullbacks class
     %
-    % flipy         % APDC coord system is mirrored XZ wrt raw data
-    % xyzlim        % mesh limits in full resolution pixels, in data space
-	% xyzlim_um     % mesh limits in lab APDV frame in microns
-    % resolution    % resolution of pixels in um
-    % rot           % APDV rotation matrix
-    % trans         % APDV translation 
+    % xyzlim        : 3x2 float, mesh limits in full resolution pixels, in data space
+	% xyzlim_um     : 3x2 float, mesh limits in lab APDV frame in microns
+    % resolution    : float, resolution of pixels in um
+    % rot           : 3x3 float, APDV rotation matrix
+    % trans         : 3x1 float, APDV translation 
+    % a_fixed       : float, aspect ratio for fixed-width pullbacks
+    % phiMethod     : str, '3dcurves' or 'texture'
+    % flipy         : bool, APDV coord system is mirrored XZ wrt raw data
+    % nV            : int, sampling number along circumferential axis
+    % nU            : int, sampling number along longitudinal axis
+    % uvexten       : str, naming extension with nU and nV like '_nU0100_nV0100'
+    % t0            : int, reference timePoint in the experiment
+    % features : struct with fields
+    %   folds : #timepoints x #folds int, 
+    %       indices of nU sampling of folds
+    %   fold_onset : #folds x 1 float
+    %       timestamps (not indices) of fold onset
+    %   ssmax : #timepoints x 1 float
+    %       maximum length of the centerline at each timepoint
+    %   ssfold : #timepoints x #folds float
+    %       positional pathlength along centerline of folds
+    %   rssmax : #timepoints x 1 float
+    %       maximum proper length of the surface over time
+    %   rssfold : #timepoints x #folds float
+    %       positional proper length along surface of folds
+    % velocityAverage : struct with fields
+    %   vsmM : (#timePoints-1) x (nX*nY) x 3 float array
+    %       3d velocities at PIV evaluation coordinates in um/dt rs
+    %   vfsmM : (#timePoints-1) x (2*nU*(nV-1)) x 3 float array
+    %       3d velocities at face barycenters in um/dt rs
+    %   vnsmM : (#timePoints-1) x (nX*nY) float array
+    %       normal velocity at PIV evaluation coordinates in um/dt rs
+    %   vvsmM : (#timePoints-1) x (nU*nV) x 3 float array
+    %       3d velocities at (1x resolution) mesh vertices in um/min rs
+    %   v2dsmM : (#timePoints-1) x (nX*nY) x 2 float array
+    %       2d velocities at PIV evaluation coordinates in pixels/ min
+    %   v2dsmMum : (#timePoints-1) x (nX*nY) x 2 float array
+    %       2d velocities at PIV evaluation coordinates in scaled pix/min, but 
+    %       proportional to um/min (scaled by dilation of map)
     properties
         xp
         timeInterval
@@ -21,7 +54,7 @@ classdef QuapSlap < handle
         APDV = struct('resolution', [], ...
             'rot', [], ...
             'trans', [])
-        flipy 
+        flipy                   % whether data is mirror image of lab frame coordinates
         nV                      % sampling number along circumferential axis
         nU                      % sampling number along longitudinal axis
         uvexten                 % naming extension with nU and nV like '_nU0100_nV0100'
@@ -72,7 +105,7 @@ classdef QuapSlap < handle
             'Lx', [], ...
             'Ly', [], ...
             'raw', struct()) ;  
-        velocityAverage = struct('v3d', [], ...
+        velocityAverage = struct('v3d', [], ... 
             'v2d', [], ...
             'v2dum', [], ...
             'vn', [], ...
@@ -112,8 +145,10 @@ classdef QuapSlap < handle
         end
         initializeQuapSlap(QS, xp, opts)
         plotSPCutMeshSmSeriesUtility(QS, coordsys, options)
-        plotMetricKinematicsTimePoint(QS, options)
+        plotMetricKinematicsTimePoint(QS, tp, options)
         [XX, YY] = pullbackPathlines(QS, x0, y0, t0, options) 
+        plotAverageVelocitiesTimePoint(QS, tp, options)
+        plotPathlineVelocitiesTimePoint(QS, tp, options)
     end
     
     % Public methods, accessible from outside the class and reliant on 
@@ -960,23 +995,23 @@ classdef QuapSlap < handle
                 varargin = {'v3d', 'v2dum', 'v2d', 'vn', 'vf', 'vv'};
             end
             if any(strcmp(varargin, 'v3d'))
-                load(QS.fileName.pivSimAvg.v3d, 'vsmM') ;
+                load(QS.fileName.pivAvg.v3d, 'vsmM') ;
                 QS.velocityAverage.v3d = vsmM ;
             end
             if any(strcmp(varargin, 'v2dum'))
-                load(QS.fileName.pivSimAvg.v2dum, 'v2dsmMum') ;
+                load(QS.fileName.pivAvg.v2dum, 'v2dsmMum') ;
                 QS.velocityAverage.v2dum = v2dsmMum ;
             end
             if any(strcmp(varargin, 'vn'))
-                load(QS.fileName.pivSimAvg.vn, 'vnsmM') ;
+                load(QS.fileName.pivAvg.vn, 'vnsmM') ;
                 QS.velocityAverage.vn = vnsmM ;
             end
             if any(strcmp(varargin, 'vf'))
-                load(QS.fileName.pivSimAvg.vf, 'vfsmM') ;
+                load(QS.fileName.pivAvg.vf, 'vfsmM') ;
                 QS.velocityAverage.vf = vfsmM ;
             end
-            if any(strcmp(varargin, 'v2v'))
-                load(QS.fileName.pivSimAvg.vf, 'vvsmM') ;
+            if any(strcmp(varargin, 'vv'))
+                load(QS.fileName.pivAvg.vv, 'vvsmM') ;
                 QS.velocityAverage.vv = vvsmM ;
             end
         end
@@ -1021,6 +1056,8 @@ classdef QuapSlap < handle
         end
         plotTimeAvgVelocities(QS, options)
         helmholtzHodge(QS, options)
+        measurePathlineVelocities(QS, options)
+        plotPathlineVelocities(QS, options)
         
         %% Velocities -- simple/surface-Lagrangian averaging
         timeAverageVelocitiesSimple(QS, samplingResolution, options)

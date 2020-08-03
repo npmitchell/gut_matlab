@@ -1,4 +1,4 @@
-function [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(mesh, varargin)
+function [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(mesh, options)
 % metricSPhiGridMesh(mesh, varargin)
 %   Identify the bond on each face of a rectilinear grid mesh that is along
 %   x and y (s and phi). Assumes input mesh is rectilinear with indices
@@ -19,7 +19,7 @@ function [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(mesh, vara
 %       number of mesh vertices along each row of the rectilinear mesh
 %   nV : int
 %       number of mesh vertices along each column of the mesh
-% vargin : positional arguments (optional)
+% options : struct with fields (optional)
 %   eIDx : #bonds x 2 int
 %       bond vertex IDs, bond vertices from topologicalStructureTools()
 %   feIDx : #faces x 3 int
@@ -42,12 +42,21 @@ function [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(mesh, vara
 %       v : #faces x dim float array
 %           directed bond vector oriented along the 'v' direction of the
 %           rectilinear mesh (columns, connecting (i, i+nU) vertices)
-%   Otherwise, if mesh does have base space, there is a separate field for
+%   Otherwise, if mesh DOES have base space, there is a separate field for
 %   each set of directed bond vectors
 %       baseSpace : struct with fields u,v as above
 %           directed bonds in domain of parameterization
 %       realSpace : struct with fields u,v as above
 %           directed bonds in coordinate space of mesh vertices
+%   If the input mesh is a closed cylinder, cutMesh is an additional field
+%       cutMesh : struct with fields
+%           f : nU*
+%           u : 
+%           v : 
+%           vn : 
+%           nU : 
+%           nV : 
+%       
 % topStructTools : optional cell array output, with elements
 %   eIDx : #bonds x 2 int
 %       bond vertex IDs, bond vertices from topologicalStructureTools()
@@ -62,21 +71,24 @@ function [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(mesh, vara
 VV = mesh.v ;
 FF = mesh.f ;
 nU = mesh.nU ;
-% nV = mesh.nV ;
 
-% Construct Triangulation
+%% Construct Triangulation
 tri = triangulation(FF, VV) ;
 
-% Unpack or compute topological structure tools
+%% Unpack or compute topological structure tools
 load_tstools = true ;
-if ~isempty(varargin)
+preview = false ;
+if nargin > 1
     try
-        eIDx = varargin{1} ;
-        feIDx = varargin{2} ;
+        eIDx = options.eIDx ;
+        feIDx = options.feIDx ;
         load_tstools = false ;
     catch
         disp(['labelRectilinearMeshBonds: ', ...
             'topological structure tools could not be parsed'])
+    end
+    if isfield(options, 'preview')
+        preview = options.preview ;
     end
 end
 if load_tstools
@@ -84,6 +96,18 @@ if load_tstools
     if nargout > 2
         topStructTools = {eIDx, feIDx, } ;
     end
+end
+% Note: eIDx is the bond list
+
+%% Handle two cases separately: is mesh closed in V or open?
+edge = edges( tri );
+eulerChi = size(VV, 1) - size(edge,1) + size(FF,1);
+if eulerChi == 1 
+    mesh_closed = false ;
+elseif eulerChi == 0
+    mesh_closed = true ;
+else
+    error('Input rectilinear mesh is neither topological cylinder nor disk. Handle case here')
 end
 
 %% Count which bonds connect distant/adjacent/modular indices for 0/1/2
@@ -102,9 +126,9 @@ fe_is_u = sorp(feIDx) == 1 ;
 % fe_is_phi is boolean, true where feIDx element is along phi
 fe_is_v = sorp(feIDx) == 2 ;
 
-% check that there is one shat vector in each triangle
+% check that there is one uhat vector in each triangle
 assert(all(any(fe_is_u, 2)))  
-% check that there is one phihat vector in each triangle
+% check that there is one vhat vector in each triangle
 assert(all(any(fe_is_v, 2)))  
 
 labels.fe_is_u = fe_is_u ;
@@ -113,31 +137,71 @@ labels.fe_is_v = fe_is_v ;
 if nargout > 1
     % Directed edge vectors in mesh configuration space
     eij = VV(eIDx(:,2), :) - VV(eIDx(:,1), :);
-    eij = VV(eIDx(:,2), :) - VV(eIDx(:,1), :);
 
-    % Return directed bond vectors for bonds along u and along v
+    % Return directed bond vectors for bonds along u and along v as struct
+    % with fields u, v
     dbond_u = eij(sum(fe_is_u .* feIDx, 2), :) ;
     dbond_v = eij(sum(fe_is_v .* feIDx, 2), :) ;
-    dbonds.u = dbond_u ;
-    dbonds.v = dbond_v ;
     
     % Check for a base space of the mesh
     if isfield(mesh, 'u')
-        UU = mesh.u ;
+        % if mesh is closed, adjust for periodic vertices in base space
+        if mesh_closed
+            disp('cutting closed input mesh for baseSpace dbonds')
+            cutMesh = cutRectilinearCylMesh(mesh) ;
+            cutTri = triangulation(cutMesh.f, cutMesh.v) ;
+            [eIDx, feIDx, ~] = topologicalStructureTools(cutTri) ;
+            UU = cutMesh.u ;
+            dbonds.cutMesh = cutMesh ;
+        else        
+            UU = mesh.u ;
+        end
         
         % Directed edge vectors in mesh base space
         eij = UU(eIDx(:,2), :) - UU(eIDx(:,1), :);
-        eij = UU(eIDx(:,2), :) - UU(eIDx(:,1), :);
-
+        
         % Return directed bond vectors for bonds along u and along v
         dbond_u = eij(sum(fe_is_u .* feIDx, 2), :) ;
         dbond_v = eij(sum(fe_is_v .* feIDx, 2), :) ;
-        dbonds2.u = dbond_u ;
-        dbonds2.v = dbond_v ;
+        dbonds_baseSpace.u = dbond_u ;
+        dbonds_baseSpace.v = dbond_v ;
         
-        % Return as struct with fields realSpace and baseSpace
-        dbonds.realSpace = dbonds ;
-        dbonds.baseSpace = dbonds2 ;
+        % Return dbonds as struct with fields realSpace and baseSpace
+        dbonds_realSpace.u = dbond_u ;
+        dbonds_realSpace.v = dbond_v ;
+        
+        % Store in master struct
+        dbonds.realSpace = dbonds_realSpace ;
+        dbonds.baseSpace = dbonds_baseSpace ;
+    else
+        dbonds.u = dbond_u ;
+        dbonds.v = dbond_v ;
     end
+    
 end
 
+%% preview results if desired
+if preview
+    clf
+    v01 = VV(eIDx(sorp == 0, 1), :) ;
+    v02 = VV(eIDx(sorp == 0, 2), :) ;
+    plot3([v01(:, 1), v02(:, 1)]', [v01(:, 2), v02(:, 2)]', ...
+        [v01(:, 3), v02(:, 3)]', 'k')
+    axis equal
+    view(2)
+    % xlim([0, 100])
+    ylim([-10, Inf])
+    zlim([0, Inf])
+    hold on; 
+    pause(1)
+    v11 = VV(eIDx(sorp == 1, 1), :) ;
+    v12 = VV(eIDx(sorp == 1, 2), :) ;
+    plot3([v11(:, 1), v12(:, 1)]', [v11(:, 2), v12(:, 2)]', ...
+        [v11(:, 3), v12(:, 3)]', 'r') 
+    pause(1)
+    v21 = VV(eIDx(sorp == 2, 1), :) ;
+    v22 = VV(eIDx(sorp == 2, 2), :) ;
+    plot3([v21(:, 1), v22(:, 1)]', [v21(:, 2), v22(:, 2)]', ...
+        [v21(:, 3), v22(:, 3)]', 'c')
+    
+end

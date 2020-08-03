@@ -6,12 +6,14 @@ function [h1, h2] = scalarFieldOnImage(im, xy_or_fxy, sf, alphaVal, ...
 %
 % Example Usage
 % -------------
+% labelOpts.label = '$|v|$ [$\mu$m/min]' ;
 % scalarFieldOnImage(im, xx, yy, reshape(vecnorm(vsm_ii, 2, 2), gridsz),...
-%     alphaVal, vtscale, '$|v|$ [$\mu$m/min]', 'Style', 'Positive')
+%     alphaVal, vtscale, labelOpts, 'Style', 'Positive')
 %
 % Parameters
 % ----------
-% im : 
+% im : PxQ numeric array
+%   RGB or grayscale image
 % xy_or_fxy : N x 2 float array, or struct with fields (faces/f, xy/v) 
 %   xy coordinates of the field evaluation locations, or struct with faces
 %   and vertex locations for drawing patches if field is defined on faces
@@ -65,6 +67,9 @@ end
 if isfield(labelOptions, 'label')
     label = labelOptions.label ;
 end
+if isfield(labelOptions, 'colormap')
+    cmap = labelOptions.colormap ;
+end
 
 %% Unpack options for style (diverging, positive, negative) and cmap
 style = 'diverging' ;     % default is diverging
@@ -107,25 +112,39 @@ if isnumeric(xy_or_fxy)
     end
     if strcmp(style, 'phasemap')
         caxis(gca, [0, 2*pi]) ;
-        colormap(bwr) ;
+        if exist('cmap', 'var')
+            colormap(cmap)
+        else
+            colormap(bwr) ;
+        end
     elseif strcmp(style, 'diverging')
         if scale > 0
             caxis(gca, [-scale, scale]) ;
         else
             caxis(gca, [min(sf(:)), max(sf(:))])
         end
-        colormap(bwr) ;
+        if exist('cmap', 'var')
+            colormap(cmap)
+        else
+            colormap(bwr) ;
+        end
     elseif strcmp(style, 'positive')
         if scale > 0
             caxis(gca, [0, scale]) ;
         else
             caxis(gca, [0, max(sf(:))])
         end
+        if exist('cmap', 'var')
+            colormap(cmap) ;
+        end
     elseif strcmp(style, 'negative')
         if scale > 0
             caxis(gca, [-scale, 0]) ;
         else
             caxis(gca, [min(sf(:)), 0]) ;
+        end
+        if exist('cmap', 'var')
+            colormap(cmap) ;
         end
     end
 elseif isa(xy_or_fxy, 'struct')
@@ -134,7 +153,7 @@ elseif isa(xy_or_fxy, 'struct')
     if isfield(xy_or_fxy, 'faces')
         FF = xy_or_fxy.faces ;
     elseif isfield(xy_or_fxy, 'f')
-        FF = xy_or_fxy.faces ;
+        FF = xy_or_fxy.f ;
     else
         error('Face list for patches must be supplied as f or faces')
     end
@@ -161,8 +180,12 @@ elseif isa(xy_or_fxy, 'struct')
         colors = mapValueToColor(sf, [0, 2*pi], cmap) ;
     elseif strcmp(style, 'diverging')
         % Diverging style
-        cmap = bwr ;
-        colormap bwr
+        if exist('cmap', 'var')
+            colormap(cmap) ;
+        else
+            cmap = bwr ;
+            colormap bwr
+        end
         if scale > 0
             colors = mapValueToColor(sf, [-scale, scale], cmap) ;
             caxis(gca, [-scale, scale])
@@ -172,8 +195,12 @@ elseif isa(xy_or_fxy, 'struct')
         end
     elseif strcmp(style, 'positive')
         % positive only
-        cmap = parula ;
-        colormap parula
+        if exist('cmap', 'var')
+            colormap(cmap) ;
+        else
+            cmap = parula ;
+            colormap parula
+        end
         if scale < 0
             scale = max(sf(:)) ; 
         end
@@ -181,8 +208,12 @@ elseif isa(xy_or_fxy, 'struct')
         caxis(gca, [0, scale])
     elseif strcmp(style, 'negative')
         % negative only
-        cmap = parula ;
-        colormap parula
+        if exist('cmap', 'var')
+            colormap(cmap) ;
+        else
+            cmap = parula ;
+            colormap parula
+        end
         if scale < 0
             scale = min(sf(:)) ; 
         end

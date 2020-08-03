@@ -6,9 +6,9 @@ function plotPathlineMetricKinematics(QS, options)
 %   mean curvature.
 %   In-plane motion considered here is div(v_t) where v_t is tangential
 %   velocity on the curved surface.
-%   The difference div(v_t) - vn*2H = Tr[g^{-1} dot{g}], which is a measure
-%   of isotropic metric change over time (dot is the partial derivative wrt
-%   time). 
+%   The difference div(v_t) - vn*2H = 1/2 Tr[g^{-1} dot{g}], which is a 
+%   measure of isotropic metric change over time (dot is the partial 
+%   derivative wrt time). 
 % 
 %
 % Parameters
@@ -90,6 +90,9 @@ if isfield(options, 'plot_kymographs')
 end
 if isfield(options, 'plot_kymographs_cumsum')
     plot_kymographs_cumsum = options.plot_kymographs_cumsum ;
+end
+if isfield(options, 'plot_kymographs_cumprod')
+    plot_kymographs_cumprod = options.plot_kymographs_cumprod ;
 end
 if isfield(options, 'plot_correlations')
     plot_correlations = options.plot_correlations ;
@@ -268,12 +271,12 @@ if plot_kymographs
         velnK = velnsK{qq} ;
         H2vnK = H2vnsK{qq} ;
         m2plot = {gdotK, HHK, divvK, velnK, H2vnK} ;
-        titles = {'$\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
+        titles = {'$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
             'mean curvature, $H$', ...
             'divergence of flow, $\nabla \cdot \mathbf{v}$', ...
             'normal velocity, $v_n$', ...
             'normal motion, $v_n 2 H$'} ;
-        labels = {['$\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
+        labels = {['$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
             ['mean curvature, $H$ ' Hunitstr], ...
             ['$\nabla \cdot \mathbf{v}$ ' unitstr], ...
             ['normal velocity, $v_n$ ' vunitstr] , ...
@@ -335,6 +338,97 @@ if plot_kymographs
     end
 end
 
+%% Kymographs of cumulative products along pathlines 
+if plot_kymographs_cumprod
+    % Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
+    dvDir = fullfile(mKPDir, 'avgDV') ;
+    lDir = fullfile(mKPDir, 'avgLeft') ;
+    rDir = fullfile(mKPDir, 'avgRight') ;
+    dDir = fullfile(mKPDir, 'avgDorsal') ;
+    vDir = fullfile(mKPDir, 'avgVentral') ;
+    outdirs = {dvDir, lDir, rDir, dDir, vDir} ;
+    titleadd = {': circumferentially averaged', ...
+        ': left side', ': right side', ': dorsal side', ': ventral side'} ;
+
+    for qq = 1:length(outdirs)
+        % Prep the output directory for this averaging
+        odir = outdirs{qq} ;
+        if ~exist(odir, 'dir')
+            mkdir(odir)
+        end
+
+        % Unpack what to plot (averaged kymographs, vary averaging region)
+        gdotK_pos = cumprod(1 + gdotsK{qq}(tps>eps, :), 1) ;
+        gdotK_neg = flipud(cumprod(flipud(1 ./ (1 + gdotsK{qq}(tps<eps, :))), 1)) ;
+        gdotK = cat(1, gdotK_neg, gdotK_pos) ;
+        divvK_pos = cumprod(1 + divvsK{qq}(tps>eps, :), 1) ;
+        divvK_neg = flipud(cumprod(flipud(1 ./ (1 + divvsK{qq}(tps<eps, :))), 1)) ;
+        divvK = cat(1, divvK_neg, divvK_pos) ;
+        H2vnK_pos = cumprod(1 + H2vnsK{qq}(tps>eps, :), 1) ;
+        H2vnK_neg = flipud(cumprod(flipud(1 ./ (1 + H2vnsK{qq}(tps<eps, :))), 1)) ;
+        H2vnK = cat(1, H2vnK_neg, H2vnK_pos) ;
+        m2plot = {gdotK, divvK, H2vnK} ;
+        titles = {'$\bar{\epsilon} \equiv \Pi_{0}^{t}\, \left(1+\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]\right)$',...
+            'divergence of flow, $\Pi_{0}^{t}\,\left[ 1 + \nabla \cdot \mathbf{v}(\tau)\right]$', ...
+            'normal motion, $\Pi_{0}^{t}\, \left[ 1 + v_n(\tau) 2 H(\tau)\right]$'} ;
+        labels = {'$\bar{\epsilon}$', ...
+            '$ \Pi_{0}^{t}\, \left[ 1 + \nabla \cdot \mathbf{v}(\tau) \right]$' , ...
+            'normal motion, $\Pi_{0}^{t}\, \left[ 1 + v_n(\tau) 2 H(\tau)\right] $' } ;
+        names = {'Igdot_t0', 'Idivv_t0', 'IH2vn_t0'} ;
+        climits = [climit, climit, climit] ;
+        climits = climits * 3; 
+        
+        %% Plot gdot/HH/divv/veln/H2vn DV-averaged kymograph
+        for pp = 1:length(m2plot)
+            % Check if images already exist on disk
+            fn = fullfile(odir, [ names{pp} '.png']) ;
+            fn_zoom = fullfile(odir, [names{pp} '_zoom_early.png']) ;
+            if ~exist(fn, 'file') || ~exist(fn_zoom, 'file') || overwrite
+                close all
+                set(gcf, 'visible', 'off')
+                imagesc((1:nU)/nU, tps, m2plot{pp})
+                caxis([1-climits(pp), 1+climits(pp)])
+                colormap(bwr256)
+                % Add folds to plot
+                hold on;
+                fons1 = max(1, fons(1)) ;
+                fons2 = max(1, fons(2)) ;
+                fons3 = max(1, fons(3)) ;
+                t1ones = ones(size(tps(fons1:end))) ;
+                t2ones = ones(size(tps(fons2:end))) ;
+                t3ones = ones(size(tps(fons3:end))) ;
+                tidx0 = QS.xp.tIdx(t0) ;
+                plot(folds.folds(tidx0, 1) * t1ones / nU, tps(fons1:end))
+                plot(folds.folds(tidx0, 2) * t2ones / nU, tps(fons2:end))
+                plot(folds.folds(tidx0, 3) * t3ones / nU, tps(fons3:end))
+
+                % title and save
+                title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+                cb = colorbar() ;
+                ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+
+                % Zoom in on small values
+                caxis([1-climits(pp)/3, 1+climits(pp)/3])
+                colormap(bwr256)
+                fn = fullfile(odir, [names{pp} '_zoom.png']) ;
+                tmp = strsplit(fn, filesep) ;
+                disp(['saving ', tmp{end}])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+                % Zoom in on early times
+                ylim([min(tps), max(fons) + 10])
+                caxis([1-climits(pp)/3, 1+climits(pp)/3])
+                colormap(bwr256)
+                tmp = strsplit(fn_zoom, filesep) ;
+                disp(['saving ', tmp{end}])
+                export_fig(fn_zoom, '-png', '-nocrop', '-r200')   
+            end
+        end
+    end
+end
 
 %% Kymographs of cumulative sums along pathlines
 if plot_kymographs_cumsum
@@ -362,11 +456,11 @@ if plot_kymographs_cumsum
         velnK = cumsum(velnsK{qq}, 1) ;
         H2vnK = cumsum(H2vnsK{qq}, 1) ;
         m2plot = {gdotK, divvK, velnK, H2vnK} ;
-        titles = {'$\int_{-\infty}^t \textrm{d}t \,  \textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
+        titles = {'$\int_{-\infty}^t \textrm{d}t \,  \frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
             'divergence of flow, $\int_{-\infty}^t \textrm{d}t \,  \nabla \cdot \mathbf{v}$', ...
             'normal velocity, $\int_{-\infty}^t \textrm{d}t \,  v_n$', ...
             'normal motion, $\int_{-\infty}^t \textrm{d}t \,  v_n 2 H$'} ;
-        labels = {['$\int_{-\infty}^t \textrm{d}t \, \textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
+        labels = {['$\int_{-\infty}^t \textrm{d}t \, \frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
             ['$\int_{-\infty}^t \textrm{d}t \,  \nabla \cdot \mathbf{v}$ ' unitstr], ...
             ['normal velocity, $\int_{-\infty}^t \textrm{d}t \,  v_n$ ' vunitstr] , ...
             ['normal motion, $\int_{-\infty}^t \textrm{d}t \,  v_n 2 H $ ' unitstr]} ;
@@ -436,13 +530,13 @@ timeSpans = {tps, tps(tps < max(fons) + 11)} ;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 padN = round(0.1 * nU) ;
 cols = padN:nU - padN ;
-corrDir = fullfile(mKDir, 'correlations_DVquadrants_smoothed') ;
+corrDir = fullfile(mKPDir, 'correlations_DVquadrants_smoothed') ;
 
 if plot_correlations
     if ~exist(corrDir, 'dir')
         mkdir(corrDir)
     end
-    for sigma = 0:3
+    for sigma = 0:1
         outputFileNames = {fullfile(corrDir, ...
             sprintf('correlation_sigma%02d_alltime_div_2Hvn', sigma)), ...
             fullfile(corrDir, ...
@@ -546,7 +640,7 @@ if plot_correlations
                     % Add dashed y=x line
                     xlim([xmin, xmax])
                     ylim([ymin, ymax])
-                    plot(-2 * climit * [-1, 1], 2 * climit * [-1, 1], 'k--')
+                    plot(2 * climit * [-1, 1], 2 * climit * [-1, 1], 'k--')
                     sposCollection{qq} = get(sphCollection{qq}, 'Position');
                 end
 
@@ -718,7 +812,7 @@ for qq = 1:5
             saveas(gcf, fn)
         end
     end
-    
+   
     %% Plot lobe Kinematics
     fn = fullfile(outdirs{qq}, ...
         ['lobe_kinematics_' avgLabel{qq} '.png']) ;
@@ -781,7 +875,85 @@ for qq = 1:5
         disp(['Saving figure: ', fn])
         saveas(gcf, fn)
     end
+    
+    %% Fold kinematics -- cumprod
+    for width = 1:round(0.05 * nU)
+        fn = fullfile(outdirs{qq}, ...
+            [sprintf('fold_kinematics_w%03d_', 2*width+1), ...
+            avgLabel{qq}, '.png']) ;
+        if ~exist(fn, 'file') || overwrite 
+            close all
+            ymin = 0 ;
+            ymax = 0 ;
+            % Each fold is valley+/- width
+            for jj = 1:length(valleys)
+                axisColl{jj} = subplot(length(valleys), 1, jj) ;
+                valley = (valleys(jj)-width):(valleys(jj)+width) ;
+                gdj = mean(divv(:, valley) - H2vn(:, valley), 2) ;
+                % Take cumulative product marching forward from t0
+                gpj_pos = cumprod(1 + gdj(tps > eps)) ;
+                gpj_neg = fliplr(cumprod(fliplr(1 ./ (1 + gdj(tps < eps))))) ;
+                gpj = cat(1, gpj_neg, gpj_pos) ;
+                plot(tps, gpj, '.-', 'Color', QS.plotting.colors(1, :))
+                %
+                error('verify by taking area of triangles over space')
+                
+                if jj == 1
+                    % Title and labels
+                    title([titleFoldBase, avgStrings{qq}, ', ', ...
+                        '$w_{\textrm{fold}}=', ...
+                        num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'], ...
+                        'Interpreter', 'Latex')
+                    legend({'$\nabla\cdot\mathbf{v}_\parallel$', ...
+                        '$v_n 2H$'}, 'Interpreter', 'Latex', ...
+                        'location', 'eastOutside')  
+                    drawnow
+                    pos = get(gca, 'position') ;
+                elseif jj == length(valleys)
+                    xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+                end
+                ylabel(foldYlabels{jj}, 'Interpreter', 'Latex')
+                ylims = ylim() ;
+                ymin = min(ymin, ylims(1)) ;
+                ymax = max(ymax, ylims(2)) ;
+            end
+
+            for jj = 1:length(valleys)
+                axes(axisColl{jj})
+                pos2 = get(gca, 'position') ;
+                set(gca, 'position', [pos2(1) pos2(2) pos(3) pos2(4)])
+                ylim([ymin, ymax])
+
+                % Mark wherever the divv<0 and also vn2H<0
+                valley = (valleys(jj)-width):(valleys(jj)+width) ;
+                dvj = mean(divv(:, valley), 2) ;
+                Hvj = mean(H2vn(:, valley), 2) ;
+                dvpos = dvj > 0 ;
+                Hvpos = Hvj > 0 ;
+                scatter(tps(dvpos), ...
+                    (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
+                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
+                    'markerFaceColor', QS.plotting.colors(1, :), ...
+                    'HandleVisibility', 'off')
+                hold on;
+                scatter(tps(Hvpos), ...
+                    ymin * ones(size(tps(Hvpos))), 5,  ...
+                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
+                    'markerFaceColor', QS.plotting.colors(2, :), ...
+                    'HandleVisibility', 'off')
+                ylim([ymin-0.1*(ymax-ymin), ymax])
+            end
+
+            % Save figure
+            disp(['Saving figure: ', fn])
+            saveas(gcf, fn)
+        end
+    end
+    
+    
 end
+
+disp('done')
 
 
 

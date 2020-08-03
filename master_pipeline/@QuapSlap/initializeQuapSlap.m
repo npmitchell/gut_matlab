@@ -79,15 +79,10 @@ QS.dir.uvCoord = uvDir ;
 QS.dir.gstrain = fullfile(uvDir, 'metric_strain') ;
 QS.dir.gstrainRate = fullfile(QS.dir.gstrain, 'rateMetric') ;
 QS.dir.gstrainRateIm = fullfile(QS.dir.gstrainRate, 'images') ;
-QS.dir.gstrainVel = fullfile(QS.dir.gstrain, 'velMetric') ;
-QS.dir.gstrainVelIm = fullfile(QS.dir.gstrainVel, 'images') ;
 QS.dir.gstrainMesh = fullfile(QS.dir.gstrain, 'meshMetric') ;
 QS.dir.gstrainMeshIm = fullfile(QS.dir.gstrainMesh, 'images') ;
-QS.fileBase.gstrainVel = 'gstrainVel_%06d.mat' ;
 QS.fileBase.gstrainMesh = 'gstrainMesh_%06d.mat' ;
 QS.fileBase.gstrainRate = 'gstrainRate_%06d.mat' ;
-QS.fullFileBase.gstrainVel = fullfile(QS.dir.gstrainVel, ...
-    QS.fileBase.gstrainVel) ;
 QS.fullFileBase.gstrainMesh = fullfile(QS.dir.gstrainMesh, ...
     QS.fileBase.gstrainMesh) ; 
 QS.fullFileBase.gstrainRate = fullfile(QS.dir.gstrainRate, ...
@@ -344,7 +339,7 @@ QS.dir.pivdilation = fullfile(QS.dir.piv, 'dilation') ;
 QS.fileName.pivRaw = fullfile(QS.dir.piv, 'piv_results.mat') ;
 QS.fullFileBase.piv3d = fullfile(QS.dir.piv3d, 'piv3d_%04d.mat') ;
 QS.dir.pathlines = struct() ;
-QS.dir.pathlines.data = fullfile(QS.dir.piv, 'pathlines') ; 
+QS.dir.pathlines.data = fullfile(QS.dir.piv, 'pathlines', 't0_%04d') ; 
 QS.dir.pathlines.XY = fullfile(QS.dir.pathlines.data, 'images_XY') ;
 QS.dir.pathlines.XYZ = fullfile(QS.dir.pathlines.data, 'images_XYZ') ;
 QS.dir.pathlines.vXY = fullfile(QS.dir.pathlines.data, 'images_vXY') ;
@@ -353,25 +348,28 @@ QS.dir.pathlines.v3d = fullfile(QS.dir.pathlines.data, 'images_v3d') ;
 QS.dir.pathlines.f3d = fullfile(QS.dir.pathlines.data, 'images_f3d') ;
 QS.fileName.pathlines = struct() ;
 pdir = QS.dir.pathlines.data ;
-QS.fileName.pathlines.XY = fullfile(pdir, 'piv_pathlines_%04dt0_XY.mat') ;
-QS.fileName.pathlines.XYZ = fullfile(pdir, 'piv_pathlines_%04dt0_XYZ.mat') ;
-QS.fileName.pathlines.vXY = fullfile(pdir, 'piv_pathlines_%04dt0_vXY.mat') ;
-QS.fileName.pathlines.v3d = fullfile(pdir, 'piv_pathlines_%04dt0_v3d.mat') ;
-QS.fileName.pathlines.fXY = fullfile(pdir, 'piv_pathlines_%04dt0_fXY.mat') ;
-QS.fileName.pathlines.f3d = fullfile(pdir, 'piv_pathlines_%04dt0_f3d.mat') ;
+QS.fileName.pathlines.XY = fullfile(pdir, 'piv_pathlines_XY.mat') ;
+QS.fileName.pathlines.XYZ = fullfile(pdir, 'piv_pathlines_XYZ.mat') ;
+QS.fileName.pathlines.vXY = fullfile(pdir, 'piv_pathlines_vXY.mat') ;
+QS.fileName.pathlines.v3d = fullfile(pdir, 'piv_pathlines_v3d.mat') ;
+QS.fileName.pathlines.fXY = fullfile(pdir, 'piv_pathlines_fXY.mat') ;
+QS.fileName.pathlines.f3d = fullfile(pdir, 'piv_pathlines_f3d.mat') ;
 % pathline velocities
-QS.fileName.pathlines.v3d = fullfile(pdir, 'vM_avg%04dt0.mat')  ;
-QS.fileName.pathlines.vn  = fullfile(pdir, 'vnM_avg%04dt0.mat') ;
-QS.fileName.pathlines.vv  = fullfile(pdir, 'vvM_avg%04dt0.mat') ;
-QS.fileName.pathlines.vf  = fullfile(pdir, 'vfM_avg%04dt0.mat') ;
-QS.fileName.pathlines.v2d = fullfile(pdir, 'v2dM_avg%04dt0.mat') ;
-QS.fileName.pathlines.v2dum = fullfile(pdir, 'v2dMum_avg%04dt0.mat') ;
-QS.fileName.pathlines.v3dsm   = fullfile(pdir, 'vsmM_%04dt0.mat') ;
-QS.fileName.pathlines.vnsm    = fullfile(pdir, 'vnsmM_%04dt0.mat') ;
-QS.fileName.pathlines.vvsm    = fullfile(pdir, 'vvsmM_%04dt0.mat') ;
-QS.fileName.pathlines.vfsm    = fullfile(pdir, 'vfsmM_%04dt0.mat') ;
-QS.fileName.pathlines.v2dsm   = fullfile(pdir, 'v2dsmM_%04dt0.mat') ;
-QS.fileName.pathlines.v2dsmum = fullfile(pdir, 'v2dsmMum_%04dt0.mat') ;
+QS.fileName.pathlines.velocities = struct() ;
+QS.dir.pathlines.velocities = fullfile(pdir, 'velocities') ; 
+pvdir = QS.dir.pathlines.velocities ;
+QS.fileName.pathlines.velocities.v3d = fullfile(pvdir, 'vM.mat')  ;
+QS.fileName.pathlines.velocities.vn  = fullfile(pvdir, 'vnM.mat') ;
+QS.fileName.pathlines.velocities.vv  = fullfile(pvdir, 'vvM.mat') ;
+QS.fileName.pathlines.velocities.vf  = fullfile(pvdir, 'vfM.mat') ;
+QS.fileName.pathlines.velocities.v2d = fullfile(pvdir, 'v2dM.mat') ;
+QS.fileName.pathlines.velocities.v2dum = fullfile(pvdir, 'v2dMum.mat') ;
+QS.fileName.pathlines.velocities.v3dsm   = fullfile(pvdir, 'vsmM.mat') ;
+QS.fileName.pathlines.velocities.vnsm    = fullfile(pvdir, 'vnsmM.mat') ;
+QS.fileName.pathlines.velocities.vvsm    = fullfile(pvdir, 'vvsmM.mat') ;
+QS.fileName.pathlines.velocities.vfsm    = fullfile(pvdir, 'vfsmM.mat') ;
+QS.fileName.pathlines.velocities.v2dsm   = fullfile(pvdir, 'v2dsmM.mat') ;
+QS.fileName.pathlines.velocities.v2dsmum = fullfile(pvdir, 'v2dsmMum.mat') ;
 
 %% Velocities -- Lagrangian averaging
 QS.dir.pivAvg = fullfile(QS.dir.piv, 'lagrangianAvg') ;
@@ -481,7 +479,7 @@ for ii=1:length(dirs2make)
         dirfields = struct2cell(dir2make) ;
         for qq = 1:length(dirfields)
             dir2make = dirfields{qq} ;
-            if ~exist(dir2make, 'dir')
+            if ~exist(dir2make, 'dir') && ~contains(dir2make, '%04d')
                 mkdir(dir2make)
             end
         end

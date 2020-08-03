@@ -14,13 +14,33 @@ function timeAverageVelocities(QS, options)
 %   preview : bool
 %       view intermediate results
 %
+% Saves to disk
+% -------------
+% vsmM : (#timePoints-1) x (nX*nY) x 3 float array
+%   3d velocities at PIV evaluation coordinates in um/dt rs
+% vfsmM : (#timePoints-1) x (2*nU*(nV-1)) x 3 float array
+%   3d velocities at face barycenters in um/dt rs
+% vnsmM : (#timePoints-1) x (nX*nY) float array
+%   normal velocity at PIV evaluation coordinates in um/dt rs
+% vvsmM : (#timePoints-1) x (nU*nV) x 3 float array
+%   3d velocities at (1x resolution) mesh vertices in um/min rs
+% v2dsmM : (#timePoints-1) x (nX*nY) x 2 float array
+%   2d velocities at PIV evaluation coordinates in pixels/ min
+% v2dsmMum : (#timePoints-1) x (nX*nY) x 2 float array
+%   2d velocities at PIV evaluation coordinates in scaled pix/min, but 
+%   proportional to um/min (scaled by dilation of map)
+%
 % NPMitchell 2020
 
 %% Default options
 overwrite = false ;
+preview = true ;
 timePoints = QS.xp.fileMeta.timePoints ;
 pivimCoords = QS.piv.imCoords ;
+plotOptions = struct() ;
 samplingResolution = '1x' ;
+XYkernel = 0 ;        % sigma for light gaussian smoothing on full velocity 
+                      % fields in XY pixel space before smoothing in time
 imethod = 'linear' ;  % interpolation method for velocities onto pathlines
 twidth = 2 ;          % average over (t-twidth, t+twidth) timepoints
 
@@ -29,6 +49,12 @@ twidth = 2 ;          % average over (t-twidth, t+twidth) timepoints
 % as PIV reference coord sys
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
+end
+if isfield(options, 'preview')
+    preview = options.preview ;
+end
+if isfield(options, 'plotOptions')
+    plotOptions = options.plotOptions ;
 end
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
@@ -40,6 +66,15 @@ if strcmp(pivimCoords(end), 'e')
     doubleCovered = true ;
 else
     doubleCovered = false ;
+end
+if isfield(options, 'XYkernel')
+    XYkernel = options.XYkernel ;
+end
+if isfield(options, 'imethod')
+    imethod = options.imethod ;
+end
+if isfield(options, 'twidth')
+    twidth = options.twidth ;
 end
 
 %% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
@@ -64,6 +99,13 @@ red = QS.plotting.colors(2, :) ;
 green = QS.plotting.colors(4, :) ;
 t0 = QS.t0set() ;
 timePoints = QS.xp.fileMeta.timePoints ;
+
+%% Colormap
+close all
+imagesc([-1, 0, 1; -1, 0, 1])
+caxis([-1, 1])
+bwr256 = bluewhitered(256) ;
+close all
 
 %% Perform/Load simple averaging
 disp('Performing/Loading simple averaging')
@@ -156,13 +198,14 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         tp2do = (tp - twidth):(tp + twidth) ;
         tp2do = min(max(timePoints(1), tp2do), timePoints(end-1)) ;
         popts.timePoints = tp2do ;
+        
         % PIV pathlines
         [XXpath, YYpath] = QS.pullbackPathlines(piv3d.x0, piv3d.y0, tp, popts) ;
         % face pathlines
         if strcmp(QS.piv.imCoords, 'sp_sme')
             im0 = imread(sprintf(QS.fullFileBase.im_sp_sme, tp)) ;
-            mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSm, tp), 'spcutMeshSm') ;
-            mesh0 = mesh0.spcutMeshSm ;
+            mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSmRS, tp), 'spcutMeshSmRS') ;
+            mesh0 = mesh0.spcutMeshSmRS ;
             umax = max(mesh0.u(:, 1)) ;
             vmax = max(mesh0.u(:, 2)) ;
             mXY = QS.uv2XY(im0, mesh0.u, doubleCovered, umax, vmax) ;
@@ -173,8 +216,8 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         [vXpath, vYpath] = QS.pullbackPathlines(mXY(:, 1), mXY(:, 2), tp, popts) ;
         
         % Check eval points
-        clf
-        plot(mXY(:, 1), mXY(:, 2), '.')
+        % clf
+        % plot(mXY(:, 1), mXY(:, 2), '.')
             
         %% Run through all timepoints in the window and compute a grid of
         % velocities to average over -- Grab PIV for each timepoint and 
@@ -232,6 +275,13 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
             v0_rsX = reshape(piv3d.v0_rs(:, 1), size(x0)) ;
             v0_rsY = reshape(piv3d.v0_rs(:, 2), size(x0)) ;
             v0_rsZ = reshape(piv3d.v0_rs(:, 3), size(x0)) ;
+            
+            % Optional: light smoothing with image kernel
+            if XYkernel > 0
+                v0_rsX = imgaussfilt(v0_rsX, XYkernel) ;
+                v0_rsY = imgaussfilt(v0_rsY, XYkernel) ;
+                v0_rsZ = imgaussfilt(v0_rsZ, XYkernel) ;
+            end
             Fx = griddedInterpolant(x0', y0', v0_rsX', imethod, 'nearest') ;
             Fy = griddedInterpolant(x0', y0', v0_rsY', imethod, 'nearest') ;
             Fz = griddedInterpolant(x0', y0', v0_rsZ', imethod, 'nearest') ;
@@ -246,12 +296,51 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
             v0nrsN = reshape(piv3d.v0n_rs, size(x0)) ;
             Fn = griddedInterpolant(x0', y0', v0nrsN', imethod, 'nearest') ;
             % Query velocities
-            v0n_rs = Fx(XX(:), YY(:)) ;
+            v0n_rs = Fn(XX(:), YY(:)) ;
+            
+            % Check it
+            % imagesc(x0(:, 1), y0(1, :), reshape(piv3d.v0n_rs, size(x0)))
+            % caxis([-2, 2]); colormap(bwr256)
+            % imagesc(x0(:, 1), y0(1, :), reshape(v0n_rs, size(x0)))
+            % caxis([-2, 2]); colormap(bwr256)
+            % imagesc(x0(:, 1), y0(1, :), reshape(vnMtp, size(x0)))
+            % caxis([-2, 2]); colormap(bwr256)
 
             % 4. Interpolate onto mesh vertices (v3dvertices)
             % Query velocities
             v3dvertices = [Fx(vX(:), vY(:)), Fy(vX(:), vY(:)), Fz(vX(:), vY(:))] ;
 
+            % Check it
+            if preview
+                close all
+                % mesh0.vrs = QS.xyz2APDV(mesh0.v);
+                % vn_rs = QS.dx2APDV(mesh0.vn) ;
+                % mesh0.vn_rs = vn_rs ./ vecnorm(vn_rs, 2, 2) ;
+                subplot(3, 1, 1)
+                vvn = dot(mesh0.vn, v3dvertices, 2) ;
+                trisurf(triangulation(mesh0.f, mesh0.v), vvn, ...
+                    'edgecolor', 'none') ;
+                caxis([-2,2]); axis equal; colormap(bwr256); colorbar()
+                title(['Computed result for ' num2str(tp2do(qq))])
+                view(2)
+                subplot(3, 1, 2)
+                tmp = load(QS.fileName.pivAvg.vv, 'vvsmM') ;
+                tmpv = squeeze(tmp.vvsmM(tidx, :, :)) ;
+                vvn2 = dot(mesh0.vn, tmpv, 2) ;
+                trisurf(triangulation(mesh0.f, mesh0.v), vvn2, ...
+                    'edgecolor', 'none') ;
+                caxis([-2,2]); axis equal; colormap(bwr256); colorbar()
+                title('Loaded result of average from disk')
+                view(2)
+                subplot(3, 1, 3)
+                trisurf(triangulation(mesh0.f, mesh0.v), vvn-vvn2, ...
+                    'edgecolor', 'none') ;
+                caxis([-2,2]); axis equal; colormap(bwr256); colorbar()
+                title('difference from loaded result')
+                view(2)
+                pause(1) ;
+            end
+            
             % 5. Interpolate v0t2d
             v0t2dX = reshape(piv3d.v0t2d(:, 1), size(x0)) ;
             v0t2dY = reshape(piv3d.v0t2d(:, 2), size(x0)) ;
@@ -268,6 +357,34 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
             % Query velocities
             v0t2dum = [Fx(XX(:), YY(:)), Fy(XX(:), YY(:))] ;
 
+            % Check it
+            % if preview
+            %     close all
+            %     QS.getPIV(options) ;
+            %     % get size of images to make
+            %     gridsz = size(QS.piv.raw.x{1}) ;
+            %     % Define Nx1 and Mx1 float arrays for xspace and yspace
+            %     xx = QS.piv.raw.x{tidx}(1, :) ;
+            %     yy = QS.piv.raw.y{tidx}(:, 1) ;
+            %     % Load the image to put flow on top
+            %     if strcmp(pivimCoords, 'sp_sme')
+            %         im = imread(sprintf(QS.fullFileBase.im_sp_sme, tp)) ;
+            %         ylims = [0.25 * size(im, 1), 0.75 * size(im, 1)] ;
+            %     else
+            %         error(['Have not coded for this pivimCoords option. Do so here: ' pivimCoords])
+            %     end
+            %     im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
+            %     opts.fig = figure ;
+            %     vectorFieldHeatPhaseOnImage(im, xx, yy, ...
+            %         v0t2dum(:, 1), v0t2dum(:, 2), 5, opts) ;
+            %     set(gcf, 'visible', 'on')
+            %     opts.fig = figure ;
+            %     vectorFieldHeatPhaseOnImage(im, xx, yy, ...
+            %         v0t2dx, v0t2dY, 5, opts) ;
+            %     set(gcf, 'visible', 'on')
+            %     waitfor(gcf) ;
+            % end
+            
             %% BUILD ARRAYS -- AVERAGE ARRAY over time dimension w/ weight
             vMtp = vMtp + tripulse(qq) * v0_rs ;           % in um/dt rs at PIV evaluation points
             vfMtp = vfMtp + tripulse(qq) * v3dfaces_rs ;   % in um/dt rs at face barycenters
@@ -275,16 +392,26 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
             vvMtp = vvMtp + tripulse(qq) * v3dvertices ;   % in um/min rs
             v2dMtp = v2dMtp + tripulse(qq) * v0t2d ;       % in pixels/ min
             v2dMumtp = v2dMumtp + tripulse(qq) * v0t2dum ; % in scaled pix/min, but proportional to um/min
+        
+            % Check it
         end
         
         %% BUILD ARRAYS by collating timepoints
-        vsmM(tidx, :, :) = v0_rs ;             % in um/dt rs at PIV evaluation points
-        vfsmM(tidx, :, :) = v3dfaces_rs ;      % in um/dt rs at face barycenters
-        vnsmM(tidx, :, :) = v0n_rs ;           % in um/dt rs at 
-        vvsmM(tidx, :, :) = v3dvertices ;      % in um/min rs
-        v2dsmM(tidx, :, :) = v0t2d ;           % in pixels/ min
-        v2dsmMum(tidx, :, :) = v0t2dum ;       % in scaled pix/min, but proportional to um/min
+        vsmM(tidx, :, :) = vMtp ;             % in um/dt rs, 3d velocities at PIV evaluation coordinates
+        vfsmM(tidx, :, :) = vfMtp ;           % in um/dt rs, 3d velocities at face barycenters
+        vnsmM(tidx, :, :) = vnMtp ;           % in um/dt rs, normal velocity at PIV evaluation coordinates
+        vvsmM(tidx, :, :) = vvMtp ;           % in um/min rs, 3d velocities at mesh vertices
+        v2dsmM(tidx, :, :) = v2dMtp ;         % in pixels/ min, 2d velocities at PIV evaluation coordinates
+        v2dsmMum(tidx, :, :) = v2dMumtp ;     % in scaled pix/min, but proportional to um/min, 2d velocities at PIV evaluation coordinates
         
+        %% Plot this timepoint
+        close all
+        plotOptions.vsm = squeeze(vsmM(tidx, :, :))  ;
+        plotOptions.vnsm = squeeze(vnsmM(tidx, :, :))  ;
+        plotOptions.v2dsm = squeeze(v2dsmM(tidx, :, :)) ;
+        plotOptions.v2dsmum = squeeze(v2dsmMum(tidx, :, :)) ;
+        plotOptions.overwrite = overwrite ;
+        QS.plotAverageVelocitiesTimePoint(tp, plotOptions) ;
     end
     
     clearvars first 
