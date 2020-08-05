@@ -1133,8 +1133,13 @@ classdef QuapSlap < handle
         measurePathlineMetricKinematics(QS, options)
         plotPathlineMetricKinematics(QS, options)
         
+        %% 
+        measureMetricStrainRate(QS, options)
+        measureStrainRate(QS, options)
+        
         %% timepoint-specific coordinate transformations
         sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)
+        
     end
     
     methods (Static)

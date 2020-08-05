@@ -15,8 +15,11 @@ function plotPathlineMetricKinematics(QS, options)
 % ----------
 % QS : QuapSlap class instance
 % options : struct with fields
-%   plot_kymographs : bool
-%   plot_kymographs_cumsum : bool
+%   plot_kymographs         : bool
+%   plot_kymographs_cumsum  : bool
+%   plot_correlations       : bool 
+%   plot_fold_kinematics    : bool
+%   plot_lobe_kinematics    : bool
 % 
 % Returns
 % -------
@@ -29,6 +32,8 @@ overwrite = false ;
 plot_kymographs = true ;
 plot_kymographs_cumsum = true ;
 plot_correlations = true ;
+plot_fold_kinematics = true ;
+plot_lobe_kinematics = true ;
 t0 = QS.t0set() ;
 
 %% Parameter options
@@ -245,15 +250,16 @@ divvsK = {divv_apM, divv_lM, divv_rM, divv_dM, divv_vM} ;
 velnsK = {veln_apM, veln_lM, veln_rM, veln_dM, veln_vM} ;
 H2vnsK = {H2vn_apM, H2vn_lM, H2vn_rM, H2vn_dM, H2vn_vM} ;
 
+%% Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
+dvDir = fullfile(mKPDir, 'avgDV') ;
+lDir = fullfile(mKPDir, 'avgLeft') ;
+rDir = fullfile(mKPDir, 'avgRight') ;
+dDir = fullfile(mKPDir, 'avgDorsal') ;
+vDir = fullfile(mKPDir, 'avgVentral') ;
+outdirs = {dvDir, lDir, rDir, dDir, vDir} ;
+
 %% Now plot different measured quantities as kymographs
 if plot_kymographs
-    % Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
-    dvDir = fullfile(mKPDir, 'avgDV') ;
-    lDir = fullfile(mKPDir, 'avgLeft') ;
-    rDir = fullfile(mKPDir, 'avgRight') ;
-    dDir = fullfile(mKPDir, 'avgDorsal') ;
-    vDir = fullfile(mKPDir, 'avgVentral') ;
-    outdirs = {dvDir, lDir, rDir, dDir, vDir} ;
     titleadd = {': circumferentially averaged', ...
         ': left side', ': right side', ': dorsal side', ': ventral side'} ;
 
@@ -340,13 +346,6 @@ end
 
 %% Kymographs of cumulative products along pathlines 
 if plot_kymographs_cumprod
-    % Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
-    dvDir = fullfile(mKPDir, 'avgDV') ;
-    lDir = fullfile(mKPDir, 'avgLeft') ;
-    rDir = fullfile(mKPDir, 'avgRight') ;
-    dDir = fullfile(mKPDir, 'avgDorsal') ;
-    vDir = fullfile(mKPDir, 'avgVentral') ;
-    outdirs = {dvDir, lDir, rDir, dDir, vDir} ;
     titleadd = {': circumferentially averaged', ...
         ': left side', ': right side', ': dorsal side', ': ventral side'} ;
 
@@ -432,13 +431,6 @@ end
 
 %% Kymographs of cumulative sums along pathlines
 if plot_kymographs_cumsum
-    % Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
-    dvDir = fullfile(mKPDir, 'avgDV') ;
-    lDir = fullfile(mKPDir, 'avgLeft') ;
-    rDir = fullfile(mKPDir, 'avgRight') ;
-    dDir = fullfile(mKPDir, 'avgDorsal') ;
-    vDir = fullfile(mKPDir, 'avgVentral') ;
-    outdirs = {dvDir, lDir, rDir, dDir, vDir} ;
     titleadd = {': circumferentially averaged', ...
         ': left side', ': right side', ': dorsal side', ': ventral side'} ;
 
@@ -748,7 +740,7 @@ for qq = 1:5
         fn = fullfile(outdirs{qq}, ...
             [sprintf('fold_kinematics_w%03d_', 2*width+1), ...
             avgLabel{qq}, '.png']) ;
-        if ~exist(fn, 'file') || overwrite 
+        if ( ~exist(fn, 'file') || overwrite  ) && plot_fold_kinematics
             close all
             ymin = 0 ;
             ymax = 0 ;
@@ -763,7 +755,7 @@ for qq = 1:5
                 plot(tps, Hvj, '.-', 'Color', QS.plotting.colors(2, :))
                 if jj == 1
                     % Title and labels
-                    title([titleFoldBase, avgStrings{qq}, ', ', ...
+                    sgtitle([titleFoldBase, avgStrings{qq}, ', ', ...
                         '$w_{\textrm{fold}}=', ...
                         num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'], ...
                         'Interpreter', 'Latex')
@@ -812,11 +804,141 @@ for qq = 1:5
             saveas(gcf, fn)
         end
     end
+    
+    %% Fold kinematics -- cumprod gdot
+    for width = 1:round(0.05 * nU)
+        fn = fullfile(outdirs{qq}, ...
+            [sprintf('fold_kinematics_gdot_cumprod_w%03d_', 2*width+1), ...
+            avgLabel{qq}, '.png']) ;
+        if ( ~exist(fn, 'file') || overwrite ) && plot_fold_kinematics
+            close all
+            ymin = 0 ;
+            ymax = 0 ;
+            % Each fold is valley+/- width
+            for jj = 1:length(valleys)
+                axisColl{jj} = subplot(length(valleys), 1, jj) ;
+                valley = (valleys(jj)-width):(valleys(jj)+width) ;
+                
+                % div(v), H*2*vn, gdot
+                ddj = mean(divv(:, valley), 2) ;
+                Hdj = mean(H2vn(:, valley), 2) ;
+                gdj = mean(divv(:, valley) - H2vn(:, valley), 2) ;
+                
+                % Take cumulative product marching forward from t0
+                gpj_pos = cumprod(1 + gdj(tps > eps)) ;
+                gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
+                gpj = cat(1, gpj_neg, gpj_pos) ;               
+                % Take cumulative product marching forward from t0
+                dpj_pos = cumprod(1 + ddj(tps > eps)) ;
+                dpj_neg = flipud(cumprod(flipud(1 ./ (1 + ddj(tps < eps))))) ;
+                dpj = cat(1, dpj_neg, dpj_pos) ;
+                % Take cumulative product marching forward from t0
+                Hpj_pos = cumprod(1 + Hdj(tps > eps)) ;
+                Hpj_neg = flipud(cumprod(flipud(1 ./ (1 + Hdj(tps < eps))))) ;
+                Hpj = cat(1, Hpj_neg, Hpj_pos) ;
+                
+                % Plot all three
+                plot(tps, dpj, '.-', 'Color', QS.plotting.colors(1, :))
+                hold on;
+                plot(tps, Hpj, '.-', 'Color', QS.plotting.colors(2, :))
+                plot(tps, gpj, '.-', 'Color', QS.plotting.colors(3, :))
+                
+                if jj == 1
+                    % Title and labels
+                    sgtitle([titleFoldBase, avgStrings{qq}, ', ', ...
+                        '$w_{\textrm{fold}}=', ...
+                        num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'], ...
+                        'Interpreter', 'Latex')
+                    legend({'$\Pi(1+\nabla\cdot\mathbf{v}_\parallel)$', ...
+                        '$\Pi(1+v_n 2H)$', ...
+                        '$\Pi(1+\frac{1}{2}\mathrm{Tr}\left[g^{-1} \dot{g} \right])$'}, ...
+                        'Interpreter', 'Latex', 'location', 'eastOutside')  
+                    drawnow
+                    pos = get(gca, 'position') ;
+                elseif jj == length(valleys)
+                    xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+                end
+                ylabel(foldYlabels{jj}, 'Interpreter', 'Latex')
+                ylims = ylim() ;
+                ymin = min(ymin, ylims(1)) ;
+                ymax = max(ymax, ylims(2)) ;
+            end
+
+            for jj = 1:length(valleys)
+                axes(axisColl{jj})
+                pos2 = get(gca, 'position') ;
+                set(gca, 'position', [pos2(1) pos2(2) pos(3) pos2(4)])
+                ylim([ymin, ymax])
+
+                % Mark wherever the divv<0 and also vn2H<0
+                valley = (valleys(jj)-width):(valleys(jj)+width) ;
+                dvj = mean(divv(:, valley), 2) ;
+                Hvj = mean(H2vn(:, valley), 2) ;
+                dvpos = dvj > 0 ;
+                Hvpos = Hvj > 0 ;
+                scatter(tps(dvpos), ...
+                    (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
+                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
+                    'markerFaceColor', QS.plotting.colors(1, :), ...
+                    'HandleVisibility', 'off')
+                hold on;
+                scatter(tps(Hvpos), ...
+                    ymin * ones(size(tps(Hvpos))), 5,  ...
+                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
+                    'markerFaceColor', QS.plotting.colors(2, :), ...
+                    'HandleVisibility', 'off')
+                ylim([ymin-0.1*(ymax-ymin), ymax])
+            end
+
+            % Save figure
+            disp(['Saving figure: ', fn])
+            saveas(gcf, fn)
+        end
+        
+        % Plot all gdots on one axis
+        fn = fullfile(outdirs{qq}, ...
+            [sprintf('fold_kinematics_gdot_cumprod_compare_w%03d_', 2*width+1), ...
+            avgLabel{qq}, '.png']) ;
+        if ~exist(fn, 'file') || overwrite 
+            close all
+            % Each fold is valley+/- width
+            for jj = 1:length(valleys)
+                valley = (valleys(jj)-width):(valleys(jj)+width) ;
+                
+                % div(v), H*2*vn, gdot
+                gdj = mean(divv(:, valley) - H2vn(:, valley), 2) ;
+                
+                % Take cumulative product marching forward from t0
+                gpj_pos = cumprod(1 + gdj(tps > eps)) ;
+                gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
+                gpj = cat(1, gpj_neg, gpj_pos) ;               
+
+                % Plot this fold
+                plot(tps, gpj, '.-', 'Color', QS.plotting.colors(jj+3, :))
+                hold on;
+            end    
+            
+            % Title and labels
+            sgtitle(['Tissue dilation in folds, ', avgStrings{qq}, ', ', ...
+                '$w_{\textrm{fold}}=', ...
+                num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'], ...
+                'Interpreter', 'Latex')
+            legend(foldYlabels, 'Interpreter', 'Latex', 'location', 'eastOutside')  
+            drawnow
+            xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+            ylabel('$\frac{1}{2}\mathrm{Tr} \left[g^{-1} \dot{g}\right]$', ...
+                'Interpreter', 'Latex')
+        end
+        
+        % Save figure
+        disp(['Saving figure: ', fn])
+        saveas(gcf, fn)
+    end
    
     %% Plot lobe Kinematics
     fn = fullfile(outdirs{qq}, ...
         ['lobe_kinematics_' avgLabel{qq} '.png']) ;
-    if ~exist(fn, 'file') || overwrite 
+    if ( ~exist(fn, 'file') || overwrite ) && plot_lobe_kinematics
         close all
         ymin = 0 ;
         ymax = 0 ;
@@ -830,7 +952,7 @@ for qq = 1:5
             plot(tps, Hvj, '.-', 'Color', QS.plotting.colors(2, :))
             if jj == 1
                 % Title and labels
-                title([titleLobeBase, avgStrings{qq}], ...
+                sgtitle([titleLobeBase, avgStrings{qq}], ...
                     'Interpreter', 'Latex')
                 legend({'$\nabla\cdot\mathbf{v}_\parallel$', ...
                     '$v_n 2H$'}, 'Interpreter', 'Latex', ...
@@ -876,81 +998,124 @@ for qq = 1:5
         saveas(gcf, fn)
     end
     
-    %% Fold kinematics -- cumprod
-    for width = 1:round(0.05 * nU)
-        fn = fullfile(outdirs{qq}, ...
-            [sprintf('fold_kinematics_w%03d_', 2*width+1), ...
-            avgLabel{qq}, '.png']) ;
-        if ~exist(fn, 'file') || overwrite 
-            close all
-            ymin = 0 ;
-            ymax = 0 ;
-            % Each fold is valley+/- width
-            for jj = 1:length(valleys)
-                axisColl{jj} = subplot(length(valleys), 1, jj) ;
-                valley = (valleys(jj)-width):(valleys(jj)+width) ;
-                gdj = mean(divv(:, valley) - H2vn(:, valley), 2) ;
-                % Take cumulative product marching forward from t0
-                gpj_pos = cumprod(1 + gdj(tps > eps)) ;
-                gpj_neg = fliplr(cumprod(fliplr(1 ./ (1 + gdj(tps < eps))))) ;
-                gpj = cat(1, gpj_neg, gpj_pos) ;
-                plot(tps, gpj, '.-', 'Color', QS.plotting.colors(1, :))
-                %
-                error('verify by taking area of triangles over space')
-                
-                if jj == 1
-                    % Title and labels
-                    title([titleFoldBase, avgStrings{qq}, ', ', ...
-                        '$w_{\textrm{fold}}=', ...
-                        num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'], ...
-                        'Interpreter', 'Latex')
-                    legend({'$\nabla\cdot\mathbf{v}_\parallel$', ...
-                        '$v_n 2H$'}, 'Interpreter', 'Latex', ...
-                        'location', 'eastOutside')  
-                    drawnow
-                    pos = get(gca, 'position') ;
-                elseif jj == length(valleys)
-                    xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-                end
-                ylabel(foldYlabels{jj}, 'Interpreter', 'Latex')
-                ylims = ylim() ;
-                ymin = min(ymin, ylims(1)) ;
-                ymax = max(ymax, ylims(2)) ;
+    %% Lobe kinematics -- cumprod gdot
+    fn = fullfile(outdirs{qq}, ...
+        sprintf('lobe_kinematics_gdot_cumprod.png')) ;
+    if ( ~exist(fn, 'file') || overwrite ) && plot_lobe_kinematics
+        close all
+        ymin = 0 ;
+        ymax = 0 ;
+        for jj = 1:length(lobes)
+            axisColl{jj} = subplot(length(lobes), 1, jj) ;
+            
+            % div(v), H*2*vn, gdot
+            ddj = mean(divv(:, lobes{jj}), 2) ;
+            Hdj = mean(H2vn(:, lobes{jj}), 2) ;
+            gdj = mean(divv(:, lobes{jj}) - H2vn(:, lobes{jj}), 2) ;
+
+            % Take cumulative product marching forward from t0
+            gpj_pos = cumprod(1 + gdj(tps > eps)) ;
+            gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
+            gpj = cat(1, gpj_neg, gpj_pos) ;               
+            % Take cumulative product marching forward from t0
+            dpj_pos = cumprod(1 + ddj(tps > eps)) ;
+            dpj_neg = flipud(cumprod(flipud(1 ./ (1 + ddj(tps < eps))))) ;
+            dpj = cat(1, dpj_neg, dpj_pos) ;
+            % Take cumulative product marching forward from t0
+            Hpj_pos = cumprod(1 + Hdj(tps > eps)) ;
+            Hpj_neg = flipud(cumprod(flipud(1 ./ (1 + Hdj(tps < eps))))) ;
+            Hpj = cat(1, Hpj_neg, Hpj_pos) ;
+
+            % Plot all three
+            plot(tps, dpj, '.-', 'Color', QS.plotting.colors(1, :))
+            hold on;
+            plot(tps, Hpj, '.-', 'Color', QS.plotting.colors(2, :))
+            plot(tps, gpj, '.-', 'Color', QS.plotting.colors(3, :))
+
+            if jj == 1
+                % Title and labels
+                sgtitle([titleLobeBase, avgStrings{qq}], ...
+                    'Interpreter', 'Latex')
+                legend({'$\Pi(1+\nabla\cdot\mathbf{v}_\parallel)$', ...
+                    '$\Pi(1+v_n 2H)$', ...
+                    '$\Pi(1+\frac{1}{2}\mathrm{Tr}\left[g^{-1} \dot{g} \right])$'}, ...
+                    'Interpreter', 'Latex', 'location', 'eastOutside')  
+                drawnow
+                pos = get(gca, 'position') ;
+            elseif jj == length(valleys)
+                xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
             end
-
-            for jj = 1:length(valleys)
-                axes(axisColl{jj})
-                pos2 = get(gca, 'position') ;
-                set(gca, 'position', [pos2(1) pos2(2) pos(3) pos2(4)])
-                ylim([ymin, ymax])
-
-                % Mark wherever the divv<0 and also vn2H<0
-                valley = (valleys(jj)-width):(valleys(jj)+width) ;
-                dvj = mean(divv(:, valley), 2) ;
-                Hvj = mean(H2vn(:, valley), 2) ;
-                dvpos = dvj > 0 ;
-                Hvpos = Hvj > 0 ;
-                scatter(tps(dvpos), ...
-                    (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
-                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                    'markerFaceColor', QS.plotting.colors(1, :), ...
-                    'HandleVisibility', 'off')
-                hold on;
-                scatter(tps(Hvpos), ...
-                    ymin * ones(size(tps(Hvpos))), 5,  ...
-                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                    'markerFaceColor', QS.plotting.colors(2, :), ...
-                    'HandleVisibility', 'off')
-                ylim([ymin-0.1*(ymax-ymin), ymax])
-            end
-
-            % Save figure
-            disp(['Saving figure: ', fn])
-            saveas(gcf, fn)
+            ylabel(lobeYlabels{jj}, 'Interpreter', 'Latex')
+            ylims = ylim() ;
+            ymin = min(ymin, ylims(1)) ;
+            ymax = max(ymax, ylims(2)) ;
         end
+
+        for jj = 1:length(lobes)
+            axes(axisColl{jj})
+            pos2 = get(gca, 'position') ;
+            set(gca, 'position', [pos2(1) pos2(2) pos(3) pos2(4)])
+            ylim([ymin, ymax])
+
+            % Mark wherever the divv<0 and also vn2H<0
+            dvj = mean(divv(:, lobes{jj}), 2) ;
+            Hvj = mean(H2vn(:, lobes{jj}), 2) ;
+            dvpos = dvj > 0 ;
+            Hvpos = Hvj > 0 ;
+            scatter(tps(dvpos), ...
+                (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
+                'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
+                'markerFaceColor', QS.plotting.colors(1, :), ...
+                'HandleVisibility', 'off')
+            hold on;
+            scatter(tps(Hvpos), ...
+                ymin * ones(size(tps(Hvpos))), 5,  ...
+                'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
+                'markerFaceColor', QS.plotting.colors(2, :), ...
+                'HandleVisibility', 'off')
+            ylim([ymin-0.1*(ymax-ymin), ymax])
+        end
+
+        % Save figure
+        disp(['Saving figure: ', fn])
+        saveas(gcf, fn)
     end
-    
-    
+
+    % Plot all gdots on one axis
+    fn = fullfile(outdirs{qq}, ...
+        sprintf('lobe_kinematics_gdot_cumprod_compare.png')) ;
+    if ( ~exist(fn, 'file') || overwrite ) && plot_lobe_kinematics
+        close all
+        % Each fold is valley+/- width
+        for jj = 1:length(lobes)
+            % div(v), H*2*vn, gdot
+            gdj = mean(divv(:, lobes{jj}) - H2vn(:, lobes{jj}), 2) ;
+
+            % Take cumulative product marching forward from t0
+            gpj_pos = cumprod(1 + gdj(tps > eps)) ;
+            gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
+            gpj = cat(1, gpj_neg, gpj_pos) ;               
+
+            % Plot this fold
+            plot(tps, gpj, '.-', 'Color', QS.plotting.colors(jj+3, :))
+            hold on;
+        end    
+
+        % Title and labels
+        sgtitle(['Tissue dilation in lobes, ', avgStrings{qq}, ...
+            ', $\frac{1}{2}\mathrm{Tr} \left[g^{-1} \dot{g}\right]$'], ...
+            'Interpreter', 'Latex')
+        legend(lobeYlabels, 'Interpreter', 'Latex', 'location', 'eastOutside')  
+        drawnow
+        xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+        ylabel('$\frac{1}{2}\mathrm{Tr} \left[g^{-1} \dot{g}\right]$', ...
+            'Interpreter', 'Latex')
+        
+        % Save figure
+        disp(['Saving figure: ', fn])
+        saveas(gcf, fn)
+    end
+
 end
 
 disp('done')

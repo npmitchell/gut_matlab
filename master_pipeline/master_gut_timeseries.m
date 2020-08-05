@@ -1358,7 +1358,7 @@ options.averagingStyle = 'Lagrangian' ;
 QS.helmholtzHodge(options) ;
 %% Compressibility & kinematics for Lagrangian
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 options.lambda_err = 0.01 ;
@@ -1402,11 +1402,14 @@ options.lambda_err = 0.01 ;
 QS.measurePathlineMetricKinematics(options)
 %% Plot Pathline Kinematics
 options = struct() ;
-options.overwrite = false ;
-options.plot_kymographs_pathlines = true ;
-options.plot_kymographs = true ;
-options.plot_kymographs_cumsum = true ;
-options.plot_kymographs_cumprod = true ;
+options.overwrite = true ;
+options.plot_kymographs_pathlines = false ;
+options.plot_kymographs = false ;
+options.plot_kymographs_cumsum = false ;
+options.plot_kymographs_cumprod = false ;
+options.plot_correlations = false ;
+options.plot_fold_kinematics = true ;
+options.plot_lobe_kinematics = true ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 options.lambda_err = 0.01 ;
@@ -1424,17 +1427,24 @@ options = struct() ;
 options.overwrite = false ;
 QS.measureStressPattern(options) ;
 
-%% Measure metric strain rate (gdot)
+%% Measure metric strain rate (epsilon=gdot/2)
 option = struct() ;
 options.overwrite = true ;
 options.preview = false ;
 options.lambda_mesh = 0.001 ;
-options.lambda = 0.005 ;
+options.lambda = 0.01 ;
 QS.measureMetricStrainRate(options) 
+%% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
+option = struct() ;
+options.overwrite = true ;
+options.preview = false ;
+options.lambda_mesh = 0.001 ;
+options.lambda = 0.01 ;
+QS.measureStrainRate(options) 
 
 %% Measure surface area growh of lobes and folds in Eulerian frame
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.preview = false ;
 QS.measureEulerianMetricDynamics(options)
 

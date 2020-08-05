@@ -26,18 +26,8 @@ function [v0n, v0t, facenormals] = ...
 %   normal velocities at each evaluation point
 % v0t : N x 3 float array
 %   original scale velocities in tangent plane (as 3d vectors)
-% v0t2d : #fieldfaces x 2 float array
-%   The vector field mapped to the 2d mesh, scaled + distorted by jacobian
-% jac : length(ff) x 1 cell array
-%   A cell array containing the jacobian for each face as each element -- 
-%   transformation from 3d to 2d
 % facenormals #fieldfaces x 3 float array
 %   the normal vectors on each face where the vector field is defined
-% g_ab : #fieldfaces x 2 x 2 
-%   the metric tensor on each field face
-% dilation : #fieldfaces x 1 float array
-%   dilation factor that maps the magnitude of vf in 3d to the
-%   magnitude of the vf in 2d pullback
 %
 % NPMitchell 2020
 

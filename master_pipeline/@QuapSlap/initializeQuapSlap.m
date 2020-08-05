@@ -76,6 +76,7 @@ uvDir = fullfile(QS.dir.mesh, sprintf('gridCoords_nU%04d_nV%04d', QS.nU, QS.nV))
 QS.dir.uvCoord = uvDir ;
 
 % Metric strain dirs
+QS.dir.metricKinematics = fullfile(uvDir, 'metricKinematics') ;
 QS.dir.gstrain = fullfile(uvDir, 'metric_strain') ;
 QS.dir.gstrainRate = fullfile(QS.dir.gstrain, 'rateMetric') ;
 QS.dir.gstrainRateIm = fullfile(QS.dir.gstrainRate, 'images') ;
@@ -87,7 +88,12 @@ QS.fullFileBase.gstrainMesh = fullfile(QS.dir.gstrainMesh, ...
     QS.fileBase.gstrainMesh) ; 
 QS.fullFileBase.gstrainRate = fullfile(QS.dir.gstrainRate, ...
     QS.fileBase.gstrainRate) ; 
-QS.dir.metricKinematics = fullfile(uvDir, 'metricKinematics') ;
+% Strain Rate
+QS.dir.strainRate = fullfile(uvDir, 'strain_rate') ;
+QS.fileBase.strainRate = 'strainRate_%06d.mat' ;
+QS.fullFileBase.strainRate = fullfile(QS.dir.strainRate, ...
+    QS.fileBase.strainRate) ; 
+
 % Must add analysis params in these names
 % QS.dir.metricKinematics2d = ...
 %     fullfile(QS.dir.metricKinematics, 'images_2d') ;
@@ -471,7 +477,10 @@ QS.dir.pivSimAvgDEC2x.harm3d = fullfile(QS.dir.pivSimAvg2x, 'dec_harm3d') ;
 QS.fullFileBase.decSimAvg2x = fullfile(QS.dir.pivSimAvgDEC2x.data, ...
                               [QS.fileBase.name '_dec.mat'] ) ;
 
-% Ensure directories
+%% Eulerian kinematics
+QS.dir.eulerianKinematics = fullfile(QS.dir.uvCoord, 'eulerianKinematics') ;
+
+%% Ensure directories
 dirs2make = struct2cell(QS.dir) ;
 for ii=1:length(dirs2make)
     dir2make = dirs2make{ii} ;

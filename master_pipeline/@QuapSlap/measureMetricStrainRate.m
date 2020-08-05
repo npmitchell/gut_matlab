@@ -59,6 +59,7 @@ bwr256 = bluewhitered(256) ;
 
 %% Prepare both metric styles
 dirs2make = { ...
+    fullfile(egImDir, metric_style), ...
     fullfile(egImDir, ['trgdot_' metric_style]), ...
     fullfile(egImDir, ['gss_' metric_style]), ...
     fullfile(egImDir, ['gsphi_' metric_style]), ...
@@ -101,10 +102,10 @@ face_vels = tmp.vfsmM ;
 
 % Pre-assign timepoints with velocities
 tpts = QS.xp.fileMeta.timePoints(1:end-1) ;
-
+tp2do = [60, tpts(1:10:end), setdiff(tpts, tpts(1:10:end))] ;
 
 % Build metric from mesh
-for tp = tpts
+for tp = tp2do
     disp(['t = ' num2str(tp)])
     tidx = QS.xp.tIdx(tp) ;
 
@@ -160,69 +161,75 @@ for tp = tpts
 
             % Check the vels %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             if preview
-                clf
-                vxM = reshape(vraw(:, 1), [nU, nV-1]) ;
-                vyM = reshape(vraw(:, 2), [nU, nV-1]) ;
-                vzM = reshape(vraw(:, 3), [nU, nV-1]) ;
-                vxsM = reshape(vs(:, 1), [nU, nV-1]) ;
-                vysM = reshape(vs(:, 2), [nU, nV-1]) ;
-                vzsM = reshape(vs(:, 3), [nU, nV-1]) ;
-                subplot(2, 3, 1)
-                colormap bwr; 
-                trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3),...
-                    vxM, 'edgecolor', 'none')
-                % colorbar(); 
-                caxis([-4, 4]); 
-                axis equal; axis off ; 
-                % xlabel('x'); ylabel('y'); zlabel('z')
-                title('AP velocity snapshot -- pre-smoothing')
-                subplot(2, 3, 4)
-                trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3),...
-                    vxsM, 'edgecolor', 'none')
-                % colorbar(); 
-                caxis([-4, 4]); 
-                axis equal; axis off ; 
-                % xlabel('x'); ylabel('y'); zlabel('z')
-                title('AP velocity snapshot')
-                pause(1)
+                meshes = [mesh, mesh2] ;
+                for meshId = 1:2
+                    mm = meshes(meshId) ;
+                    clf
+                    vlim = 0.8 ;
+                    vxM = reshape(vraw(:, 1), [nU, nV-1]) ;
+                    vyM = reshape(vraw(:, 2), [nU, nV-1]) ;
+                    vzM = reshape(vraw(:, 3), [nU, nV-1]) ;
+                    vxsM = reshape(vs(:, 1), [nU, nV-1]) ;
+                    vysM = reshape(vs(:, 2), [nU, nV-1]) ;
+                    vzsM = reshape(vs(:, 3), [nU, nV-1]) ;
+                    subplot(2, 3, 1)
+                    colormap bwr; 
+                    trisurf(mm.f, mm.v(:, 1), mm.v(:, 2), mm.v(:, 3),...
+                        vxM, 'edgecolor', 'none')
+                    % colorbar(); 
+                    caxis([-vlim, vlim]); 
+                    axis equal; axis off ; 
+                    % xlabel('x'); ylabel('y'); zlabel('z')
+                    title('AP velocity snapshot -- pre-smoothing')
+                    subplot(2, 3, 4)
+                    trisurf(mm.f, mm.v(:, 1), mm.v(:, 2), mm.v(:, 3),...
+                        vxsM, 'edgecolor', 'none')
+                    % colorbar(); 
+                    caxis([-vlim, vlim]); 
+                    axis equal; axis off ; 
+                    % xlabel('x'); ylabel('y'); zlabel('z')
+                    title('AP velocity snapshot')
+                    pause(1)
 
-                % Check other velocities
-                subplot(2, 3, 2)
-                colormap bwr; 
-                trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3),...
-                    vyM, 'edgecolor', 'none')
-                % colorbar();
-                caxis([-4, 4]); 
-                axis equal; axis off ; 
-                % xlabel('x'); ylabel('y'); zlabel('z')
-                title('lateral velocity snapshot -- pre-smoothing')
-                subplot(2, 3, 5)
-                trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3),...
-                    vysM, 'edgecolor', 'none')
-                % colorbar(); 
-                caxis([-4, 4]); 
-                axis equal; axis off ; 
-                % xlabel('x'); ylabel('y'); zlabel('z')
-                title('lateral velocity snapshot')
-                subplot(2, 3, 3)
-                colormap bwr; 
-                trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3),...
-                    vzM, 'edgecolor', 'none')
-                % colorbar(); 
-                caxis([-4, 4]); 
-                axis equal; axis off ; 
-                % xlabel('x'); ylabel('y'); zlabel('z')
-                title('DV velocity snapshot -- pre-smoothing')
-                subplot(2, 3, 6)
-                trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3),...
-                    vzsM, 'edgecolor', 'none')
-                % colorbar(); 
-                caxis([-4, 4]); 
-                axis equal; axis off ; 
-                % xlabel('x'); ylabel('y'); zlabel('z')
-                title('DV velocity snapshot')
-                set(gcf, 'visible', 'on')
-                pause(1)
+                    % Check other velocities
+                    subplot(2, 3, 2)
+                    colormap bwr; 
+                    trisurf(mm.f, mm.v(:, 1), mm.v(:, 2), mm.v(:, 3),...
+                        vyM, 'edgecolor', 'none')
+                    % colorbar();
+                    caxis([-vlim, vlim]); 
+                    axis equal; axis off ; 
+                    % xlabel('x'); ylabel('y'); zlabel('z')
+                    title('lateral velocity snapshot -- pre-smoothing')
+                    subplot(2, 3, 5)
+                    trisurf(mm.f, mm.v(:, 1), mm.v(:, 2), mm.v(:, 3),...
+                        vysM, 'edgecolor', 'none')
+                    % colorbar(); 
+                    caxis([-vlim, vlim]); 
+                    axis equal; axis off ; 
+                    % xlabel('x'); ylabel('y'); zlabel('z')
+                    title('lateral velocity snapshot')
+                    subplot(2, 3, 3)
+                    colormap bwr; 
+                    trisurf(mm.f, mm.v(:, 1), mm.v(:, 2), mm.v(:, 3),...
+                        vzM, 'edgecolor', 'none')
+                    % colorbar(); 
+                    caxis([-vlim, vlim]); 
+                    axis equal; axis off ; 
+                    % xlabel('x'); ylabel('y'); zlabel('z')
+                    title('DV velocity snapshot -- pre-smoothing')
+                    subplot(2, 3, 6)
+                    trisurf(mm.f, mm.v(:, 1), mm.v(:, 2), mm.v(:, 3),...
+                        vzsM, 'edgecolor', 'none')
+                    % colorbar(); 
+                    caxis([-vlim, vlim]); 
+                    axis equal; axis off ; 
+                    % xlabel('x'); ylabel('y'); zlabel('z')
+                    title('DV velocity snapshot')
+                    set(gcf, 'visible', 'on')
+                    pause(1)
+                    clf
+                end
             end
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         else
@@ -267,8 +274,12 @@ for tp = tpts
                 g0q = g0cell{qq} ;
                 g1q = g1cell{qq} ;
                 eg(qq, :, :) = 0.5 * (g1q - g0q) ;
-                tre(qq) = trace(0.5 * inv(g0q) * (g1q - g0q)) ;
+                % tre(qq) = trace(0.5 * inv(g0q) * (g1q - g0q)) ;
+                % tre(qq) = trace(0.5 * inv(g0q) * (g1q - g0q)) ;
             end
+            a0 = 0.5 * doublearea(mesh.v, mesh.f) ;
+            a1 = 0.5 * doublearea(mesh2.v, mesh2.f) ;
+            dilation = (a1 - a0) ./ a0 ;
         elseif strcmp(metric_style, 'mesh')
             eg = g1 - g0 ;
         end
@@ -309,7 +320,7 @@ for tp = tpts
         readme.lambda = 'Laplacian smoothing on velocities' ;
         readme.lambda_mesh = 'Laplacian smoothing on mesh vertices' ;
         disp(['saving ', gstrainFn])
-        save(gstrainFn, 'eg', 'tg', 'tre', ...
+        save(gstrainFn, 'eg', 'tg', 'tre', 'dilation', ...
             'lambda', 'lambda_mesh', 'readme')
         
         %% Check the result
@@ -324,29 +335,29 @@ for tp = tpts
             subplot(2, 2, 1); 
             trisurf(tri, eg(:, 1, 1), 'edgeAlpha', 0.01); 
             caxis(max(abs(eg(:, 1, 1))) * [-1, 1])
-            zlim([0, 100]); view(0, 90); axis equal; colorbar
+            zlim([0, 100]); view(0, -90); axis equal; colorbar
             title('$\dot{\epsilon}_{\zeta\zeta}$', 'Interpreter', 'Latex')
             subplot(2, 2, 2); 
             trisurf(tri, eg(:, 1, 2), 'edgeAlpha', 0.01); 
             caxis(max(abs(eg(:, 1, 2))) * [-1, 1])
-            zlim([0, 100]); view(0, 90); axis equal; colorbar
+            zlim([0, 100]); view(0, -90); axis equal; colorbar
             title('$\dot{\epsilon}_{\zeta\phi}$', 'Interpreter', 'Latex')
             subplot(2, 2, 3); 
             trisurf(tri, eg(:, 2, 1), 'edgeAlpha', 0.01); 
             caxis(max(abs(eg(:, 2, 1))) * [-1, 1])
-            zlim([0, 100]); view(0, 90); axis equal; colorbar
+            zlim([0, 100]); view(0, -90); axis equal; colorbar
             title('$\dot{\epsilon}_{\phi\zeta}$', 'Interpreter', 'Latex')
             subplot(2, 2, 4); 
             trisurf(tri, eg(:, 2, 2), 'edgeAlpha', 0.01); 
             caxis(max(abs(eg(:, 2, 2))) * [-1, 1])
-            zlim([0, 100]); view(0, 90); axis equal; colorbar
+            zlim([0, 100]); view(0, 090); axis equal; colorbar
             title('$\dot{\epsilon}_{\phi\phi}$', 'Interpreter', 'Latex')
             % saveas(gcf, fullfile(QS.dir.gstrainRate, 'debug2.png'))
             pause(1)
         end
     else
         % load the metric strain
-        load(gstrainFn, 'eg', 'tg', 'tre')
+        load(gstrainFn, 'eg', 'tg', 'tre', 'dilation')
     end        
 
     %% Plot the metric components on trisurf
@@ -365,73 +376,79 @@ for tp = tpts
     time_in_units = (tp - tfold) * QS.timeInterval ;
     tstr = [': $t=$', sprintf('%03d', time_in_units), QS.timeUnits ];
 
-    % consider each metric element & plot in 3d
-    for qq = 1:4
-        fn = fullfile(egImDir, [glab{qq} '_' metric_style], ...
-                sprintf([glab{qq} '_' QS.fileBase.spcutMeshSmRSC '.png'], tp));
-        if ~exist(fn, 'file') || overwrite
+    %% consider each metric element & plot in 3d
+    fn = fullfile(egImDir, metric_style, ...
+            sprintf([QS.fileBase.spcutMeshSmRSC '.png'], tp));
+    if ~exist(fn, 'file') || overwrite
+        clf
+        set(gcf, 'visible', 'off') ;
+        for qq = 1:4
             % For each view (dorsal, ventral, left, right)
-            for pp = 1:4
-                if qq < 4
-                    disp(['coloring by tg ' num2str(gelem(qq))])
-                    colors = tg(:, gelem(qq)) ;
-                else
-                    disp('coloring by trace')
-                    colors = tre ;
-                end
-                clf
-                set(gcf, 'visible', 'off') ;
-                trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
-                    colors, 'edgecolor', 'none')
-                axis equal
-                cb = colorbar() ;
-
-                if strcmp(metric_style, 'mesh')                 
-                    caxis([-0.5, 0.5])
-                    title(['surface deformation rate, ', labels{qq}, tstr], ...
-                        'Interpreter', 'Latex')            
-                    ylabel(cb, labels{qq}, 'Interpreter', 'Latex')
-                elseif strcmp(metric_style, 'strain')  
-                    if qq < 4
-                        caxis([-clim_tg, clim_tg])
-                    else
-                        caxis([-clim_trgdot, clim_trgdot])
-                    end
-                    title(['strain rate, ', strainlabels{qq}, tstr], ...
-                        'Interpreter', 'Latex')            
-                    ylabel(cb, strainlabels{qq}, 'Interpreter', 'Latex')
-                end
-                % xlabel('AP position, [$\mu$m]', 'Interpreter', 'Latex')
-                % ylabel('lateral position, [$\mu$m]', 'Interpreter', 'Latex')
-                % zlabel('DV position, [$\mu$m]', 'Interpreter', 'Latex')
-                colormap(bwr256)
-                xlim(xyzlim(1, :))
-                ylim(xyzlim(2, :))
-                zlim(xyzlim(3, :))
-                axis off
-
-                % Save images;
-                % dorsal
-                if pp == 1
-                    view(0, 90)
-                % ventral
-                elseif pp == 2
-                    view(0, -90)
-                % left
-                elseif pp == 3
-                    view(0, 0)
-                % right
-                elseif pp == 4
-                    view(0, 180)
-                end
+            % for pp = 1:4
+            subplot(2, 2, qq)
+            if qq < 4
+                disp(['coloring by tg ' num2str(gelem(qq))])
+                colors = tg(:, gelem(qq)) ;
+            else
+                disp('coloring by trace')
+                colors = dilation ;
             end
+            trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
+                colors, 'edgecolor', 'none')
+            axis equal
+            cb = colorbar() ;
+
+            if strcmp(metric_style, 'mesh')                 
+                caxis([-0.5, 0.5])
+                title(['surface deformation rate, ', labels{qq}, tstr], ...
+                    'Interpreter', 'Latex')            
+                ylabel(cb, labels{qq}, 'Interpreter', 'Latex')
+            elseif strcmp(metric_style, 'strain')  
+                if qq < 4
+                    caxis([-clim_tg, clim_tg])
+                else
+                    caxis([-clim_trgdot, clim_trgdot])
+                end
+                title(strainlabels{qq}, 'Interpreter', 'Latex')            
+                ylabel(cb, strainlabels{qq}, 'Interpreter', 'Latex')
+            end
+            % xlabel('AP position, [$\mu$m]', 'Interpreter', 'Latex')
+            % ylabel('lateral position, [$\mu$m]', 'Interpreter', 'Latex')
+            % zlabel('DV position, [$\mu$m]', 'Interpreter', 'Latex')
+            colormap(bwr256)
+            xlim(xyzlim(1, :))
+            ylim(xyzlim(2, :))
+            zlim(xyzlim(3, :))
+            axis off
+
+            % Save images;
+            % dorsal
+            % if pp == 1
+            %     view(0, 90)
+            % ventral
+            % elseif pp == 2
+            %     view(0, -90)
+            % left
+            % elseif pp == 3
+            %     view(0, 0)
+            % right
+            % elseif pp == 4
+            %     view(0, 180)
+            % end
+            % end
+            
+            % left view
+            view(0, 0) 
+        end
+        sgtitle(['strain rate, ', tstr], 'Interpreter', 'latex') 
+
         % Save the image
         saveas(gcf, fn) ;
         clf
-        end
+
     end
     
-    % Now plot in 2d
+    %% Now plot in 2d
     close all
     set(gcf, 'visible', 'off') ;
     fn = fullfile(egImDir, ['metricstrain_' metric_style '_2d'], ...
@@ -444,7 +461,7 @@ for tp = tpts
                 colors = tg(:, gelem(qq)) ;
             else
                 disp('coloring by trace')
-                colors = tre ;
+                colors = dilation ;
             end
             trisurf(cutMesh.f, ...
                 cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...

@@ -84,6 +84,12 @@ for pp = 1:length(intersectf)
     vtcs = vtcs(sortId, :) ;
     ds = abs(vtx - xplane) ;
     side = (vtx - xplane > 0) ;
+    
+    if all(sortId' == [1 2 3]) || all(sortId' == [2 3 1]) || all(sortId' == [3 1 2])
+        orient = false ;
+    else
+        orient = true ;
+    end
 
     % For each segment that traverses the plane, get new point on
     % the plane
@@ -116,15 +122,42 @@ for pp = 1:length(intersectf)
             % This is a new point. Add it to addpts
             addpts = cat(1, addpts, addpt2) ; 
         end
-        % Add triangles
-        tri1 = [vIds(3), a1, a2] ;
-        tri2 = [vIds(1), a1, vIds(2)] ;
-        tri3 = [vIds(2), a1, a2] ;
+        % Add triangles -- note ordering matters! chirality preserved
+        %             2  . 
+        %               /|\
+        %              / | \ 
+        %             /  \  * a2
+        %            /    | |\
+        %           /     | | \
+        %          /      | |  \
+        %         /       | |   \
+        %        /        | |    \
+        %       /         | |     \
+        %      /           \|      \
+        % 1   .-------------*-------. 3
+        %                   a1
+        %
+        if orient
+            tri1 = [vIds(2), vIds(1), a1] ;
+            tri2 = [vIds(2), a1, a2] ;
+            tri3 = [a2, a1, vIds(3)] ;
+        else
+            tri1 = [vIds(1), vIds(2), a1] ;
+            tri2 = [a1, vIds(2), a2] ;
+            tri3 = [a1, a2, vIds(3)] ;
+        end
         % Which side are these triangles on
         % tside==1 is on right, previous mesh segment=0
         % tside = [tside 1 0 0 ]; 
         addtri = [addtri; tri1; tri2; tri3] ;
 
+        % line segment vertex indices
+        if orient
+            lnsegs(pp, :) = [a2, a1] ;
+        else
+            lnsegs(pp, :) = [a1, a2] ;
+        end
+        
         % Check it
         if preview
             vtxCheck = cat(1, vertices, addpts) ;
@@ -144,12 +177,12 @@ for pp = 1:length(intersectf)
         end
 
     elseif all(side == [0; 1; 1])
+        % seg 21
+        v21 = vtcs(2, :) - vtcs(1, :) ;
+        addpt1 = vtcs(1, :) + ds(1) / (ds(2) + ds(1)) * v21 ; 
         % seg 13
         v13 = vtcs(1, :) - vtcs(3, :) ;
-        addpt1 = vtcs(3, :) + ds(3) / (ds(1) + ds(3)) * v13 ;
-        % seg 23
-        v21 = vtcs(2, :) - vtcs(1, :) ;
-        addpt2 = vtcs(1, :) + ds(1) / (ds(2) + ds(1)) * v21 ; 
+        addpt2 = vtcs(3, :) + ds(3) / (ds(1) + ds(3)) * v13 ;
 
         % Check if addpt1 and addpt2 already are added points
         if ~isempty(addpts) && any(vecnorm(addpt1 - addpts, 2, 2) < eps)
@@ -166,15 +199,37 @@ for pp = 1:length(intersectf)
             addpts = cat(1, addpts, addpt2) ; 
         end
 
-        % Add triangles
-        tri1 = [vIds(3), a1, a2] ;
-        tri2 = [vIds(2), vIds(3), a2] ;
-        tri3 = [vIds(1), a1, a2] ;
-        % Which side are these triangles on
-        % tside==1 is right, left is tside=0
-        % tside = [tside 1 1 0 ]; 
+        % Add triangles -- note ordering matters! chirality preserved
+        %         2 .  
+        %         /  |
+        %       /    |
+        %   a1 .     | 
+        %    / |\    |
+        % 1 .  | |   |
+        %    \ | \   |
+        %      *  |  |
+        %   a2  \ \  |
+        %         \\ |
+        %           *  3
+        %
+        if orient
+            tri1 = [a1, vIds(1), a2] ;
+            tri2 = [a1, a2, vIds(3)] ;
+            tri3 = [vIds(2), a1, vIds(3)] ;
+        else
+            tri1 = [vIds(1), a1, a2] ;
+            tri2 = [a2, a1, vIds(3)] ;
+            tri3 = [a1, vIds(2), vIds(3)] ;
+        end
         addtri = [addtri; tri1; tri2; tri3] ;
 
+        % line segment vertex indices
+        if orient
+            lnsegs(pp, :) = [a1, a2] ;
+        else
+            lnsegs(pp, :) = [a2, a1] ;
+        end
+        
         % Check it
         if preview
             vtxCheck = cat(1, vertices, addpts) ;
@@ -194,12 +249,13 @@ for pp = 1:length(intersectf)
             plot3(addpt2(1), addpt2(2), addpt2(3), 'ko')
             pause(0.01)
         end
+        
     end
-    % line segment vertex indices
-    lnsegs(pp, :) = [a1, a2] ;
+    clearvars tri1 tri2 tri3 a1 a2
 end
 
 % Add the new vertices and faces
+ntri = size(faces, 1) ;
 vertices = cat(1, vertices, addpts) ;
 faces = cat(1, faces, addtri) ;
 
@@ -212,4 +268,7 @@ if nargout > 2
     detailedOutput.added_faces = addtri ;
     detailedOutput.intersected_faces = intersectf ;
     detailedOutput.line_segments = lnsegs ; 
+    detailedOutput.daughters = ntri:(ntri + size(addtri, 1)) ;
+    mothers = repmat(intersectf', 3, 1) ;
+    detailedOutput.mothers = mothers(:) ;
 end

@@ -6,7 +6,7 @@ if length(varargin) > 1
     ncolors = varargin{1} ;
     disp(['Defining ' num2str(ncolors) ' colors...'])
 else
-    ncolors = 7 ;
+    ncolors = 10 ;
 end
 
 blue    = [0.0000, 0.4470, 0.7410] ; % 1
@@ -16,17 +16,22 @@ purple  = [0.4940, 0.1840, 0.5560] ; % 4
 green   = [0.4660, 0.6740, 0.1880] ; % 5 
 sky     = [0.3010, 0.7450, 0.9330] ; % 6 
 maroon  = [0.6350, 0.0780, 0.1840] ; % 7
+gray    = [0.2000, 0.2000, 0.2000] ; % 8
+teal    = [0.0000, 0.6500, 0.5200] ; % 9
+pink    = [1.0000, 0.5137, 0.5137] ; % 10
 
-colors = [blue; red; yellow; purple; green; sky; maroon] ;
+colors = [blue; red; yellow; purple; green; ...
+          sky; maroon; gray; teal; pink] ;
 
-if ncolors < 8
+if ncolors < 11
     colors = colors(1:ncolors, :) ;
 else
     error('Need to define more colors for this')
 end
 
 if nargout > 1
-    names = {'blue', 'red', 'yellow', 'purple', 'green', 'sky', 'maroon'};
+    names = {'blue', 'red', 'yellow', 'purple', 'green', ...
+        'sky', 'maroon', 'gray', 'teal', 'pink'};
     names = names(1:ncolors) ;
 end
 
