@@ -347,7 +347,7 @@ if plot_kymographs
             ['normal velocity, $v_n$ ' vunitstr] , ...
             ['normal motion, $v_n 2 H $ ' unitstr]} ;
         names = {'gdot', 'HH', 'divv', 'veln', 'H2vn'} ;
-        climits = [climit, climit_H, climit, climit_veln, climit_err] ;
+        climits = [climit, climit_H, climit, climit_veln, climit] ;
 
         %% Plot gdot/HH/divv/veln/H2vn DV-averaged kymograph
         for pp = 1:length(m2plot)
@@ -419,15 +419,174 @@ ventral = q1:q2 ;
 right = q2:q3 ;
 dorsal = [q3:nV, 1:q1] ;
 rows = {left, right, dorsal, ventral} ;
-if plot_raw_correlations
-    corrDir = fullfile(mKDir, 'correlations') ;
+    
+%% HISTCOUNTS VERSION
+corrDir = fullfile(mKDir, 'correlations') ;
+outputFileNames = {fullfile(corrDir, 'histc_correlation_alltime_div_2Hvn.png'), ...
+    fullfile(corrDir, 'histc_correlation_earlytimes_div_2Hvn.png')} ;
+files_exist = exist(outputFileNames{1}, 'file') && ...
+    exist(outputFileNames{2}, 'file') ;
+if plot_raw_correlations && (~files_exist || overwrite)
+    xedges = linspace(-2 * climit, 2 * climit, 50) ;
+    yedges = xedges ;
     if ~exist(corrDir, 'dir')
         mkdir(corrDir)
     end
-    
-    outputFileNames = {fullfile(corrDir, ...
-        'correlation_alltime_div_2Hvn'), ...
-        fullfile(corrDir, 'correlation_earlytimes_div_2Hvn')} ;
+    cmap = parula ;
+    close all
+    set(gcf, 'visible', 'off')
+    % Consider each timespan (early or entire series)
+    for tspanIdx = 1:2
+        fnout = outputFileNames{tspanIdx} ;
+        timeSpan_i = timeSpans{tspanIdx} ;
+        ntspan = length(timeSpan_i) ;
+        titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
+        close all
+        sphCollection = cell(4, 1) ;
+        sposCollection = cell(4, 1) ;
+        nnmax = 0 ;
+        for qq = 1:4  % consider left, right, dorsal, ventral
+            disp(['qq = ', num2str(qq), ': ', titles{qq}])
+            divv = divv_M(:, rows{qq}, cols) ;    
+            H2vn = H2vn_M(:, rows{qq}, cols) ;
+            
+            sphCollection{qq} = subplot(2, 2, qq) ;
+            divv_tp = divv(1:ntspan, :, :) ;
+            H2vn_tp = H2vn(1:ntspan, :, :) ;
+            nn = histcounts2(divv_tp(:), H2vn_tp(:), ...
+                xedges, yedges) ;
+            nnmax = max(nnmax, max(nn(:))) ;
+        end
+        nnmax = round(nnmax /1000) * 1000 ; 
+        
+        for qq = 1:4  % consider left, right, dorsal, ventral
+            disp(['qq = ', num2str(qq), ': ', titles{qq}])
+            divv = divv_M(:, rows{qq}, cols) ;    
+            H2vn = H2vn_M(:, rows{qq}, cols) ;
+            
+            sphCollection{qq} = subplot(2, 2, qq) ;
+            divv_tp = divv(1:ntspan, :, :) ;
+            H2vn_tp = H2vn(1:ntspan, :, :) ;
+            nn = histcounts2(divv_tp(:), H2vn_tp(:), ...
+                xedges, yedges) ;
+            imagesc(xedges, yedges, log10(nn)') ;
+            caxis([0, log10(nnmax)])
+            set(gca,'YDir','normal')
+            hold on ;
+
+            % Label the x axis if on the bottom row
+            if qq > 2
+                xlabel(['$\nabla \cdot \bf{v}_\parallel$ ' unitstr], ...
+                        'Interpreter', 'Latex') ;
+            end
+            axis equal
+
+            % xlim([max(-2 * climit, xlims(1)), min(2 * climit, xlims(2))])
+            % ylim([max(-2 * climit, ylims(1)), min(2 * climit, ylims(2))])
+            % xlims = get(gca, 'xlim') ;
+            % ylims = get(gca, 'ylim') ;
+            % leftdot = max(xlims(1), ylims(1)) ;
+            % rightdot = min(xlims(2), ylims(2)) ;
+            % plot([leftdot, rightdot], [leftdot, rightdot], 'k--')
+
+            % Label the y axis if on the left column
+            ylabel(['$2Hv_n$ ' unitstr], 'Interpreter', 'Latex') ;
+            title(titles{qq}, 'Interpreter', 'Latex')
+
+            % Grab axis position
+            sposCollection{qq} = get(sphCollection{qq}, 'Position');
+        end
+
+        % Adjust xlim and ylim for all four panels in Figure 1
+        for qq = 1:4
+            axes(sphCollection{qq})
+            % Add dashed y=x line
+            xlim([-2*climit, 2*climit])
+            ylim([-2*climit, 2*climit])
+            plot(2 * climit * [-1, 1], 2 * climit * [-1, 1], 'w--')
+            sposCollection{qq} = get(sphCollection{qq}, 'Position');
+        end
+        
+        % Move subplots left a bit for colorbar space
+        for qq = 1:length(sphCollection)
+            spos = sposCollection{qq} ;
+            if ~exist('wh', 'var')
+                wh = min(spos(3)-0.05, spos(4)) ;
+            end
+            if qq == 1
+                yrow1 = spos(2) ;
+            elseif qq == 2
+                yrow1 = min(yrow1, spos(2)) ;
+            elseif qq == 3
+                yrow2 = spos(2) ;
+            elseif qq == 4
+                yrow2 = min(yrow2, spos(2)) ;
+            end
+        end
+        for qq = 1:length(sphCollection)
+            spos = sposCollection{qq} ;
+            if qq < 3
+                yrow = yrow1 ;
+            else
+                yrow = yrow2 ;
+            end
+            if mod(qq, 2) == 1
+                set(sphCollection{qq}, 'Position', [spos(1)-0.01, yrow, wh, wh])    
+            else
+                set(sphCollection{qq}, 'Position', [spos(1)-0.06, yrow, wh, wh])    
+            end
+        end
+
+        % master titles (suptitles)
+        if tspanIdx < 2
+            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
+                '$t<$' num2str(max(timeSpan_i)) ' ' QS.timeUnits], ...
+                'Interpreter', 'Latex') ;
+        else
+            sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
+                'Interpreter', 'Latex') ;
+        end
+        
+        % Add colorbar
+        c = colorbar('Position',[.85 .333 .02 .333]) ;
+        % % Make colorbar share the alpha of the image
+        % % Manually flush the event queue and force MATLAB to render the colorbar
+        % % necessary on some versions
+        % drawnow
+        % % Get the color data of the object that correponds to the colorbar
+        % cdata = c.Face.Texture.CData;
+        % % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+        % cdata(end,:) = uint8(alphaVal * cdata(end,:));
+        % % Ensure that the display respects the alpha channel
+        % c.Face.Texture.ColorType = 'truecoloralpha';
+        % % Update the color data with the new transparency information
+        % c.Face.Texture.CData = cdata;
+        c.Label.Interpreter = 'Latex' ;
+        c.Label.String = 'counts' ;
+        c.Ticks = [0, log10(nnmax*0.001), ...
+            log10(nnmax*0.01), log10(nnmax*0.1), log10(nnmax)] ;
+        c.TickLabels = nnmax * [0, 0.001, 0.01, 0.1, 1] ;
+        
+        % Save figure
+        saveas(gcf, [fnout '.png']) ;
+        close all
+        clearvars sphCollection
+        set(gcf, 'visible', 'off')
+    end
+end
+
+%% SCATTERPLOT VERSION
+% Predefine file names
+corrDir = fullfile(mKDir, 'correlations') ;
+outputFileNames = {fullfile(corrDir, 'correlation_alltime_div_2Hvn.png'), ...
+    fullfile(corrDir, 'correlation_earlytimes_div_2Hvn.png')} ;
+files_exist = exist(outputFileNames{1}, 'file') && ...
+    exist(outputFileNames{2}, 'file') ;
+
+if plot_raw_correlations && (~files_exist || overwrite)
+    if ~exist(corrDir, 'dir')
+        mkdir(corrDir)
+    end
     alphaVal = 0.005 ;
     sz = 2 ;
     cmap = parula ;
@@ -555,7 +714,7 @@ if plot_raw_correlations
         c.TickLabels = [tps(1), max(timeSpan_i)] ;
 
         % Save figure
-        saveas(gcf, [fnout '.png']) ;
+        saveas(gcf, fnout) ;
         close all
         clearvars sphCollection
         set(gcf, 'visible', 'off')
@@ -572,191 +731,194 @@ timeSpans = {tps, tps(tps < max(fons) + 11)} ;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 padN = round(0.1 * nU) ;
 cols = padN:nU - padN ;
-if plot_correlations
-    corrDir = fullfile(mKDir, 'correlations_DVquadrants') ;
+
+corrDir = fullfile(mKDir, 'correlations_DVquadrants') ;
+% Warning: not truly Lagrangian averaged if sigma > 0. 
+outputFileNames = {fullfile(corrDir, ...
+    'correlation_alltime_div_2Hvn'), ...
+    fullfile(corrDir, ...
+    'correlation_earlytimes_div_2Hvn')} ;
+files_exist = exist(outputFileNames{1}, 'file') && ...
+    exist(outputFileNames{2}, 'file') ;
+
+if plot_correlations && (~files_exist || overwrite)
     if ~exist(corrDir, 'dir')
         mkdir(corrDir)
-    end
-    
-    % Warning: not truly Lagrangian averaged if sigma > 0. 
-    for sigma = 0:1
-        outputFileNames = {fullfile(corrDir, ...
-            sprintf('correlation_sigma%02d_alltime_div_2Hvn', sigma)), ...
-            fullfile(corrDir, ...
-            sprintf('correlation_sigma%02d_earlytimes_div_2Hvn', sigma))} ;
-        alphaVal = 0.2 ;
-        sz = 4 ;
-        cmap = parula ;
+    end    
+    alphaVal = 0.2 ;
+    sz = 4 ;
+    cmap = parula ;
+    close all
+    set(gcf, 'visible', 'off')
+    % Consider each timespan (early or entire series)
+    for tspanIdx = 1:2
+        fnout = outputFileNames{tspanIdx} ;
+        timeSpan_i = timeSpans{tspanIdx} ;
+        ntspan = length(timeSpan_i) ;
+        titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
+        markers = QS.plotting.markers ;
+        colors = mapValueToColor(1:ntspan, [1, ntspan], cmap) ;
+        close all
+        sphCollection = cell(4, 1) ;
+        sposCollection = cell(4, 1) ;
+        sphCollection2 = cell(4, 1) ;
+        sposCollection2 = cell(4, 1) ;
+        sphCollection3 = cell(4, 1) ;
+        sposCollection3 = cell(4, 1) ;
+        for qq = 1:4  % consider left, right, dorsal, ventral
+            disp(['qq = ', num2str(qq), ': ', titles{qq}])
+            divv = divvsK{qq + 1}(:, cols) ;    
+            H2vn = H2vnsK{qq + 1}(:, cols) ;
+
+            % Optional: smooth here
+            % if sigma > 0
+            %     divv = imgaussfilt(divv, sigma);            
+            %     H2vn = imgaussfilt(H2vn, sigma);  
+            % end
+
+            % Check the quadrant kymographs
+            figure(2) ;
+            sphCollection2{qq} = subplot(2, 2, qq) ;
+            imagesc(cols/nU, tps, divv); 
+            caxis([-climit, climit])
+            colormap(bwr256)
+            figure(3) ;
+            sphCollection3{qq} = subplot(2, 2, qq) ;
+            imagesc(cols/nU, tps, H2vn); 
+            caxis([-climit, climit])
+            colormap(bwr256)
+
+            figure(1) ;
+            sphCollection{qq} = subplot(2, 2, qq) ;
+            for row = 1:ntspan
+                disp(['row = ', num2str(row)])
+                scatter(divv(row, :), H2vn(row, :), sz, ...
+                    markers{qq}, 'MarkerFaceColor', 'none', ...
+                    'MarkerEdgeColor', colors(row, :), ...
+                    'MarkerEdgeAlpha', alphaVal) ;
+                hold on ;
+            end
+
+            % Label the x axis if on the bottom row
+            if qq > 2
+                figure(1)
+                xlabel(['$\nabla \cdot \bf{v}_\parallel$ ' unitstr], ...
+                        'Interpreter', 'Latex') ;
+                figure(2)
+                xlabel(['ap position, $\zeta/L$'], ...
+                    'Interpreter', 'Latex') ;
+                figure(3)
+                xlabel(['ap position, $\zeta/L$'], ...
+                    'Interpreter', 'Latex') ;
+            end
+            figure(1)
+            axis equal
+            % Add dashed y=x line
+            xlims = get(gca, 'xlim') ;
+            ylims = get(gca, 'ylim') ;
+            xlim([max(-2 * climit, xlims(1)), min(2 * climit, xlims(2))])
+            ylim([max(-2 * climit, ylims(1)), min(2 * climit, ylims(2))])
+            xlims = get(gca, 'xlim') ;
+            ylims = get(gca, 'ylim') ;
+            leftdot = max(xlims(1), ylims(1)) ;
+            rightdot = min(xlims(2), ylims(2)) ;
+            plot([leftdot, rightdot], [leftdot, rightdot], 'k--')
+
+            % Label the y axis if on the left column
+            ylabel(['$2Hv_n$ ' unitstr], 'Interpreter', 'Latex') ;
+            title(titles{qq}, 'Interpreter', 'Latex')
+
+            figure(2)
+            ylabel(['time [' QS.timeUnits, ']'], 'Interpreter', 'Latex') ;
+            title(titles{qq}, 'Interpreter', 'Latex')
+            figure(3)
+            ylabel(['time [' QS.timeUnits, ']'], 'Interpreter', 'Latex') ;
+            title(titles{qq}, 'Interpreter', 'Latex')
+
+            % Grab axis position
+            sposCollection{qq} = get(sphCollection{qq}, 'Position');
+            sposCollection2{qq} = get(sphCollection2{qq}, 'Position');
+            sposCollection3{qq} = get(sphCollection3{qq}, 'Position');
+        end
+
+        % Move subplots left a bit for colorbar space
+        for qq = 1:length(sphCollection)
+            spos = sposCollection{qq} ;
+            wh = min(spos(3)-0.05, spos(4)) ;
+            if mod(qq, 2) == 1
+                set(sphCollection{qq}, 'Position', [spos(1)-0.01, spos(2), wh, wh])
+                set(sphCollection2{qq}, 'Position', [spos(1)-0.01, spos(2), wh, wh])
+                set(sphCollection3{qq}, 'Position', [spos(1)-0.01, spos(2), wh, wh])
+            else
+                set(sphCollection{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
+                set(sphCollection2{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
+                set(sphCollection3{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
+            end
+        end
+
+        % master titles (suptitles)
+        figure(1) ;
+        sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$'], ...
+            'Interpreter', 'Latex') ;
+
+        figure(2) ;
+        sgtitle(['$\nabla \cdot \bf{v}_\parallel$'], ...
+                'Interpreter', 'Latex') ;
+        figure(3) ;
+        sgtitle(['$2Hv_n$'], 'Interpreter', 'Latex') ;
+
+        % Add colorbar
+        figure(1) ;
+        c = colorbar('Position',[.9 .333 .02 .333]) ;
+        % Make colorbar share the alpha of the image
+        % Manually flush the event queue and force MATLAB to render the colorbar
+        % necessary on some versions
+        drawnow
+        % Get the color data of the object that correponds to the colorbar
+        cdata = c.Face.Texture.CData;
+        % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+        cdata(end,:) = uint8(alphaVal * cdata(end,:));
+        % Ensure that the display respects the alpha channel
+        c.Face.Texture.ColorType = 'truecoloralpha';
+        % Update the color data with the new transparency information
+        c.Face.Texture.CData = cdata;
+        c.Label.Interpreter = 'Latex' ;
+        c.Label.String = ['time [' QS.timeUnits ']'] ;
+        c.Ticks = [0, 1] ;
+        c.TickLabels = [tps(1), max(timeSpan_i)] ;
+
+        figure(2) ;
+        c = colorbar('Position',[.9 .333 .02 .333]) ;
+        figure(3) ;
+        c = colorbar('Position',[.9 .333 .02 .333]) ;
+
+        % Save figure
+        figure(1)
+        saveas(gcf, [fnout '.png']) ;
+        figure(2)
+        saveas(gcf, [fnout '_kymo_divv.png']) ;
+        figure(3)
+        saveas(gcf, [fnout '_kymo_H2vn.png']) ;
         close all
         set(gcf, 'visible', 'off')
-        % Consider each timespan (early or entire series)
-        for tspanIdx = 1:2
-            fnout = outputFileNames{tspanIdx} ;
-            timeSpan_i = timeSpans{tspanIdx} ;
-            ntspan = length(timeSpan_i) ;
-            titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
-            markers = QS.plotting.markers ;
-            colors = mapValueToColor(1:ntspan, [1, ntspan], cmap) ;
-            close all
-            sphCollection = cell(4, 1) ;
-            sposCollection = cell(4, 1) ;
-            sphCollection2 = cell(4, 1) ;
-            sposCollection2 = cell(4, 1) ;
-            sphCollection3 = cell(4, 1) ;
-            sposCollection3 = cell(4, 1) ;
-            for qq = 1:4  % consider left, right, dorsal, ventral
-                disp(['qq = ', num2str(qq), ': ', titles{qq}])
-                divv = divvsK{qq + 1}(:, cols) ;    
-                H2vn = H2vnsK{qq + 1}(:, cols) ;
-
-                % Optional: smooth here
-                if sigma > 0
-                    divv = imgaussfilt(divv, sigma);            
-                    H2vn = imgaussfilt(H2vn, sigma);  
-                end
-                
-                % Check the smoothing on kymographs
-                figure(2) ;
-                sphCollection2{qq} = subplot(2, 2, qq) ;
-                imagesc(cols/nU, tps, divv); 
-                caxis([-climit, climit])
-                colormap(bwr256)
-                figure(3) ;
-                sphCollection3{qq} = subplot(2, 2, qq) ;
-                imagesc(cols/nU, tps, H2vn); 
-                caxis([-climit, climit])
-                colormap(bwr256)
-
-                figure(1) ;
-                sphCollection{qq} = subplot(2, 2, qq) ;
-                for row = 1:ntspan
-                    disp(['row = ', num2str(row)])
-                    scatter(divv(row, :), H2vn(row, :), sz, ...
-                        markers{qq}, 'MarkerFaceColor', 'none', ...
-                        'MarkerEdgeColor', colors(row, :), ...
-                        'MarkerEdgeAlpha', alphaVal) ;
-                    hold on ;
-                end
-
-                % Label the x axis if on the bottom row
-                if qq > 2
-                    figure(1)
-                    xlabel(['$\nabla \cdot \bf{v}_\parallel$ ' unitstr], ...
-                            'Interpreter', 'Latex') ;
-                    figure(2)
-                    xlabel(['ap position, $\zeta/L$'], ...
-                        'Interpreter', 'Latex') ;
-                    figure(3)
-                    xlabel(['ap position, $\zeta/L$'], ...
-                        'Interpreter', 'Latex') ;
-                end
-                figure(1)
-                axis equal
-                % Add dashed y=x line
-                xlims = get(gca, 'xlim') ;
-                ylims = get(gca, 'ylim') ;
-                xlim([max(-2 * climit, xlims(1)), min(2 * climit, xlims(2))])
-                ylim([max(-2 * climit, ylims(1)), min(2 * climit, ylims(2))])
-                xlims = get(gca, 'xlim') ;
-                ylims = get(gca, 'ylim') ;
-                leftdot = max(xlims(1), ylims(1)) ;
-                rightdot = min(xlims(2), ylims(2)) ;
-                plot([leftdot, rightdot], [leftdot, rightdot], 'k--')
-
-                % Label the y axis if on the left column
-                ylabel(['$2Hv_n$ ' unitstr], 'Interpreter', 'Latex') ;
-                title(titles{qq}, 'Interpreter', 'Latex')
-                
-                figure(2)
-                ylabel(['time [' QS.timeUnits, ']'], 'Interpreter', 'Latex') ;
-                title(titles{qq}, 'Interpreter', 'Latex')
-                figure(3)
-                ylabel(['time [' QS.timeUnits, ']'], 'Interpreter', 'Latex') ;
-                title(titles{qq}, 'Interpreter', 'Latex')
-
-                % Grab axis position
-                sposCollection{qq} = get(sphCollection{qq}, 'Position');
-                sposCollection2{qq} = get(sphCollection2{qq}, 'Position');
-                sposCollection3{qq} = get(sphCollection3{qq}, 'Position');
-            end
-
-            % Move subplots left a bit for colorbar space
-            for qq = 1:length(sphCollection)
-                spos = sposCollection{qq} ;
-                wh = min(spos(3)-0.05, spos(4)) ;
-                if mod(qq, 2) == 1
-                    set(sphCollection{qq}, 'Position', [spos(1)-0.01, spos(2), wh, wh])
-                    set(sphCollection2{qq}, 'Position', [spos(1)-0.01, spos(2), wh, wh])
-                    set(sphCollection3{qq}, 'Position', [spos(1)-0.01, spos(2), wh, wh])
-                else
-                    set(sphCollection{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
-                    set(sphCollection2{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
-                    set(sphCollection3{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
-                end
-            end
-
-            % master titles (suptitles)
-            figure(1) ;
-            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ',...
-                '$\sigma=$', num2str(sigma), ' ', QS.timeUnits], ...
-                'Interpreter', 'Latex') ;
-            
-            figure(2) ;
-            sgtitle(['$\nabla \cdot \bf{v}_\parallel,$ $\sigma=$', ...
-                num2str(sigma), ' ', QS.timeUnits], ...
-                    'Interpreter', 'Latex') ;
-            figure(3) ;
-            sgtitle(['$2Hv_n$ $\sigma=$', ...
-                num2str(sigma), ' ', QS.timeUnits], 'Interpreter', 'Latex') ;
-                
-            % Add colorbar
-            figure(1) ;
-            c = colorbar('Position',[.9 .333 .02 .333]) ;
-            % Make colorbar share the alpha of the image
-            % Manually flush the event queue and force MATLAB to render the colorbar
-            % necessary on some versions
-            drawnow
-            % Get the color data of the object that correponds to the colorbar
-            cdata = c.Face.Texture.CData;
-            % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
-            cdata(end,:) = uint8(alphaVal * cdata(end,:));
-            % Ensure that the display respects the alpha channel
-            c.Face.Texture.ColorType = 'truecoloralpha';
-            % Update the color data with the new transparency information
-            c.Face.Texture.CData = cdata;
-            c.Label.Interpreter = 'Latex' ;
-            c.Label.String = ['time [' QS.timeUnits ']'] ;
-            c.Ticks = [0, 1] ;
-            c.TickLabels = [tps(1), max(timeSpan_i)] ;
-            
-            figure(2) ;
-            c = colorbar('Position',[.9 .333 .02 .333]) ;
-            figure(3) ;
-            c = colorbar('Position',[.9 .333 .02 .333]) ;
-            
-            % Save figure
-            figure(1)
-            saveas(gcf, [fnout '.png']) ;
-            figure(2)
-            saveas(gcf, [fnout '_kymo_divv.png']) ;
-            figure(3)
-            saveas(gcf, [fnout '_kymo_H2vn.png']) ;
-            close all
-            set(gcf, 'visible', 'off')
-        end
-        disp('done with correlation plots betweeen divv and H2vn')
     end
+    disp('done with correlation plots betweeen divv and H2vn')
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Plot correlations between gdot and each term in the sum
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if plot_gdot_correlations
-    outputFileNames = cell(2, 1) ;
-    outputFileNames{1} = {fullfile(mKDir, 'correlation_alltime_div_gdot'), ...
-                       fullfile(mKDir, 'correlation_earlytimes_div_gdot')} ;
-    outputFileNames{2} = {fullfile(mKDir, 'correlation_alltime_2Hvn_gdot'), ...
-                       fullfile(mKDir, 'correlation_earlytimes_2Hvn_gdot')} ;
+outputFileNames = cell(2, 1) ;
+outputFileNames{1} = {fullfile(mKDir, 'correlation_alltime_div_gdot'), ...
+                   fullfile(mKDir, 'correlation_earlytimes_div_gdot')} ;
+outputFileNames{2} = {fullfile(mKDir, 'correlation_alltime_2Hvn_gdot'), ...
+                   fullfile(mKDir, 'correlation_earlytimes_2Hvn_gdot')} ;
+files_exist = exist(outputFileNames{1}{1}, 'file') && ...
+    exist(outputFileNames{1}{2}, 'file') && ...
+    exist(outputFileNames{2}{1}, 'file') && ...
+    exist(outputFileNames{2}{2}, 'file') ;
+
+if plot_gdot_correlations && (~files_exist || overwrite)
     alphaVal = 0.1 ;
     sz = 4 ;
     cmap = parula ;

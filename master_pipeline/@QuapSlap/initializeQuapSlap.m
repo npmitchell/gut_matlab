@@ -76,7 +76,18 @@ uvDir = fullfile(QS.dir.mesh, sprintf('gridCoords_nU%04d_nV%04d', QS.nU, QS.nV))
 QS.dir.uvCoord = uvDir ;
 
 % Metric strain dirs
-QS.dir.metricKinematics = fullfile(uvDir, 'metricKinematics') ;
+QS.dir.metricKinematics = struct() ;
+QS.dir.metricKinematics.root = fullfile(uvDir, 'metricKinematics') ;
+QS.dir.metricKinematics.measurements = ...
+    fullfile(uvDir, 'metricKinematics', ...
+    'lambda%0.03f_lerr%0.3f_lmesh%0.3f', 'measurements') ;
+QS.fullFileBase.metricKinematics = struct() ;
+QS.fullFileBase.metricKinematics.divv = ...
+    fullfile(QS.dir.metricKinematics.measurements, 'divv_series_%06d') ;
+QS.fullFileBase.metricKinematics.H2vn = ...
+    fullfile(QS.dir.metricKinematics.measurements, 'H2vn_series_%06d') ;
+QS.fullFileBase.metricKinematics.gdot = ...
+    fullfile(QS.dir.metricKinematics.measurements, 'gdot_series_%06d') ;
 QS.dir.gstrain = fullfile(uvDir, 'metric_strain') ;
 QS.dir.gstrainRate = fullfile(QS.dir.gstrain, 'rateMetric') ;
 QS.dir.gstrainRateIm = fullfile(QS.dir.gstrainRate, 'images') ;

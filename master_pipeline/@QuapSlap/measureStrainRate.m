@@ -15,8 +15,8 @@ lambda = 0.01 ;
 lambda_mesh = 0.002 ;
 overwrite = false ;
 preview = true ;
-clim_trgdot = 0.2 ;
-clim_tg = 1 ;
+clim_trace = 1 ;
+clim_deviatoric = 0.5 ;
 
 %% Unpack options
 if isfield(options, 'overwrite')
@@ -58,9 +58,11 @@ imagesc([-1, 0, 1; -1, 0, 1])
 caxis([0, 1])
 pos256 = bluewhitered(256) ;
 close all
+pm256 = phasemap(256) ;
 
 %% Prepare both metric styles
-dirs2make = { fullfile(egImDir) } ;
+dirs2make = { egImDir, fullfile(egImDir, 'strainRate3d'), ...
+    fullfile(egImDir, 'strainRate2d') } ;
 for ii = 1:length(dirs2make)
     dir2make = dirs2make{ii} ;
     if ~exist(dir2make, 'dir')
@@ -105,6 +107,8 @@ for tp = tp2do
     % Load current mesh
     tmp = load(sprintf(QS.fullFileBase.spcutMeshSmRSC, tp)) ;
     mesh = tmp.spcutMeshSmRSC ;
+    % Normalize the zeta axis to unity
+    mesh.u(:, 1) = mesh.u(:, 1) /  ;
     clearvars tmp
 
     % Define metric strain filename        
@@ -143,6 +147,7 @@ for tp = tp2do
         cutMesh = cutRectilinearCylMesh(mesh) ;
         
         % Compute the strain rate tensor
+        disp('Computing covariantDerivative')
         [~, dvi] = vectorCovariantDerivative(vf, cutMesh.f, cutMesh.v, cutMesh.u) ;
         dvij = cell(size(dvi)) ;
         for qq = 1:length(dvi)
@@ -150,73 +155,80 @@ for tp = tp2do
         end
         
         % Compute the second fundamental form
-        [gg, bb] = constructFundamentalForms(cutMesh.f, cutMesh.v, cutMesh.u) ;
+        [gg, ~] = constructFundamentalForms(cutMesh.f, cutMesh.v, cutMesh.u) ;
+        [~, bb] = constructFundamentalForms(mesh.f, mesh.v, mesh.u) ;
         
         % Decompose velocity into components
         [v0n, ~] = resolveTangentNormalVector(cutMesh.f, cutMesh.v, vf) ;
         
         % Strain rate tensor
-        epsilon = cell(size(dvi)) ;
+        strainrate = cell(size(dvi)) ;
         for qq = 1:length(dvi)
-            epsilon{qq} = dvij{qq} - v0n(qq) .* bb{qq} ;
+            strainrate{qq} = dvij{qq} - v0n(qq) .* bb{qq} ;
         end
         
         %% Construct Topolgical Structure Tools ===============================
         % eg = metricStrainSPhiGridMesh(mesh, mesh2) ;
-
-        % Cut the mesh into a cutMesh to open up the pullback mesh & also
-        % grab du and dv for each face --  bond vecs along u and along v
-        mesh.nU = nU ;
-        tmp_options.preview = false ;
-        [~, dbonds] = labelRectilinearMeshBonds(mesh, tmp_options) ;
-        cutMesh = dbonds.cutMesh ; 
+        % 
+        % % Cut the mesh into a cutMesh to open up the pullback mesh & also
+        % % grab du and dv for each face --  bond vecs along u and along v
+        % mesh.nU = nU ;
+        % tmp_options.preview = false ;
+        % [~, dbonds] = labelRectilinearMeshBonds(mesh, tmp_options) ;
+        % cutMesh = dbonds.cutMesh ; 
         
         % Metric strain -- separate trace and deviatoric strain comp, angle
-        tre = zeros(size(epsilon, 1), 1) ;  % traceful dilation
-        dve = zeros(size(epsilon, 1), 1) ;  % deviatoric magnitude
-        the = zeros(size(epsilon, 1), 1) ;  % angle of elongation
-        for qq = 1:size(g0cell, 1)
-            eq = epsilon{qq} ;
+        treps = zeros(size(strainrate, 1), 1) ;  % traceful dilation
+        dvtre = zeros(size(strainrate, 1), 1) ;  % deviatoric magnitude
+        theta = zeros(size(strainrate, 1), 1) ;  % angle of elongation
+        for qq = 1:size(strainrate, 1)
+            eq = strainrate{qq} ;
             gq = gg{qq} ;
-            % traceful component
-            tre(qq) = trace(inv(gq) * (eq)) ;
-            % deviatoric component
-            dve(qq) = sqrt(trace(inv(gq) * (eq * (inv(gq) * eq)))) ;
+            % traceful component -- 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
+            treps(qq) = trace(inv(gq) * (eq)) ;
+            % deviatoric component -- 
+            % || epsilon - 1/2 Tr[g^{-1} epsilon] g|| = sqrt(Tr[A A^T]),
+            % where A = epsilon - 1/2 Tr[g^{-1} epsilon] g.
+            AA = eq - 0.5 * treps(qq) * gq ;
+            dvtre(qq) = sqrt(trace(inv(gq) * (AA * (inv(gq) * AA)))) ;
             % angle of elongation -- first take eigvectors
-            [evec, eval] = eig() ;
+            [evec, eval] = eig(AA) ;
             [evals, idx] = sort(diag(eval)) ;
             evec = evec(:, idx) ;
             pevec = evec(:, end) ;
-            assert(prod(evals) == dve(qq)) ;
-            the(qq) = atan2(pevec(2), pevec(1)) ;
+            theta(qq) = atan2(pevec(2), pevec(1)) ;
         end
-
+        theta = mod(theta, 2 * pi) ;
+        
         % save the metric strain
         readme.eg = 'strain rate epsilon=1/2(nabla_i v_j + nabla_j v_i) - vn b_ij' ;
-        readme.tre = 'Tr[g^{-1} epsilon]';
-        readme.dve = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] )';
-        readme.the = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector';
+        readme.treps = 'Tr[g^{-1} epsilon]';
+        readme.dvtre = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] )';
+        readme.theta = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector';
         readme.lambda = 'Laplacian smoothing on velocities' ;
         readme.lambda_mesh = 'Laplacian smoothing on mesh vertices' ;
+        readme.note = 'The pullback space is taken to range from zeta=[0, 1] and phi=[0, 1]' ; 
         disp(['saving ', estrainFn])
-        save(estrainFn, 'eg', 'tre', 'dve', 'the', ...
+        save(estrainFn, 'strainrate', 'treps', 'dvtre', 'theta', ...
             'lambda', 'lambda_mesh', 'readme')
     else
         % load the metric strain
-        load(estrainFn, 'eg', 'tre', 'dve', 'the')
+        load(estrainFn, 'strainrate', 'treps', 'dvtre', 'theta')
+        % Convert to 2D mesh
+        mesh.nU = QS.nU ;
+        cutMesh = cutRectilinearCylMesh(mesh) ;
     end        
 
     %% Plot the metric components on trisurf
     % denom = sqrt(tg(:, 1, 1) .* tg(:, 2, 2)) ;
-    labels = {'$\mathrm{Tr} [g^{-1} \varepsilon] $', ...
-        '$\sqrt\left( \mathrm{Tr}[g^{-1} \varepsilon g^{-1} \varepsilon] \right)$'} ;
+    % NOTE: \varepsilon --> ${\boldmath${\varepsilon}$}$
+    labels = {'$\mathrm{Tr} [\bf{g}^{-1}\varepsilon] $', ...
+        '$||\varepsilon-\frac{1}{2}$Tr$\left[\mathbf{g}^{-1}\varepsilon\right]\bf{g}||$'} ;
     time_in_units = (tp - tfold) * QS.timeInterval ;
     tstr = [': $t=$', sprintf('%03d', time_in_units), QS.timeUnits ];
-    es = [tre, dve, the] ;
     
     %% consider each metric element & plot in 3d
-    fn = fullfile(egImDir, metric_style, ...
-            sprintf([QS.fileBase.spcutMeshSmRSC '.png'], tp));
+    fn = fullfile(egImDir, 'strainRate3d', sprintf([QS.fileBase.spcutMeshSmRSC '.png'], tp));
     if ~exist(fn, 'file') || overwrite
         clf
         set(gcf, 'visible', 'off') ;
@@ -224,21 +236,45 @@ for tp = tp2do
             % For each view (dorsal, ventral, left, right)
             % for pp = 1:4
             subplot(1, 2, qq)
-            colors = es(:, gelem(qq)) ;
+            if qq == 1
+                trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
+                    'FaceVertexCData', treps, 'edgecolor', 'none')
+                caxis([-clim_trace, clim_trace])
+                colormap(gca, bwr256)
+                cb = colorbar('location', 'southOutside') ;      
+                % ylabel(cb, labels{qq}, 'Interpreter', 'Latex')
+
+            else
+                % Intensity from dvtre and color from the theta
+                indx = max(1, round(mod(2*theta, 2*pi)*size(pm256, 1)/(2 * pi))) ;
+                colors = pm256(indx, :) ;
+                colors = min(dvtre / clim_deviatoric, 1) .* colors ;
+                trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
+                    'FaceVertexCData', colors, 'edgecolor', 'none')
+
+                % Colorbar and phasewheel
+                colormap(gca, phasemap)
+                phasebar('colormap', phasemap, ...
+                    'location', [0.82, 0.1, 0.1, 0.135], 'style', 'nematic')
+                ax = gca ;
+                get(gca, 'position')
+                cb = colorbar('location', 'southOutside') ;
+                drawnow
+                axpos = get(ax, 'position') ;
+                cbpos = get(cb, 'position') ;
+                set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3)*0.6, cbpos(4)])
+                set(ax, 'position', axpos) 
+                hold on;
+                caxis([0, clim_deviatoric])
+                colormap(gca, gray)
+            end
             
-            trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
-                colors, 'edgecolor', 'none')
             axis equal
-            cb = colorbar() ;
-            caxis([-clim, clim])
-            title(labels{qq}, 'Interpreter', 'Latex')            
-            ylabel(cb, labels{qq}, 'Interpreter', 'Latex')
-            
-            colormap(bwr256)
             xlim(xyzlim(1, :))
             ylim(xyzlim(2, :))
             zlim(xyzlim(3, :))
             axis off
+            title(labels{qq}, 'Interpreter', 'Latex')      
             
             % Save images;
             % dorsal
@@ -270,48 +306,103 @@ for tp = tp2do
     %% Now plot in 2d
     close all
     set(gcf, 'visible', 'off') ;
-    fn = fullfile(egImDir, ['metricstrain_' metric_style '_2d'], ...
+    fn = fullfile(egImDir, 'strainRate2d', ...
             sprintf([QS.fileBase.spcutMeshSm '.png'], tp));
     if ~exist(fn, 'file') || overwrite
-        for qq = 1:4
-            subplot(2, 2, qq) 
-            if qq < 4
-                disp(['coloring by tg ' num2str(gelem(qq))])
-                colors = tg(:, gelem(qq)) ;
-            else
-                disp('coloring by trace')
-                colors = dilation ;
-            end
-            trisurf(cutMesh.f, ...
-                cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
-                cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
-                colors, 'edgecolor', 'none')
-            daspect([1,1,1])
-            cb = colorbar() ;
+        % Panel 1
+        subplot(1, 2, 1)
+        trisurf(cutMesh.f, ...
+            cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
+            cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
+            'FaceVertexCData', treps, 'edgecolor', 'none')
+        daspect([1,1,1])
+        cb = colorbar('location', 'southOutside') ;
 
-            if strcmp(metric_style, 'mesh')                 
-                caxis([-0.5, 0.5])
-                title(['surface deformation rate, ', labels{qq}, tstr], ...
-                    'Interpreter', 'Latex')            
-                ylabel(cb, labels{qq}, 'Interpreter', 'Latex')
-            elseif strcmp(metric_style, 'strain')  
-                if qq < 4
-                    caxis([-clim_tg, clim_tg])
-                else
-                    caxis([-clim_trgdot, clim_trgdot])
-                end
-                title(['strain rate, ', strainlabels{qq}, tstr], ...
-                    'Interpreter', 'Latex')            
-                ylabel(cb, strainlabels{qq}, 'Interpreter', 'Latex')
-            end
-            % xlabel('AP position, [$\mu$m]', 'Interpreter', 'Latex')
-            % ylabel('lateral position, [$\mu$m]', 'Interpreter', 'Latex')
-            % zlabel('DV position, [$\mu$m]', 'Interpreter', 'Latex')
-            colormap(bwr256)
-            axis off
-            view(2)
-        end
+        caxis([-clim_trace, clim_trace])
+        title(labels{1}, 'Interpreter', 'Latex')   
+        colormap(bwr256)
+        axis off
+        view(2)
+            
+        % Panel 2 
+        subplot(1, 2, 2)
+        % Intensity from dvtre and color from the theta
+        indx = max(1, round(mod(2*theta, 2*pi)*size(pm256, 1)/(2 * pi))) ;
+        colors = pm256(indx, :) ;
+        colors = min(dvtre / clim_deviatoric, 1) .* colors ;
+        trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
+            cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
+            'FaceVertexCData', colors, 'edgecolor', 'none')
+        daspect([1,1,1])
+        title(labels{2}, 'Interpreter', 'Latex')   
+        
+        % Colorbar and phasewheel
+        colormap(gca, phasemap)
+        phasebar('colormap', phasemap, ...
+            'location', [0.82, 0.12, 0.1, 0.135], 'style', 'nematic')
+        axis off
+        view(2)
+        ax = gca ;
+        get(gca, 'position')
+        cb = colorbar('location', 'southOutside') ;
+        drawnow
+        axpos = get(ax, 'position') ;
+        cbpos = get(cb, 'position') ;
+        set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3)*0.6, cbpos(4)])
+        set(ax, 'position', axpos) 
+        hold on;
+        caxis([0, clim_deviatoric])
+        colormap(gca, gray)
+        
         % Save the image
+        sgtitle(['strain rate, ', tstr], 'Interpreter', 'latex') 
+        saveas(gcf, fn) ;
+        clf
+    end    
+    close all
+    
+    
+    %% Compare trace to trace of gdot determined via kinematics
+    close all
+    set(gcf, 'visible', 'off') ;
+    fn = fullfile(egImDir, 'strainRate2d', ...
+            sprintf(['compare_' QS.fileBase.spcutMeshSm '.png'], tp));
+    if ~exist(fn, 'file') || overwrite
+        % Load gdot trace from kinematics
+        fn_gdot = sprintf(QS.fullFileBase.metricKinematics.gdot, lambda, ...
+            lambda, lambda_mesh, tidx) ;
+        load([strrep(fn_gdot, '.', 'p'), '.mat'], 'gdot')
+        
+        % Panel 1
+        subplot(1, 2, 1)
+        trisurf(cutMesh.f, ...
+            cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
+            cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
+            'FaceVertexCData', treps, 'edgecolor', 'none')
+        daspect([1,1,1])
+        cb = colorbar('location', 'southOutside') ;
+        caxis([-clim_trace, clim_trace])
+        title(labels{1}, 'Interpreter', 'Latex')   
+        colormap(bwr256)
+        axis off
+        view(2)
+            
+        % Panel 2 
+        subplot(1, 2, 2)
+        % Comparison 1/2 * Tr[g^{-1}gdot]
+        trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
+            cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
+            gdot, 'edgecolor', 'none')
+        daspect([1,1,1])
+        cb = colorbar('location', 'southOutside') ;
+        caxis([-clim_trace * 0.5, clim_trace * 0.5])
+        title('$\frac{1}{2}$Tr$[g^{-1}\dot{g}]$', 'Interpreter', 'Latex')   
+        colormap(bwr256)
+        axis off
+        view(2)
+                    
+        % Save the image
+        sgtitle(['comparison $\frac{1}{2}$Tr$[g^{-1}\dot{g}]$, ', tstr], 'Interpreter', 'latex') 
         saveas(gcf, fn) ;
         clf
     end    

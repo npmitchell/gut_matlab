@@ -1438,7 +1438,7 @@ QS.measureMetricStrainRate(options)
 option = struct() ;
 options.overwrite = true ;
 options.preview = false ;
-options.lambda_mesh = 0.001 ;
+options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 QS.measureStrainRate(options) 
 

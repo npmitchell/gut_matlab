@@ -17,11 +17,13 @@ green   = [0.4660, 0.6740, 0.1880] ; % 5
 sky     = [0.3010, 0.7450, 0.9330] ; % 6 
 maroon  = [0.6350, 0.0780, 0.1840] ; % 7
 gray    = [0.2000, 0.2000, 0.2000] ; % 8
-teal    = [0.0000, 0.6500, 0.5200] ; % 9
-pink    = [1.0000, 0.5137, 0.5137] ; % 10
+brown   = [0.5400, 0.2500, 0.0900] ; % 9
+teal    = [0.0000, 0.6500, 0.5200] ; % 10
+pink    = [1.0000, 0.5137, 0.5137] ; % 11
+dark_green =  [0.0392, 0.5059, 0.2745] ;   % 12
 
 colors = [blue; red; yellow; purple; green; ...
-          sky; maroon; gray; teal; pink] ;
+          sky; maroon; gray; brown; teal; pink; dark_green] ;
 
 if ncolors < 11
     colors = colors(1:ncolors, :) ;
@@ -31,7 +33,7 @@ end
 
 if nargout > 1
     names = {'blue', 'red', 'yellow', 'purple', 'green', ...
-        'sky', 'maroon', 'gray', 'teal', 'pink'};
+        'sky', 'maroon', 'gray', 'brown', 'teal', 'pink', 'dark_green'};
     names = names(1:ncolors) ;
 end
 
