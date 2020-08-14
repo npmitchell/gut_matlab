@@ -20,6 +20,9 @@ function [cutMeshClosed, glue2cut] = glueCylinderCutMeshSeam(cutMesh)
 %   glue2cut(i) gives the index in output glued mesh of the ith vertex in 
 %   the cut mesh, so cutVtx = glueVtx(glue2cut)
 % 
+% See also
+% ---------
+% closeRectilinearCylMesh.m
 %
 % NPMitchell 2020
 %

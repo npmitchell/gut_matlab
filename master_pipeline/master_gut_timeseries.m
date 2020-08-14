@@ -35,8 +35,8 @@ clear; close all; clc;
 % change this path, for convenience
 % cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
-% cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
+cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
+% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
 
 dataDir = cd ;
 
@@ -966,7 +966,7 @@ washout2d = 0.5 ;
 %% Iterate Through Time Points to Create Pullbacks ========================
 % Skip if already done
 % outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
-for tt = xp.fileMeta.timePoints(101:end)
+for tt = xp.fileMeta.timePoints(170:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
     

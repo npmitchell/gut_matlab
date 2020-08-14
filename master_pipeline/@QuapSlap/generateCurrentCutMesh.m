@@ -27,7 +27,7 @@ function generateCurrentCutMesh(QS, cutMeshOptions)
 % Parameters for cutMesh creation
 nsegs4path = 5 ;
 maxJitter = 100 ;
-maxTwChange = 0.15 ;
+maxTwChange = 0.20 ;
 preview = false ;
 nargin
 if nargin > 1
@@ -170,7 +170,7 @@ else
         cntrline,...  % supply the current corrected centerline
         nsegs4path, prevTw, previousP, ...
         'MaxTwChange', maxTwChange, 'MaxJitter', maxJitter, ...
-        'PrevCntrline', prevcline) ;
+        'PrevCntrline', prevcline, 'centerlineIsErratic', true) ;
 end
 
 % Store this path for the next one to be nearby

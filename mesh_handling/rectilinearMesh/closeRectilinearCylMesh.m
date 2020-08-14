@@ -5,14 +5,28 @@ function cmesh = closeRectilinearCylMesh(mesh)
 %
 % Parameters
 % ----------
-% mesh : struct with fields v,u,vn
+% mesh : struct with fields v, u, vn, nU, nV
 %   mesh whose vertices are defined in u plane by 1...nU cols, 1...nV rows
+%   v : Nx3 float array 
+%       vertices in 3d
+%   u : Nx2 float array
+%       vertices in 2d
+%   vn : optional Nx3 float array
+%       vertex normals 
+%   nU : int
+%       number of vertices of constant phi in each row
+%   nV : int
+%       number of vertices of constant u in each column
 %
 % Returns
 % -------
 % cmesh : struct with fields v, u, vn
 %   closed mesh whose vertices are defined as before plus two endcap
 %   vertices
+% 
+% See also
+% ---------
+% glueCylinderCutMeshSeam.m
 % 
 % NPMitchell 2020
 
@@ -77,6 +91,7 @@ if isfield(cmesh, 'vn')
     assert(all(size(cmesh.v) == [nU*(nV-1)+2, 3]))
     vn2 = per_vertex_normals(cmesh.v, cmesh.f, 'Weighting', 'angle') ;
     cmesh.vn(nU*(nV-1)+1:end, :) = vn2(nU*(nV-1)+1:end, :) ;
+    error('this does not make sense?')
 else
     cmesh.vn = per_vertex_normals(cmesh.v, cmesh.f, 'Weighting', 'angle') ;
 end

@@ -1,7 +1,19 @@
 function [cutMesh, adIDx, pdIDx, cutP, Tw] = generateCutMeshFixedTwist(mesh, ...
     adIDx, pdIDx, centerline, nsegs4path, prevTw, previousP, varargin)
 % GENERATECUTMESH(mesh, adIDx, pdIDx, centerline, nsegs4path)
-%    Generating cutMesh from a mesh and the start/endpoints a/pdIDx
+%   Generating cutMesh from a mesh and the start/endpoints a/pdIDx.
+%   Here, ensure that the topology of the orbifold mapping of the
+%   cylinder is consistent with the previous timepoint by using twist of
+%   the cutpath around the centerline as a proxy for the coiling of the
+%   cutpath. Only accept the cutpath that is within MaxTwChange of the
+%   previous twist value prevTw (ie the twist of the previous cutpath 
+%   around the previous centerline). If the twist does not match, then
+%   perturb the previous cutpath by a random kick, find the closest
+%   piecewise geodesic path on the current mesh and try that as the
+%   cutpath. Iterate until a path is found or maximum number of iterations
+%   is exhausted. Ramp up the randomization via jitter_growth_rate and ramp
+%   up the number of previous cutpath's sampled points to point match to 
+%   current mesh for piecewise geodesic definition via nsegs_growth_rate.
 % 
 % Parameters
 % -----------
@@ -28,6 +40,14 @@ function [cutMesh, adIDx, pdIDx, cutP, Tw] = generateCutMeshFixedTwist(mesh, ...
 % MaxTwChange : float
 %   Maximum twist change allowed in the path
 % MaxJitter : float 
+%   Distance in mesh coordinate space units for how much to perturb the
+%   guessed cut path if twist is too far from previous value
+% prevCenterLine : Qx3 float array, optional
+%   the previous timepoints centerline, the twist about which we will match
+% centerlineIsErratic : bool
+%   if true, compare the cutPath not only to the current centerline for
+%   twist computation, but also to the previous centerline. If twist around
+%   either is consistent with previous twist, then accept the cut path.
 %
 % Returns
 % -------
@@ -44,6 +64,8 @@ function [cutMesh, adIDx, pdIDx, cutP, Tw] = generateCutMeshFixedTwist(mesh, ...
 max_Tw_change = 0.25 ;
 max_jitter = 10 ;
 max_nsegs4path = 10 ;
+centerlineIsErratic = false ;
+prevcntrline = [] ;
 jitter_growth_rate = 10 ;  %linear growth rate
 nsegs_growth_rate = 2 ; % linear growth rate
 for i = 1:length(varargin)
@@ -64,8 +86,10 @@ for i = 1:length(varargin)
         prevcntrline = varargin{i+1} ;
     elseif ~isempty(regexp(varargin{i},'^[Pp]rev[Cc]ntr[Ll]ine','match'))
         prevcntrline = varargin{i+1} ;
-    else
-        prevcntrline = [] ;
+    end
+    if ~isempty(regexp(varargin{i}, '^[Cc]enterline[Ii]s[Ee]rratic', ...
+            'match'))
+        centerlineIsErratic = varargin{i+1} ;
     end
 end
 
@@ -80,6 +104,11 @@ cutP = cutMesh.pathPairs(:, 1) ;
 adIDx = cutP(1) ;
 pdIDx = cutP(end) ;
 
+% Assert that the cutMesh is a topological disk
+eIDx = topologicalStructureTools(triangulation(cutMesh.f, cutMesh.v)) ;
+eulerChar = size(cutMesh.v, 1) - size(eIDx, 1) + size(cutMesh.f, 1) ;
+assert(eulerChar == 1)
+
 % If twist about centerline has jumped, find nearest piecewise geodesic
 Tw = twist(mesh.v(cutP, :), centerline) ;
 disp(['Found Twist = ' num2str(Tw) '; previous twist = ' num2str(prevTw)])
@@ -88,8 +117,23 @@ disp(['Found Twist = ' num2str(Tw) '; previous twist = ' num2str(prevTw)])
 trykk = 0 ;
 jitter_amp = 0 ;
 nsegs4path_kk = nsegs4path ;
-while abs(Tw - prevTw) > max_Tw_change
-    disp('Twist out of range. Forcing nearest curve.')
+
+% Determine if twist has changed too much, indicating a change in topology
+% of the cutPath for the orbifold mapping
+twist_changed = abs(Tw - prevTw) > max_Tw_change ;
+
+% Allow leniency to above conditional 
+if centerlineIsErratic
+    if isempty(prevcntrline)
+        error('Too allow erratic centerline, please pass previous centerline to generateCutMeshFixedTwist()')
+    end
+    Tw_wprevcline = twist(mesh.v(cutP, :), prevcntrline) ;
+    twist_changed = twist_changed && ...
+        abs(Tw_wprevcline - prevTw) > max_Tw_change ;
+end
+
+while twist_changed
+    disp(['Twist out of range. Forcing nearest curve: Tw=' num2str(Tw) ', Twprev=' num2str(prevTw)])
     % If this is the first timepoint we are considering
     % or if we have to iteratively refine the target 
     % curve, load previous cutP.
@@ -115,9 +159,26 @@ while abs(Tw - prevTw) > max_Tw_change
     try
         cutMesh = cylinderCutMesh( mesh.f, mesh.v, mesh.vn, adIDx, pdIDx, cutOptions );  
         cutP = cutMesh.pathPairs(:,1) ;
+        
+        % Here we compute both twist of path around current centerline and
+        % the previous centerline, to allow for the possibility that the
+        % centerline jitters a bit too much
         Tw = twist(mesh.v(cutP, :), centerline) ;
-        disp(['Found new Twist = ' num2str(Tw)])
-        if abs(Tw - prevTw) > max_Tw_change
+        Tw_wprevcline = twist(mesh.v(cutP, :), prevcntrline) ;
+        
+        % If the twist is too far from the previous twist, resample the
+        % curve that cuts the mesh
+        disp(['Found new Twist = ', num2str(Tw), ...
+            ', Tw with prev cline=', num2str(Tw_wprevcline)])
+        twist_changed = abs(Tw - prevTw) > max_Tw_change ;
+         
+        % Note: could add leniency to above conditional via: 
+        if centerlineIsErratic
+            twist_changed = twist_changed && ...
+                abs(Tw_wprevcline - prevTw) > max_Tw_change ;
+        end
+        
+        if twist_changed
             nsegs4path_kk = round(nsegs4path_kk + nsegs_growth_rate) ;
             jitter_amp = jitter_amp + jitter_growth_rate ;
             trykk = trykk + 1 ;
@@ -132,9 +193,11 @@ while abs(Tw - prevTw) > max_Tw_change
             plot3(cutMesh.v(cutP, 1), cutMesh.v(cutP, 2), cutMesh.v(cutP, 3), 'k-')
             plot3(previousP_kk(:, 1), previousP_kk(:, 2), previousP_kk(:, 3), 'o-')
             plot3(centerline(:, 1), centerline(:, 2), centerline(:, 3), '-')
+            plot3(previousP(:, 1), previousP(:, 2), previousP(:, 3), 'b--')
             if ~isempty(prevcntrline)
                 plot3(prevcntrline(:, 1), prevcntrline(:, 2), prevcntrline(:, 3), '--')
             end
+            
             title(['sampling = ' num2str(length(previousP_kk))])
             hold off 
             axis equal
@@ -160,11 +223,6 @@ while abs(Tw - prevTw) > max_Tw_change
     % end
 end
 disp('Twist within range. Continuing...')
-
-% catch
-%     disp('Could not cut this timepoint: Input mesh probably NOT a cylinder')
-%     success = false ;
-% end
 
 % Redefine the endpoints
 adIDx = cutP(1) ;

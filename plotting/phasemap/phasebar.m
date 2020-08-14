@@ -29,6 +29,8 @@ function ax = phasebar(varargin)
 %
 % phasebar('style', 'nematic') displays nematic order [0, pi]
 %
+% phasebar('colormap', my_cmap) uses custom colormap
+%
 % ax = phasebar(...) returns a handle ax of the axes in which the new axes 
 %    are plotted. 
 % 

@@ -146,6 +146,12 @@ if redo_meshsmooth
             spcutMeshSm.nV = spcutMesh.nV ;
             spcutMeshSm.pathPairs = spcutMesh.pathPairs ;
 
+            % Compute relaxed aspect ratio
+            tmp = spcutMeshSm.u ;
+            tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
+            arspsm = minimizeIsoarealAffineEnergy( spcutMeshSm.f, spcutMeshSm.v, tmp );
+            spcutMeshSm.ar = arspsm ;
+
             % Resave s,phi smoothed mesh and their 3D embedding
             disp(['Saving ' sprintf(spcutMeshSmBase, tt)])
             save(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
