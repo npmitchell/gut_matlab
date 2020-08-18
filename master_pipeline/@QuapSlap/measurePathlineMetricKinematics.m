@@ -156,7 +156,7 @@ tp2do = QS.xp.fileMeta.timePoints(allIdx) ;
 unitstr = [ '[1/' QS.timeUnits ']' ];
 Hunitstr = [ '[1/' QS.spaceUnits ']' ];
 vunitstr = [ '[' QS.spaceUnits '/' QS.timeUnits ']' ];
-    
+
 % DONE WITH PREPARATIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Load pathlines to build Kymographs along pathlines

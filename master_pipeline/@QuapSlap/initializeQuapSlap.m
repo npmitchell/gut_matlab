@@ -78,6 +78,8 @@ QS.dir.uvCoord = uvDir ;
 % Metric strain dirs
 QS.dir.metricKinematics = struct() ;
 QS.dir.metricKinematics.root = fullfile(uvDir, 'metricKinematics') ;
+QS.dir.metricKinematics.smoothing = fullfile(uvDir, 'metricKinematics', ...
+    'lambda%0.03f_lerr%0.3f_lmesh%0.3f') ;
 QS.dir.metricKinematics.measurements = ...
     fullfile(uvDir, 'metricKinematics', ...
     'lambda%0.03f_lerr%0.3f_lmesh%0.3f', 'measurements') ;
@@ -99,21 +101,18 @@ QS.fullFileBase.gstrainMesh = fullfile(QS.dir.gstrainMesh, ...
     QS.fileBase.gstrainMesh) ; 
 QS.fullFileBase.gstrainRate = fullfile(QS.dir.gstrainRate, ...
     QS.fileBase.gstrainRate) ; 
-% Strain Rate
-QS.dir.strainRate = fullfile(uvDir, 'strain_rate') ;
-QS.fileBase.strainRate = 'strainRate_%06d.mat' ;
-QS.fullFileBase.strainRate = fullfile(QS.dir.strainRate, ...
-    QS.fileBase.strainRate) ; 
 
-% Must add analysis params in these names
-% QS.dir.metricKinematics2d = ...
-%     fullfile(QS.dir.metricKinematics, 'images_2d') ;
-% QS.dir.metricKinematics3d = ...
-%     fullfile(QS.dir.metricKinematics, 'images_3d') ;
-% QS.fullFileBase.metricKinematics2d = ...
-%     fullfile(QS.dir.metricKinematics2d, 'compr_2d_%06d.png') ;
-% QS.fullFileBase.metricKinematics3d = ...
-%     fullfile(QS.dir.metricKinematics3d, 'compr_3d_%06d.png') ;
+%% Strain Rate
+QS.dir.strainRate = struct() ;
+QS.dir.strainRate.root = fullfile(uvDir, 'strainRate') ;
+QS.dir.strainRate.smoothing = fullfile(uvDir, 'strainRate', ...
+    'lambda%0.03f_lmesh%0.3f') ;
+QS.dir.strainRate.measurements = ...
+    fullfile(uvDir, 'strainRate', ...
+    'lambda%0.03f_lmesh%0.3f', 'measurements') ;
+QS.fileBase.strainRate = 'strainRate_%06d.mat' ;
+QS.fullFileBase.strainRate = fullfile(QS.dir.strainRate.measurements, ...
+    QS.fileBase.strainRate) ; 
 
 % shorten variable names for brevity
 clineDir = QS.dir.cntrline ;
@@ -135,16 +134,16 @@ QS.fileBase.apBoundary = 'ap_boundary_indices_%06d.mat';
 QS.fileBase.cylinderKeep = 'cylinderMesh_keep_indx_%06d.mat' ;
 QS.fileName.apBoundaryDorsalPts = 'ap_boundary_dorsalpts.h5' ;
 
-% Clean Cylinder Mesh
+%% Clean Cylinder Mesh
 QS.fileName.aBoundaryDorsalPtsClean = ...
     fullfile(QS.dir.cylinderMeshClean, 'adIDx.h5') ;
 QS.fileName.pBoundaryDorsalPtsClean = ...
     fullfile(QS.dir.cylinderMeshClean, 'pdIDx.h5') ;
 
-% cutMesh
+%% cutMesh
 QS.fullFileBase.cutPath = fullfile(QS.dir.cutMesh, 'cutPaths_%06d.txt') ;
 
-% fileNames
+%% fileNames
 nshift = strrep(sprintf('%03d', QS.normalShift), '-', 'n') ;
 shiftstr = ['_' nshift 'step'] ;
 QS.fileName.rot = fullfile(meshDir, 'rotation_APDV.txt') ;
@@ -170,7 +169,7 @@ QS.fileName.endcapOptions = ...
 QS.fileName.apdBoundary = ...
     fullfile(QS.dir.cylinderMesh, 'ap_boundary_dorsalpts.h5') ;
 
-% FileNamePatterns
+%% FileNamePatterns
 QS.fullFileBase.mesh = ...
     fullfile(QS.dir.mesh, [QS.fileBase.mesh '.ply']) ;
 QS.fullFileBase.alignedMesh = ...
@@ -191,7 +190,7 @@ QS.fullFileBase.cylinderMeshClean = ...
     fullfile(QS.dir.cylinderMesh, 'cleaned',...
     [QS.fileBase.mesh '_cylindercut_clean.ply']) ;            
 
-% Define cutMesh directories
+%% Define cutMesh directories
 % cutFolder = fullfile(meshDir, 'cutMesh') ;
 % cutMeshBase = fullfile(cutFolder, [QS.fileBase.name, '_cutMesh.mat']) ;
 imFolderBase = fullfile(uvDir, ['PullbackImages' shiftstr] ) ;
@@ -205,7 +204,7 @@ sphiSmDir2x = fullfile(sphiDir, 'smoothed_doubleResolution') ;
 sphiSmRSDir2x = fullfile(sphiDir, 'smoothed_rs_doubleResolution') ;
 sphiSmRSCDir2x = fullfile(sphiDir, 'smoothed_rs_closed_doubleResolution') ;
 
-% Images of pullbacks in smoothed mesh coordinate systems
+%% Images of pullbacks in smoothed mesh coordinate systems
 imFolder_sp = [imFolderBase '_sphi'] ;
 imFolder_spe = fullfile(imFolder_sp, 'extended') ;
 imFolder_up = [imFolderBase '_uphi'] ;
@@ -499,7 +498,8 @@ for ii=1:length(dirs2make)
         dirfields = struct2cell(dir2make) ;
         for qq = 1:length(dirfields)
             dir2make = dirfields{qq} ;
-            if ~exist(dir2make, 'dir') && ~contains(dir2make, '%04d')
+            if ~exist(dir2make, 'dir') && ~contains(dir2make, '%04d') ...
+                    && ~contains(dir2make, '%0.3f')
                 mkdir(dir2make)
             end
         end

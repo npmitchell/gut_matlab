@@ -149,6 +149,7 @@ classdef QuapSlap < handle
         [XX, YY] = pullbackPathlines(QS, x0, y0, t0, options) 
         plotAverageVelocitiesTimePoint(QS, tp, options)
         plotPathlineVelocitiesTimePoint(QS, tp, options)
+        plotStrainRateTimePoint(QS, tp, options) 
     end
     
     % Public methods, accessible from outside the class and reliant on 
@@ -1136,6 +1137,9 @@ classdef QuapSlap < handle
         %% 
         measureMetricStrainRate(QS, options)
         measureStrainRate(QS, options)
+        plotStrainRate(QS, options)
+        measurePathlineStrainRate(QS, options)
+        plotPathlineStrainRate(QS, options)
         
         %% timepoint-specific coordinate transformations
         sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)
@@ -1321,6 +1325,16 @@ classdef QuapSlap < handle
         % end
         
         [cutMesh, cutMeshC] = doubleResolution(cutMesh, preview)
+        
+        function [mag_ap, theta_ap] = dvAverageNematic(magnitude, theta)
+            % 
+            ap_x = magnitude .* cos(2*theta) ;
+            ap_y = magnitude .* sin(2*theta) ;
+            ap_xy = [mean(ap_x, 2) , mean(ap_y, 2)] ;
+            mag_ap = vecnorm(ap_xy, 2, 2) ;
+            theta_averages = atan2(ap_xy(:, 2), ap_xy(:, 1)) ;
+            theta_ap = 0.5 * mod(theta_averages, 2*pi) ;
+        end
        
     end
     

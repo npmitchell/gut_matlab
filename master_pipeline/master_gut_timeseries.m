@@ -1435,12 +1435,40 @@ options.lambda_mesh = 0.001 ;
 options.lambda = 0.01 ;
 QS.measureMetricStrainRate(options) 
 %% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
-option = struct() ;
-options.overwrite = true ;
+options = struct() ;
+options.overwrite = false ;
+options.overwriteImages = false ;
 options.preview = false ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 QS.measureStrainRate(options) 
+%% Kymograph strain rates
+options = struct() ;
+options.overwrite = true ;
+options.lambda = 0.01 ;
+options.lambda_mesh = 0.002 ;
+options.skipTimePoint = true ;
+options.clim_deviatoric = 0.1 ;
+QS.plotStrainRate(options)
+%% Measure strain rate along pathlines
+options = struct() ;
+options.overwrite = true ;
+options.lambda_mesh = 0.002 ;
+options.lambda = 0.01 ;
+options.lambda_err = 0.01 ;
+QS.measurePathlineStrainRate(options)
+%% Pathline strain rate plots
+options = struct() ;
+options.overwrite = true ;
+options.plot_kymographs = true ;
+options.plot_kymographs_cumsum = true ;
+options.plot_kymographs_cumprod = true ;
+options.plot_fold_kinematics = true ;
+options.plot_lobe_kinematics = true ;
+options.lambda_mesh = 0.002 ;
+options.lambda = 0.01 ;
+options.climit = 0.10 ;
+QS.plotPathlineStrainRate(options)
 
 %% Measure surface area growh of lobes and folds in Eulerian frame
 options = struct() ;
