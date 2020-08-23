@@ -145,6 +145,8 @@ edgeIn = edges( meshTri );
 
 % Check that the input mesh is a topological cylinder
 if ( length(vertexIn) - length(edgeIn) + length(faceIn) ) ~= 0
+    trisurf(meshTri, 'FaceColor', 'none')
+    title('Input mesh is NOT a topological cylinder!')
     error( 'Input mesh is NOT a topological cylinder!' );
 end
 

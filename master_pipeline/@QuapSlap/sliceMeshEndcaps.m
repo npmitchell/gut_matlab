@@ -352,6 +352,10 @@ for ii=1:length(timePoints)
             close all 
         end
     else
+        % transform to APDV coords in case topology is wrong (for
+        % inspection in case of error)
+        vrs = QS.xyz2APDV(vtx * ssfactor) ;
+        
         % Match previous timepoint
         ka = dsearchn(vtx(ab, :), previous_avtx) ;
         kp = dsearchn(vtx(pb, :), previous_pvtx) ;
@@ -414,6 +418,23 @@ for ii=1:length(timePoints)
             close(fig)
         end
     end
+    
+
+    %% Verify output triangulation topology -------------------------------------
+
+    % MATLAB-style triangulation
+    meshTri = triangulation( faces, vrs );
+
+    % The #Ex2 edge connectivity list of the mesh
+    edgeTri = edges( meshTri );
+
+    % Check that the input mesh is a topological cylinder
+    if ( length(vrs) - length(edgeTri) + length(faces) ) ~= 0
+        trisurf(meshTri, 'FaceColor', 'none')
+        title(['Input mesh is NOT a topological cylinder: TP=' num2str(tt)])
+        error( 'Input mesh is NOT a topological cylinder!' );
+    end
+
 end
 
 disp('done')

@@ -658,7 +658,11 @@ for tidx = 1:length(timePoints)
         th = trisurf(faces_to_plot, xyzrs(:, 1), xyzrs(:, 2), xyzrs(:, 3), ...
             'edgecolor', 'none', 'facecolor', 'w', 'FaceAlpha', 0.5) ;
         % 'FaceVertexCData',bsxfun(@times,(1-AO),C)
-        [~,~,~] = apply_ambient_occlusion(th, 'SoftLighting', true) ;
+        try
+            [~,~,~] = apply_ambient_occlusion(th, 'SoftLighting', true) ;
+        catch
+            disp('Could not apply ambient occlusion')
+        end
         
         % Figure properties
         axis equal
