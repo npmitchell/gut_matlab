@@ -3,7 +3,11 @@ ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/' ;
 codepath = '/mnt/data/code/' ;
 gutpath = fullfile(codepath, 'gut_matlab') ;
 meshlabCodeDir = fullfile(codepath, 'meshlab_codes') ;
+
 addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
+
+% Codepath + gutpath folders
+addpath('./plotting_functions')
 addpath_recurse(fullfile(codepath, 'gptoolbox'))
 addpath(fullfile(gutpath, 'master_pipeline'))
 addpath(fullfile(gutpath, 'data_handling'))

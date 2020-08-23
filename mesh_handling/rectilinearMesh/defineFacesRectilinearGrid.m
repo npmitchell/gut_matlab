@@ -40,8 +40,18 @@ if ~isempty(uv)
     if length(size(uv)) == 3
         uv = reshape(uv, [nU * nV, 2]) ;
     end
-    assert(uv(1, 1) ~= uv(2, 1))
-    assert(uv(1, 2) == uv(2, 2))
+    try
+        assert(uv(1, 1) ~= uv(2, 1))
+        assert(uv(1, 2) == uv(2, 2))
+    catch
+        try 
+            assert(uv(1, 1) == uv(2, 1))
+            assert(uv(1, 2) ~= uv(2, 2))
+            error('Input coordinates appear transposed from proper grid')
+        catch
+            error('Input coordinates are not arranged in proper grid')
+        end
+    end
 end
 
 % Define faces with normals facing in (u x v) direction 

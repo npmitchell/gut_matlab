@@ -869,6 +869,8 @@ overwrite = false ;
 metafn = fullfile(QS.dir.texturePatchIm, 'metadat.mat') ;
 if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     [~,~,~,xyzbuff] = QS.getXYZLims() ;
+    xyzbuff(:, 1) = xyzbuff(:, 1) - 20 ; 
+    xyzbuff(:, 2) = xyzbuff(:, 2) + 20 ; 
     % Define & Save metadata
     metadat.xyzlim = xyzbuff ;                  % xyzlimits
     metadat.reorient_faces = false ;            % if some normals are inverted
@@ -891,9 +893,15 @@ end
 % Use first timepoint's intensity limits throughout
 QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.95)
 
-% Plot on surface for all TP
+%% Plot on surface for all TP 
+!!!
+Options.plot_dorsal = false ;
+Options.plot_ventral = false ;
+Options.plot_right = false ;
+Options.plot_left = false ;
+Options.plot_perspective = true ;
 QS.plotSeriesOnSurfaceTexturePatch(overwrite, metadat, Options)
-clearvars Options xyzbuff 
+clearvars Options
 
 %% EXTRACT CENTERLINES
 % Skip if already done
@@ -1035,14 +1043,6 @@ check = false ;
 if check
     aux_preview_results
 end
-
-%% TILE/EXTEND IMAGES IN Y AND RESAVE =======================================
-% Skip if already done
-options = struct() ;
-options.overwrite = overwrite_pullbacks;
-options.coordsys = 'sp' ;
-QS.doubleCoverPullbackImages(options)
-disp('done')
 
 %% FIND THE FOLDS SEPARATING COMPARTMENTS =================================
 % Skip if already done
@@ -1436,7 +1436,7 @@ options.lambda = 0.01 ;
 QS.measureMetricStrainRate(options) 
 %% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.overwriteImages = false ;
 options.preview = false ;
 options.lambda_mesh = 0.002 ;
@@ -1453,6 +1453,7 @@ QS.plotStrainRate(options)
 %% Measure strain rate along pathlines
 options = struct() ;
 options.overwrite = true ;
+options.overwriteImages = true ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 options.lambda_err = 0.01 ;
@@ -1461,8 +1462,7 @@ QS.measurePathlineStrainRate(options)
 options = struct() ;
 options.overwrite = true ;
 options.plot_kymographs = true ;
-options.plot_kymographs_cumsum = true ;
-options.plot_kymographs_cumprod = true ;
+options.plot_kymographs_strain = true ;
 options.plot_fold_kinematics = true ;
 options.plot_lobe_kinematics = true ;
 options.lambda_mesh = 0.002 ;

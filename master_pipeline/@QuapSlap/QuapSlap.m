@@ -150,6 +150,7 @@ classdef QuapSlap < handle
         plotAverageVelocitiesTimePoint(QS, tp, options)
         plotPathlineVelocitiesTimePoint(QS, tp, options)
         plotStrainRateTimePoint(QS, tp, options) 
+        plotPathlineStrainRateTimePoint(QS, tp, options)
     end
     
     % Public methods, accessible from outside the class and reliant on 
@@ -1190,12 +1191,19 @@ classdef QuapSlap < handle
                 vmax = 1.0 ;
             end
             % size of extended image
-            esize = size(im') ;
+            if any(size(im) > 2) 
+                Xsz = size(im, 2) ;
+                Ysz = size(im, 1) ;
+            else
+                % Interpret im as imsize
+                Xsz = im(1) ;
+                Ysz = im(2) ;
+            end
             % map extended image size to (0, 1), (-0.5, 1.5) if double
             % covered. 
             % subtract 1 since pixel positions range from (1, sizeIm)
-            xesz = double(esize(1) - 1) ;
-            yesz = double(esize(2) - 1) ;
+            xesz = double(Xsz - 1) ;
+            yesz = double(Ysz - 1) ;
             % map from pixel y to network y (sphi)
             uv = zeros(size(XY)) ;
             % convert x axis

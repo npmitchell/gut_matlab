@@ -71,6 +71,16 @@ end
 if isfield(options, 'preview')
     preview = options.preview ;
 end
+if isfield(options, 'meshCoords')
+    switch lower(options.meshCoords)
+        case 'sp'
+            spcutMeshBase = QS.fullFileBase.spcutMesh ;
+        case 'sp_sm'
+            spcutMeshBase = QS.fullFileBase.spcutMeshSm ;
+        otherwise 
+            error('Could not recognize options.meshCoords: sp, sm_sm, etc')
+    end
+end
 
 %% First compute using the avgpts (DVhoop means)
 disp('Identifying lobes...')

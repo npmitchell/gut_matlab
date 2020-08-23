@@ -96,16 +96,17 @@ for tp = tp2do
     % Load current mesh
     tmp = load(sprintf(QS.fullFileBase.spcutMeshSmRSC, tp)) ;
     mesh = tmp.spcutMeshSmRSC ;
-    % Normalize the zeta axis to unity or ar (aspectratio relaxed)
-    mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) * mesh.ar ;
+    
+    % DEBUG
+    % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
+    % mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) * mesh.ar ;
     clearvars tmp
 
     % Define metric strain filename        
     estrainFn = fullfile(strrep(sprintf( ...
         QS.dir.strainRate.measurements, lambda, lambda_mesh), '.', 'p'), ...
         sprintf('strainRate_%06d.mat', tp));
-    
-    
+        
     % Compute the metric strain if not on disk
     if ~exist(estrainFn, 'file') || overwrite
         if exist(estrainFn, 'file')
@@ -173,7 +174,6 @@ for tp = tp2do
         for qq = 1:size(dvi,1)
             strainrate{qq} = dvij{qq} - v0n(qq) .* bb{qq} ;
         end
-        
         
         %% Debug -- check results against DEC
         if debug
@@ -269,6 +269,18 @@ for tp = tp2do
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                
         % Metric strain -- separate trace and deviatoric strain comp, angle
+        epsilon_zz = zeros(size(strainrate, 1), 1) ;  % strain rate zeta zeta
+        epsilon_zp = zeros(size(strainrate, 1), 1) ;  % strain rate zeta phi
+        epsilon_pz = zeros(size(strainrate, 1), 1) ;  % strain rate phi zeta
+        epsilon_pp = zeros(size(strainrate, 1), 1) ;  % strain rate phi phi
+        g_zz = zeros(size(strainrate, 1), 1) ;  % metric tensor zeta zeta
+        g_zp = zeros(size(strainrate, 1), 1) ;  % metric tensor zeta phi
+        g_pz = zeros(size(strainrate, 1), 1) ;  % metric tensor phi zeta
+        g_pp = zeros(size(strainrate, 1), 1) ;  % metric tensor phi phi
+        b_zz = zeros(size(strainrate, 1), 1) ;  % 2nd fund form zeta zeta
+        b_zp = zeros(size(strainrate, 1), 1) ;  % 2nd fund form zeta phi
+        b_pz = zeros(size(strainrate, 1), 1) ;  % 2nd fund form phi zeta
+        b_pp = zeros(size(strainrate, 1), 1) ;  % 2nd fund form phi phi
         treps = zeros(size(strainrate, 1), 1) ;  % traceful dilation
         dvtre = zeros(size(strainrate, 1), 1) ;  % deviatoric magnitude
         theta = zeros(size(strainrate, 1), 1) ;  % angle of elongation
@@ -277,6 +289,25 @@ for tp = tp2do
         for qq = 1:size(strainrate, 1)
             eq = strainrate{qq} ;
             gq = gg{qq} ;
+            bq = bb{qq} ;
+            
+            %% Full strain rate for mesh averaging onto vertices
+            epsilon_zz(qq) = eq(1, 1) ;
+            epsilon_zp(qq) = eq(1, 2) ;
+            epsilon_pz(qq) = eq(2, 1) ;
+            epsilon_pp(qq) = eq(2, 2) ;
+            %% Full metric tensor for mesh averaging onto vertices
+            g_zz(qq) = gq(1, 1) ;
+            g_zp(qq) = gq(1, 2) ;
+            g_pz(qq) = gq(2, 1) ;
+            g_pp(qq) = gq(2, 2) ;
+            %% 2nd fundamental form for mesh averaging onto vertices
+            b_zz(qq) = bq(1, 1) ;
+            b_zp(qq) = bq(1, 2) ;
+            b_pz(qq) = bq(2, 1) ;
+            b_pp(qq) = bq(2, 2) ;
+            
+            %% Traceful dilation
             % traceful component -- 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
             treps(qq) = trace(inv(gq) * (eq)) ;
             % deviatoric component -- 
@@ -308,9 +339,64 @@ for tp = tp2do
         theta = mod(theta, pi) ;
                 
         %% Collate results as DVavg, L, R, D, V
-        treps_vtx = F2V * treps ;
-        dvtre_vtx = F2V * dvtre ;
-        theta_vtx = F2V * theta ;
+        % Find trace and deviator on vertices instead of faces
+        epsilon_zz_vtx = F2V * epsilon_zz ;
+        epsilon_zp_vtx = F2V * epsilon_zp ;
+        epsilon_pz_vtx = F2V * epsilon_pz ;
+        epsilon_pp_vtx = F2V * epsilon_pp ;
+        g_zz_vtx = F2V * g_zz ;
+        g_zp_vtx = F2V * g_zp ;
+        g_pz_vtx = F2V * g_pz ;
+        g_pp_vtx = F2V * g_pp ;
+        b_zz_vtx = F2V * b_zz ;
+        b_zp_vtx = F2V * b_zp ;
+        b_pz_vtx = F2V * b_pz ;
+        b_pp_vtx = F2V * b_pp ;
+        
+        for qq = 1:size(epsilon_zz_vtx, 1)
+            %% Traceful dilation
+            eq = [epsilon_zz_vtx(qq), epsilon_zp_vtx(qq); ...
+                  epsilon_pz_vtx(qq), epsilon_pp_vtx(qq)] ;
+            gq = [g_zz_vtx(qq), g_zp_vtx(qq); ...
+                  g_pz_vtx(qq), g_pp_vtx(qq)] ;
+            
+            % traceful component -- 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
+            treps_vtx(qq) = trace(inv(gq) * (eq)) ;
+            % deviatoric component -- 
+            % || epsilon - 1/2 Tr[g^{-1} epsilon] g|| = sqrt(Tr[A A^T]),
+            % where A = epsilon - 1/2 Tr[g^{-1} epsilon] g.
+            AA = eq - 0.5 * treps(qq) * gq ;
+            dvtre_vtx(qq) = sqrt(trace(inv(gq) * (AA * (inv(gq) * AA)))) ;
+            
+            %% angle of elongation -- first take eigvectors
+            [evec_dev, evals_dev] = eig(AA) ;
+            [evals_dev, idx] = sort(diag(evals_dev)) ;
+            evec_dev = evec_dev(:, idx) ;
+            pevec = evec_dev(:, end) ;
+            theta_vtx(qq) = atan2(pevec(2), pevec(1)) ;
+            
+            % eigensystem for strain rate
+            % [evec_e, evals_e] = eig(eq) ;
+            % [evals_e, idx] = sort(diag(evals_e)) ;
+            % evec_e = evec_e(:, idx) ;
+            % pevec = evec_e(:, end) ;
+            % theta(qq) = atan2(pevec(2), pevec(1)) ;
+            % eigv1(qq) = evals_e(1) ;
+            % eigv2(qq) = evals_e(2) ;
+            
+            % NOTE: I have checked that theta determined via full strain
+            % rate tensor is identical to theta determined from deviatoric
+            % component
+        end
+        theta_vtx = mod(theta_vtx, pi) ;
+        
+        %% Store measurements on vertices in grouped arrays
+        strainrate_vtx = [epsilon_zz_vtx, epsilon_zp_vtx, ...
+            epsilon_pz_vtx, epsilon_pp_vtx] ;
+        gg_vtx = [g_zz_vtx, g_zp_vtx, ...
+            g_pz_vtx, g_pp_vtx] ;
+        bb_vtx = [b_zz_vtx, b_zp_vtx, ...
+            b_pz_vtx, b_pp_vtx] ;
         treps_vtx((nU * (nV-1) + 1):nU*nV) = treps_vtx(1:nU) ;
         dvtre_vtx((nU * (nV-1) + 1):nU*nV) = dvtre_vtx(1:nU) ;
         theta_vtx((nU * (nV-1) + 1):nU*nV) = theta_vtx(1:nU) ;
@@ -354,7 +440,7 @@ for tp = tp2do
         treps_v = mean(treps_vtx(:, ventral), 2) ;
         
         % save the metric strain
-        readme.eg = 'strain rate epsilon=1/2(nabla_i v_j + nabla_j v_i) - vn b_ij' ;
+        readme.strainrate = 'strain rate on faces, epsilon=1/2(nabla_i v_j + nabla_j v_i) - vn b_ij' ;
         readme.treps = 'Tr[g^{-1} epsilon]';
         readme.dvtre = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] )';
         readme.theta = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector';
@@ -363,6 +449,9 @@ for tp = tp2do
         readme.bb = 'second fundamental form on faces';
         readme.lambda = 'Laplacian smoothing on velocities' ;
         readme.lambda_mesh = 'Laplacian smoothing on mesh vertices' ;
+        readme.strainrate_vtx = 'strain rate on vertices, epsilon=1/2(nabla_i v_j + nabla_j v_i) - vn b_ij' ;
+        readme.gg_vtx = 'metric tensor on vertices';
+        readme.bb_vtx = 'second fundamental form on vertices';
         readme.treps_vtx = 'Tr[g^{-1} epsilon], on mesh vertices' ;
         readme.dvtre_vtx = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) on mesh vertices';
         readme.theta_vtx = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector on mesh vertices';
@@ -388,7 +477,8 @@ for tp = tp2do
             'dvtre_ap', 'dvtre_l', 'dvtre_r', 'dvtre_d', 'dvtre_v', ...
             'theta_ap', 'theta_l', 'theta_r', 'theta_d', 'theta_v', ...
             'treps_ap', 'treps_l', 'treps_r', 'treps_d', 'treps_v', ...
-            'treps_vtx', 'dvtre_vtx', 'theta_vtx')
+            'strainrate_vtx', 'treps_vtx', 'dvtre_vtx', 'theta_vtx', ...
+            'gg_vtx', 'bb_vtx')
     else
         % Convert to 2D mesh
         mesh.nU = QS.nU ;

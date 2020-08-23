@@ -317,4 +317,78 @@ for tp = tp2do
 end
 disp('done with measuring pathline metric kinematics')
 
-% Query each pathline position in relevant mesh and interpolate divv
+%% Combine DV-averaged profiles into kymographs
+apKymoFn = fullfile(datdir, 'apKymographsMetricKinematics.mat') ;
+lKymoFn = fullfile(datdir, 'leftKymographMetricKinematics.mat') ;
+rKymoFn = fullfile(datdir, 'rightKymographMetricKinematics.mat') ;
+dKymoFn = fullfile(datdir, 'dorsalKymographMetricKinematics.mat') ;
+vKymoFn = fullfile(datdir, 'ventralKymographMetricKinematics.mat') ;
+files_exist = exist(apKymoFn, 'file') && ...
+    exist(lKymoFn, 'file') && exist(rKymoFn, 'file') && ...
+    exist(dKymoFn, 'file') && exist(vymoFn, 'file') ;
+if ~files_exist || overwrite
+    for tp = QS.xp.fileMeta.timePoints(1:end-1)
+        close all
+        disp(['t = ' num2str(tp)])
+        tidx = QS.xp.tIdx(tp) ;
+
+        % Check for timepoint measurement on disk
+        Hfn = fullfile(datdir, sprintf('HH_series_%06d.mat', tp))   ;
+        efn = fullfile(datdir, sprintf('gdot_series_%06d.mat', tp)) ;
+        dfn = fullfile(datdir, sprintf('divv_series_%06d.mat', tp)) ;
+        nfn = fullfile(datdir, sprintf('veln_series_%06d.mat', tp)) ;
+        H2vnfn = fullfile(datdir, sprintf('H2vn_series_%06d.mat', tp)) ;
+
+        % Load timeseries measurements
+        load(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
+        load(efn, 'gdot', 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
+        load(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
+        load(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
+        load(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
+
+        %% Store in matrices
+        % dv averaged
+        HH_apM(tidx, :) = HH_ap ;
+        gdot_apM(tidx, :) = gdot_ap ;
+        divv_apM(tidx, :) = divv_ap ;
+        veln_apM(tidx, :) = veln_ap ;
+        H2vn_apM(tidx, :) = H2vn_ap ;
+
+        % left quarter
+        HH_lM(tidx, :) = HH_l ;
+        gdot_lM(tidx, :) = gdot_l ;
+        divv_lM(tidx, :) = divv_l ;
+        veln_lM(tidx, :) = veln_l ;
+        H2vn_lM(tidx, :) = H2vn_l ;
+
+        % right quarter
+        HH_rM(tidx, :) = HH_r ;
+        gdot_rM(tidx, :) = gdot_r ;
+        divv_rM(tidx, :) = divv_r ;
+        veln_rM(tidx, :) = veln_r ;
+        H2vn_rM(tidx, :) = H2vn_r ;
+
+        % dorsal quarter
+        HH_dM(tidx, :) = HH_d ;
+        gdot_dM(tidx, :) = gdot_d ;
+        divv_dM(tidx, :) = divv_d ;
+        veln_dM(tidx, :) = veln_d ;
+        H2vn_dM(tidx, :) = H2vn_d ;
+
+        % ventral quarter
+        HH_vM(tidx, :) = HH_v ;
+        gdot_vM(tidx, :) = gdot_v ;
+        divv_vM(tidx, :) = divv_v ;
+        veln_vM(tidx, :) = veln_v ;
+        H2vn_vM(tidx, :) = H2vn_v ;
+    end
+    
+    % Save the DV-averaged kymographs
+    save(apKymoFn, 'HH_apM', 'gdot_apM', 'divv_apM', ...
+        'veln_apM', 'H2vn_apM')
+    save(lKymoFn, 'HH_lM', 'gdot_lM', 'divv_lM', 'veln_lM', 'H2vn_lM')
+    save(rKymoFn, 'HH_rM', 'gdot_rM', 'divv_rM', 'veln_rM', 'H2vn_rM')
+    save(dKymoFn, 'HH_dM', 'gdot_dM', 'divv_dM', 'veln_dM', 'H2vn_dM')
+    save(vKymoFn, 'HH_vM', 'gdot_vM', 'divv_vM', 'veln_vM', 'H2vn_vM')
+    
+end

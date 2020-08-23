@@ -3,7 +3,9 @@ function sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)
 %   Interpolate scalar field defined on current mesh onto 
 %   supplied pullback coordinates. Input scalar_field may be
 %   defined on vertices or faces. Automatically detects whether
-%   field is at 1x mesh resolution or higher.
+%   field is at 1x mesh resolution or higher. The pixel locations of the
+%   pullback are computed from scratch via options.Lx and options.Ly, not
+%   passed directly.
 %
 % Parameters
 % ----------
@@ -12,6 +14,8 @@ function sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)
 % XY : Nx2 numeric array
 %   positions at which to evaluate scalar field
 % scalar_field : Nx1 float array
+%   the field to interpolate, defined on either vertices or faces of the
+%   current mesh 
 % options : struct with fields
 %   imCoords : str pullback specifier (default=QS.piv.imCoords)
 %       coordinate system of the pullback space
@@ -62,10 +66,20 @@ if strcmp(coordSys, 'sp_sme')
     % in Y dimension. Assumes that mesh vertices have
     % increasing y values from row i to row i+1.
     uspace = linspace(0, 1, nU) ;
-    vspace = linspace(0, 1, 3*nV-2) ;
+    if doubleCovered
+        vspace = linspace(0, 1, 3*nV-2) ;
+    else
+        vspace = linspace(0, 1, nV) ;
+    end
     [TV2Du, TV2Dv] = ndgrid(uspace, vspace) ;
     TV2D = [TV2Du(:), TV2Dv(:)];
-    mXY = QS.uv2XY([Lx, Ly], TV2D, doubleCovered, 1, 1) ;
+    if doubleCovered
+        mXY = QS.uv2XY([Lx, 1.5 * Ly], TV2D, false, 1, 1) ;
+        mXY(:, 2) = mXY(:, 2) - 0.25 * Ly ;
+    else
+        error('Make 3 tiles of XY, so should span from approx -Ly to 2Ly.')
+        mXY = QS.uv2XY([Lx, 3 * Ly], TV2D, false, 1, 1) ;
+    end
 else
     error(['handle this coordSys here: ' coordSys])
 end
@@ -77,6 +91,7 @@ if strcmp(sfLocation, 'vertices')
         % Assumes that mesh vertices are indexed as 
         % row1, row2, ... row_nV, with each row containing nU
         % vertices.
+        % Extend the scalar field with above assumption in Y
         sfe = cat(2, sfe(:, 1:nV-1), sfe, sfe(:, 2:end)) ;
         % check sizes
         assert(length(sfe(:)) == size(TV2D, 1))
@@ -87,10 +102,13 @@ if strcmp(sfLocation, 'vertices')
             iMethod, 'nearest') ;
         sf = Fsf(XY(:, 1), XY(:, 2)) ;
     else
+        disp('Size of scalar field = ')
+        disp(size(scalar_field))
+        disp(['nU*nV = ', num2str(nU*nV)])
         error('Handle higher resolution scalar_field here')
     end
 elseif strcmp(sfLocation, 'faces')
-    % Scalarfield is on barycentric coordinates
+    % Scalarfield is on barycentric coordinates of faces
     bcXY = barycenter(mXY, mesh.f) ;
     Fsf = scatteredInterpolant(bcXY(:, 1), bcXY(:, 2), ...
                 scalar_field', iMethod, 'nearest') ;

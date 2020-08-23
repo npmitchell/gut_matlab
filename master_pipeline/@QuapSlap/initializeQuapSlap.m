@@ -90,7 +90,17 @@ QS.fullFileBase.metricKinematics.H2vn = ...
     fullfile(QS.dir.metricKinematics.measurements, 'H2vn_series_%06d') ;
 QS.fullFileBase.metricKinematics.gdot = ...
     fullfile(QS.dir.metricKinematics.measurements, 'gdot_series_%06d') ;
-QS.dir.gstrain = fullfile(uvDir, 'metric_strain') ;
+
+% Metric Kinematics along pathlines
+QS.dir.metricKinematics.pathline = struct() ;
+QS.dir.metricKinematics.pathline.root = ...
+    fullfile(uvDir, 'metricKinematics', ...
+    'lambda%0.03f_lerr%0.3f_lmesh%0.3f', 'pathline_%04dt0') ;
+QS.dir.metricKinematics.pathline.measurements = ...
+    fullfile(QS.dir.metricKinematics.pathline.root, 'measurements') ;
+
+% Metric deformation ('metric strain' or 'meshMetric)
+QS.dir.gstrain = fullfile(uvDir, 'metricStrain') ;
 QS.dir.gstrainRate = fullfile(QS.dir.gstrain, 'rateMetric') ;
 QS.dir.gstrainRateIm = fullfile(QS.dir.gstrainRate, 'images') ;
 QS.dir.gstrainMesh = fullfile(QS.dir.gstrain, 'meshMetric') ;
@@ -113,6 +123,13 @@ QS.dir.strainRate.measurements = ...
 QS.fileBase.strainRate = 'strainRate_%06d.mat' ;
 QS.fullFileBase.strainRate = fullfile(QS.dir.strainRate.measurements, ...
     QS.fileBase.strainRate) ; 
+% Strain rates along pathlines -- to be filled in with smoothing and t0
+QS.dir.strainRate.pathline = struct() ;
+QS.dir.strainRate.pathline.root = ...
+    fullfile(uvDir, 'strainRate', ...
+    'lambda%0.03f_lmesh%0.3f', 'pathline_%04dt0') ;
+QS.dir.strainRate.pathline.measurements = ...
+    fullfile(QS.dir.strainRate.pathline.root, 'measurements') ;
 
 % shorten variable names for brevity
 clineDir = QS.dir.cntrline ;
@@ -215,7 +232,8 @@ imFolder_spsme = fullfile(imFolder_sp, 'smoothed_extended') ;  % raw LUT, no his
 imFolder_spsme2 = fullfile(imFolder_sp, 'smoothed_extended_LUT') ;  % with histeq?
 imFolder_rsm = fullfile([imFolderBase, '_sphi_relaxed'], 'smoothed');
 imFolder_rsme = fullfile([imFolderBase, '_sphi_relaxed'], 'smoothed_extended') ;
-imFolder_rsme_stack = fullfile([imFolderBase, '_sphi_relaxed'], 'smoothed_extended_stack') ;  % with histeq?
+imFolder_rsme_stack = fullfile([imFolderBase, '_sphi_relaxed'], ...
+    'smoothed_extended_stack') ;  % with histeq?
 
 % Lobe/fold identification paths
 lobeDir = fullfile(uvDir, 'lobes') ;
@@ -322,6 +340,9 @@ QS.fullFileBase.im_re =  ...
 QS.fileBase.im_sp = [QS.fileBase.name, '_pbsp.tif'] ;
 QS.fullFileBase.im_sp = ...
     fullfile(QS.dir.im_sp, QS.fileBase.im_sp);
+QS.fileBase.im_spe = [QS.fileBase.name, '_pbspe.tif'] ;
+QS.fullFileBase.im_spe = ...
+    fullfile(QS.dir.im_spe, QS.fileBase.im_spe);
 QS.fileBase.im_up = [QS.fileBase.name, '_pbup.tif'] ;
 QS.fullFileBase.im_up = ...
      fullfile(QS.dir.im_up, QS.fileBase.im_up) ;
@@ -354,6 +375,7 @@ QS.dir.pivn2d = fullfile(QS.dir.piv, 'vn2d') ;
 QS.dir.pivdilation = fullfile(QS.dir.piv, 'dilation') ;
 QS.fileName.pivRaw = fullfile(QS.dir.piv, 'piv_results.mat') ;
 QS.fullFileBase.piv3d = fullfile(QS.dir.piv3d, 'piv3d_%04d.mat') ;
+% pathlines data
 QS.dir.pathlines = struct() ;
 QS.dir.pathlines.data = fullfile(QS.dir.piv, 'pathlines', 't0_%04d') ; 
 QS.dir.pathlines.XY = fullfile(QS.dir.pathlines.data, 'images_XY') ;
@@ -498,9 +520,20 @@ for ii=1:length(dirs2make)
         dirfields = struct2cell(dir2make) ;
         for qq = 1:length(dirfields)
             dir2make = dirfields{qq} ;
-            if ~exist(dir2make, 'dir') && ~contains(dir2make, '%04d') ...
-                    && ~contains(dir2make, '%0.3f')
-                mkdir(dir2make)
+            if isa(dir2make, 'struct')
+                dirfieldsSub = struct2cell(dir2make) ;
+                for pp = 1:length(dirfieldsSub)
+                    dir2makeSub = dirfieldsSub{pp} ;
+                    if ~exist(dir2makeSub, 'dir') && ~contains(dir2makeSub, '%04d') ...
+                            && ~contains(dir2makeSub, '%0.3f')
+                        mkdir(dir2makeSub)
+                    end
+                end
+            else
+                if ~exist(dir2make, 'dir') && ~contains(dir2make, '%04d') ...
+                        && ~contains(dir2make, '%0.3f')
+                    mkdir(dir2make)
+                end
             end
         end
     else

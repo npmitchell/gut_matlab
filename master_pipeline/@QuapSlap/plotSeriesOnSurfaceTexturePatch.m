@@ -22,6 +22,33 @@ function plotSeriesOnSurfaceTexturePatch(QS,...
 %
 % NPMitchell 2020
 
+%% Default options
+plot_dorsal = true ;
+plot_ventral = true ;
+plot_left = true ;
+plot_right = true ;
+plot_perspective = true ;
+
+%% Unpack Options
+if isfield(Options, 'plot_dorsal')
+    plot_dorsal = Options.plot_dorsal ;
+end
+if isfield(Options, 'plot_ventral')
+    plot_ventral = Options.plot_ventral ;
+end
+if isfield(Options, 'plot_dorsal')
+    plot_left = Options.plot_left ;
+end
+if isfield(Options, 'plot_dorsal')
+    plot_right = Options.plot_right ;
+end
+if isfield(Options, 'plot_perspective')
+    plot_perspective = Options.plot_perspective ;
+end
+% Collate boolean plot indicators to decide which views to plot
+plot_view = [plot_dorsal, plot_ventral, plot_left, ...
+    plot_right, plot_perspective] ;
+
 %% Unpack QS
 meshFileBase = QS.fullFileBase.mesh ;
 figoutdir = QS.dir.texturePatchIm ;
@@ -35,13 +62,16 @@ catch
     t0 = QS.xp.fileMeta.timePoints(1) ;
 end
 
-% Load metadat and TexturePatchOptions if not supplied
+%% Load metadat and TexturePatchOptions if not supplied
 metafn = fullfile(figoutdir, 'metadat.mat') ;
 resave_metadat = false ;
 if nargin < 4
     try
         load(metafn, 'Options')
     catch
+        [rot, trans] = QS.getRotTrans() ;
+        resolution = QS.APDV.resolution ;
+        
         % Psize is the linear dimension of the grid drawn on each triangular face
         Options.PSize = 5;
         Options.EdgeColor = 'none';
@@ -61,10 +91,13 @@ if nargin < 3
         load(metafn, 'metadat')
     catch
         % Define & Save metadata
-        metadat.normal_shift = 10 ;                 % pixels
-        metadat.xyzlim = xyzbuff ;                  % xyzlimits
-        metadat.texture_axis_order = [1, 2, 3] ;    % texture space sampling
-        metadat.reorient_faces = false ;            % if some normals are inverted
+        [~, ~, ~, ~, xyzbuff] = QS.getXYZLims() ;
+        xyzbuff(:, 1) = xyzbuff(:, 1) - 10 ;
+        xyzbuff(:, 2) = xyzbuff(:, 2) + 10 ;
+        metadat.normal_shift = QS.normalShift ;             % normal push, in pixels, along normals defined in data XYZ space
+        metadat.xyzlim = xyzbuff ;                          % xyzlimits
+        metadat.texture_axis_order = QS.data.axisOrder ;    % texture space sampling
+        metadat.reorient_faces = false ;                    % set to true if some normals may be inverted
         resave_metadat = true ;
     end
 end
@@ -75,11 +108,12 @@ if resave_metadat
 end
 
 %% Name output directories
-figddir = fullfile(figoutdir, 'dorsal') ;
-figvdir = fullfile(figoutdir, 'ventral') ;
-figlat1dir = fullfile(figoutdir, 'lateral1') ;
-figlat2dir = fullfile(figoutdir, 'lateral2') ;
-dirs = {figoutdir, figddir, figvdir, figlat1dir, figlat2dir} ;
+figdDir = fullfile(figoutdir, 'dorsal') ;
+figvDir = fullfile(figoutdir, 'ventral') ;
+figlat1Dir = fullfile(figoutdir, 'lateral1') ;
+figlat2Dir = fullfile(figoutdir, 'lateral2') ;
+figPerspDir = fullfile(figoutdir, 'perspective') ;
+dirs = {figoutdir, figdDir, figvDir, figlat1Dir, figlat2Dir, figPerspDir} ;
 for i = 1:length(dirs)
     if ~exist(dirs{i}, 'dir')
         mkdir(dirs{i}) ;
@@ -87,16 +121,17 @@ for i = 1:length(dirs)
 end
 
 %% Define output filenames
-fns = {fullfile(figddir, 'patch_dorsal_%06d.png'), ...
-    fullfile(figvdir, 'patch_ventral_%06d.png'), ...
-    fullfile(figlat1dir, 'patch_lateral1_%06d.png'), ...
-    fullfile(figlat2dir, 'patch_lateral2_%06d.png') };
+fns = {fullfile(figdDir, 'patch_dorsal_%06d.png'), ...
+    fullfile(figvDir, 'patch_ventral_%06d.png'), ...
+    fullfile(figlat1Dir, 'patch_lateral1_%06d.png'), ...
+    fullfile(figlat2Dir, 'patch_lateral2_%06d.png'), ...
+    fullfile(figPerspDir, 'patch_persp_%06d.png') };
 
 % Unpack metadat and save 
 xyzlim = metadat.xyzlim ;
 reorient_faces = metadat.reorient_faces ;
-timeinterval = QS.timeinterval ;
-timeunits = QS.timeunits ;
+timeinterval = QS.timeInterval ;
+timeunits = QS.timeUnits ;
 timePoints = QS.xp.fileMeta.timePoints ;
 
 % Unpack xyzlim
@@ -122,7 +157,7 @@ for tidx = tidx_todo
         ondisk = ondisk && exist(sprintf(fns{ii}, tp), 'file') ;
     end
     
-    if overwrite || ~ondisk
+    if (overwrite || ~ondisk) && any(plot_view)
         tic 
         close all
         % Copy passed Options argument for unpacking
@@ -231,26 +266,32 @@ for tidx = tidx_todo
         disp(['saving figure...' num2str(tp, '%06d')])
         % Save each figure
         for ii = 1:length(fns)
-            if ii == 1
-                % dorsal
-                view(0, 90)
-            elseif ii == 2
-                % ventral
-                view(0, 270)
-            elseif ii == 3
-                % Lateral views
-                view(0, 0)
-            elseif ii == 4
-                % lateral view 2
-                view(0, 180)
-            else
-                error(['Exhausted DorsalVentralLeftRight indices. ',...
-                    'What is going on here?'])
-            end
+            % Only plot this view if plot_view(ii) is true
+            if plot_view(ii)
+                if ii == 1
+                    % dorsal
+                    view(0, 90)
+                elseif ii == 2
+                    % ventral
+                    view(0, 270)
+                elseif ii == 3
+                    % Lateral views
+                    view(0, 0)
+                elseif ii == 4
+                    % lateral view 2
+                    view(0, 180)
+                elseif ii == 5
+                    % perspective view
+                    view(-20, 20)
+                else
+                    error(['Exhausted DorsalVentralLeftRight indices. ',...
+                        'What is going on here?'])
+                end
 
-            % Use export_fig instead, from plotting/export_fig/
-            % saveas(fig, fullfile(figvdir, fnv))
-            export_fig(sprintf(fns{ii}, tp), '-nocrop', '-r200')
+                % Use export_fig instead, from plotting/export_fig/
+                % saveas(fig, fullfile(figvdir, fnv))
+                export_fig(sprintf(fns{ii}, tp), '-nocrop', '-r200')
+            end
         end
         close all
         toc
