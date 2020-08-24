@@ -63,9 +63,12 @@ if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobeims)
     scatter(f2pts(:, 2), f2pts(:, 3), sz, tp, 's');
     scatter(f3pts(:, 2), f3pts(:, 3), sz, tp, '^');
     idx = 1:length(timePoints) ;
-    plot(f1pts(idx(fold_onset(1)), 2), f1pts(idx(fold_onset(1)), 3), 'ko', 'markersize', msz); 
-    plot(f2pts(idx(fold_onset(2)), 2), f2pts(idx(fold_onset(2)), 3), 'ks', 'markersize', msz);
-    plot(f3pts(idx(fold_onset(3)), 2), f3pts(idx(fold_onset(3)), 3), 'k^', 'markersize', msz);
+    fons1 = max(fold_onset(1), 1) ;
+    fons2 = max(fold_onset(2), 1) ;
+    fons3 = max(fold_onset(3), 1) ;
+    plot(f1pts(idx(fons1), 2), f1pts(idx(fons1), 3), 'ko', 'markersize', msz); 
+    plot(f2pts(idx(fons2), 2), f2pts(idx(fons2), 3), 'ks', 'markersize', msz);
+    plot(f3pts(idx(fons3), 2), f3pts(idx(fons3), 3), 'k^', 'markersize', msz);
     axis equal
     xlabel('y [\mum]')
     ylabel('z [\mum]')
