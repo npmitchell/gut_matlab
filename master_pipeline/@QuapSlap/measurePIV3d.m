@@ -763,7 +763,7 @@ else
             imRGB = cat(3, im0, im0, im0) ;  % convert to rgb for no cmap change
             im = imRGB * washout2d + max(im0(:)) * (1-washout2d) ;
             options.label = ['scaled tangential velocity, ', ...
-                '$|v_t|/||g^{-1}||$ [$\mu$m/', QS.timeunits, ']'] ;
+                '$|v_t|/||g^{-1}||$ [$\mu$m/', QS.timeUnits, ']'] ;
             options.xlim = [0, size(im, 2)] ;
             if doubleCovered
                 options.ylim = size(im, 1) * [0.25, 0.75] ;
@@ -771,7 +771,7 @@ else
                 options.ylim = size(im, 1) * [0, 1] ;
             end
             options.title = ['tangential velocity, $t=$', ...
-                sprintf('%03d', tp-t0), ' ', QS.timeunits] ;
+                sprintf('%03d', tp-t0), ' ', QS.timeUnits] ;
             options.outfn = outimfn_t ;
             if length(x0(1, :)) > 200
                 options.qsubsample = 10 ;
@@ -783,7 +783,9 @@ else
             % plot the 2d tangential flow, adjusted for dilation
             % Control for dilation in quiver
             v0t2dsc = v0t2d ./ dilation * resolution ;
-            vectorFieldHeatPhaseOnImage(im, x0(1,:), y0(:,1)', ...
+            xyf.x = x0 ; % (1,:)  ;
+            xyf.y = y0 ; %  (:,1)' ;
+            vectorFieldHeatPhaseOnImage(im, xyf, ...
                 v0t2dsc(:,1), v0t2dsc(:, 2), vtscale, options) ;
             
             % xlims = xlim ;
@@ -856,7 +858,7 @@ else
             c.Label.String = 'normal velocity, $v_n$ [$\mu$m/min]' ;
             c.Label.Interpreter = 'Latex' ;
             title(['normal velocity, $t = $', sprintf('%03d', tp - t0),...
-                ' ', QS.timeunits], 'Interpreter', 'Latex')
+                ' ', QS.timeUnits], 'Interpreter', 'Latex')
             % Write figure to file
             saveas(gcf, outimfn_n)
             

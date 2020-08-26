@@ -142,8 +142,32 @@ elseif isfield(xyfstruct, 'f')
     else
         error('Vector field size does not match coordinates')
     end
-else
-    error('Consider this case here')
+elseif any(size(speed) == 1) && ~any(size(xx)==1) && all(size(xx)==size(yy))
+    % Try reshaping speed
+    speed = reshape(speed, size(xx)) ;
+    xx = xx(1,:)  ;
+    yy = yy(:,1)' ;
+    ww = length(xx) ;
+    hh = length(yy) ;
+    gridded_data = true ;
+    % Compute angle of the velocity vector
+    if ~all(size(vangle) == [ww hh])
+        vangle = reshape(vangle, [ww hh]) ;
+    end
+    h2 = imagesc(xx, yy, vangle) ;
+    set(h2, 'AlphaData', speed / vscale)
+elseif ~any(size(speed) == 1) && any(size(xx)==1) && any(size(yy)==1)
+    % Try reshaping speed to #xx x #yy
+    ww = length(xx) ;
+    hh = length(yy) ;
+    speed = reshape(speed, [ww hh]) ;
+    gridded_data = true ;
+    % Compute angle of the velocity vector
+    if ~all(size(vangle) == [ww hh])
+        vangle = reshape(vangle, [ww hh]) ;
+    end
+    h2 = imagesc(xx, yy, vangle) ;
+    set(h2, 'AlphaData', speed / vscale)
 end
 
 ax = gca() ;
