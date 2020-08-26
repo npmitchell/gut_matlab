@@ -122,7 +122,7 @@ end
 if any(diff(xx(1, :)) > 0)
     sampleIDx = [] ;
     qsrow = 1:round(size(xx, 1) / nYpts):size(xx, 1) ;
-    for qq = 1:yspacing:size(xx, 2)
+    for qq = 0:yspacing:size(xx, 2) - 1
         nn = length(sampleIDx) ;
         sampleIDx(nn+1:nn + length(qsrow)) = qsrow + qq * size(xx, 1) ;
     end
@@ -150,7 +150,7 @@ for tidx = tp2do
     plotOptions.v2dsm = squeeze(v2dsmM(tidx, :, :)) ;
     plotOptions.v2dsmum = squeeze(v2dsmMum(tidx, :, :)) ;
     plotOptions.overwrite = overwrite ;
-    plotOptions.sampleIDx = sampleIDx ;
+    plotOptions.sampleIDx = sampleIDx ; 
     QS.plotPathlineVelocitiesTimePoint(tp, plotOptions) ;
 end
 

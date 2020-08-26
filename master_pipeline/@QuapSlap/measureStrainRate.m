@@ -307,21 +307,8 @@ for tp = tp2do
             b_pz(qq) = bq(2, 1) ;
             b_pp(qq) = bq(2, 2) ;
             
-            %% Traceful dilation
-            % traceful component -- 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
-            treps(qq) = trace(inv(gq) * (eq)) ;
-            % deviatoric component -- 
-            % || epsilon - 1/2 Tr[g^{-1} epsilon] g|| = sqrt(Tr[A A^T]),
-            % where A = epsilon - 1/2 Tr[g^{-1} epsilon] g.
-            AA = eq - 0.5 * treps(qq) * gq ;
-            dvtre(qq) = sqrt(trace(inv(gq) * (AA * (inv(gq) * AA)))) ;
-            
-            %% angle of elongation -- first take eigvectors
-            [evec_dev, evals_dev] = eig(AA) ;
-            [evals_dev, idx] = sort(diag(evals_dev)) ;
-            evec_dev = evec_dev(:, idx) ;
-            pevec = evec_dev(:, end) ;
-            theta(qq) = atan2(pevec(2), pevec(1)) ;
+            %% Trace / deviator / theta
+             [treps(qq), dvtre(qq), theta(qq)] = trace_deviator(eq, gq) ;
             
             % eigensystem for strain rate
             % [evec_e, evals_e] = eig(eq) ;
@@ -361,32 +348,8 @@ for tp = tp2do
                   g_pz_vtx(qq), g_pp_vtx(qq)] ;
             
             % traceful component -- 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
-            treps_vtx(qq) = trace(inv(gq) * (eq)) ;
-            % deviatoric component -- 
-            % || epsilon - 1/2 Tr[g^{-1} epsilon] g|| = sqrt(Tr[A A^T]),
-            % where A = epsilon - 1/2 Tr[g^{-1} epsilon] g.
-            AA = eq - 0.5 * treps(qq) * gq ;
-            dvtre_vtx(qq) = sqrt(trace(inv(gq) * (AA * (inv(gq) * AA)))) ;
-            
-            %% angle of elongation -- first take eigvectors
-            [evec_dev, evals_dev] = eig(AA) ;
-            [evals_dev, idx] = sort(diag(evals_dev)) ;
-            evec_dev = evec_dev(:, idx) ;
-            pevec = evec_dev(:, end) ;
-            theta_vtx(qq) = atan2(pevec(2), pevec(1)) ;
-            
-            % eigensystem for strain rate
-            % [evec_e, evals_e] = eig(eq) ;
-            % [evals_e, idx] = sort(diag(evals_e)) ;
-            % evec_e = evec_e(:, idx) ;
-            % pevec = evec_e(:, end) ;
-            % theta(qq) = atan2(pevec(2), pevec(1)) ;
-            % eigv1(qq) = evals_e(1) ;
-            % eigv2(qq) = evals_e(2) ;
-            
-            % NOTE: I have checked that theta determined via full strain
-            % rate tensor is identical to theta determined from deviatoric
-            % component
+            [treps_vtx(qq), dvtre_vtx(qq), theta_vtx(qq)] = ...
+                trace_deviator(eq, gq) ;
         end
         theta_vtx = mod(theta_vtx, pi) ;
         

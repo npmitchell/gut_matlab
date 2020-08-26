@@ -37,6 +37,11 @@ clear; close all; clc;
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
 % cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
+% .=========.
+% |  VIP10  |
+% .=========.
+% cd /mnt/crunch/gut/48YGal4UasLifeActRuby/201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um
+% cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 
 dataDir = cd ;
 
@@ -1255,9 +1260,8 @@ clearvars dumpfn
 % % Compute PIV in PIVLab
 % % ---------------------
 % % Open PIVLab
-% % Select all frames in PullbackImages_010step_sphi/smoothed_extended/
+% % Select all frames in meshDir/PullbackImages_010step_sphi/smoothed_extended/
 % % Select Sequencing style 1-2, 2-3, ... 
-% % Load settings: piv_set_pass1.mat
 % % Image Preprocessing (used to select all, but now:)
 % %  --> Enable CLAHE with 20 pix
 % %  --> DO NOT Enable highpass with 15 pix
@@ -1273,6 +1277,8 @@ clearvars dumpfn
 % %  --> Standard deviation filter: 7 stdev
 % %  --> Local median filter: thres=5, eps=0.1
 % %  --> Interpolate missing data
+% % Export 
+% %  --> File > Save > MAT file
 disp('Loading PIV results...')
 tmp = load(fullfile(QS.dir.piv, 'piv_results.mat')) ;
 
@@ -1298,79 +1304,79 @@ QS.measurePIV3d(options) ;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% First do very simpleminded averaging of velocities
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-options.overwrite = false ;
-options.plot_vxyz = true ;
-QS.timeAverageVelocitiesSimple('1x', options)
-%% VELOCITY PLOTS
-options.overwrite = true ;
-options.plot_vxyz = false ;
-options.invertImage = true ;
-QS.plotTimeAvgVelSimple(options)
-%% Divergence and Curl (Helmholtz-Hodge)
-options = struct() ;
-options.overwrite = false ;
-options.samplingResolution = '1x' ; 
-options.averagingStyle = 'simple' ;
-QS.helmholtzHodge(options) ;
-%% Measure Compressibility (div(v), 2*vn*H, and gdot)
-options = struct() ;
-options.overwrite = false ;
-options.plot_Hgdot = false ;
-options.plot_flows = true ;
-options.plot_factors = true ;
-options.plot_kymographs = true ;
-options.plot_kymographs_cumsum = true ;
-options.plot_correlations = true ;
-options.plot_gdot_correlations = false ;
-options.plot_gdot_decomp = true ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.02 ;
-options.lambda_err = 0.03 ;
-options.samplingResolution = '1x'; 
-QS.measureMetricKinematics(options)
+% options.overwrite = false ;
+% options.plot_vxyz = true ;
+% QS.timeAverageVelocitiesSimple('1x', options)
+% %% VELOCITY PLOTS
+% options.overwrite = true ;
+% options.plot_vxyz = false ;
+% options.invertImage = true ;
+% QS.plotTimeAvgVelSimple(options)
+% %% Divergence and Curl (Helmholtz-Hodge)
+% options = struct() ;
+% options.overwrite = false ;
+% options.samplingResolution = '1x' ; 
+% options.averagingStyle = 'simple' ;
+% QS.helmholtzHodge(options) ;
+% %% Measure Compressibility (div(v), 2*vn*H, and gdot)
+% options = struct() ;
+% options.overwrite = false ;
+% options.plot_Hgdot = false ;
+% options.plot_flows = true ;
+% options.plot_factors = true ;
+% options.plot_kymographs = true ;
+% options.plot_kymographs_cumsum = true ;
+% options.plot_correlations = true ;
+% options.plot_gdot_correlations = false ;
+% options.plot_gdot_decomp = true ;
+% options.lambda_mesh = 0.002 ;
+% options.lambda = 0.02 ;
+% options.lambda_err = 0.03 ;
+% options.samplingResolution = '1x'; 
+% QS.measureMetricKinematics(options)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% DOUBLE RESOLUTION Simple average
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Measure velocities at 2*nU x 2*nV resolution
-options = struct() ;
-options.overwrite = false ;
-options.preview = false ;
-options.show_v3d_on_data = false ;
-options.save_ims = true ;
-QS.generateSPCutMeshSm2x(options.overwrite) ;
-QS.measurePIV3d2x(options) ;
-%% time average the velocities
-options.overwrite = false ;
-options.plot_vxyz = true ;
-QS.timeAverageVelocitiesSimple('2x', options) ;
-%% Velocity plots for 2x
-options.overwrite = false ;
-options.plot_vxyz = false ;
-options.invertImage = true ;
-options.samplingResolution = '2x'; 
-QS.plotTimeAvgVelSimple(options)
-%% Divergence and Curl (Helmholtz-Hodge) for 2x
-options = struct() ;
-options.overwrite = true ;
-options.samplingResolution = '2x' ;
-QS.helmholtzHodgeSimple(options) ;
-%% doubleResolution compressibility
-options = struct() ;
-options.overwrite = false ;
-options.plot_Hgdot = false ;
-options.plot_flows = true ;
-options.plot_factors = true ;
-options.plot_kymographs = true ;
-options.plot_kymographs_cumsum = true ;
-options.plot_correlations = true ;
-options.plot_gdot_correlations = false ;
-options.plot_gdot_decomp = true ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.02 ;
-options.lambda_err = 0.03 ;
-options.samplingResolution = '2x'; 
-QS.measureMetricKinematics(options)
+% options = struct() ;
+% options.overwrite = false ;
+% options.preview = false ;
+% options.show_v3d_on_data = false ;
+% options.save_ims = true ;
+% QS.generateSPCutMeshSm2x(options.overwrite) ;
+% QS.measurePIV3d2x(options) ;
+% %% time average the velocities
+% options.overwrite = false ;
+% options.plot_vxyz = true ;
+% QS.timeAverageVelocitiesSimple('2x', options) ;
+% %% Velocity plots for 2x
+% options.overwrite = false ;
+% options.plot_vxyz = false ;
+% options.invertImage = true ;
+% options.samplingResolution = '2x'; 
+% QS.plotTimeAvgVelSimple(options)
+% %% Divergence and Curl (Helmholtz-Hodge) for 2x
+% options = struct() ;
+% options.overwrite = true ;
+% options.samplingResolution = '2x' ;
+% QS.helmholtzHodgeSimple(options) ;
+% %% doubleResolution compressibility
+% options = struct() ;
+% options.overwrite = false ;
+% options.plot_Hgdot = false ;
+% options.plot_flows = true ;
+% options.plot_factors = true ;
+% options.plot_kymographs = true ;
+% options.plot_kymographs_cumsum = true ;
+% options.plot_correlations = true ;
+% options.plot_gdot_correlations = false ;
+% options.plot_gdot_decomp = true ;
+% options.lambda_mesh = 0.002 ;
+% options.lambda = 0.02 ;
+% options.lambda_err = 0.03 ;
+% options.samplingResolution = '2x'; 
+% QS.measureMetricKinematics(options)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lagrangian dynamics
@@ -1381,7 +1387,7 @@ options.overwrite = true ;
 options.preview = false ;
 QS.timeAverageVelocities(options)
 %% Velocity plots for pathline time averaging 
-options.overwrite = true ;
+options.overwrite = false ;
 options.plot_vxyz = false ;
 options.invertImage = true ;
 options.averagingStyle = 'Lagrangian'; 
@@ -1389,7 +1395,7 @@ options.samplingResolution = '1x';
 QS.plotTimeAvgVelocities(options)
 %% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.samplingResolution = '1x' ;
 options.averagingStyle = 'Lagrangian' ;
 QS.helmholtzHodge(options) ;
@@ -1421,7 +1427,7 @@ QS.plotMetricKinematics(options)
 
 %% Pullback pathlines connecting Lagrangian grids
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.preview = true ;
 options.debug = false ; 
 QS.measurePullbackPathlines(options)

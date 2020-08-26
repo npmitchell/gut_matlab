@@ -217,6 +217,7 @@ if ~exist(vthfn, 'file') || overwrite
     qopts.outfn = vthfn ;
     qopts.ylim = ylims ;
     qopts.nPts = 200 ;
+    
     % Use custom subsampling from supplied
     if isfield(options, 'sampleIDx')
         qopts.sampleIDx = options.sampleIDx ;
@@ -224,7 +225,6 @@ if ~exist(vthfn, 'file') || overwrite
     else
         qopts.subsamplingMethod = 'farthestPoint' ;
     end
-    
     xyf.v = [XX(:), YY(:)] ;
     xyf.f = defineFacesRectilinearGrid([], size(XX, 1), size(XX, 2)) ;    
     out_of_bounds = YY(:) > 0.9 * size(im, 1) | YY(:) < 0.1 * size(im,1) ;
@@ -234,9 +234,7 @@ if ~exist(vthfn, 'file') || overwrite
     xyf.f(any(ismember(xyf.f, out_of_bounds), 2), :) = [] ;
     xyf.x = xyf.v(:, 1) ;
     xyf.y = xyf.v(:, 2) ;
-    
-    vectorFieldHeatPhaseOnImage(imw, xyf, ...
-        vx, vy, vtscale, qopts) ;
+    vectorFieldHeatPhaseOnImage(imw, xyf, vx, vy, vtscale, qopts) ;
     clear qopts 
 end
 
