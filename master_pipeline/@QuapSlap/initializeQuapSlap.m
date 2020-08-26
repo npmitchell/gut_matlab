@@ -229,7 +229,7 @@ imFolder_upe = fullfile(imFolder_up, 'extended') ;
 % time-averaged meshes
 imFolder_spsm = fullfile(imFolder_sp, 'smoothed') ;
 imFolder_spsme = fullfile(imFolder_sp, 'smoothed_extended') ;  % raw LUT, no histeq
-imFolder_spsme2 = fullfile(imFolder_sp, 'smoothed_extended_LUT') ;  % with histeq?
+imFolder_spsmeLUT = fullfile(imFolder_sp, 'smoothed_extended_LUT') ;  % with histeq
 imFolder_rsm = fullfile([imFolderBase, '_sphi_relaxed'], 'smoothed');
 imFolder_rsme = fullfile([imFolderBase, '_sphi_relaxed'], 'smoothed_extended') ;
 imFolder_rsme_stack = fullfile([imFolderBase, '_sphi_relaxed'], ...
@@ -272,7 +272,7 @@ QS.dir.im_up = imFolder_up ;
 QS.dir.im_upe = imFolder_upe ;
 QS.dir.im_sp_sm = imFolder_spsm ;
 QS.dir.im_sp_sme = imFolder_spsme ;
-QS.dir.im_sp_sme2 = imFolder_spsme2 ;
+QS.dir.im_sp_smeLUT = imFolder_spsmeLUT ;
 QS.dir.im_r_sm = imFolder_rsm ;
 QS.dir.im_r_sme = imFolder_rsme ;
 QS.dir.im_r_sme_stack = imFolder_rsme_stack ;
@@ -343,6 +343,9 @@ QS.fullFileBase.im_sp = ...
 QS.fileBase.im_spe = [QS.fileBase.name, '_pbspe.tif'] ;
 QS.fullFileBase.im_spe = ...
     fullfile(QS.dir.im_spe, QS.fileBase.im_spe);
+QS.fileBase.im_speLUT = [QS.fileBase.name, '_pbspe_LUT.tif'] ;
+QS.fullFileBase.im_speLUT = ...
+    fullfile(QS.dir.im_spe, QS.fileBase.im_speLUT);
 QS.fileBase.im_up = [QS.fileBase.name, '_pbup.tif'] ;
 QS.fullFileBase.im_up = ...
      fullfile(QS.dir.im_up, QS.fileBase.im_up) ;

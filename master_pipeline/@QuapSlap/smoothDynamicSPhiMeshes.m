@@ -153,7 +153,7 @@ if redo_meshsmooth
             spcutMeshSm.ar = arspsm ;
 
             % Resave s,phi smoothed mesh and their 3D embedding
-            disp(['Saving ' sprintf(spcutMeshSmBase, tt)])
+            disp(['tp=' num2str(tt) ': Saving ' sprintf(spcutMeshSmBase, tt)])
             save(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
 
             % Also save rotated and scaled (RS) copy of the time-smoothed mesh

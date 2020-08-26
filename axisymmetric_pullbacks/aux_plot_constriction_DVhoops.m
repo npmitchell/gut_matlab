@@ -121,7 +121,7 @@ if save_ims && (~(length(fns)==length(timePoints)) || overwrite_lobeims)
         close all
     end
 else
-    disp(['Skipping constriction hoop dynamics plots since they exist (' fold_dynamics_figfn ')...'])
+    disp(['Skipping constriction hoop dynamics plots since they exist (' fold_ant_figfn ')...'])
 end
 
 

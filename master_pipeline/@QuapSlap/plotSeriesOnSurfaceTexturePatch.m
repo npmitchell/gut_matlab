@@ -1,5 +1,5 @@
 function plotSeriesOnSurfaceTexturePatch(QS,...
-    overwrite, metadat, TexturePatchOptions)
+   options, TexturePatchOptions)
 % PLOTDATAONSURFACETEXTUREPATCH(xp, xyzlim, rot, trans)
 %   Plot intensity data timeseries on 3d mesh timeseries
 %
@@ -23,6 +23,7 @@ function plotSeriesOnSurfaceTexturePatch(QS,...
 % NPMitchell 2020
 
 %% Default options
+overwrite = false ;
 plot_dorsal = true ;
 plot_ventral = true ;
 plot_left = true ;
@@ -30,20 +31,23 @@ plot_right = true ;
 plot_perspective = true ;
 
 %% Unpack Options
-if isfield(Options, 'plot_dorsal')
-    plot_dorsal = Options.plot_dorsal ;
+if isfield(options, 'overwrite')
+    overwrite = options.overwrite ;
 end
-if isfield(Options, 'plot_ventral')
-    plot_ventral = Options.plot_ventral ;
+if isfield(options, 'plot_dorsal')
+    plot_dorsal = options.plot_dorsal ;
 end
-if isfield(Options, 'plot_dorsal')
-    plot_left = Options.plot_left ;
+if isfield(options, 'plot_ventral')
+    plot_ventral = options.plot_ventral ;
 end
-if isfield(Options, 'plot_dorsal')
-    plot_right = Options.plot_right ;
+if isfield(options, 'plot_dorsal')
+    plot_left = options.plot_left ;
 end
-if isfield(Options, 'plot_perspective')
-    plot_perspective = Options.plot_perspective ;
+if isfield(options, 'plot_dorsal')
+    plot_right = options.plot_right ;
+end
+if isfield(options, 'plot_perspective')
+    plot_perspective = options.plot_perspective ;
 end
 % Collate boolean plot indicators to decide which views to plot
 plot_view = [plot_dorsal, plot_ventral, plot_left, ...
@@ -100,12 +104,20 @@ if nargin < 3
         metadat.reorient_faces = false ;                    % set to true if some normals may be inverted
         resave_metadat = true ;
     end
+else
+    metadat = options ;
 end
 
 % Save it
 if resave_metadat
     save(metafn, 'metadat', 'Options')
 end
+
+% pass metadat to options
+options.normal_shift = metadat.normal_shift ;
+options.xyzlim = metadat.xyzlim ;
+options.texture_axis_order = metadat.texture_axis_order ;
+options.reorient_faces = metadat.reorient_faces ;
 
 %% Name output directories
 figdDir = fullfile(figoutdir, 'dorsal') ;
@@ -128,8 +140,8 @@ fns = {fullfile(figdDir, 'patch_dorsal_%06d.png'), ...
     fullfile(figPerspDir, 'patch_persp_%06d.png') };
 
 % Unpack metadat and save 
-xyzlim = metadat.xyzlim ;
-reorient_faces = metadat.reorient_faces ;
+xyzlim = options.xyzlim ;
+reorient_faces = options.reorient_faces ;
 timeinterval = QS.timeInterval ;
 timeunits = QS.timeUnits ;
 timePoints = QS.xp.fileMeta.timePoints ;

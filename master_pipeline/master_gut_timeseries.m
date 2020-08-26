@@ -184,7 +184,7 @@ typename = 'uint16' ;
 overwrite_mips = false ;
 overwrite_tiffs = false ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
-    timePoints, timePoints, timePoints(200), ...
+    timePoints, timePoints, timePoints(50), ...
     im_intensity, imref_intensity, ...
     mipDir, mipoutdir, mips_stab_check, overwrite_mips, overwrite_tiffs)
 
@@ -874,6 +874,9 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     % Define & Save metadata
     metadat.xyzlim = xyzbuff ;                  % xyzlimits
     metadat.reorient_faces = false ;            % if some normals are inverted
+    metadat.normal_shift = QS.normalShift ;             % normal push, in pixels, along normals defined in data XYZ space
+    metadat.texture_axis_order = QS.data.axisOrder ;    % texture space sampling
+        
     % Psize is the linear dimension of the grid drawn on each triangular face
     Options.PSize = 5 ;
     Options.EdgeColor = 'none';
@@ -894,14 +897,38 @@ end
 QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.95)
 
 %% Plot on surface for all TP 
-!!!
-Options.plot_dorsal = false ;
-Options.plot_ventral = false ;
-Options.plot_right = false ;
-Options.plot_left = false ;
-Options.plot_perspective = true ;
-QS.plotSeriesOnSurfaceTexturePatch(overwrite, metadat, Options)
+options = metadat ;
+options.overwrite = false ;
+options.plot_dorsal = false ;
+options.plot_ventral = false ;
+options.plot_right = false ;
+options.plot_left = false ;
+options.plot_perspective = true ;
+QS.plotSeriesOnSurfaceTexturePatch(options, Options)
 clearvars Options
+
+%% Symmetry figure
+% meshL = read_ply_mod(sprintf(...
+%     [QS.fullFileBase.alignedMesh(1:end-4) '_dense_extrasmooth.ply'], 130)) ;
+% trisurf(triangulation(meshL.f, meshL.v), meshL.vn(:, 2), 'edgecolor', 'none')
+% meshR = meshL ;
+% meshR.v(:, 2) = - meshL.v(:, 2) + 200 ;
+% clf
+% trisurf(triangulation(meshL.f, meshL.v), -meshL.vn(:, 2), 'edgecolor', 'none')
+% hold on;
+% trisurf(triangulation(meshR.f, meshR.v), meshL.vn(:, 2), 'edgecolor', 'none')
+% view(2)
+% axis equal
+% xlims = get(gca, 'xlim') ;
+% xlim([xlims(1)-10, xlims(2) + 10])
+% grid off
+% set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w', 'zcol', 'w')
+% set(gcf, 'InvertHardCopy', 'off');
+% set(gcf, 'Color', 'k')
+% set(gcf, 'color', 'k')
+% export_fig(fullfile(meshDir, 'symmetry2.png'), '-nocrop', '-r400')
+
+
 
 %% EXTRACT CENTERLINES
 % Skip if already done
@@ -1133,11 +1160,20 @@ for tt = QS.xp.fileMeta.timePoints(1:end)
     % Load the data for the current time point ------------------------
     QS.setTime(tt) ;
     
-    % Keep constant luminosity throughout, modify default intensity lims
-    if tidx == 1        
-        % Use first timepoint's intensity limits throughout
-        QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.995)
-    end
+    % OPTION 1: Keep constant luminosity throughout, modify default 
+    % intensity limits.
+    % if tidx == 1        
+    %     % Use first timepoint's intensity limits throughout
+    %     QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.995)
+    % end
+    % QS.data.adjustlow 
+    % QS.data.adjusthigh
+    
+    % OPTION 2 : Adjust intensity to scale from timepoint to timepoint
+    adjustlow = 1.00 ;         % floor for intensity adjustment
+    adjusthigh = 99.9 ;        % ceil for intensity adjustment (clip)
+    QS.data.adjustlow = adjustlow ;
+    QS.data.adjusthigh = adjusthigh ;
     
     % Establish custom Options for MIP
     pbOptions = struct() ;
@@ -1219,7 +1255,7 @@ clearvars dumpfn
 % % Compute PIV in PIVLab
 % % ---------------------
 % % Open PIVLab
-% % Select all frames in PullbackImages_extended_shifted/ 
+% % Select all frames in PullbackImages_010step_sphi/smoothed_extended/
 % % Select Sequencing style 1-2, 2-3, ... 
 % % Load settings: piv_set_pass1.mat
 % % Image Preprocessing (used to select all, but now:)
@@ -1227,6 +1263,7 @@ clearvars dumpfn
 % %  --> DO NOT Enable highpass with 15 pix
 % %  --> DO NOT Enable Intensity capping
 % %  --> Wiener2 denoise filter with 3 pix
+% %  --> DO NOT Auto constrast stretch
 % % PIV settings: 
 % %  --> 128 (32 step), 64 (32 step), 32 (16 step), 16 (8 step)
 % %  --> Linear window deformation interpolator

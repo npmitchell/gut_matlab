@@ -675,6 +675,16 @@ classdef QuapSlap < handle
                         imDir_e = QS.dir.im_sp_sme ;
                         fn0 = QS.fileBase.im_sp_sm ;
                         ofn = QS.fileBase.im_sp_sme ;
+                    elseif strcmp(coordsys, 'spsm2') || ...
+                            strcmp(coordsys, 'sp_sm2') || ...
+                            strcmp(coordsys, 'spsmLUT') || ...
+                            strcmp(coordsys, 'sp_smLUT')
+                        % equalize the histogram in patches of the image
+                        options.histeq = true ;
+                        imDir = QS.dir.im_sp_sm ;
+                        imDir_e = QS.dir.im_sp_smeLUT ;
+                        fn0 = QS.fileBase.im_sp_sm ;
+                        ofn = QS.fileBase.im_sp_smeLUT ;
                     elseif strcmp(coordsys, 'rsm') || strcmp(coordsys, 'r_sm')
                         imDir = QS.dir.im_r_sm ;
                         imDir_e = QS.dir.im_r_sme ;
@@ -702,7 +712,7 @@ classdef QuapSlap < handle
                 % pack options if missing fields
                 if ~isfield(options, 'histeq')
                     % equalize the histogram in patches of the image
-                    options.histeq = true ;
+                    options.histeq = false ;
                 end
                 if ~isfield(options, 'a_fixed')
                     % Assign the aspect ratio for histogram equilization
@@ -726,7 +736,7 @@ classdef QuapSlap < handle
                 imDir_e = QS.dir.im_spe ;
                 fn0 = QS.fileBase.im_sp ;
                 ofn = QS.fileBase.im_spe ;
-                options.histeq = true ;
+                options.histeq = false ;
                 options.a_fixed = QS.a_fixed ;
                 options.ntiles = ntiles ;
             end
@@ -1293,10 +1303,17 @@ classdef QuapSlap < handle
             % Returns
             % -------
             % [xx, yy] : x and y coordinates clipped to [1, Lx] and [1, Ly]
+            
+            % Note we use minimum values of 1 (in pixels)
+            minX = 1 ;
+            minY = 1 ;
+            
+            % Clip in X
             xx(xx > Lx) = Lx ;
-            xx(xx < 1 ) = 1 ;
-            yy(yy > Ly) = yy(yy > Ly) - Ly + 1;
-            yy(yy < 1) = yy(yy < 1) + Ly ;
+            xx(xx < minX ) = 1 ;
+            % modulo in Y
+            yy(yy > Ly) = yy(yy > Ly) - Ly + minY;
+            yy(yy < minY) = yy(yy < minY) + Ly ;
         end
         
         function XY = doubleToSingleCover(XY, Ly)
