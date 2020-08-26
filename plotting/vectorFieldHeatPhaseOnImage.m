@@ -156,7 +156,7 @@ elseif any(size(speed) == 1) && ~any(size(xx)==1) && all(size(xx)==size(yy))
     end
     h2 = imagesc(xx, yy, vangle) ;
     set(h2, 'AlphaData', speed / vscale)
-elseif ~any(size(speed) == 1) && any(size(xx)==1) && any(size(yy)==1)
+elseif any(size(speed) == 1) && any(size(xx)==1) && any(size(yy)==1)
     % Try reshaping speed to #xx x #yy
     ww = length(xx) ;
     hh = length(yy) ;
@@ -168,6 +168,8 @@ elseif ~any(size(speed) == 1) && any(size(xx)==1) && any(size(yy)==1)
     end
     h2 = imagesc(xx, yy, vangle) ;
     set(h2, 'AlphaData', speed / vscale)
+else
+    error('Could not identify data input orientation')
 end
 
 ax = gca() ;
