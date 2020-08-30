@@ -163,9 +163,6 @@ else
 end
 
 %% Test incompressibility of the flow on the evolving surface
-% We relate the normal velocities to the divergence / 2 * H.
-tps = QS.xp.fileMeta.timePoints(1:end-1) - tfold;
-
 % preallocate for cumulative error
 ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
 % HH_apM   = zeros(ntps, nU) ;   % dv averaged
@@ -201,11 +198,6 @@ outdir = fullfile(mKDir, 'measurements') ;
 if ~exist(outdir, 'dir')
     mkdir(outdir)
 end
-
-% Unit definitions for axis labels
-unitstr = [ '[1/' QS.timeUnits ']' ];
-Hunitstr = [ '[1/' QS.spaceUnits ']' ];
-vunitstr = [ '[' QS.spaceUnits '/' QS.timeUnits ']' ];
     
 % Compute or load all timepoints
 for tp = tp2do
@@ -214,11 +206,11 @@ for tp = tp2do
     tidx = QS.xp.tIdx(tp) ;
 
     % Check for timepoint measurement on disk
-    Hfn = fullfile(outdir, sprintf('HH_series_%06d.mat', tp))   ;
-    efn = fullfile(outdir, sprintf('gdot_series_%06d.mat', tp)) ;
-    dfn = fullfile(outdir, sprintf('divv_series_%06d.mat', tp)) ;
-    nfn = fullfile(outdir, sprintf('veln_series_%06d.mat', tp)) ;
-    H2vnfn = fullfile(outdir, sprintf('H2vn_series_%06d.mat', tp)) ;
+    Hfn = fullfile(outdir, sprintf('HH_vertices_%06d.mat', tp))   ;
+    efn = fullfile(outdir, sprintf('gdot_vertices_%06d.mat', tp)) ;
+    dfn = fullfile(outdir, sprintf('divv_vertices_%06d.mat', tp)) ;
+    nfn = fullfile(outdir, sprintf('veln_vertices_%06d.mat', tp)) ;
+    H2vnfn = fullfile(outdir, sprintf('H2vn_vertices_%06d.mat', tp)) ;
 
     redo_comp = overwrite || ~exist(Hfn, 'file') || ~exist(efn, 'file') ;
     redo_comp = redo_comp || ~exist(dfn, 'file') || ~exist(dfn, 'file') ;

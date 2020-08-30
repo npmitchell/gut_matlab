@@ -1,6 +1,8 @@
-function aux_plotMetricKinematicsFolds_integrated(...
-    fn, fn_withH, foldIds, width, divv, H2vn, HH, foldYlabels, ...
-    avgString, m2plot, overwrite)
+function aux_plotPathlineMetricKinematicsFolds_integrated(QS, m2plot, ...
+                fn, fn_withH, ...
+                foldIds, width, nU, tps, divv, H2vn, HH, foldYlabels, ...
+                avgString, Hsz, overwrite, cumsum_cumprod) 
+
 %aux_plotMetricKinematicsFolds_2panel_withH
 %(fn, divv, H2vn, HH, width, foldYlabels)
 %
@@ -15,6 +17,7 @@ function aux_plotMetricKinematicsFolds_integrated(...
 
  if ~exist(fn, 'file') || overwrite 
     close all
+    set(gcf, 'visible', 'off')
     % Each fold is valley+/- width
     for jj = 1:length(foldIds)
         valley = (foldIds(jj)-width):(foldIds(jj)+width) ;
@@ -29,11 +32,17 @@ function aux_plotMetricKinematicsFolds_integrated(...
                 gdj = mean(H2vn(:, valley), 2) ;
         end
 
-        % Take cumulative product marching forward from t0
-        gpj_pos = cumprod(1 + gdj(tps > eps)) ;
-        gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
-        gpj = cat(1, gpj_neg, gpj_pos) ;               
-
+        % Take cumulative sum marching forward from t0
+        if strcmpi(cumsum_cumprod, 'cumsum')
+            gpj_pos = cumsum(gdj(tps > eps)) ;
+            gpj_neg = flipud(cumsum(flipud(-gdj(tps < eps)))) ;
+            gpj = cat(1, gpj_neg, gpj_pos) ;
+        elseif strcmpi(cumsum_cumprod, 'cumprod')
+            gpj_pos = cumprod(1 + gdj(tps > eps)) ;
+            gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
+            gpj = cat(1, gpj_neg, gpj_pos) ;
+        end
+        
         % Plot this fold
         plot(tps, gpj, '.-', 'Color', QS.plotting.colors(jj, :))
         hold on;
@@ -73,10 +82,16 @@ if ~exist(fn_withH, 'file') || overwrite
             case 'h2vn'
                 gdj = mean(H2vn(:, valley), 2) ;
         end
-        % Take cumulative product marching forward from t0
-        gpj_pos = cumprod(1 + gdj(tps > eps)) ;
-        gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
-        gpj = cat(1, gpj_neg, gpj_pos) ;               
+        % Take cumulative sum marching forward from t0
+        if strcmpi(cumsum_cumprod, 'cumsum')
+            gpj_pos = cumsum(gdj(tps > eps)) ;
+            gpj_neg = flipud(cumsum(flipud(-gdj(tps < eps)))) ;
+            gpj = cat(1, gpj_neg, gpj_pos) ;
+        elseif strcmpi(cumsum_cumprod, 'cumprod')
+            gpj_pos = cumprod(1 + gdj(tps > eps)) ;
+            gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
+            gpj = cat(1, gpj_neg, gpj_pos) ;
+        end          
 
         % Plot this fold
         plot(tps, gpj, '.-', 'Color', QS.plotting.colors(jj, :))
@@ -84,7 +99,7 @@ if ~exist(fn_withH, 'file') || overwrite
     end    
 
     % Title and labels
-    sgtitle(['Tissue deformation in folds, ', avgString, ', ', ...
+    sgtitle(['Tissue kinematics in folds, ', avgString, ', ', ...
         '$w_{\textrm{fold}}=', ...
         num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'], ...
         'Interpreter', 'Latex')
@@ -92,16 +107,30 @@ if ~exist(fn_withH, 'file') || overwrite
     drawnow
     xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
     
-    switch lower(m2plot)
-        case 'gdot'
-            ylabel('$\Pi\big(1+$d$t\, \frac{1}{2}\mathrm{Tr} \left[g^{-1} \dot{g}\right]\big)$', ...
-                    'Interpreter', 'Latex')
-        case 'divv'
-            ylabel('$\Pi\big(1+$d$t\,  \nabla \cdot \mathbf{v}_{\parallel} \big)$', ...
-                    'Interpreter', 'Latex')
-        case 'h2vn'
-            ylabel('$\Pi\big(1+$d$t\, 2H v_n \big)$', ...
-                    'Interpreter', 'Latex')
+    %% Labels
+    if strcmpi(cumsum_cumprod, 'cumsum')
+        switch lower(m2plot)
+            case 'gdot'
+                ylabel('$\int$d$t\, \frac{1}{2}\mathrm{Tr} \left[g^{-1} \dot{g}\right]$', ...
+                        'Interpreter', 'Latex')
+            case 'divv'
+                ylabel('$\int$d$t\,  \nabla \cdot \mathbf{v}_{\parallel}$', ...
+                        'Interpreter', 'Latex')
+            case 'h2vn'
+                ylabel('$\int$d$t\, 2H v_n $', 'Interpreter', 'Latex')
+        end
+    elseif strcmpi(cumsum_cumprod, 'cumprod')
+        switch lower(m2plot)
+            case 'gdot'
+                ylabel('$\Pi\big(1+$d$t\, \frac{1}{2}\mathrm{Tr} \left[g^{-1} \dot{g}\right]\big)$', ...
+                        'Interpreter', 'Latex')
+            case 'divv'
+                ylabel('$\Pi\big(1+$d$t\,  \nabla \cdot \mathbf{v}_{\parallel} \big)$', ...
+                        'Interpreter', 'Latex')
+            case 'h2vn'
+                ylabel('$\Pi\big(1+$d$t\, 2H v_n \big)$', ...
+                        'Interpreter', 'Latex')
+        end
     end
     pos = get(gca, 'pos') ;
 

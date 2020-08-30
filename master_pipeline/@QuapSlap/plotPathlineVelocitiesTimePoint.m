@@ -1,11 +1,16 @@
 function plotPathlineVelocitiesTimePoint(QS, tp, options)
 % plotPathlineVelocitiesTimePoint(QS, tp, options)
+%   Plot the velocities defined on PIV evaluation points in Lagrangian
+%   coordinates.
 %   
 %
 % Parameters
 % ----------
 % QS : QuapSlap class instance
 % options : optional struct with fields 
+%   gridTopology : str
+%       'rectilinear' or 'triangulated'
+%       triangulate anew each timepoint or keep grid structure
 %   vnsm    : 
 %   v2dsmum : 
 %   overwrite : bool
@@ -33,6 +38,7 @@ washout2d = .5 ;   % lightening factor for data if < 1
 qsubsample = 5 ;   % quiver subsampling in pullback space 
 pivimCoords = QS.piv.imCoords ;  % coordinate system of the pullback images used in PIV
 samplingResolution = '1x' ;      % 1x or 2x, resolution of 
+gridTopology = 'triangulated' ;  % ('rectilinear' or 'triangulated') triangulate anew each timepoint or keep grid structure
 
 %% Unpack options
 if isfield(options, 'pivimCoords')
@@ -133,7 +139,7 @@ else
 end
 im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
 
-% Plot the magnitude of the velocity at pathlines XX,YY
+%% Plot the magnitude of the velocity at pathlines XX,YY
 if ~exist(speedfn, 'file') || overwrite
     disp(['Saving ' speedfn])
     close all
@@ -143,11 +149,21 @@ if ~exist(speedfn, 'file') || overwrite
     labelOpts.label = '$|v|$ [$\mu$m/min]' ;
     labelOpts.title = ['speed, $|v|$: $t=$' num2str(tp - t0) tunit] ;
     xyf.v = [XX(:), YY(:)] ;
-    xyf.f = defineFacesRectilinearGrid([], size(XX, 1), size(XX, 2)) ;
-    out_of_bounds = YY(:) > 0.9 * size(im, 1) | YY(:) < 0.1 * size(im,1) ;
-    out_of_bounds = find(out_of_bounds) ;
-    [ xyf.f, xyf.v, oldVertexIDx ] = ...
-        remove_vertex_from_mesh(xyf.f, xyf.v, out_of_bounds) ;
+    if contains(lower(gridTopology), 'rect')
+        % OPTION 1: keep rectilinear grid topology
+        xyf.f = defineFacesRectilinearGrid([], size(XX, 1), size(XX, 2)) ;    
+        out_of_bounds = YY(:) > 0.9 * size(im, 1) | YY(:) < 0.1 * size(im,1) ;
+        out_of_bounds = find(out_of_bounds) ;
+        % Remove out-of-bounds vertices from triangulation (pathlines are
+        % periodic in Y, and these faces will be annoying to plot)
+        xyf.f(any(ismember(xyf.f, out_of_bounds), 2), :) = [] ;
+        [ xyf.f, xyf.v, oldVertexIDx ] = ...
+            remove_vertex_from_mesh(xyf.f, xyf.v, out_of_bounds) ;
+    else    
+        % OPTION 2: re-triangulation
+        xyf.f = delaunay(XX(:), YY(:)) ;
+        oldVertexIDx = 1:size(vsm_ii, 1) ;
+    end
     scalarFieldOnImage(im, xyf, vecnorm(vsm_ii(oldVertexIDx, :), 2, 2),...
         alphaVal, vscale, labelOpts, 'Style', 'Positive') ;
     
@@ -179,7 +195,7 @@ vy = v2dsmum_ii(:, 2) ;
 % Get lobes for this timepoint
 foldx = ssfold_frac(tidx, :) * size(im, 2) ;
 
-% Plot the normal velocity on top
+%% Plot the normal velocity on top at pathlines XX,YY
 if ~exist(vnfn, 'file') || overwrite
     disp(['Saving ' vnfn])
     close all
@@ -189,11 +205,21 @@ if ~exist(vnfn, 'file') || overwrite
     labelOpts.title = ['normal velocity, $v_n$: $t=$' num2str(tp - t0) tunit] ;
     
     xyf.v = [XX(:), YY(:)] ;
-    xyf.f = defineFacesRectilinearGrid([], size(XX, 1), size(XX, 2)) ;    
-    out_of_bounds = YY(:) > 0.9 * size(im, 1) | YY(:) < 0.1 * size(im,1) ;
-    out_of_bounds = find(out_of_bounds) ;
-    [ xyf.f, xyf.v, oldVertexIDx ] = ...
-        remove_vertex_from_mesh(xyf.f, xyf.v, out_of_bounds) ;
+    if contains(lower(gridTopology), 'rect')
+        % OPTION 1: keep rectilinear grid topology
+        xyf.f = defineFacesRectilinearGrid([], size(XX, 1), size(XX, 2)) ;    
+        out_of_bounds = YY(:) > 0.9 * size(im, 1) | YY(:) < 0.1 * size(im,1) ;
+        out_of_bounds = find(out_of_bounds) ;
+        % Remove out-of-bounds vertices from triangulation (pathlines are
+        % periodic in Y, and these faces will be annoying to plot)
+        xyf.f(any(ismember(xyf.f, out_of_bounds), 2), :) = [] ;
+        [ xyf.f, xyf.v, oldVertexIDx ] = ...
+            remove_vertex_from_mesh(xyf.f, xyf.v, out_of_bounds) ;
+    else    
+        % OPTION 2: re-triangulation
+        xyf.f = delaunay(XX(:), YY(:)) ;
+        oldVertexIDx = 1:numel(vnsm_ii) ;
+    end
     scalarFieldOnImage(im, xyf, vnsm_ii(oldVertexIDx), alphaVal, ...
         vnscale, labelOpts) ;
 
@@ -204,7 +230,7 @@ if ~exist(vnfn, 'file') || overwrite
     close all
 end
 
-% Plot the tangential velocity as heatmap on top of the image
+%% Plot the tangential velocity as heatmap on top of the image at pathlines
 if ~exist(vthfn, 'file') || overwrite
     disp(['Saving ' vthfn])
     imw = im * washout2d + max(im(:)) * (1-washout2d) ;
@@ -226,12 +252,21 @@ if ~exist(vthfn, 'file') || overwrite
         qopts.subsamplingMethod = 'farthestPoint' ;
     end
     xyf.v = [XX(:), YY(:)] ;
-    xyf.f = defineFacesRectilinearGrid([], size(XX, 1), size(XX, 2)) ;    
-    out_of_bounds = YY(:) > 0.9 * size(im, 1) | YY(:) < 0.1 * size(im,1) ;
-    out_of_bounds = find(out_of_bounds) ;
-    % Remove out-of-bounds vertices from triangulation (pathlines are
-    % periodic in Y, and these faces will be annoying to plot)
-    xyf.f(any(ismember(xyf.f, out_of_bounds), 2), :) = [] ;
+    
+    if contains(lower(gridTopology), 'rect')
+        % OPTION 1: keep rectilinear grid topology
+        xyf.f = defineFacesRectilinearGrid([], size(XX, 1), size(XX, 2)) ;    
+        out_of_bounds = YY(:) > 0.9 * size(im, 1) | YY(:) < 0.1 * size(im,1) ;
+        out_of_bounds = find(out_of_bounds) ;
+        % Remove out-of-bounds vertices from triangulation (pathlines are
+        % periodic in Y, and these faces will be annoying to plot)
+        xyf.f(any(ismember(xyf.f, out_of_bounds), 2), :) = [] ;
+    else    
+        % OPTION 2: re-triangulation
+        xyf.f = delaunay(XX(:), YY(:)) ;
+    end
+    
+    %% Now plot it
     xyf.x = xyf.v(:, 1) ;
     xyf.y = xyf.v(:, 2) ;
     vectorFieldHeatPhaseOnImage(imw, xyf, vx, vy, vtscale, qopts) ;

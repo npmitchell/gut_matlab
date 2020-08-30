@@ -308,7 +308,7 @@ for tp = tp2do
             b_pp(qq) = bq(2, 2) ;
             
             %% Trace / deviator / theta
-             [treps(qq), dvtre(qq), theta(qq)] = trace_deviator(eq, gq) ;
+            [treps(qq), dvtre(qq), theta(qq)] = trace_deviator(eq, gq) ;
             
             % eigensystem for strain rate
             % [evec_e, evals_e] = eig(eq) ;
@@ -442,6 +442,18 @@ for tp = tp2do
             'treps_ap', 'treps_l', 'treps_r', 'treps_d', 'treps_v', ...
             'strainrate_vtx', 'treps_vtx', 'dvtre_vtx', 'theta_vtx', ...
             'gg_vtx', 'bb_vtx')
+        
+        % Save info histogram as debug check
+        clf
+        plot(dvtre(:) .* cos(theta(:)), dvtre(:) .* sin(theta(:)), '.')
+        xlabel('deviator$[\varepsilon]_\zeta$', 'interpreter', 'latex')
+        ylabel('deviator$[\varepsilon]_\phi$', 'interpreter', 'latex')  
+        axis equal
+        xlim([-0.1, 0.1])
+        ylim([-0.1, 0.1])
+        saveas(gcf, fullfile(strrep(sprintf( ...
+            QS.dir.strainRate.measurements, lambda, lambda_mesh), '.', 'p'), ...
+            sprintf('strainRate_check_%06d.png', tp)));
     else
         % Convert to 2D mesh
         mesh.nU = QS.nU ;

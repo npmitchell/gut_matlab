@@ -206,11 +206,11 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     tidx = QS.xp.tIdx(tp) ;
 
     % Check for timepoint measurement on disk
-    Hfn = fullfile(outdir, sprintf('HH_series_%06d.mat', tp))   ;
-    efn = fullfile(outdir, sprintf('gdot_series_%06d.mat', tp)) ;
-    dfn = fullfile(outdir, sprintf('divv_series_%06d.mat', tp)) ;
-    nfn = fullfile(outdir, sprintf('veln_series_%06d.mat', tp)) ;
-    H2vnfn = fullfile(outdir, sprintf('H2vn_series_%06d.mat', tp)) ;
+    Hfn = fullfile(outdir, sprintf('HH_vertices_%06d.mat', tp))   ;
+    efn = fullfile(outdir, sprintf('gdot_vertices_%06d.mat', tp)) ;
+    dfn = fullfile(outdir, sprintf('divv_vertices_%06d.mat', tp)) ;
+    nfn = fullfile(outdir, sprintf('veln_vertices_%06d.mat', tp)) ;
+    H2vnfn = fullfile(outdir, sprintf('H2vn_vertices_%06d.mat', tp)) ;
 
     % Load timeseries measurements
     load(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')

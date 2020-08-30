@@ -1,9 +1,14 @@
 function aux_plotPathlineMetricKinematicsLobes_integrated_subplots(QS, ...
     fn, fn_withH, lobes, tps, divv, H2vn, lobeYlabels, ...
-    avgString, titleLobeBase, overwrite)
+    avgString, titleLobeBase, overwrite, cumsum_cumprod)
 % Plot each lobe's integrated dynamics on a separate axis.
 %
 %
+% Parameters
+% ----------
+% cumsum_cumprod : str ('cumsum' or 'cumprod')
+%   Take cumulative sum (Euler integration) or cumulative product of
+%   (1 + dt * Tr[epsilon_dot]) for integration
 %
 % NPMitchell 2020
 
@@ -20,18 +25,36 @@ if ~exist(fn, 'file') || ~exist(fn_withH, 'file') || overwrite
         Hdj = mean(H2vn(:, lobes{jj}), 2) ;
         gdj = mean(divv(:, lobes{jj}) - H2vn(:, lobes{jj}), 2) ;
 
-        % Take cumulative product marching forward from t0
-        gpj_pos = cumprod(1 + gdj(tps > eps)) ;
-        gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
-        gpj = cat(1, gpj_neg, gpj_pos) ;               
-        % Take cumulative product marching forward from t0
-        dpj_pos = cumprod(1 + ddj(tps > eps)) ;
-        dpj_neg = flipud(cumprod(flipud(1 ./ (1 + ddj(tps < eps))))) ;
-        dpj = cat(1, dpj_neg, dpj_pos) ;
-        % Take cumulative product marching forward from t0
-        Hpj_pos = cumprod(1 + Hdj(tps > eps)) ;
-        Hpj_neg = flipud(cumprod(flipud(1 ./ (1 + Hdj(tps < eps))))) ;
-        Hpj = cat(1, Hpj_neg, Hpj_pos) ;
+        
+        if strcmpi(cumsum_cumprod, 'cumsum')
+            % Take cumulative sum marching forward from t0
+            gpj_pos = cumsum(gdj(tps > eps)) ;
+            gpj_neg = flipud(cumsum(flipud(-gdj(tps < eps)))) ;
+            gpj = cat(1, gpj_neg, gpj_pos) ;               
+            % Take cumulative sum marching forward from t0
+            dpj_pos = cumsum(ddj(tps > eps)) ;
+            dpj_neg = flipud(cumsum(flipud(-ddj(tps < eps)))) ;
+            dpj = cat(1, dpj_neg, dpj_pos) ;
+            % Take cumulative sum marching forward from t0
+            Hpj_pos = cumsum(Hdj(tps > eps)) ;
+            Hpj_neg = flipud(cumsum(flipud(-Hdj(tps < eps)))) ;
+            Hpj = cat(1, Hpj_neg, Hpj_pos) ;     
+        elseif strcmpi(cumsum_cumprod, 'cumprod')
+            % Take cumulative product marching forward from t0
+            gpj_pos = cumprod(1 + gdj(tps > eps)) ;
+            gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
+            gpj = cat(1, gpj_neg, gpj_pos) ;               
+            % Take cumulative product marching forward from t0
+            dpj_pos = cumprod(1 + ddj(tps > eps)) ;
+            dpj_neg = flipud(cumprod(flipud(1 ./ (1 + ddj(tps < eps))))) ;
+            dpj = cat(1, dpj_neg, dpj_pos) ;
+            % Take cumulative product marching forward from t0
+            Hpj_pos = cumprod(1 + Hdj(tps > eps)) ;
+            Hpj_neg = flipud(cumprod(flipud(1 ./ (1 + Hdj(tps < eps))))) ;
+            Hpj = cat(1, Hpj_neg, Hpj_pos) ;        
+        else
+            error(['Could not recognize cumsum/cumprod toggle: ', cumsum_cumprod])
+        end
 
         % Plot all three
         plot(tps, dpj, '.-', 'Color', QS.plotting.colors(1, :))
@@ -43,10 +66,17 @@ if ~exist(fn, 'file') || ~exist(fn_withH, 'file') || overwrite
             % Title and labels
             sgtitle([titleLobeBase, avgString], ...
                 'Interpreter', 'Latex')
-            legend({'$\Pi(1+\nabla\cdot\mathbf{v}_\parallel)$', ...
-                '$\Pi(1+v_n 2H)$', ...
-                '$\Pi(1+\frac{1}{2}\mathrm{Tr}\left[g^{-1} \dot{g} \right])$'}, ...
-                'Interpreter', 'Latex', 'location', 'eastOutside')  
+            if strcmpi(cumsum_cumprod, 'cumsum')
+                legend({'$\int$d$t\, \nabla\cdot\mathbf{v}_\parallel$', ...
+                    '$\int$d$t\, v_n 2H$', ...
+                    '$\int$d$t\, \frac{1}{2}\mathrm{Tr}\left[g^{-1} \dot{g} \right]$'}, ...
+                    'Interpreter', 'Latex', 'location', 'eastOutside')  
+            elseif strcmpi(cumsum_cumprod, 'cumprod')
+                legend({'$\Pi(1+\nabla\cdot\mathbf{v}_\parallel)$', ...
+                    '$\Pi(1+v_n 2H)$', ...
+                    '$\Pi(1+\frac{1}{2}\mathrm{Tr}\left[g^{-1} \dot{g} \right])$'}, ...
+                    'Interpreter', 'Latex', 'location', 'eastOutside')  
+            end
             drawnow
             pos = get(gca, 'position') ;
         elseif jj == length(lobes)
@@ -65,23 +95,23 @@ if ~exist(fn, 'file') || ~exist(fn_withH, 'file') || overwrite
         set(gca, 'position', [pos2(1) pos2(2) pos(3) pos2(4)])
         ylim([ymin, ymax])
 
-        % Mark wherever the divv<0 and also vn2H<0
-        dvj = mean(divv(:, lobes{jj}), 2) ;
-        Hvj = mean(H2vn(:, lobes{jj}), 2) ;
-        dvpos = dvj > 0 ;
-        Hvpos = Hvj > 0 ;
-        scatter(tps(dvpos), ...
-            (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
-            'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-            'markerFaceColor', QS.plotting.colors(1, :), ...
-            'HandleVisibility', 'off')
-        hold on;
-        scatter(tps(Hvpos), ...
-            ymin * ones(size(tps(Hvpos))), 5,  ...
-            'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-            'markerFaceColor', QS.plotting.colors(2, :), ...
-            'HandleVisibility', 'off')
-        ylim([ymin-0.1*(ymax-ymin), ymax])
+        % % Mark wherever the divv<0 and also vn2H<0
+        % dvj = mean(divv(:, lobes{jj}), 2) ;
+        % Hvj = mean(H2vn(:, lobes{jj}), 2) ;
+        % dvpos = dvj > 0 ;
+        % Hvpos = Hvj > 0 ;
+        % scatter(tps(dvpos), ...
+        %     (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
+        %     'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
+        %     'markerFaceColor', QS.plotting.colors(1, :), ...
+        %     'HandleVisibility', 'off')
+        % hold on;
+        % scatter(tps(Hvpos), ...
+        %     ymin * ones(size(tps(Hvpos))), 5,  ...
+        %     'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
+        %     'markerFaceColor', QS.plotting.colors(2, :), ...
+        %     'HandleVisibility', 'off')
+        % ylim([ymin-0.1*(ymax-ymin), ymax])
     end
 
     % Save figure

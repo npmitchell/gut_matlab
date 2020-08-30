@@ -21,9 +21,27 @@ AA = eq - 0.5 * tr * gq ;
 dev = sqrt(trace(inv(gq) * (AA * (inv(gq) * AA)))) ;
 
 %% angle of elongation -- first take eigvectors
-[evec_dev, evals_dev] = eig(0.5 * (inv(gq) * AA + AA * inv(gq))) ;
-[evals_dev, idx] = sort(diag(evals_dev)) ;
+[evec_dev, evals_dev] = eig( inv(gq) * AA ) ;
+% [evec_dev, evals_dev] = eig( AA * inv(gq) ) ;
+[~, idx] = sort(diag(evals_dev)) ;
 evec_dev = evec_dev(:, idx) ;
 pevec = evec_dev(:, end) ;
 theta = atan2(pevec(2), pevec(1)) ;
+
+%% Test
+% eq = [0., 0.1; 0.1, 0.] ;
+% gq = [1, 0; 0, 2] ;
+% tr = trace(inv(gq) * (eq)) ;
+% % deviatoric component -- 
+% % || epsilon - 1/2 Tr[g^{-1} epsilon] g|| = sqrt(Tr[A A^T]),
+% % where A = epsilon - 1/2 Tr[g^{-1} epsilon] g.
+% AA = eq - 0.5 * tr * gq ;
+% dev = sqrt(trace(inv(gq) * (AA * (inv(gq) * AA)))) ;
+% % angle of elongation -- first take eigvectors
+% [evec_dev, evals_dev] = eig( AA * inv(gq) ) ;
+% [~, idx] = sort(diag(evals_dev)) ;
+% evec_dev = evec_dev(:, idx) ;
+% pevec = evec_dev(:, end) ;
+% theta = atan2(pevec(2), pevec(1)) ;
+
 

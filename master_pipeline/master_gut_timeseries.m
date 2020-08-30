@@ -1432,13 +1432,19 @@ options.preview = true ;
 options.debug = false ; 
 QS.measurePullbackPathlines(options)
 %% Query velocities along pathlines
+options = struct() ;
+options.overwrite = false ;
+options.preview = true ;
 QS.measurePathlineVelocities(options)
 %% plot the pathline velocities 
+options = struct() ;
+options.overwrite = false ;
+options.gridTopology = 'triangulated' ;
 QS.plotPathlineVelocities(options)
 
 %% Measure Pathline Kinematics
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;
 options.lambda_err = 0.01 ;
@@ -1446,7 +1452,6 @@ QS.measurePathlineMetricKinematics(options)
 %% Plot Pathline Kinematics
 options = struct() ;
 options.overwrite = true ;
-options.plot_kymographs_pathlines = false ;
 options.plot_kymographs = false ;
 options.plot_kymographs_cumsum = false ;
 options.plot_kymographs_cumprod = false ;
@@ -1480,7 +1485,7 @@ QS.measureMetricStrainRate(options)
 %% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
 options = struct() ;
 options.overwrite = true ;
-options.overwriteImages = false ;
+options.overwriteImages = true ;
 options.preview = false ;
 options.lambda_mesh = 0.002 ;
 options.lambda = 0.01 ;

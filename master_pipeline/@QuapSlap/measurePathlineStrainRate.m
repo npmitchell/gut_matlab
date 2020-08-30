@@ -142,8 +142,14 @@ end
 % Data for kinematics on meshes (defined on vertices)
 mdatdir = fullfile(sKDir, 'measurements') ;
 
-% Load Lx, Ly by loadingPIV
+% Load Lx, Ly by loadingPIV. 
 QS.loadPIV()
+Xpiv = QS.piv.raw.x ;
+Ypiv = QS.piv.raw.y ;
+
+% Also need velocities to advect mesh
+% QS.loadVelocityAverage('vv')
+% vPIV = QS.velocityAverage.vv ;
 
 % Discern if piv measurements are done on a double covering or the meshes
 if strcmp(QS.piv.imCoords(end), 'e')
@@ -229,19 +235,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
                   gpz(qq), gpp(qq)] ;
             
             % traceful component -- 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
-            treps(qq) = trace(inv(gq) * (eq)) ;
-            % deviatoric component -- 
-            % || epsilon - 1/2 Tr[g^{-1} epsilon] g|| = sqrt(Tr[A A^T]),
-            % where A = epsilon - 1/2 Tr[g^{-1} epsilon] g.
-            AA = eq - 0.5 * treps(qq) * gq ;
-            dvtre(qq) = sqrt(trace(inv(gq) * (AA * (inv(gq) * AA)))) ;
-            
-            %% angle of elongation -- first take eigvectors
-            [evec_dev, evals_dev] = eig(AA) ;
-            [evals_dev, idx] = sort(diag(evals_dev)) ;
-            evec_dev = evec_dev(:, idx) ;
-            pevec = evec_dev(:, end) ;
-            theta(qq) = atan2(pevec(2), pevec(1)) ;
+            [treps(qq), dvtre(qq), theta(qq)] = trace_deviator(eq, gq) ;
         end
         theta = mod(theta, pi) ;
         
@@ -252,8 +246,6 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             % DEBUG
             tp_prev = QS.xp.fileMeta.timePoints(tidx-1) ;
             
-            tmp = load(sprintf(QS.fullFileBase.spcutMeshSmRS, tp_prev)) ;
-            mesh0 = tmp.spcutMeshSmRS ;
             tmp = load(sprintf(QS.fullFileBase.spcutMeshSmRS, tp)) ;
             mesh1 = tmp.spcutMeshSmRS ;
             clearvars tmp
@@ -265,9 +257,70 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             
             % DEBUG
             % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
-            mesh0.u(:, 1) = mesh0.u(:, 1) / max(mesh0.u(:, 1)) * mesh0.ar ;
-            % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
             mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
+            
+            %--------------------------------------------------------------------------
+            % Find where mesh1.u would be at previous timepoint by tracing
+            % back along the flow. 
+            % If we want to define a transformation between the frame of time point 1
+            % and into the frame of time point 1 that ends up recapitulating the mesh
+            % at time point 1, we must ask "Where were the vertices of the mesh at time
+            % point 1 back during time point 0?".  We COULD extract this information
+            % using the motion of the material points, but it would be more accurate to
+            % use the PIV fields from which the material points were built.
+            % The PIV consists of velocities vPIV and evaluation positions (Xpiv,Ypiv).
+            %--------------------------------------------------------------------------
+
+            % qq is the previous timepoint
+            qq = tidx-1 ;
+
+            % The 'inverse map' 
+            % 1. Interpolate velocities of time t=0 at their advected 
+            %    locations in t=1. 
+            %
+            %   .---->*     .<----*
+            %     qq=.       qq+1=*
+            % 
+            %    Since the advected x0+u_qq,y0+v_qq are spatially unstructured, we
+            %    interpolate t=0 velocity at the advected positions,
+            %    ie what velocities took XY0 to XY1, evaluate the velocities 
+            %    that pushed to the next positions AT the next positions XY1,
+            %    and pull back XY1 along those velocities to get displaced coordinates 
+            %    DXY0 which will land on XY1 when moved along t0's flow.
+            %
+            uu = QS.piv.raw.u_filtered{qq} ;
+            vv = QS.piv.raw.v_filtered{qq} ;
+
+            % Load Lx, Ly for t=1, which are the extents of the domain (needed for
+            % periodic boundary consitions and to keep all the points in the domain of
+            % interpolation). 
+            x01 = Xpiv(:) + uu(:) ;
+            y01 = Ypiv(:) + vv(:) ;
+            [xa, ya] = QS.clipXY(x01, y01, Lx, Ly) ;
+            
+            ui = scatteredInterpolant(xa, ya, uu(:), 'natural', 'nearest') ;
+            vi = scatteredInterpolant(xa, ya, vv(:), 'natural', 'nearest') ;
+
+            % 2. Evaluate at mesh1 vertices to pull them back along velocity to t=0.
+            dx = ui(mesh1.u(:, 1), mesh1.u(:, 2)) ;
+            dy = vi(mesh1.u(:, 1), mesh1.u(:, 2)) ;
+
+            % 3. Pull mesh vertices back to t=0
+            Xqq = mesh1.u(:, 1) - dx(:) ;
+            Yqq = mesh1.u(:, 2) - dy(:) ;
+
+            % The locations of the rectilinear vertices at time 0
+            % 'Deformed Vertices from t1 at t0'
+            DXY10 = [Xqq, Yqq ] ;
+
+            clf
+            scatter(x01(:), y01(:), 1, uu(:), 'filled');
+            hold on;
+            quiver(Xqq, Yqq, dx(:), dy(:), 0, 'c')
+            triplot(triangulation(F1, DXY10));
+            axis equal
+
+            
 
             % Construct the Jacobian matrix on each mesh face
             % J01 = jacobian2Dto2DMesh(mesh1.u, mesh0.u, mesh1.f) ;

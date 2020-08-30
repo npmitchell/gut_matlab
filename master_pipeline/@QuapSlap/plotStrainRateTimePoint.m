@@ -382,7 +382,7 @@ if (~exist(fn, 'file') || overwrite) && debug
 
 
     % Panel 1
-    subplot(1, 2, 1)
+    subplot(1, 2, 1) ;
     trisurf(cutMesh.f, ...
         cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
@@ -396,7 +396,7 @@ if (~exist(fn, 'file') || overwrite) && debug
     view(2)
 
     % Panel 2 
-    subplot(1, 2, 2)
+    subplot(1, 2, 2) ;
     % Comparison 1/2 * Tr[g^{-1}gdot]
     trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...

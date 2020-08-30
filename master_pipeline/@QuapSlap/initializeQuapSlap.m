@@ -85,11 +85,11 @@ QS.dir.metricKinematics.measurements = ...
     'lambda%0.03f_lerr%0.3f_lmesh%0.3f', 'measurements') ;
 QS.fullFileBase.metricKinematics = struct() ;
 QS.fullFileBase.metricKinematics.divv = ...
-    fullfile(QS.dir.metricKinematics.measurements, 'divv_series_%06d') ;
+    fullfile(QS.dir.metricKinematics.measurements, 'divv_vertices_%06d') ;
 QS.fullFileBase.metricKinematics.H2vn = ...
-    fullfile(QS.dir.metricKinematics.measurements, 'H2vn_series_%06d') ;
+    fullfile(QS.dir.metricKinematics.measurements, 'H2vn_vertices_%06d') ;
 QS.fullFileBase.metricKinematics.gdot = ...
-    fullfile(QS.dir.metricKinematics.measurements, 'gdot_series_%06d') ;
+    fullfile(QS.dir.metricKinematics.measurements, 'gdot_vertices_%06d') ;
 
 % Metric Kinematics along pathlines
 QS.dir.metricKinematics.pathline = struct() ;
@@ -389,6 +389,7 @@ QS.dir.pathlines.v3d = fullfile(QS.dir.pathlines.data, 'images_v3d') ;
 QS.dir.pathlines.f3d = fullfile(QS.dir.pathlines.data, 'images_f3d') ;
 QS.fileName.pathlines = struct() ;
 pdir = QS.dir.pathlines.data ;
+QS.fileName.pathlines.featureIDs = fullfile(pdir, 'featureIDs.mat') ;
 QS.fileName.pathlines.XY = fullfile(pdir, 'piv_pathlines_XY.mat') ;
 QS.fileName.pathlines.XYZ = fullfile(pdir, 'piv_pathlines_XYZ.mat') ;
 QS.fileName.pathlines.vXY = fullfile(pdir, 'piv_pathlines_vXY.mat') ;

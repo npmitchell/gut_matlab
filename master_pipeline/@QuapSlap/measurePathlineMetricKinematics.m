@@ -41,6 +41,8 @@ climit_H = climit * 2 ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
 averagingStyle = "Lagrangian" ;
+QS.t0set() ;
+t0Pathline = QS.t0 ;
 
 %% Unpack options & assign defaults
 if nargin < 2
@@ -97,6 +99,9 @@ end
 if isfield(options, 'plot_gdot_decomp')
     plot_gdot_decomp = options.plot_gdot_decomp ;
 end
+if isfield(options, 't0Pathline')
+    t0Pathline = options.t0Pathline ;
+end
 
 %% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
 if strcmp(samplingResolution, '1x') || strcmp(samplingResolution, 'single')
@@ -115,7 +120,7 @@ xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 if strcmp(averagingStyle, 'Lagrangian')
-    mKDir = fullfile(QS.dir.metricKinematics, ...
+    mKDir = fullfile(QS.dir.metricKinematics.root, ...
         strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
         lambda, lambda_err, lambda_mesh), '.', 'p'));
 else
@@ -123,15 +128,6 @@ else
         strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
         lambda, lambda_err, lambda_mesh), '.', 'p'));
 end
-folds = load(QS.fileName.fold) ;
-fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
-
-%% Colormap
-bwr256 = bluewhitered(256) ;
-
-%% Load time offset for first fold, t0
-QS.t0set() ;
-tfold = QS.t0 ;
 
 %% load from QS
 if doubleResolution
@@ -142,9 +138,6 @@ else
     nV = QS.nV ;    
 end
 
-% We relate the normal velocities to the divergence / 2 * H.
-tps = QS.xp.fileMeta.timePoints(1:end-1) - tfold;
-
 %% Build timepoint list so that we first do every 10, then fill in details
 lastIdx = length(QS.xp.fileMeta.timePoints) - 1 ;
 coarseIdx = 1:10:lastIdx ;
@@ -152,20 +145,14 @@ fineIdx = setdiff(1:lastIdx, coarseIdx) ;
 allIdx = [80, coarseIdx, fineIdx ] ;
 tp2do = QS.xp.fileMeta.timePoints(allIdx) ;
 
-% Unit definitions for axis labels
-unitstr = [ '[1/' QS.timeUnits ']' ];
-Hunitstr = [ '[1/' QS.spaceUnits ']' ];
-vunitstr = [ '[' QS.spaceUnits '/' QS.timeUnits ']' ];
-
 % DONE WITH PREPARATIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Load pathlines to build Kymographs along pathlines
-t0 = QS.t0set() ;
-QS.loadPullbackPathlines(t0, 'vertexPathlines')
+QS.loadPullbackPathlines(t0Pathline, 'vertexPathlines')
 vP = QS.pathlines.vertices ;
 
 % Output directory is inside metricKinematics dir
-mKPDir = fullfile(mKDir, sprintf('pathline_%04dt0', t0)) ;
+mKPDir = fullfile(mKDir, sprintf('pathline_%04dt0', t0Pathline)) ;
 outdir = fullfile(mKPDir, 'measurements') ;
 if ~exist(outdir, 'dir')
     mkdir(outdir)
@@ -189,22 +176,23 @@ for tp = tp2do
     QS.setTime(tp) ;
     
     % Check for timepoint measurement on disk
-    Hfn = fullfile(outdir, sprintf('HH_series_%06d.mat', tp))   ;
-    efn = fullfile(outdir, sprintf('gdot_series_%06d.mat', tp)) ;
-    dfn = fullfile(outdir, sprintf('divv_series_%06d.mat', tp)) ;
-    nfn = fullfile(outdir, sprintf('veln_series_%06d.mat', tp)) ;
-    H2vnfn = fullfile(outdir, sprintf('H2vn_series_%06d.mat', tp)) ;
+    Hfn = fullfile(outdir, sprintf('HH_pathline%04d_%06d.mat', t0Pathline, tp))   ;
+    efn = fullfile(outdir, sprintf('gdot_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+    dfn = fullfile(outdir, sprintf('divv_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+    nfn = fullfile(outdir, sprintf('veln_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+    H2vnfn = fullfile(outdir, sprintf('H2vn_pathline%04d_%06d.mat', t0Pathline, tp)) ;
     files_missing = ~exist(Hfn, 'file') || ~exist(efn, 'file') || ...
          ~exist(dfn, 'file') || ~exist(nfn, 'file') || ...
           ~exist(H2vnfn, 'file') ;
     
     if overwrite || files_missing
+        disp('Computing pathline metric kinematics...')
         % Load timeseries measurements defined on mesh vertices
-        HfnMesh = fullfile(mdatdir, sprintf('HH_series_%06d.mat', tp))   ;
-        efnMesh = fullfile(mdatdir, sprintf('gdot_series_%06d.mat', tp)) ;
-        dfnMesh = fullfile(mdatdir, sprintf('divv_series_%06d.mat', tp)) ;
-        nfnMesh = fullfile(mdatdir, sprintf('veln_series_%06d.mat', tp)) ;
-        H2vnfnMesh = fullfile(mdatdir, sprintf('H2vn_series_%06d.mat', tp)) ;
+        HfnMesh = fullfile(mdatdir, sprintf('HH_vertices_%06d.mat', tp))   ;
+        efnMesh = fullfile(mdatdir, sprintf('gdot_vertices_%06d.mat', tp)) ;
+        dfnMesh = fullfile(mdatdir, sprintf('divv_vertices_%06d.mat', tp)) ;
+        nfnMesh = fullfile(mdatdir, sprintf('veln_vertices_%06d.mat', tp)) ;
+        H2vnfnMesh = fullfile(mdatdir, sprintf('H2vn_vertices_%06d.mat', tp)) ;
 
         try
             load(HfnMesh, 'HH')
@@ -237,7 +225,7 @@ for tp = tp2do
         veln = QS.interpolateOntoPullbackXY(XY, veln, options) ;
         H2vn = QS.interpolateOntoPullbackXY(XY, H2vn, options) ;
                 
-        % OPTION 1: simply reshape, tracing each XY dot to its t0
+        % OPTION 1: simply reshape, tracing each XY dot to its t0Pathline
         % grid coordinate
         HH = reshape(HH, [nU, nV]) ;
         gdot = reshape(gdot, [nU, nV]) ;
@@ -318,14 +306,14 @@ end
 disp('done with measuring pathline metric kinematics')
 
 %% Combine DV-averaged profiles into kymographs
-apKymoFn = fullfile(datdir, 'apKymographsMetricKinematics.mat') ;
-lKymoFn = fullfile(datdir, 'leftKymographMetricKinematics.mat') ;
-rKymoFn = fullfile(datdir, 'rightKymographMetricKinematics.mat') ;
-dKymoFn = fullfile(datdir, 'dorsalKymographMetricKinematics.mat') ;
-vKymoFn = fullfile(datdir, 'ventralKymographMetricKinematics.mat') ;
+apKymoFn = fullfile(outdir, 'apKymographsMetricKinematics.mat') ;
+lKymoFn = fullfile(outdir, 'leftKymographMetricKinematics.mat') ;
+rKymoFn = fullfile(outdir, 'rightKymographMetricKinematics.mat') ;
+dKymoFn = fullfile(outdir, 'dorsalKymographMetricKinematics.mat') ;
+vKymoFn = fullfile(outdir, 'ventralKymographMetricKinematics.mat') ;
 files_exist = exist(apKymoFn, 'file') && ...
     exist(lKymoFn, 'file') && exist(rKymoFn, 'file') && ...
-    exist(dKymoFn, 'file') && exist(vymoFn, 'file') ;
+    exist(dKymoFn, 'file') && exist(vKymoFn, 'file') ;
 if ~files_exist || overwrite
     for tp = QS.xp.fileMeta.timePoints(1:end-1)
         close all
@@ -333,11 +321,11 @@ if ~files_exist || overwrite
         tidx = QS.xp.tIdx(tp) ;
 
         % Check for timepoint measurement on disk
-        Hfn = fullfile(datdir, sprintf('HH_series_%06d.mat', tp))   ;
-        efn = fullfile(datdir, sprintf('gdot_series_%06d.mat', tp)) ;
-        dfn = fullfile(datdir, sprintf('divv_series_%06d.mat', tp)) ;
-        nfn = fullfile(datdir, sprintf('veln_series_%06d.mat', tp)) ;
-        H2vnfn = fullfile(datdir, sprintf('H2vn_series_%06d.mat', tp)) ;
+        Hfn = fullfile(outdir, sprintf('HH_pathline%04d_%06d.mat', t0Pathline, tp))   ;
+        efn = fullfile(outdir, sprintf('gdot_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+        dfn = fullfile(outdir, sprintf('divv_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+        nfn = fullfile(outdir, sprintf('veln_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+        H2vnfn = fullfile(outdir, sprintf('H2vn_pathline%04d_%06d.mat', t0Pathline, tp)) ;
 
         % Load timeseries measurements
         load(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
@@ -383,6 +371,7 @@ if ~files_exist || overwrite
         H2vn_vM(tidx, :) = H2vn_v ;
     end
     
+    disp('Saving DV-averaged kymograph data')
     % Save the DV-averaged kymographs
     save(apKymoFn, 'HH_apM', 'gdot_apM', 'divv_apM', ...
         'veln_apM', 'H2vn_apM')

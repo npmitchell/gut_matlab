@@ -46,7 +46,7 @@ H3d = sum(mesh.vn .* DEC.laplacian(mesh.v), 2) * 0.5 ;
 H2d = H3d ;
 H2d(nU*(nV-1)+1:(nU*nV)) = H3d(1:nU) ;
 
-% Smooth the velocities in space using gptoolbox
+% Define velocities on the vertices 
 vx = (mean(mesh.v(:, 1)) - mesh.v(:, 1)).^2 ;
 vs = [vx, 0 * ones(size(vx)), 0*vx] ;
 
@@ -100,7 +100,7 @@ hold on;
 plot(checkH, checkH, 'k--') 
 axis equal
 xlabel('Tr$\nabla_i v_j$', 'Interpreter', 'Latex')
-ylabel('Tr$\nabla \cdot \mathbf{v}$', 'Interpreter', 'Latex')
+ylabel('$\nabla \cdot \mathbf{v}$', 'Interpreter', 'Latex')
 
 %% Check Mean curvature
 clim = max(max(abs(checkH)), 2 * max(abs(Hf))) ;
