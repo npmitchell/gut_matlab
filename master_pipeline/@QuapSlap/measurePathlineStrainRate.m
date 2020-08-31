@@ -174,7 +174,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
         % Load timeseries measurements defined on mesh vertices 
         srfnMesh = fullfile(mdatdir, sprintf('strainRate_%06d.mat', tp)) ;
         try
-            load(srfnMesh, 'strainrate_vtx', 'gg_vtx') 
+            load(srfnMesh, 'strainrate_vtx', 'gg_vtx', 'dx_vtx', 'dy_vtx') 
         catch
             msg = 'Run QS.measurePathlineStrainRate() ' ;
             msg = [msg 'with lambdas=(mesh,lambda,err)=('] ;
@@ -184,7 +184,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
                     'QS.measurePathlineStrainRate()'] ;
             error(msg)
         end
-        % Interpolate from vertices onto pathlines
+        %% Interpolate StrainRate from vertices onto pathlines
         xx = vP.vX(tidx, :, :) ;
         yy = vP.vY(tidx, :, :) ;
         XY = [xx(:), yy(:)] ;
@@ -207,10 +207,9 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
         ezz = QS.interpolateOntoPullbackXY(XY, exx, options) ;
         ezp = QS.interpolateOntoPullbackXY(XY, exy, options) ;
         epz = QS.interpolateOntoPullbackXY(XY, eyx, options) ;
+        assert(all(ezp == epz))
         epp = QS.interpolateOntoPullbackXY(XY, eyy, options) ;
         strainrate = [ezz, ezp, epz, epp] ;
-        % DEBUG
-        % strainrate = [0 * ezz, ones(size(ezp)), ones(size(epz)), 0*epp] ;
         
         % Metric from vertices to pathlines
         gxx = gg_vtx(:, 1) ;
@@ -225,19 +224,29 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
         gzp = QS.interpolateOntoPullbackXY(XY, gxy, options) ;
         gpz = QS.interpolateOntoPullbackXY(XY, gyx, options) ;
         gpp = QS.interpolateOntoPullbackXY(XY, gyy, options) ;
+        assert(all(gzp == gpz))
         gg = [gzz, gzp, gpz, gpp] ;
         
+        % dx and dy scalings
+        dx = dx_vtx ;
+        dy = dy_vtx ;
+        dx(nU*(nV-1)+1:nU*nV) = dx(1:nU) ;
+        dy(nU*(nV-1)+1:nU*nV) = dy(1:nU) ;
+        dz = QS.interpolateOntoPullbackXY(XY, dx, options) ;
+        dp = QS.interpolateOntoPullbackXY(XY, dy, options) ;
+        
+        %% Compute the strain rate trace and deviator at the pathlines
         for qq = 1:size(exx, 1)
-            %% Traceful dilation
             eq = [ezz(qq), ezp(qq); ...
                   epz(qq), epp(qq)] ;
             gq = [gzz(qq), gzp(qq); ...
                   gpz(qq), gpp(qq)] ;
             
-            % traceful component -- 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
-            [treps(qq), dvtre(qq), theta(qq)] = trace_deviator(eq, gq) ;
+            % traceful component is 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
+            % deviatoric component is eps - 1/2 (traceful component) g
+            [tre(qq), dev(qq), theta(qq)] = ...
+                traceDeviatorPullback(eq, gq, dz(qq), dp(qq)) ;
         end
-        theta = mod(theta, pi) ;
         
         %% Accumulate strain rate into STRAIN        
         % Transform the previous strain rate into current basis
@@ -253,7 +262,6 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             % Time increment
             % DEBUG
             dt = QS.timeInterval * (tp_prev - tp) ;
-            % dt = 1 
             
             % DEBUG
             % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
@@ -270,7 +278,6 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             % use the PIV fields from which the material points were built.
             % The PIV consists of velocities vPIV and evaluation positions (Xpiv,Ypiv).
             %--------------------------------------------------------------------------
-
             % qq is the previous timepoint
             qq = tidx-1 ;
 
@@ -294,17 +301,17 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             % Load Lx, Ly for t=1, which are the extents of the domain (needed for
             % periodic boundary consitions and to keep all the points in the domain of
             % interpolation). 
-            x01 = Xpiv(:) + uu(:) ;
-            y01 = Ypiv(:) + vv(:) ;
+            x01 = Xpiv{tidx}(:) + uu(:) ;
+            y01 = Ypiv{tidx}(:) + vv(:) ;
             [xa, ya] = QS.clipXY(x01, y01, Lx, Ly) ;
             
             ui = scatteredInterpolant(xa, ya, uu(:), 'natural', 'nearest') ;
             vi = scatteredInterpolant(xa, ya, vv(:), 'natural', 'nearest') ;
-
+            
             % 2. Evaluate at mesh1 vertices to pull them back along velocity to t=0.
             dx = ui(mesh1.u(:, 1), mesh1.u(:, 2)) ;
             dy = vi(mesh1.u(:, 1), mesh1.u(:, 2)) ;
-
+            
             % 3. Pull mesh vertices back to t=0
             Xqq = mesh1.u(:, 1) - dx(:) ;
             Yqq = mesh1.u(:, 2) - dy(:) ;
@@ -313,19 +320,20 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             % 'Deformed Vertices from t1 at t0'
             DXY10 = [Xqq, Yqq ] ;
 
-            clf
-            scatter(x01(:), y01(:), 1, uu(:), 'filled');
-            hold on;
-            quiver(Xqq, Yqq, dx(:), dy(:), 0, 'c')
-            triplot(triangulation(F1, DXY10));
-            axis equal
-
-            
+            % Check the deformed mesh that will advect into the gridded
+            % mesh at t+1
+            % clf
+            % scatter(x01(:), y01(:), 1, uu(:), 'filled');
+            % hold on;
+            % quiver(Xqq, Yqq, dx(:), dy(:), 0, 'c')
+            % triplot(triangulation(F1, DXY10));
+            % axis equal            
 
             % Construct the Jacobian matrix on each mesh face
             % J01 = jacobian2Dto2DMesh(mesh1.u, mesh0.u, mesh1.f) ;
             J10 = jacobian2Dto2DMesh(mesh0.u, mesh1.u, F);
-            
+
+            %% ------------------------------------------------------------
             % Find which jacobians to use for each pathline point
             tri = triangulation(mesh1.f, mesh1.u) ;
             umax = max(mesh1.u(:, 1)) ;
@@ -333,8 +341,9 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             if strcmp(QS.piv.imCoords, 'sp_sme')
                 im = imfinfo(sprintf(QS.fullFileBase.im_sp_sme, tp)) ;
                 im = [im.Height, im.Width] ;
-                % todo: check that dimensions are in correct order in the 
-                %   above line.
+                if im(1) ~= im(2)
+                    error('check that dimensions are in correct order here')
+                end
             else
                 error('Handle this case for imCoords here')
             end
@@ -346,24 +355,28 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             assert(all(min(fieldfaces) > 0))
             assert(length(fieldfaces) == length(ezz))
             
+            %% ------------------------------------------------------------------------
+            % Consider each pathline, add the strainRate * dt to the
+            % accumulated strain from previous timepoint, which is called 
+            % strain0. 
             % Accumulate the strain via implicit Euler (backward Euler
             % scheme)
             % Transform as a (0,2)-tensor (NOTICE THE MATRIX INVERSES)
-            for qq = 1:size(ezz,1)
+            for qq = 1:size(fieldfaces,1)
                 strain0 = [strain(qq, 1), strain(qq, 2); ...
                            strain(qq, 3), strain(qq, 4)] ;
                 
-                strainrate = [ezz(qq), ezp(qq); epz(qq), epp(qq)] ;
+                strainrateP = [ezz(qq), ezp(qq); epz(qq), epp(qq)] ;
                 try
                     J01f = J01{fieldfaces(qq)} ;
                     strainM{qq} = inv(J01f) * strain0 * (inv(J01f).') + ...
-                        dt * strainrate ;
+                        dt * strainrateP ;
                 catch
                     error('Ensure that all uv lie in the mesh.u')
                 end
             end
             
-            % Convert from cell (needed for face Jacobians) to array
+            % Convert strain from cell (needed for face Jacobians) to array
             for qq = 1:size(ezz, 1)
                 strain(qq, 1) = strainM{qq}(1, 1) ;
                 strain(qq, 2) = strainM{qq}(1, 2) ;
@@ -376,57 +389,50 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             mesh1 = tmp.spcutMeshSmRS ;
             clearvars tmp
             
-            % DEBUG
             % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
             mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
             
             dt = QS.timeInterval ;
+            % Note: strainrate is already interpolated onto pathlines
             strain = dt * strainrate ;
         end
         
         %% Trace/Determinant of strain 
         strain_tr = zeros(size(strain, 1), 1) ;
         strain_dv = zeros(size(strain, 1), 1) ;
-        strain_theta = zeros(size(strain, 1), 1) ;
+        strain_th = zeros(size(strain, 1), 1) ;
         for qq = 1:size(strain, 1)
             eq = [strain(qq, 1), strain(qq, 2); ...
                   strain(qq, 3), strain(qq, 4)] ;
-            % DEBUG
             gq = [gzz(qq), gzp(qq); ...
                   gpz(qq), gpp(qq)] ;
-            % gq = [1, 0; ...
-            %       0, 1] ;
-            [strain_tr(qq), strain_dv(qq), ...
-                strain_theta(qq)] = trace_deviator(eq, gq);
+            [strain_tr(qq), strain_dv(qq), strain_th(qq)] = ...
+                traceDeviatorPullback(eq, gq, dz(qq), dp(qq));
         end
-        strain_theta = mod(strain_theta, pi) ;
-        % DEBUG
-        % gq = [gzz(qq), gzp(qq); ...
-        %       gpz(qq), gpp(qq)] ;
         
         %% CHECK integration 
         if debug
-            % Map intensity from dvtre and color from the theta
+            % Map intensity from dev and color from the theta
             close all
             pm256 = phasemap(256) ;
-            indx = max(1, round(mod(2*strain_theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
+            indx = max(1, round(mod(2*strain_th(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
             colors = pm256(indx, :) ;
-            dvtreKclipped = min(strain_dv / 0.1, 1) ;
-            colorsM = dvtreKclipped(:) .* colors ;
+            devKclipped = min(strain_dv / 0.1, 1) ;
+            colorsM = devKclipped(:) .* colors ;
             colorsM = reshape(colorsM, [nU, nV, 3]) ;
             imagesc(1:nU, 1:nV, permute(colorsM, [2, 1, 3]))
             caxis([0, 0.1])
             pause(1)
         end
                 
-        %% OPTION 1: simply reshape, tracing each XY dot to its t0
+        %% OPTION 1: simply reshape, tracing each XY pathline pt to its t0
         % % grid coordinate
-        treps = reshape(treps, [nU, nV]) ;
-        dvtre = reshape(dvtre, [nU, nV]) ;
+        tre = reshape(tre, [nU, nV]) ;
+        dev = reshape(dev, [nU, nV]) ;
         theta = reshape(theta, [nU, nV]) ;
         strain_tr = reshape(strain_tr, [nU, nV]) ;
         strain_dv = reshape(strain_dv, [nU, nV]) ;
-        strain_theta = reshape(strain_theta, [nU, nV]) ;
+        strain_th = reshape(strain_th, [nU, nV]) ;
         
         %% OPTION 2: the following regrids onto original XY coordinates,
         % rendering the process of following pathlines moot. 
@@ -444,11 +450,11 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
         % veln = binData2dGrid([XY, veln], [1,Lx], vminmax, nU, nV) ;
         % H2vn = binData2dGrid([XY, H2vn], [1,Lx], vminmax, nU, nV) ;
         
-        %% Average strainRATE along DV 
+        %% Average strainRATE along pathline DV hoops
         % Average along DV -- ignore last redudant row at nV
-        [dvtre_ap, theta_ap] = ...
-            QS.dvAverageNematic(dvtre(:, 1:nV-1), theta(:, 1:nV-1)) ;
-        treps_ap = mean(treps(:, 1:nV-1), 2) ;
+        [dev_ap, theta_ap] = ...
+            QS.dvAverageNematic(dev(:, 1:nV-1), theta(:, 1:nV-1)) ;
+        tre_ap = mean(tre(:, 1:nV-1), 2) ;
         
         % quarter bounds
         q0 = round(nV * 0.125) ;
@@ -461,29 +467,29 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
         dorsal = [q3:nV, 1:q1] ;
         
         % left quarter
-        [dvtre_l, theta_l] = ...
-            QS.dvAverageNematic(dvtre(:, left), theta(:, left)) ;
-        treps_l = mean(treps(:, left), 2) ;
+        [dev_l, theta_l] = ...
+            QS.dvAverageNematic(dev(:, left), theta(:, left)) ;
+        tre_l = mean(tre(:, left), 2) ;
         
         % right quarter
-        [dvtre_r, theta_r] = ...
-            QS.dvAverageNematic(dvtre(:, right), theta(:, right)) ;
-        treps_r = mean(treps(:, right), 2) ;
+        [dev_r, theta_r] = ...
+            QS.dvAverageNematic(dev(:, right), theta(:, right)) ;
+        tre_r = mean(tre(:, right), 2) ;
         
         % dorsal quarter
-        [dvtre_d, theta_d] = ...
-            QS.dvAverageNematic(dvtre(:, dorsal), theta(:, dorsal)) ;
-        treps_d = mean(treps(:, dorsal), 2) ;
+        [dev_d, theta_d] = ...
+            QS.dvAverageNematic(dev(:, dorsal), theta(:, dorsal)) ;
+        tre_d = mean(tre(:, dorsal), 2) ;
         
         % ventral quarter
-        [dvtre_v, theta_v] = ...
-            QS.dvAverageNematic(dvtre(:, ventral), theta(:, ventral)) ;
-        treps_v = mean(treps(:, ventral), 2) ;
+        [dev_v, theta_v] = ...
+            QS.dvAverageNematic(dev(:, ventral), theta(:, ventral)) ;
+        tre_v = mean(tre(:, ventral), 2) ;
         
         %% Average STRAIN (accumulated strain) along DV 
         % Average along DV -- ignore last redudant row at nV
-        [strain_dv_ap, strain_theta_ap] = ...
-            QS.dvAverageNematic(strain_dv(:, 1:nV-1), strain_theta(:, 1:nV-1)) ;
+        [strain_dv_ap, strain_th_ap] = ...
+            QS.dvAverageNematic(strain_dv(:, 1:nV-1), strain_th(:, 1:nV-1)) ;
         strain_tr_ap = mean(strain_tr(:, 1:nV-1), 2) ;
         
         % quarter bounds
@@ -497,66 +503,66 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
         dorsal = [q3:nV, 1:q1] ;
         
         % left quarter
-        [strain_dv_l, strain_theta_l] = ...
-            QS.dvAverageNematic(strain_dv(:, left), strain_theta(:, left)) ;
+        [strain_dv_l, strain_th_l] = ...
+            QS.dvAverageNematic(strain_dv(:, left), strain_th(:, left)) ;
         strain_tr_l = mean(strain_tr(:, left), 2) ;
         % right quarter
-        [strain_dv_r, strain_theta_r] = ...
-            QS.dvAverageNematic(strain_dv(:, right), strain_theta(:, right)) ;
+        [strain_dv_r, strain_th_r] = ...
+            QS.dvAverageNematic(strain_dv(:, right), strain_th(:, right)) ;
         strain_tr_r = mean(strain_tr(:, right), 2) ;
         % dorsal quarter
-        [strain_dv_d, strain_theta_d] = ...
-            QS.dvAverageNematic(strain_dv(:, dorsal), strain_theta(:, dorsal)) ;
+        [strain_dv_d, strain_th_d] = ...
+            QS.dvAverageNematic(strain_dv(:, dorsal), strain_th(:, dorsal)) ;
         strain_tr_d = mean(strain_tr(:, dorsal), 2) ;
         % ventral quarter
-        [strain_dv_v, strain_theta_v] = ...
-            QS.dvAverageNematic(strain_dv(:, ventral), strain_theta(:, ventral)) ;
+        [strain_dv_v, strain_th_v] = ...
+            QS.dvAverageNematic(strain_dv(:, ventral), strain_th(:, ventral)) ;
         strain_tr_v = mean(strain_tr(:, ventral), 2) ;
         
         %% Check result
         if debug
             close all
-            scatter(1:nU, strain_theta_ap, 20 * strain_dv_ap / max(strain_dv_ap),...
+            scatter(1:nU, strain_th_ap, 20 * strain_dv_ap / max(strain_dv_ap),...
                 strain_dv_ap, 'filled')
             pause(2)
         end
         
         % save the metric strain
-        readme.strainrate = 'Tr[g^{-1} epsilon], on mesh vertices' ;
+        readme.strainrate = 'strain rate tensor interpolated onto pathlines' ;
         readme.gg = 'metric tensor interpolated onto pathlines' ;
-        readme.treps = 'Tr[g^{-1} epsilon]';
-        readme.dvtre = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) on mesh vertices';
+        readme.tre = 'Tr[g^{-1} epsilon]';
+        readme.dev = 'sqrt( Tr[g^{-1} deviator[epsilon] g^{-1} deviator[epsilon]] ) on mesh vertices';
         readme.theta = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector on mesh vertices';
-        readme.dvtre_ap = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged circumferentially';
-        readme.dvtre_l = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on left quarter, on vertices';
-        readme.dvtre_r = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on right quarter, on vertices';
-        readme.dvtre_d = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on dorsal quarter, on vertices';
-        readme.dvtre_v = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on ventral quarter, on vertices';
+        readme.dev_ap = 'sqrt( Tr[g^{-1} deviator[epsilon] g^{-1} deviator[epsilon]] ) averaged circumferentially';
+        readme.dev_l = 'sqrt( Tr[g^{-1} deviator[epsilon] g^{-1} deviator[epsilon]] ) averaged on left quarter, on vertices';
+        readme.dev_r = 'sqrt( Tr[g^{-1} deviator[epsilon] g^{-1} deviator[epsilon]] ) averaged on right quarter, on vertices';
+        readme.dev_d = 'sqrt( Tr[g^{-1} deviator[epsilon] g^{-1} deviator[epsilon]] ) averaged on dorsal quarter, on vertices';
+        readme.dev_v = 'sqrt( Tr[g^{-1} deviator[epsilon] g^{-1} deviator[epsilon]] ) averaged on ventral quarter, on vertices';
         readme.theta_ap = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged circumferentially, on vertices';
         readme.theta_l = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on left quarter, on vertices';
         readme.theta_r = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on right quarter, on vertices';
         readme.theta_d = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on dorsal quarter, on vertices';
         readme.theta_v = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on ventral quarter, on vertices';
-        readme.treps_ap = 'Tr[g^{-1} epsilon], averaged circumferentially, on vertices';
-        readme.treps_l = 'Tr[g^{-1} epsilon], averaged on left quarter, on vertices';
-        readme.treps_r = 'Tr[g^{-1} epsilon], averaged on right quarter, on vertices';
-        readme.treps_d = 'Tr[g^{-1} epsilon], averaged on dorsal quarter, on vertices';
-        readme.treps_v = 'Tr[g^{-1} epsilon], averaged on ventral quarter, on vertices';
+        readme.tre_ap = 'Tr[g^{-1} epsilon], averaged circumferentially, on vertices';
+        readme.tre_l = 'Tr[g^{-1} epsilon], averaged on left quarter, on vertices';
+        readme.tre_r = 'Tr[g^{-1} epsilon], averaged on right quarter, on vertices';
+        readme.tre_d = 'Tr[g^{-1} epsilon], averaged on dorsal quarter, on vertices';
+        readme.tre_v = 'Tr[g^{-1} epsilon], averaged on ventral quarter, on vertices';
         
         readme.strain = 'integrated strain tensor' ;
         readme.strain_tr = 'integrated strain trace Tr[g^{-1} epsilon]';        
         readme.strain_dv = 'integrated strain deviator magnitude sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) on mesh vertices';
-        readme.strain_theta = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector on mesh vertices';
+        readme.strain_th = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector on mesh vertices';
         readme.strain_dv_ap = 'integrated sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged circumferentially';
         readme.strain_dv_l = 'integrated sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on left quarter, on vertices';
         readme.strain_dv_r = 'integrated sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on right quarter, on vertices';
         readme.strain_dv_d = 'integrated sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on dorsal quarter, on vertices';
         readme.strain_dv_v = 'integrated sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on ventral quarter, on vertices';
-        readme.strain_theta_ap = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged circumferentially, on vertices';
-        readme.strain_theta_l = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on left quarter, on vertices';
-        readme.strain_theta_r = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on right quarter, on vertices';
-        readme.strain_theta_d = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on dorsal quarter, on vertices';
-        readme.strain_theta_v = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on ventral quarter, on vertices';
+        readme.strain_th_ap = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged circumferentially, on vertices';
+        readme.strain_th_l = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on left quarter, on vertices';
+        readme.strain_th_r = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on right quarter, on vertices';
+        readme.strain_th_d = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on dorsal quarter, on vertices';
+        readme.strain_th_v = 'integrated strain deviator angle -- arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on ventral quarter, on vertices';
         readme.strain_tr_ap = 'integrated strain trace Tr[g^{-1} epsilon], averaged circumferentially, on vertices';
         readme.strain_tr_l = 'integrated strain trace Tr[g^{-1} epsilon], averaged on left quarter, on vertices';
         readme.strain_tr_r = 'integrated strain trace Tr[g^{-1} epsilon], averaged on right quarter, on vertices';
@@ -566,28 +572,25 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
         readme.note = 'Evaluated for Lagrangian paths. The pullback space is taken to range from zeta=[0, 1] and phi=[0, 1]' ; 
         disp(['saving ', estrainFn])
         save(estrainFn, 'strainrate', 'gg', 'strain', 'readme', ...
-            'treps', 'dvtre', 'theta', ...
-            'dvtre_ap', 'dvtre_l', 'dvtre_r', 'dvtre_d', 'dvtre_v', ...
+            'tre', 'dev', 'theta', ...
+            'tre_ap', 'tre_l', 'tre_r', 'tre_d', 'tre_v', ...
+            'dev_ap', 'dev_l', 'dev_r', 'dev_d', 'dev_v', ...
             'theta_ap', 'theta_l', 'theta_r', 'theta_d', 'theta_v', ...
-            'treps_ap', 'treps_l', 'treps_r', 'treps_d', 'treps_v', ...
-            'strain_tr', 'strain_dv', 'strain_theta', ...
+            'strain_tr', 'strain_dv', 'strain_th', ...
             'strain_dv_ap', 'strain_dv_l', 'strain_dv_r', ...
             'strain_dv_d', 'strain_dv_v', ...
             'strain_tr_ap', 'strain_tr_l', 'strain_tr_r', ...
             'strain_tr_d', 'strain_tr_v', ...
-            'strain_theta_ap', 'strain_theta_l', 'strain_theta_r', ...
-            'strain_theta_d', 'strain_theta_v')
+            'strain_th_ap', 'strain_th_l', 'strain_th_r', ...
+            'strain_th_d', 'strain_th_v')
     else
         load(estrainFn, 'strain')
         % Load mesh 
         tmp = load(sprintf(QS.fullFileBase.spcutMeshSmRS, tp)) ;
         mesh1 = tmp.spcutMeshSmRS ;
         clearvars tmp
-
-        % DEBUG
         % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
-        % mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
-
+        mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
     end
     
     % Plot the result
@@ -622,67 +625,67 @@ if ~files_exist || true
         srfn = fullfile(outdir, sprintf('strainRate_%06d.mat', tp))   ;
 
         % Load timeseries measurements
-        load(srfn, 'treps_ap', 'treps_l', 'treps_r', 'treps_d', 'treps_v', ...
-            'dvtre_ap', 'dvtre_l', 'dvtre_r', 'dvtre_d', 'dvtre_v', ...
+        load(srfn, 'tre_ap', 'tre_l', 'tre_r', 'tre_d', 'tre_v', ...
+            'dev_ap', 'dev_l', 'dev_r', 'dev_d', 'dev_v', ...
             'theta_ap', 'theta_l', 'theta_r', 'theta_d', 'theta_v', ...
             'strain_tr_ap', 'strain_tr_l', 'strain_tr_r', ...
             'strain_tr_d', 'strain_tr_v', ...
-            'strain_theta_ap', 'strain_theta_l', 'strain_theta_r', ....
-            'strain_theta_d', 'strain_theta_v', ...
+            'strain_th_ap', 'strain_th_l', 'strain_th_r', ....
+            'strain_th_d', 'strain_th_v', ...
             'strain_dv_ap', 'strain_dv_l', 'strain_dv_r', ...
             'strain_dv_d', 'strain_dv_v') ;
 
         %% Store in matrices
         % dv averaged
-        tr_apM(tidx, :) = treps_ap ;
-        dv_apM(tidx, :) = dvtre_ap ;
+        tr_apM(tidx, :) = tre_ap ;
+        dv_apM(tidx, :) = dev_ap ;
         th_apM(tidx, :) = theta_ap ;
 
         % left quarter
-        tr_lM(tidx, :) = treps_l ;
-        dv_lM(tidx, :) = dvtre_l ;
+        tr_lM(tidx, :) = tre_l ;
+        dv_lM(tidx, :) = dev_l ;
         th_lM(tidx, :) = theta_l ;
 
         % right quarter
-        tr_rM(tidx, :) = treps_r ;
-        dv_rM(tidx, :) = dvtre_r ;
+        tr_rM(tidx, :) = tre_r ;
+        dv_rM(tidx, :) = dev_r ;
         th_rM(tidx, :) = theta_r ;
 
         % dorsal quarter
-        tr_dM(tidx, :) = treps_d ;
-        dv_dM(tidx, :) = dvtre_d ;
+        tr_dM(tidx, :) = tre_d ;
+        dv_dM(tidx, :) = dev_d ;
         th_dM(tidx, :) = theta_d ;
 
         % ventral quarter
-        tr_vM(tidx, :) = treps_v ;
-        dv_vM(tidx, :) = dvtre_v ;
+        tr_vM(tidx, :) = tre_v ;
+        dv_vM(tidx, :) = dev_v ;
         th_vM(tidx, :) = theta_v ;
 
         %% Store accumulated strain in matrices
         % dv averaged
         str_apM(tidx, :) = strain_tr_ap ;
         sdv_apM(tidx, :) = strain_dv_ap ;
-        sth_apM(tidx, :) = strain_theta_ap ;
+        sth_apM(tidx, :) = strain_th_ap ;
 
         % left quarter
         str_lM(tidx, :) = strain_tr_l ;
         sdv_lM(tidx, :) = strain_dv_l ;
-        sth_lM(tidx, :) = strain_theta_l ;
+        sth_lM(tidx, :) = strain_th_l ;
 
         % right quarter
         str_rM(tidx, :) = strain_tr_r ;
         sdv_rM(tidx, :) = strain_dv_r ;
-        sth_rM(tidx, :) = strain_theta_r ;
+        sth_rM(tidx, :) = strain_th_r ;
 
         % dorsal quarter
         str_dM(tidx, :) = strain_tr_d ;
         sdv_dM(tidx, :) = strain_dv_d ;
-        sth_dM(tidx, :) = strain_theta_d ;
+        sth_dM(tidx, :) = strain_th_d ;
 
         % ventral quarter
         str_vM(tidx, :) = strain_tr_v ;
         sdv_vM(tidx, :) = strain_dv_v ;
-        sth_vM(tidx, :) = strain_theta_v ;
+        sth_vM(tidx, :) = strain_th_v ;
     end
     
     %% Save kymographs

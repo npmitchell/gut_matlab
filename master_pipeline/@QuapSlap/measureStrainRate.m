@@ -4,9 +4,23 @@ function measureStrainRate(QS, options)
 %   
 % Parameters
 % ----------
-%
+% QS : QuapSlap class object instance
+% options : struct with fields
+%   lambda : float
+%   lambda_mesh : float
+%   overwrite : bool 
+%   overwriteImages : bool
+%   preview : bool 
+%   averagingStyle : str specifier ('Lagrangian' or 'Simple')
+%   samplingResolution : '1x' or '2x'
+%   debug : bool 
+% 
 % Returns 
 % -------
+%
+% Saves to disk
+% -------------
+%
 %
 % NPMitchell 2020
 
@@ -134,19 +148,19 @@ for tp = tp2do
         [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
         vf = V2F * vs ;
         
-        %% Checking -- debug
-        if debug
-            % Obtain mean curvature H for checking against trace(b_ij)
-            DEC = DiscreteExteriorCalculus(mesh.f, mesh.v) ;
-            H3d = sum(mesh.vn .* DEC.laplacian(mesh.v), 2) * 0.5 ;
-            H2d = H3d ;
-            H2d(nU*(nV-1)+1:(nU*nV)) = H3d(1:nU) ;
-
-            Hf = V2F * H3d ;
-            divv = DEC.divergence(vf) ;
-            divf = V2F * divv ;
-            vss = F2V * vf ;
-        end
+        % %% Checking -- debug
+        % if debug
+        %     % Obtain mean curvature H for checking against trace(b_ij)
+        %     DEC = DiscreteExteriorCalculus(mesh.f, mesh.v) ;
+        %     H3d = sum(mesh.vn .* DEC.laplacian(mesh.v), 2) * 0.5 ;
+        %     H2d = H3d ;
+        %     H2d(nU*(nV-1)+1:(nU*nV)) = H3d(1:nU) ;
+        % 
+        %     Hf = V2F * H3d ;
+        %     divv = DEC.divergence(vf) ;
+        %     divf = V2F * divv ;
+        %     vss = F2V * vf ;
+        % end
         
         %% Convert to 2D mesh
         mesh.nU = QS.nU ;
@@ -159,8 +173,15 @@ for tp = tp2do
         % theta : angle of elongation
         srmopts = struct() ;
         srmopts.mesh = mesh ;
+        srmopts.debug = debug ;
+        
+        % Compute strain rate by making cutMesh a triple cover so that no
+        % boundary effects are present. Periodic in Y --> obtain pathPairs
+        % Assumes rectilinear mesh structure.
+        pathPairs = [ (1:nU)', (nV-1)*nU + (1:nU)' ] ;
+        cutMesh.pathPairs = pathPairs ;
         [strainrate, tre, dev, theta, outStruct] = ...
-            strainRateMesh(cutMesh, vf, srmopts) ;
+            strainRatePeriodicMesh(cutMesh, vf, srmopts) ;
         gg = outStruct.fundForms.gg ;
         bb = outStruct.fundForms.bb ;
         dx_faces = outStruct.bondDxDy.dx ;
@@ -333,19 +354,19 @@ for tp = tp2do
             'theta_ap', 'theta_l', 'theta_r', 'theta_d', 'theta_v', ...
             'tre_ap', 'tre_l', 'tre_r', 'tre_d', 'tre_v', ...
             'strainrate_vtx', 'tre_vtx', 'dev_vtx', 'theta_vtx', ...
-            'gg_vtx', 'bb_vtx')
+            'gg_vtx', 'bb_vtx', 'dx_faces', 'dy_faces', 'dx_vtx', 'dy_vtx')
         
         % Save info histogram as debug check
-        clf
-        plot(dev(:) .* cos(theta(:)), dev(:) .* sin(theta(:)), '.')
-        xlabel('deviator$[\varepsilon]_\zeta$', 'interpreter', 'latex')
-        ylabel('deviator$[\varepsilon]_\phi$', 'interpreter', 'latex')  
-        axis equal
-        xlim([-0.1, 0.1])
-        ylim([-0.1, 0.1])
-        saveas(gcf, fullfile(strrep(sprintf( ...
-            QS.dir.strainRate.measurements, lambda, lambda_mesh), '.', 'p'), ...
-            sprintf('strainRate_check_%06d.png', tp)));
+        % clf
+        % plot(dev(:) .* cos(theta(:)), dev(:) .* sin(theta(:)), '.')
+        % xlabel('deviator$[\varepsilon]_\zeta$', 'interpreter', 'latex')
+        % ylabel('deviator$[\varepsilon]_\phi$', 'interpreter', 'latex')  
+        % axis equal
+        % xlim([-0.1, 0.1])
+        % ylim([-0.1, 0.1])
+        % saveas(gcf, fullfile(strrep(sprintf( ...
+        %     QS.dir.strainRate.measurements, lambda, lambda_mesh), '.', 'p'), ...
+        %     sprintf('strainRate_check_%06d.png', tp)));
     else
         % Convert to 2D mesh
         mesh.nU = QS.nU ;

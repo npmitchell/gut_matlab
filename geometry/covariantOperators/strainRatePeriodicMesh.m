@@ -1,5 +1,5 @@
 function [strainrate, tre, dev, theta, outputStruct] = ...
-    strainRateMesh(cutMesh, vf, options)
+    strainRatePeriodicMesh(cutMesh, vf, options)
 %strainRateMesh(cutMesh, vf, options)
 %   Compute strain rate tensor on faces of a mesh given the velocities on
 %   faces, vf. Tiles the mesh before making computations. If tiled mesh is
@@ -17,14 +17,22 @@ function [strainrate, tre, dev, theta, outputStruct] = ...
 %   bondDxDy used to scale the eigenvectors in the theta determination, the
 %   fundamental forms fundForms, and the symmetrized gradient of the
 %   velocities.
+%
+% todo: generalize to tauri and other topologies
 % 
 % Parameters
 % ----------
 % cutMesh : struct with fields 
 %   Rectilinear cutMesh with pullback space u and embedding space v. 
 %   f : #faces x 3 int array
+%       mesh face connectivity list 
 %   v : #vertices x 3 float array
+%       embedding space mesh vertices of the cut mesh
 %   u : #vertices x 2 float array
+%       pullback mesh vertices of the cut mesh
+%   pathPairs : P x 2 int array
+%       path along boundary that is glued together (identified) in the
+%       closed form of the mesh
 % vf : #faces x 3 float array
 %   velocity vectors defined on faces
 % options : optional struct with fields
@@ -37,6 +45,7 @@ function [strainrate, tre, dev, theta, outputStruct] = ...
 %       to the embedded projections (ie push forwards) of unit vectors 
 %       vec{du} and vec{dv} from pullback space into 3D). Default behavior
 %       is to return theta s as angles from the du vector pushed into 3D.
+%   tiledMesh
 %
 % Returns
 % -------
@@ -60,17 +69,13 @@ function [strainrate, tre, dev, theta, outputStruct] = ...
 %
 % See Also
 % --------
-% strainRateMesh -- for periodic boundary conditions / closed meshes
+% strainRateMesh -- for non-periodic boundary conditions / open meshes
 %
 % NPMitchell 2020
 
 %% Default options
 debug = false ;
 mesh = [] ;
-% If pullbackTheta is true, return angles theta in the coordinates
-%   of the pullback space instead of in the embedding space relative
-%   to the embedding-space projection of zeta_hat.
-pullbackTheta = false ;  
 
 %% Unpack options
 if nargin > 2
@@ -80,32 +85,45 @@ if nargin > 2
     if isfield(options, 'mesh')
         mesh = options.mesh ;
     end
-    if isfield(options, 'pullbackTheta')
-        pullbackTheta = options.pullbackTheta ;
-    end
 end
 
+%% Input checks
+try
+    assert(size(vf, 1) == size(cutMesh.f, 1)) 
+catch
+    error('velocity field must be supplied on faces')
+end
+
+%% Tile the mesh and the associated velocity vectors to triple cover
+tileCount = [1, 1] ;
+[ TF, TV2D, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount ) ;
+% The face list should now be 3x the original size
+assert(size(TF, 1) == 3 * size(cutMesh.f, 1)) ;
+% Triple the face velocities
+nF = size(vf, 1) ;         % number of faces == number of velocities
+Tvf = zeros(3 * nF, 3) ;
+Tvf(1:nF, :) = vf ;
+Tvf((nF + 1):(2 * nF), :) = vf ;
+Tvf((2 * nF + 1):(3 * nF), :) = vf ;
+
 %% Decompose velocity into components and compute cov. derivative
-[v0n, v0t] = resolveTangentNormalVector(cutMesh.f, cutMesh.v, vf) ;
-[~, dvi] = vectorCovariantDerivative(v0t, cutMesh.f, cutMesh.v, cutMesh.u) ;
-dvij = cell(size(dvi)) ;
-for qq = 1:length(dvi)
-    dvij{qq} = 0.5 * ( dvi{qq} + dvi{qq}' ) ;
+[v0n, v0t] = resolveTangentNormalVector(TF, TV3D, Tvf) ;
+[~, dvi] = vectorCovariantDerivative(v0t, TF, TV3D, TV2D) ;
+dvij = cell(nF, 1) ;
+for qq = 1:nF
+    idx = nF + qq ;
+    dvij{qq} = 0.5 * ( dvi{idx} + dvi{idx}' ) ;
 end
 
 %% Compute the fundamental forms
-[gg, ~] = constructFundamentalForms(cutMesh.f, cutMesh.v, cutMesh.u) ;
-
-% Use closed mesh (glued seam) to compute the second fundamental form
-if isempty(mesh)
-    mesh = glueCylinderCutMeshSeam(cutMesh) ;
-end
-[~, bb] = constructFundamentalForms(mesh.f, mesh.v, mesh.u) ;
+[gg, ~] = constructFundamentalForms(TF, TV3D, TV2D) ;
+% Use tiled, open mesh (glued seam) to compute the second fundamental form
+[~, bb] = constructFundamentalForms(TF, TV3D, TV2D) ;
 
 %% Strain rate tensor
-strainrate = cell(size(dvi)) ;
-for qq = 1:size(dvi,1)
-    strainrate{qq} = dvij{qq} - v0n(qq) .* bb{qq} ;
+strainrate = cell(nF, 1) ;
+for qq = 1:nF
+    strainrate{qq} = dvij{qq} - v0n(qq + nF) .* bb{qq + nF} ;
 end
 
 %% Find dx and dy -- lengths of projected / lengths of pullback
@@ -122,14 +140,10 @@ for qq = 1:size(strainrate, 1)
     gq = gg{qq} ;
     
     %% Trace / deviator / theta
-    if pullbackTheta
-        [tre(qq), dev(qq), theta(qq)] = trace_deviator(eq, gq) ;
-    else
-        % take angle of deviator to be in embedding space, angle relative
-        % to the embedding-space projection of zeta_hat. 
-        [tre(qq), dev(qq), theta(qq), theta_pb(qq)] = ...
-            traceDeviatorPullback(eq, gq, dx(qq), dy(qq)) ;
-    end
+    % take angle of deviator to be in embedding space, angle relative
+    % to the embedding-space projection of zeta_hat. 
+    [tre(qq), dev(qq), theta(qq), theta_pb(qq)] = ...
+        traceDeviatorPullback(eq, gq, dx(qq), dy(qq)) ;
 end
 % Modulo is not necessary
 % theta = mod(theta, pi) ;

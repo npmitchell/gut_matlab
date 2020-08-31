@@ -36,7 +36,7 @@ function [h1, h2] = scalarFieldOnImage(im, xy_or_fxy, sf, alphaVal, ...
 %       optional title, interpreted through Latex by default
 % varargin : keyword arguments (optional, default='diverging') 
 %   options for the plot, with names
-%   'style' : 'diverging' or 'positive' or 'negative'
+%   'style' : 'phasemap' or 'diverging' or 'positive' or 'negative'
 %   'interpreter' : 'Latex', 'default'/'none'
 % 
 %
@@ -45,6 +45,9 @@ function [h1, h2] = scalarFieldOnImage(im, xy_or_fxy, sf, alphaVal, ...
 % h1 : handle for imshow
 % h2 : handle for imagesc
 %
+% See also
+% --------
+% VECTORFIELDHEATPHASEONIMAGE, SCALARVECTORFIELDSONIMAGE
 %
 % NPMitchell 2020
 
@@ -178,6 +181,11 @@ elseif isa(xy_or_fxy, 'struct')
         cmap = phasemap ;
         colormap phasemap
         colors = mapValueToColor(sf, [0, 2*pi], cmap) ;
+    elseif strcmp(style, 'nematic')
+        % Phasemap style
+        cmap = phasemap ;
+        colormap phasemap
+        colors = mapValueToColor(sf, [0, pi], cmap) ;
     elseif strcmp(style, 'diverging')
         % Diverging style
         if exist('cmap', 'var')
@@ -253,7 +261,7 @@ c = colorbar();
 drawnow
 % Get the color data of the object that correponds to the colorbar
 cdata = c.Face.Texture.CData;
-% Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+% Change the 4th channel (alpha channel) to a fraction of initial value 
 cdata(end,:) = uint8(alphaVal * cdata(end,:));
 % Ensure that the display respects the alpha channel
 c.Face.Texture.ColorType = 'truecoloralpha';

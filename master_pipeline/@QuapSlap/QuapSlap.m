@@ -1346,13 +1346,30 @@ classdef QuapSlap < handle
         %     dx2dX = @ (y, Yscale, xscale) (Yscale * 0.5) * aspect * x / xscale ;
         %     dy2dY = @ (y, Yscale) (Yscale*0.5)*y ;
         % 
-        %     % Now map the coornates
+        %     % Now map the coordinates
         % end
         
         [cutMesh, cutMeshC] = doubleResolution(cutMesh, preview)
         
         function [mag_ap, theta_ap] = dvAverageNematic(magnitude, theta)
+            % Given a nematic field defined on a rectilinear grid, with 
+            % Q(i,j) being in the ith ap position and jth dv position,
+            % average the nematic field over the dv positions (dimension 2)
             % 
+            % Parameters
+            % ----------
+            % magnitude : nU x nV numeric array
+            %   magnitude of nematic field in 2D rectilinear grid
+            % theta : nU x nV float array, with values as angles in radians
+            %   angle (mod pi) of nematic field in 2D rectilinear grid
+            %
+            % Returns
+            % -------
+            % mag_ap : nU x 1 float array
+            %   average magnitude of nematic field along the ap dimension
+            % theta_ap : nU x 1 float array
+            %   average angle (mod pi) of nematic field along the ap 
+            %   dimension
             ap_x = magnitude .* cos(2*theta) ;
             ap_y = magnitude .* sin(2*theta) ;
             ap_xy = [mean(ap_x, 2) , mean(ap_y, 2)] ;

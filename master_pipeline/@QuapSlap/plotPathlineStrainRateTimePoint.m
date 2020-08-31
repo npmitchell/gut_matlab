@@ -94,17 +94,17 @@ end
 
 %% load the metric strain
 % Define metric strain filename        
-if ~isfield(options, 'treps') || ~isfield(options, 'dvtre') || ...
+if ~isfield(options, 'tre') || ~isfield(options, 'dev') || ...
         ~isfield(options, 'theta')
     estrainFn = fullfile(strrep(sprintf(QS.dir.strainRate.pathline.measurements, ...
         lambda, lambda_mesh, t0Pathline), '.', 'p'), ...
         sprintf(QS.fileBase.strainRate, tp)) ;
     disp(['Loading strainrate results from disk: ' estrainFn])
-    load(estrainFn, 'strainrate', 'treps', 'dvtre', 'theta')
-    load(estrainFn, 'strain', 'strain_tr', 'strain_dv', 'strain_theta')
+    load(estrainFn, 'strainrate', 'tre', 'dev', 'theta', ...
+        'strain', 'strain_tr', 'strain_dv', 'strain_th')
 else
-    treps = options.treps ;
-    dvtre = options.dvtre ;
+    tre = options.tre ;
+    dev = options.dev ;
     theta = options.theta ;
 end
 
@@ -181,7 +181,8 @@ close all
 set(gcf, 'visible', 'off')
 imagesc([-1, 0, 1; -1, 0, 1])
 caxis([-1, 1])
-bwr256 = bluewhitered(256) ;
+% bwr256 = bluewhitered(256) ;
+bbr256 = blueblackred(256) ;
 % clf
 % set(gcf, 'visible', 'off')
 % imagesc([-1, 0, 1; -1, 0, 1])
@@ -193,7 +194,7 @@ pm256 = phasemap(256) ;
 %% Plot the metric components on trisurf
 % denom = sqrt(tg(:, 1, 1) .* tg(:, 2, 2)) ;
 % NOTE: \varepsilon --> ${\boldmath${\varepsilon}$}$
-labels = {'$\mathrm{Tr} [\bf{g}^{-1}\varepsilon] $', ...
+labels = {'$\frac{1}{2}\mathrm{Tr} [\bf{g}^{-1}\varepsilon] $', ...
     '$||\varepsilon-\frac{1}{2}$Tr$\left[\mathbf{g}^{-1}\varepsilon\right]\bf{g}||$'} ;
 time_in_units = (tp - t0) * QS.timeInterval ;
 tstr = [': $t=$', sprintf('%03d', time_in_units), QS.timeUnits ];
@@ -209,22 +210,22 @@ if ~exist(fn, 'file') || overwrite
     trisurf(cutMesh.f, ...
         cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
-        'FaceVertexCData', treps(:), 'edgecolor', 'none')
+        'FaceVertexCData', 0.5 * tre(:), 'edgecolor', 'none')
     daspect([1,1,1])
     cb = colorbar('location', 'southOutside') ;
 
     caxis([-clim_trace, clim_trace])
     title(labels{1}, 'Interpreter', 'Latex')   
-    colormap(bwr256)
+    colormap(bbr256)
     axis off
     view(2)
 
     % Panel 2 
     subplot(1, 2, 2)
-    % Intensity from dvtre and color from the theta
+    % Intensity from dev and color from the theta
     indx = max(1, round(mod(2*theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
     colors = pm256(indx, :) ;
-    colors = min(dvtre(:) / clim_deviatoric, 1) .* colors ;
+    colors = min(dev(:) / clim_deviatoric, 1) .* colors ;
     trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
         'FaceVertexCData', colors, 'edgecolor', 'none')
@@ -234,7 +235,7 @@ if ~exist(fn, 'file') || overwrite
     % Colorbar and phasewheel
     colormap(gca, phasemap)
     phasebar('colormap', phasemap, ...
-        'location', [0.82, 0.12, 0.1, 0.135], 'style', 'nematic')
+        'location', [0.82, 0.12, 0.1, 0.135], 'style', 'nematic') ;
     axis off
     view(2)
     ax = gca ;
@@ -244,7 +245,7 @@ if ~exist(fn, 'file') || overwrite
     axpos = get(ax, 'position') ;
     cbpos = get(cb, 'position') ;
     set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3)*0.6, cbpos(4)])
-    set(ax, 'position', axpos) 
+    set(ax, 'position', axpos) ;
     hold on;
     caxis([0, clim_deviatoric])
     colormap(gca, gray)
@@ -268,20 +269,20 @@ if ~exist(fn, 'file') || overwrite
     trisurf(cutMesh.f, ...
         cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
-        'FaceVertexCData', strain_tr(:), 'edgecolor', 'none')
+        'FaceVertexCData', 0.5 * strain_tr(:), 'edgecolor', 'none')
     daspect([1,1,1])
     cb = colorbar('location', 'southOutside') ;
 
     caxis([-clim_strain, clim_strain])
     title(labels{1}, 'Interpreter', 'Latex')   
-    colormap(bwr256)
+    colormap(bbr256)
     axis off
     view(2)
 
     % Panel 2 --> deviator 
     subplot(1, 2, 2)
-    % Intensity from dvtre and color from the theta
-    indx = max(1, round(mod(2*strain_theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
+    % Intensity from dev and color from the theta
+    indx = max(1, round(mod(2*strain_th(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
     colors = pm256(indx, :) ;
     colors = min(strain_dv(:) / clim_strain, 1) .* colors ;
     trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
@@ -293,17 +294,16 @@ if ~exist(fn, 'file') || overwrite
     % Colorbar and phasewheel
     colormap(gca, phasemap)
     phasebar('colormap', phasemap, ...
-        'location', [0.82, 0.12, 0.1, 0.135], 'style', 'nematic')
+        'location', [0.82, 0.12, 0.1, 0.135], 'style', 'nematic') ;
     axis off
     view(2)
     ax = gca ;
-    get(gca, 'position')
     cb = colorbar('location', 'southOutside') ;
     drawnow
     axpos = get(ax, 'position') ;
     cbpos = get(cb, 'position') ;
     set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3)*0.6, cbpos(4)])
-    set(ax, 'position', axpos) 
+    set(ax, 'position', axpos) ;
     hold on;
     caxis([0, clim_strain])
     colormap(gca, gray)
@@ -332,12 +332,12 @@ if ~exist(fn, 'file') || overwrite
     trisurf(cutMesh.f, ...
         cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
-        'FaceVertexCData', treps(:), 'edgecolor', 'none')
+        'FaceVertexCData', 0.5 * tre(:), 'edgecolor', 'none')
     daspect([1,1,1])
     colorbar('location', 'southOutside') ;
     caxis([-clim_trace, clim_trace])
     title(labels{1}, 'Interpreter', 'Latex')   
-    colormap(bwr256)
+    colormap(bbr256)
     axis off
     view(2)
 
@@ -346,17 +346,18 @@ if ~exist(fn, 'file') || overwrite
     % Comparison 1/2 * Tr[g^{-1}gdot]
     trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
-        gdot, 'edgecolor', 'none')
+        0.5 * gdot, 'edgecolor', 'none')
     daspect([1,1,1])
     colorbar('location', 'southOutside') ;
     caxis([-clim_trace, clim_trace])
-    title('$\frac{1}{2}$Tr$[g^{-1}\dot{g}]$', 'Interpreter', 'Latex')   
-    colormap(bwr256)
+    title('$\frac{1}{4}$Tr$[g^{-1}\dot{g}]$', 'Interpreter', 'Latex')   
+    colormap(bbr256)
     axis off
     view(2)
 
     % Save the image
-    sgtitle(['comparison $\frac{1}{2}$Tr$[g^{-1}\dot{g}]$, ', tstr], 'Interpreter', 'latex') 
+    sgtitle(['comparison $\frac{1}{4}$Tr$[g^{-1}\dot{g}]$, ', tstr], ...
+        'Interpreter', 'latex') 
     saveas(gcf, fn) ;
     clf
 end    
@@ -437,12 +438,12 @@ if (~exist(fn, 'file') || overwrite) && debug
     trisurf(cutMesh.f, ...
         cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
-        'FaceVertexCData', treps, 'edgecolor', 'none')
+        'FaceVertexCData', 0.5 * tre(:), 'edgecolor', 'none')
     daspect([1,1,1])
     cb = colorbar('location', 'southOutside') ;
     caxis([-clim_trace, clim_trace])
     title(labels{1}, 'Interpreter', 'Latex')   
-    colormap(bwr256)
+    colormap(bbr256)
     axis off
     view(2)
 
@@ -451,17 +452,17 @@ if (~exist(fn, 'file') || overwrite) && debug
     % Comparison 1/2 * Tr[g^{-1}gdot]
     trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
-        gdot2d(:), 'edgecolor', 'none')
+        0.5 * gdot2d(:), 'edgecolor', 'none')
     daspect([1,1,1])
     colorbar('location', 'southOutside') ;
     caxis([-clim_trace, clim_trace])
-    title('$\frac{1}{2}$Tr$[g^{-1}\dot{g}]$', 'Interpreter', 'Latex')   
-    colormap(bwr256)
+    title('$\frac{1}{4}$Tr$[g^{-1}\dot{g}]$', 'Interpreter', 'Latex')   
+    colormap(bbr256)
     axis off
     view(2)
 
     % Save the image
-    sgtitle(['comparison fresh $\frac{1}{2}$Tr$[g^{-1}\dot{g}]$, ', tstr], 'Interpreter', 'latex') 
+    sgtitle(['comparison fresh $\frac{1}{2}$Tr$[g^{-1}\dot{\varepsilon}]$, ', tstr], 'Interpreter', 'latex') 
     saveas(gcf, fn) ;
     clf
 end

@@ -1,25 +1,36 @@
 function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
     xxv, yyv, vx, vy, options)
 %SCALARVECTORFIELDSONIMAGE(im, xx, yy, vx, vy, options)
-%   Plot both a scalar field (sf) and vector field (vx,vy) on an image im
+%   Plot both a scalar field (sf) and vector field (vx,vy) on an image im. 
+%   Coloring of the overlaid field is given by the vector field phase 
+%   (or nematic order) and intensity is set by scalar field. Optionally,
+%   overlay a quiver plot on the colored image with a desired subsampling
+%   of the velocity field. Fields may be defined on vertices or on faces of
+%   a mesh implied by xxs, yys, together with options.faces. 
 %
 % im : QxRx3 RGB float or int array
 %   the image onto which we overlay the scalar and vector fields.
 %   If not RGB, the image will adopt the current colormap.
-% xx : N x 1 float array
-%   x values of PIV grid evaluation points
-% yy : M x 1 float array
-%   y values of PIV grid evaluation points
-% vx : N*M x 1 float array
-%   velocity in x direction
+% xxs : N x 1 float array
+%   x values of scalar field evaluation points
+% yys : M x 1 float array
+%   y values of scalar field evaluation points
+% sf : N x M float array
+%   scalar field defined at (xxs, yys)
+% xxv : P x 1 float array
+%   x values of vector field evaluation points
+% yyv : Q x 1 float array
+%   y values of vector field evaluation points
+% vx : P*Q x 1 float array
+%   velocity in x direction at (xxv, yyv)
 % vy : N*M x 1 float array
-%   velocity in y direction
-% qopts : struct with fields
+%   velocity in y direction at (xxv, yyv)
+% options : struct with fields 
 %   faces : #faces x 3 (optional, if sf is defined on faces)
 %       connectivity list of vertices xxs,yys if sf is defined on faces
-%   style : str ('diverging' 'phase')
+%   style : str ('diverging' 'phase' 'nematic')
 %       style of overlaid scalar field, default is diverging
-%       If 'phase', use 'options.angle' to pass vector angles.
+%       If 'phase' or 'nematic', use 'options.angle' to pass vector angles.
 %   angle : #faces x 3 (optional, if style == 'phase')
 %       scalar field for phasemap. Note that sf signals opacity if style ==
 %       'phase' and angle will replace sf for color if supplied.
@@ -55,22 +66,44 @@ function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
 % h2 : handle for imagesc
 % h3 : handle for quiverplot
 %
+% Example usage
+% ------------- 
+% % Create example image
+% im = peaks ;
+% [xxs, yys] = meshgrid(1:size(im, 1), 1:size(im, 2)) ;
+% % Create example velocity field on the same field (here xxv=xxs, yyv=yys)
+% vx = im ;
+% vy = reshape(im', size(im)) ;
+% sf = sqrt(vx.^2 + vy.^2) ;        % scalar field is velocity magnitude
+% options.angle = atan2(vy, vx) ;  % polar field
+% % Supply 1d x and y lists
+% xyf.x = xxs(1, :) ;
+% xyf.y = yys(:, 1)' ;
+% options.visibility = 'on' ;
+% options.overlay_quiver = false ;
+%  scalarVectorFieldsOnImage(ones(size(im)), xs, ys, sf, ...
+%     xs, ys, vx(:), vy(:), options)
+%
+% See also
+% --------
+% VECTORFIELDHEATPHASEONIMAGE, 
+% 
 % NPMitchell 2020
 
-
-% Default options
+%% Default options
 labelstr = '' ;
 overlay_quiver = true ;
 qsubsample = 10 ;
 qscale = 10 ;
-sscale = 0 ;
+sscale = max(abs(sf(:))) ;
 alphaVal = 0.8 ;
-style = 'diverging' ;
+style = 'phase' ;  % 'diverging' (scalar), 'nematic', or 'phase' (polar)
 % figure parameters
 figWidth = 16 ; % cm
 figHeight = 10 ; % cm
+visibility = 'off' ;
 
-% Unpack options
+%% Unpack options
 if isfield(options, 'style') 
     style = options.style ;
 end
@@ -98,23 +131,39 @@ end
 if isfield(options, 'figHeight') 
     figHeight = options.figHeight ;
 end
+if isfield(options, 'visibility')
+    if strcmpi(options.visibility, 'off')
+        visibility = 'off' ;
+    elseif strcmpi(options.visibility, 'on')
+        visibility = 'on' ;
+    else
+        error("options.visibility must be set to 'on' or 'off'")
+    end
+end
 
 % 
 % vangle = reshape(mod(atan2(vy, -vx), 2* pi), gridsz) ;
 % speed = reshape(vecnorm([v2dsm_ii(:, 1), v2dsm_ii(:, 2)], 2, 2), gridsz);
 
-% Set up the figure
+%% Set up the figure
 close all
 fig = figure('units', 'normalized', ...
-    'outerposition', [0 0 1 1], 'visible', 'off') ;
+    'outerposition', [0 0 1 1], 'visible', visibility) ;
+
+% If grayscale image is passed, convert to RGB
+if length(size(im)) < 3
+    im = cat(3, im, im, im) ;
+end
 h1 = imshow(im) ;
 hold on;
 
-% Determine if the given scalar field is defined on vertices or faces
+%% Determine if the given scalar field is defined on vertices or faces
 sf_on_faces = false ;
 if isfield(options, 'faces')
     if length(sf) == size(options.faces, 1) 
         sf_on_faces = true ;
+    else
+        error('faces passed do not match scalar field size')
     end
 end
 
@@ -127,9 +176,9 @@ if sf_on_faces
     
     % If we use a phase style, then we obtain alpha info from sf
     % Otherwise, we apply a uniform alpha given by alphaVal
-    if strcmp(style, 'phase')
+    if strcmpi(style, 'phase') || strcmpi(style, 'nematic')
         set(h2, 'AlphaData', sf / sscale)
-    elseif strcmp(style, 'diverging')
+    elseif strcmpi(style, 'diverging')
         alpha(alphaVal) ;
         if sscale > 0
             caxis([-sscale, sscale])
@@ -151,13 +200,15 @@ else
     disp('scalarVectorFieldsOnImage: plotting sf on vertices')
     if isfield(options, 'angle')
         sfangle = options.angle ;
+    elseif isfield(options, 'angles')
+        sfangle = options.angles ;
     else
         sfangle = sf ;
     end
     h2 = imagesc(xxs, yys, sfangle) ;
-    if strcmp(style, 'phase')
+    if strcmpi(style, 'phase') || strcmpi(style, 'nematic')
         set(h2, 'AlphaData', sf / sscale)
-    elseif strcmp(style, 'diverging')
+    elseif strcmpi(style, 'diverging')
         set(h2, 'alphaData', 0.5)
         if sscale > 0
             caxis([-sscale, sscale])
@@ -166,7 +217,7 @@ else
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% QUIVER 
+%% ADD QUIVER PLOT TO AXIS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if overlay_quiver   
     if qsubsample > 1
@@ -192,15 +243,15 @@ else
     h3 = [] ;
 end
 
-% Add title (optional)
+%% Add title (optional)
 if isfield(options, 'title')
     title(options.title, 'Interpreter', 'latex')
 end
 
-% Add the colorbar in the style set in options struct
+%% Add the colorbar in the style set in options struct
 if strcmp(style, 'phase')
     %%%%%%%%%%%%%%%%%%%
-    % Phasemap
+    % Phasemap (0, 2*pi)
     %%%%%%%%%%%%%%%%%%%
     colormap phasemap
     caxis([0, 2*pi])
@@ -226,7 +277,39 @@ if strcmp(style, 'phase')
     yticks([])
     cax.YAxis(1).Color = 'k';
     cax.YAxis(2).Color = 'k';
+elseif strcmp(style, 'nematic')
+    %%%%%%%%%%%%%%%%%%%
+    % Phasemap (0, pi)
+    %%%%%%%%%%%%%%%%%%%
+    colormap phasemap
+    caxis([0, pi])
+    if isfield(options, 'ylim')
+        ylim(options.ylim)
+        % ylim([size(im, 2) * 0.25, size(im, 2) * 0.75])
+    end
+    set(gca, 'Position', [0 0.11 0.85 0.8]) ;
+    % Add phasebar
+    phasebar('colormap', phasemap, ...
+        'location', [0.82, 0.7, 0.1, 0.135], 'style', 'nematic') ;
+    % Add colorbar
+    cax = axes('Position',[.9 .3 .02 .3]) ;
+    [~, yyq] = meshgrid(0:4, 0:100) ;
+    imshow(fliplr(yyq/max(yyq(:))))
+    axis on
+    yyaxis right
+    ylabel(labelstr, 'color', 'k', ...
+        'Interpreter', 'Latex')
+    yticks([0 1])
+    yticklabels({'0', num2str(sscale)})
+    xticks([])
+    yyaxis left
+    yticks([])
+    cax.YAxis(1).Color = 'k';
+    cax.YAxis(2).Color = 'k';
 elseif strcmp(style, 'diverging')
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Diverging colormap (-sscale, sscale)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     colormap bwr
     if isfield(options, 'ylim')
         ylim(options.ylim)
@@ -258,7 +341,7 @@ else
     error('have not coded for this style yet')
 end
 
-% Save the image if outfn is supplied
+%% Save the image to disk if outfn is supplied
 if isfield(options, 'outfn')
     disp(['scalarVectorFieldsOnImage: saving ' options.outfn])
     set(gcf, 'PaperUnits', 'centimeters');

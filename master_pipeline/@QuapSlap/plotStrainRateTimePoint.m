@@ -21,6 +21,7 @@ lambda_mesh = options.lambda_mesh ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
 debug = false ;
+plot_comparison = true ;
 
 %% Parameters
 overwrite = false ;
@@ -50,6 +51,9 @@ if isfield(options, 'averagingStyle')
 end
 if isfield(options, 'debug')
     debug = options.debug ;
+end
+if isfield(options, 'plot_comparison')
+    plot_comparison = options.plot_comparison ;
 end
 
 %% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
@@ -128,7 +132,7 @@ pm256 = phasemap(256) ;
 labels = {'$\frac{1}{2}\mathrm{Tr} [\bf{g}^{-1}\varepsilon] $', ...
     '$||\varepsilon-\frac{1}{2}$Tr$\left[\mathbf{g}^{-1}\varepsilon\right]\bf{g}||$'} ;
 time_in_units = (tp - t0) * QS.timeInterval ;
-tstr = [': $t=$', sprintf('%03d', time_in_units), QS.timeUnits ];
+tstr = [': $t=$', sprintf('%03d', time_in_units), ' ', QS.timeUnits ];
 
 %% consider each metric element & plot in 3d
 fn = fullfile(egImDir, 'strainRate3d', sprintf([QS.fileBase.spcutMeshSmRSC '.png'], tp));
@@ -270,7 +274,7 @@ close all
 set(gcf, 'visible', 'off') ;
 fn = fullfile(egImDir, 'strainRate2d', ...
         sprintf(['compare_' QS.fileBase.spcutMeshSm '.png'], tp));
-if ~exist(fn, 'file') || overwrite
+if (~exist(fn, 'file') || overwrite) && plot_comparison
     % Load gdot trace from kinematics
     fn_gdot = sprintf(QS.fullFileBase.metricKinematics.gdot, lambda, ...
         lambda, lambda_mesh, tp) ;
@@ -295,7 +299,7 @@ if ~exist(fn, 'file') || overwrite
     % Comparison 1/2 * Tr[g^{-1}gdot]
     trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
-        gdot, 'edgecolor', 'none')
+        0.5 * gdot, 'edgecolor', 'none')
     daspect([1,1,1])
     colorbar('location', 'southOutside') ;
     caxis([-clim_trace, clim_trace])

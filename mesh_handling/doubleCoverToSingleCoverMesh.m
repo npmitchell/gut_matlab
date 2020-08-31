@@ -1,7 +1,24 @@
 function doubleCoverToSingleCoverMesh(xy, umax, vmax)
+% doubleCoverToSingleCoverMesh(xy, umax, vmax)
 % This code has not been vetted/testing thoroughly but I think it
 % should work.
+%
+%
+% Parameters
+% ----------
+% xy : #vertices x 2 float array
+%   vertex positions of a mesh in the pullback space 
+% umax : float
+%   extent of the X (u) direction in pullback space
+% vmax : float 
+%   extent of the Y (v) direction in pullback space
+% 
+% Returns
+% -------
+% 
+% NPMitchell 2020
 
+error('This code has not been vetted/testing thoroughly but I think it should work.')
 
 % Check that mask limiting to singleCover does not introduce
 % duplicates. First map coordinates to (0, 1), (-0.5, 1.5)

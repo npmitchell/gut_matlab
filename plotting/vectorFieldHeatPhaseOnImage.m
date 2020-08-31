@@ -28,7 +28,6 @@ function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, ...
 %       path to save image if given
 %   label : str (default='$|v|$ [$\mu$m / min]')
 %       colorbar label. Default is '$|v|$ [$\mu$m / min]' 
-%   
 %   qsubsample : int (default=10)
 %       subsampling factor of the quiver field
 %   subsamplingMethod : str ('farthestPoint' or 'random')
@@ -53,6 +52,29 @@ function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, ...
 % h2 : handle for imagesc
 % h3 : handle for quiverplot
 %
+% Example usage
+% -------------
+% % Create example image
+% im = peaks ;
+% [xxs, yys] = meshgrid(1:size(im, 1), 1:size(im, 2)) ;
+% % Create example velocity field on the same field (here xxv=xxs, yyv=yys)
+% vx = im .* xxs * 0.02 ;
+% vy = im .* yys * 0.01 ;
+% sf = sqrt(vx.^2 + vy.^2) ;        % scalar field is velocity magnitude
+% options.angle = atan2(vy, vx) ;  % polar field
+% % Supply 1d x and y lists
+% xyf.x = xxs(1, :) ;
+% xyf.y = yys(:, 1)' ;
+% vscale = max(abs(sf(:))) ;      % color limit for opacity
+% options.visibility = 'on' ;
+% options.overlay_quiver = false ;
+% vectorFieldHeatPhaseOnImage(rand(size(im)), xyf, vx, vy, vscale, options) ;
+%
+% See also
+% --------
+% more limited function: scalarFieldOnImage.m
+% less limited but unwieldy: scalarVectorFieldsOnImage.m
+%
 % NPMitchell 2020
 
 % Default options
@@ -63,6 +85,7 @@ nPts = 0 ;
 subsamplingMethod = 'farthestPoint' ;  % ('farthestPoint' 'random' 'custom')
 qscale = 5 ;
 quiver_vecfield = [] ;
+visibility = 'off' ;
 
 % Unpack options
 if nargin > 5
@@ -84,12 +107,18 @@ if nargin > 5
     if isfield(options, 'quiver_vecfield') 
         quiver_vecfield = options.quiver_vecfield ;
     end
+    if isfield(options, 'visibility')
+        if strcmpi(options.visibility, 'on') || ...
+                strcmpi(options.visibility, 'off')
+            visibility = lower(options.visibility) ;
+        end
+    end
     if isfield(options, 'fig')
         figure(options.fig)
     else
         close all
         fig = figure('units', 'normalized', ...
-            'outerposition', [0 0 1 1], 'visible', 'off') ;
+            'outerposition', [0 0 1 1], 'visible', visibility) ;
     end
     if isfield(options, 'subsamplingMethod')
         subsamplingMethod = options.subsamplingMethod ;
@@ -99,6 +128,10 @@ else
 end
 
 %% Set up the figure
+% If grayscale image is passed, convert to RGB
+if length(size(im)) < 3
+    im = cat(3, im, im, im) ;
+end
 h1 = imshow(im) ;
 hold on;
 
@@ -129,9 +162,13 @@ if size(speed, 1) == numel(xx) && size(speed, 2) == numel(yy)
 
     h2 = imagesc(xx, yy, vangle) ;
     set(h2, 'AlphaData', speed / vscale)
-elseif isfield(xyfstruct, 'f')   
+elseif isfield(xyfstruct, 'f') || isfield(xyfstruct, 'faces') 
     gridded_data = false ;
-    ff = xyfstruct.f ;
+    if isfield(xyfstruct, 'f')
+        ff = xyfstruct.f ;
+    elseif isfield(xyfstruct, 'faces')
+        ff = xyfstruct.faces ;
+    end
     if numel(speed) == numel(xx)
         h2 = patch( 'Faces', ff, 'Vertices', [xx(:), yy(:)], ...
             'FaceVertexCData', vangle, 'FaceColor', 'flat', ...
@@ -167,7 +204,7 @@ elseif any(size(speed) == 1) && any(size(xx)==1) && any(size(yy)==1)
         vangle = reshape(vangle, [ww hh]) ;
     end
     h2 = imagesc(xx, yy, vangle) ;
-    set(h2, 'AlphaData', speed / vscale)
+    set(h2, 'AlphaData', speed / vscale) ;
 else
     error('Could not identify data input orientation')
 end
@@ -244,8 +281,8 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Phasemap
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-colormap phasemap
-caxis([0, 2*pi])
+colormap('phasemap') ;
+caxis([0, 2*pi]) ;
 if isfield(options, 'ylim')
     ylim(options.ylim)  
 end
@@ -262,11 +299,10 @@ ax2 = gca() ;
 % Add colorbar
 cax = axes('Position',[.9 .3 .02 .3]) ;
 [~, yyq] = meshgrid(0:4, 0:100) ;
-imshow(fliplr(yyq/max(yyq(:))))
+imshow(fliplr(yyq/max(yyq(:)))) ;
 axis on
 yyaxis right
-ylabel(labelstr, 'color', 'k', ...
-    'Interpreter', 'Latex')
+ylabel(labelstr, 'color', 'k', 'Interpreter', 'Latex') ;
 yticks([0 1])
 yticklabels({'0', num2str(vscale)})
 xticks([])

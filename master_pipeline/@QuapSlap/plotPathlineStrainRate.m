@@ -104,6 +104,12 @@ set(gcf, 'visible', 'off')
 imagesc([-1, 0, 1; -1, 0, 1])
 caxis([-1, 1])
 bwr256 = bluewhitered(256) ;
+%% Colormap
+close all
+set(gcf, 'visible', 'off')
+imagesc([-1, 0, 1; -1, 0, 1])
+caxis([-1, 1])
+bbr256 = blueblackred(256) ;
 % clf
 % set(gcf, 'visible', 'off')
 % imagesc([-1, 0, 1; -1, 0, 1])
@@ -187,67 +193,67 @@ else
         srfn = fullfile(datdir, sprintf('strainRate_series_%06d.mat', tp))   ;
 
         % Load timeseries measurements
-        load(srfn, 'treps_ap', 'treps_l', 'treps_r', 'treps_d', 'treps_v', ...
-            'dvtre_ap', 'dvtre_l', 'dvtre_r', 'dvtre_d', 'dvtre_v', ...
+        load(srfn, 'tre_ap', 'tre_l', 'tre_r', 'tre_d', 'tre_v', ...
+            'dev_ap', 'dev_l', 'dev_r', 'dev_d', 'dev_v', ...
             'theta_ap', 'theta_l', 'theta_r', 'theta_d', 'theta_v', ...
             'strain_tr_ap', 'strain_tr_l', 'strain_tr_r', ...
             'strain_tr_d', 'strain_tr_v', ...
-            'strain_theta_ap', 'strain_theta_l', 'strain_theta_r', ....
-            'strain_theta_d', 'strain_theta_v', ...
+            'strain_th_ap', 'strain_th_l', 'strain_th_r', ....
+            'strain_th_d', 'strain_th_v', ...
             'strain_dv_ap', 'strain_dv_l', 'strain_dv_r', ...
             'strain_dv_d', 'strain_dv_v') ;
 
         %% Store in matrices
         % dv averaged
-        tr_apM(tidx, :) = treps_ap ;
-        dv_apM(tidx, :) = dvtre_ap ;
+        tr_apM(tidx, :) = tre_ap ;
+        dv_apM(tidx, :) = dev_ap ;
         th_apM(tidx, :) = theta_ap ;
 
         % left quarter
-        tr_lM(tidx, :) = treps_l ;
-        dv_lM(tidx, :) = dvtre_l ;
+        tr_lM(tidx, :) = tre_l ;
+        dv_lM(tidx, :) = dev_l ;
         th_lM(tidx, :) = theta_l ;
 
         % right quarter
-        tr_rM(tidx, :) = treps_r ;
-        dv_rM(tidx, :) = dvtre_r ;
+        tr_rM(tidx, :) = tre_r ;
+        dv_rM(tidx, :) = dev_r ;
         th_rM(tidx, :) = theta_r ;
 
         % dorsal quarter
-        tr_dM(tidx, :) = treps_d ;
-        dv_dM(tidx, :) = dvtre_d ;
+        tr_dM(tidx, :) = tre_d ;
+        dv_dM(tidx, :) = dev_d ;
         th_dM(tidx, :) = theta_d ;
 
         % ventral quarter
-        tr_vM(tidx, :) = treps_v ;
-        dv_vM(tidx, :) = dvtre_v ;
+        tr_vM(tidx, :) = tre_v ;
+        dv_vM(tidx, :) = dev_v ;
         th_vM(tidx, :) = theta_v ;
 
         %% Store accumulated strain in matrices
         % dv averaged
         str_apM(tidx, :) = strain_tr_ap ;
         sdv_apM(tidx, :) = strain_dv_ap ;
-        sth_apM(tidx, :) = strain_theta_ap ;
+        sth_apM(tidx, :) = strain_th_ap ;
 
         % left quarter
         str_lM(tidx, :) = strain_tr_l ;
         sdv_lM(tidx, :) = strain_dv_l ;
-        sth_lM(tidx, :) = strain_theta_l ;
+        sth_lM(tidx, :) = strain_th_l ;
 
         % right quarter
         str_rM(tidx, :) = strain_tr_r ;
         sdv_rM(tidx, :) = strain_dv_r ;
-        sth_rM(tidx, :) = strain_theta_r ;
+        sth_rM(tidx, :) = strain_th_r ;
 
         % dorsal quarter
         str_dM(tidx, :) = strain_tr_d ;
         sdv_dM(tidx, :) = strain_dv_d ;
-        sth_dM(tidx, :) = strain_theta_d ;
+        sth_dM(tidx, :) = strain_th_d ;
 
         % ventral quarter
         str_vM(tidx, :) = strain_tr_v ;
         sdv_vM(tidx, :) = strain_dv_v ;
-        sth_vM(tidx, :) = strain_theta_v ;
+        sth_vM(tidx, :) = strain_th_v ;
     end
     
     %% Save kymographs
@@ -337,17 +343,17 @@ if plot_kymographs
                 if pp == 1
                     imagesc((1:nU)/nU, tps, trK)
                     caxis([-climit, climit])
+                    colormap(bwr256)
                 else
-                    % Map intensity from dvtre and color from the theta
+                    % Map intensity from dev and color from the theta
                     indx = max(1, round(mod(2*thK(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
                     colors = pm256(indx, :) ;
-                    dvtreKclipped = min(dvK / climit, 1) ;
-                    colorsM = dvtreKclipped(:) .* colors ;
+                    devKclipped = min(dvK / climit, 1) ;
+                    colorsM = devKclipped(:) .* colors ;
                     colorsM = reshape(colorsM, [size(dvK, 1), size(dvK, 2), 3]) ;
                     imagesc((1:nU)/nU, tps, colorsM)
                     caxis([0, climit])
                 end
-                colormap(bwr256)
 
                 % Plot fold identifications
                 hold on;
@@ -436,11 +442,11 @@ if plot_kymographs
                     close all
                     set(gcf, 'visible', 'off')
                     
-                    % Map intensity from dvtre and color from the theta
+                    % Map intensity from dev and color from the theta
                     indx = max(1, round(mod(2*thK(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
                     colors = pm256(indx, :) ;
-                    dvtreKclipped = min(dvK / clim_zoom, 1) ;
-                    colorsM = dvtreKclipped(:) .* colors ;
+                    devKclipped = min(dvK / clim_zoom, 1) ;
+                    colorsM = devKclipped(:) .* colors ;
                     colorsM = reshape(colorsM, [size(dvK, 1), size(dvK, 2), 3]) ;
                     imagesc((1:nU)/nU, tps, colorsM)
                     caxis([0, clim_zoom])
@@ -598,11 +604,11 @@ if plot_kymographs_strain
         if ~exist(fn, 'file') || ~exist(fn_zoom, 'file') || overwrite
             close all
             set(gcf, 'visible', 'off')
-            % Map intensity from dvtre and color from the theta
+            % Map intensity from dev and color from the theta
             indx = max(1, round(mod(2*sthK{qq}(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
             colors = pm256(indx, :) ;
-            dvtreKclipped = min(sdvK{qq} / climitWide, 1) ;
-            colorsM = dvtreKclipped(:) .* colors ;
+            devKclipped = min(sdvK{qq} / climitWide, 1) ;
+            colorsM = devKclipped(:) .* colors ;
             colorsM = reshape(colorsM, [size(sdvK{qq}, 1), size(sdvK{qq}, 2), 3]) ;
             imagesc((1:nU)/nU, tps, colorsM)
             caxis([1-climitWide, 1+climitWide])
