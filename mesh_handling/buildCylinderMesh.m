@@ -11,9 +11,14 @@ function [cutMesh, mesh] = buildCylinderMesh(nU, nV)
 % 
 % Returns
 % -------
-% cutMesh : cylinder mesh struct with fields
+% cutMesh : cylinder mesh with seam, struct with fields
 %   u : 2D vertex positions in unit square
-%   v : 3D vertex positions
+%   v : 3D vertex positions (as cut cylinder)
+%   nU : int
+%   nV : int
+% mesh : closed cylinder mesh, struct with fields
+%   u : 2D vertex positions in unit square
+%   v : 3D vertex positions (as closed cylinder)
 %   nU : int
 %   nV : int
 %

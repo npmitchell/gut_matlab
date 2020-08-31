@@ -26,8 +26,8 @@ debug = false ;
 
 %% Parameters
 overwrite = false ;
-clim_trace = 0.2 ;
-clim_deviatoric = 0.1 ;
+clim_trace = 0.05 ;
+clim_deviatoric = 0.05 ;
 averagingStyle = 'Lagrangian' ;
 skipTimePoint = false ;
 if isfield(options, 'overwrite')

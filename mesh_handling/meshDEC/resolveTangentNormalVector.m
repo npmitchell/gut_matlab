@@ -1,6 +1,6 @@
 function [v0n, v0t, facenormals] = ...
     resolveTangentNormalVector(faces, vertices, vectors, varargin)
-%resolveTangentNormalVector(faces, vertices, v0, vertices2d, fieldfaces, varargin)
+%resolveTangentNormalVector(faces, vertices, vectors, varargin)
 % Resolve a 3d vector field into the tangential and normal components of
 % mesh faces.
 %

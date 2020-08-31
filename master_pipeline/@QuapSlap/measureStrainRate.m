@@ -99,7 +99,7 @@ for tp = tp2do
     
     % DEBUG
     % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
-    % mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) * mesh.ar ;
+    mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) * mesh.ar ;
     clearvars tmp
 
     % Define metric strain filename        
@@ -153,121 +153,21 @@ for tp = tp2do
         cutMesh = cutRectilinearCylMesh(mesh) ;
         
         % Compute the strain rate tensor
-        disp('Computing covariantDerivative')        
-        % Decompose velocity into components and compute cov. derivative
-        [v0n, v0t] = resolveTangentNormalVector(cutMesh.f, cutMesh.v, vf) ;
-        [~, dvi] = vectorCovariantDerivative(v0t, cutMesh.f, cutMesh.v, cutMesh.u) ;
-        dvij = cell(size(dvi)) ;
-        for qq = 1:length(dvi)
-            dvij{qq} = 0.5 * ( dvi{qq} + dvi{qq}' ) ;
-        end
+        disp('Computing strainRates via covariantDerivative') 
+        % tre : traceful dilation
+        % dev : deviatoric magnitude
+        % theta : angle of elongation
+        srmopts = struct() ;
+        srmopts.mesh = mesh ;
+        [strainrate, tre, dev, theta, outStruct] = ...
+            strainRateMesh(cutMesh, vf, srmopts) ;
+        gg = outStruct.fundForms.gg ;
+        bb = outStruct.fundForms.bb ;
+        dx_faces = outStruct.bondDxDy.dx ;
+        dy_faces = outStruct.bondDxDy.dy ;
+        theta_pb = outStruct.theta_pb ;
+        dvij = outStruct.dvij ;
         
-        % Compute the second fundamental form
-        [gg, ~] = constructFundamentalForms(cutMesh.f, cutMesh.v, cutMesh.u) ;
-        [~, bb] = constructFundamentalForms(mesh.f, mesh.v, mesh.u) ;
-        
-        % Strain rate tensor
-        strainrate = cell(size(dvi)) ;
-        tre = zeros(size(dvi)) ;
-        checkH = zeros(size(dvi)) ;
-        checkdiv = zeros(size(dvi)) ;
-        for qq = 1:size(dvi,1)
-            strainrate{qq} = dvij{qq} - v0n(qq) .* bb{qq} ;
-        end
-        
-        %% Debug -- check results against DEC
-        if debug
-            for qq = 1:size(dvi,1)
-                tre(qq) = trace(inv(gg{qq}) * dvij{qq}) - v0n(qq) .* Hf(qq) ;
-                checkH(qq) = trace(inv(gg{qq}) * bb{qq}) ;        % == 2 * Hf(qq) ; 
-                checkdiv(qq) = trace(inv(gg{qq}) * dvij{qq}) ;    % == divf(qq) ; 
-            end
-            
-            % Compare directly
-            clf;
-            subplot(2, 1, 1)
-            plot(checkdiv, divf, '.')
-            hold on;
-            plot(checkdiv, checkdiv, 'k--')
-            axis equal
-            xlabel('Tr$\nabla_i v_j$', 'Interpreter', 'Latex')
-            ylabel('$\nabla \cdot \mathbf{v}$', 'Interpreter', 'Latex')
-            subplot(2, 1, 2)
-            plot(checkH, 2* Hf, 'o') 
-            hold on;
-            plot(checkH, checkH, 'k--') 
-            axis equal
-            xlabel('Tr$b_{ij}$', 'interpreter', 'latex')
-            ylabel('$2H$', 'interpreter', 'latex')
-
-            if preview
-                %% Check Mean curvature
-                subplot(2, 2, 1)
-                trisurf(triangulation(mesh.f, mesh.v), checkH, 'edgecolor', 'none')
-                axis equal; caxis([-.1, .1]); colorbar() ;
-                title('Tr$\left[g^{-1} b\right]$', 'interpreter', 'latex')
-                subplot(2, 2, 2)
-                trisurf(triangulation(mesh.f, mesh.v), 2 * Hf, 'edgecolor', 'none')
-                axis equal; caxis([-.1, .1]); colorbar() ;
-                title('$2H$', 'interpreter', 'latex')
-                subplot(2, 1, 2)
-                trisurf(triangulation(mesh.f, mesh.v), checkH - 2 * Hf, 'edgecolor', 'none')
-                axis equal; caxis([-.1, .1]); colorbar() ;
-                title('Tr$[g^{-1}b] - 2H$', 'interpreter', 'latex')
-                colormap(bwr)
-
-                %% Check div(v)
-                clf
-                % set color limit, clim
-                clim = max(2*std(abs(checkdiv)), 2*std(abs(divf))) ;
-                subplot(2, 2, 1)
-                trisurf(triangulation(mesh.f, mesh.v), checkdiv, ...
-                    'edgecolor', 'none')
-                axis equal; caxis([-clim, clim]); colorbar() ;
-                checkDivStr = '$\frac{1}{2}$Tr$\left[g^{-1} \left(\nabla_i v_j + \nabla_j v_i \right)\right]$' ;
-                title(checkDivStr, 'interpreter', 'latex')
-                subplot(2, 2, 2)
-                trisurf(triangulation(mesh.f, mesh.v), divv, 'edgecolor', 'none')
-                axis equal; caxis([-clim, clim]); colorbar() ;
-                title('$\nabla \cdot \mathbf{v}_{\parallel}$', 'interpreter', 'latex')
-                subplot(2, 1, 2)
-                trisurf(triangulation(mesh.f, mesh.v), checkdiv - divf, ...
-                    'edgecolor', 'none')
-                axis equal; caxis([-clim, clim]); colorbar() ;
-                title([checkDivStr ' $-\nabla \cdot \mathbf{v}_{\parallel}$'], ...
-                    'interpreter', 'latex')
-                colormap(bwr)
-
-                %% Check velocities (raw vs averaged)
-                clf
-                clim = 0.1 ;
-                subplot(2, 2, 1)
-                trisurf(triangulation(mesh.f, mesh.v), vss(:,1)-vs(:, 1), ...
-                    'edgecolor', 'none')
-                axis equal; caxis([-clim, clim]); colorbar() ;
-                checkDivStr = '$\frac{1}{2}$Tr$\left[g^{-1} \left(\nabla_i v_j + \nabla_j v_i \right)\right]$' ;
-                title(checkDivStr, 'interpreter', 'latex')
-                xlabel('x'); ylabel('y'); zlabel('z')
-                title('$v_x$')
-                subplot(2, 2, 2)
-                trisurf(triangulation(mesh.f, mesh.v), vss(:,2)-vs(:, 2), 'edgecolor', 'none')
-                axis equal; caxis([-clim, clim]); colorbar() ;
-                title('$\nabla \cdot \mathbf{v}_{\parallel}$', 'interpreter', 'latex')
-                xlabel('x'); ylabel('y'); zlabel('z')
-                title('$v_y$')
-                subplot(2, 1, 2)
-                trisurf(triangulation(mesh.f, mesh.v), vss(:,3)-vs(:, 3), ...
-                    'edgecolor', 'none')
-                axis equal; caxis([-clim, clim]); colorbar() ;
-                title([checkDivStr ' $-\nabla \cdot \mathbf{v}_{\parallel}$'], ...
-                    'interpreter', 'latex')
-                xlabel('x'); ylabel('y'); zlabel('z')
-                title('$v_z$')
-                colormap(bwr)
-            end
-        end
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-               
         % Metric strain -- separate trace and deviatoric strain comp, angle
         epsilon_zz = zeros(size(strainrate, 1), 1) ;  % strain rate zeta zeta
         epsilon_zp = zeros(size(strainrate, 1), 1) ;  % strain rate zeta phi
@@ -281,9 +181,6 @@ for tp = tp2do
         b_zp = zeros(size(strainrate, 1), 1) ;  % 2nd fund form zeta phi
         b_pz = zeros(size(strainrate, 1), 1) ;  % 2nd fund form phi zeta
         b_pp = zeros(size(strainrate, 1), 1) ;  % 2nd fund form phi phi
-        treps = zeros(size(strainrate, 1), 1) ;  % traceful dilation
-        dvtre = zeros(size(strainrate, 1), 1) ;  % deviatoric magnitude
-        theta = zeros(size(strainrate, 1), 1) ;  % angle of elongation
         % eigv1 = zeros(size(strainrate, 1), 1) ;  % eigenvalue of smaller direction
         % eigv2 = zeros(size(strainrate, 1), 1) ;  % eigenvalue of larger deformation direction (along theta)
         for qq = 1:size(strainrate, 1)
@@ -306,24 +203,7 @@ for tp = tp2do
             b_zp(qq) = bq(1, 2) ;
             b_pz(qq) = bq(2, 1) ;
             b_pp(qq) = bq(2, 2) ;
-            
-            %% Trace / deviator / theta
-            [treps(qq), dvtre(qq), theta(qq)] = trace_deviator(eq, gq) ;
-            
-            % eigensystem for strain rate
-            % [evec_e, evals_e] = eig(eq) ;
-            % [evals_e, idx] = sort(diag(evals_e)) ;
-            % evec_e = evec_e(:, idx) ;
-            % pevec = evec_e(:, end) ;
-            % theta(qq) = atan2(pevec(2), pevec(1)) ;
-            % eigv1(qq) = evals_e(1) ;
-            % eigv2(qq) = evals_e(2) ;
-            
-            % NOTE: I have checked that theta determined via full strain
-            % rate tensor is identical to theta determined from deviatoric
-            % component
         end
-        theta = mod(theta, pi) ;
                 
         %% Collate results as DVavg, L, R, D, V
         % Find trace and deviator on vertices instead of faces
@@ -339,7 +219,12 @@ for tp = tp2do
         b_zp_vtx = F2V * b_zp ;
         b_pz_vtx = F2V * b_pz ;
         b_pp_vtx = F2V * b_pp ;
+        dx_vtx = F2V * dx_faces ;
+        dy_vtx = F2V * dy_faces ;
         
+        % pre-allocate theta and theta_pullback
+        theta_vtx = 0 * epsilon_zz_vtx ;
+        theta_pb_vtx = 0 * epsilon_zz_vtx ;
         for qq = 1:size(epsilon_zz_vtx, 1)
             %% Traceful dilation
             eq = [epsilon_zz_vtx(qq), epsilon_zp_vtx(qq); ...
@@ -348,10 +233,17 @@ for tp = tp2do
                   g_pz_vtx(qq), g_pp_vtx(qq)] ;
             
             % traceful component -- 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
-            [treps_vtx(qq), dvtre_vtx(qq), theta_vtx(qq)] = ...
-                trace_deviator(eq, gq) ;
+            try
+                [tre_vtx(qq), dev_vtx(qq), ...
+                    theta_vtx(qq), theta_pb_vtx(qq)] = ...
+                    traceDeviatorPullback(eq, gq, dx_vtx(qq), dy_vtx(qq)) ;
+            catch
+                error('here')
+                
+            end
         end
-        theta_vtx = mod(theta_vtx, pi) ;
+        % modulo is not necessary
+        % theta_vtx = mod(theta_vtx, pi) ;
         
         %% Store measurements on vertices in grouped arrays
         strainrate_vtx = [epsilon_zz_vtx, epsilon_zp_vtx, ...
@@ -360,17 +252,17 @@ for tp = tp2do
             g_pz_vtx, g_pp_vtx] ;
         bb_vtx = [b_zz_vtx, b_zp_vtx, ...
             b_pz_vtx, b_pp_vtx] ;
-        treps_vtx((nU * (nV-1) + 1):nU*nV) = treps_vtx(1:nU) ;
-        dvtre_vtx((nU * (nV-1) + 1):nU*nV) = dvtre_vtx(1:nU) ;
+        tre_vtx((nU * (nV-1) + 1):nU*nV) = tre_vtx(1:nU) ;
+        dev_vtx((nU * (nV-1) + 1):nU*nV) = dev_vtx(1:nU) ;
         theta_vtx((nU * (nV-1) + 1):nU*nV) = theta_vtx(1:nU) ;
-        treps_vtx = reshape(treps_vtx, [nU,nV]) ;
-        dvtre_vtx = reshape(dvtre_vtx, [nU,nV]) ;
+        tre_vtx = reshape(tre_vtx, [nU,nV]) ;
+        dev_vtx = reshape(dev_vtx, [nU,nV]) ;
         theta_vtx = reshape(theta_vtx, [nU,nV]) ;
         
         % Average along DV -- ignore last redudant row at nV
-        [dvtre_ap, theta_ap] = ...
-            QS.dvAverageNematic(dvtre_vtx(:, 1:nV-1), theta_vtx(:, 1:nV-1)) ;
-        treps_ap = mean(treps_vtx(:, 1:nV-1), 2) ;
+        [dev_ap, theta_ap] = ...
+            QS.dvAverageNematic(dev_vtx(:, 1:nV-1), theta_vtx(:, 1:nV-1)) ;
+        tre_ap = mean(tre_vtx(:, 1:nV-1), 2) ;
         
         % quarter bounds
         q0 = round(nV * 0.125) ;
@@ -383,30 +275,30 @@ for tp = tp2do
         dorsal = [q3:nV, 1:q1] ;
         
         % left quarter
-        [dvtre_l, theta_l] = ...
-            QS.dvAverageNematic(dvtre_vtx(:, left), theta_vtx(:, left)) ;
-        treps_l = mean(treps_vtx(:, left), 2) ;
+        [dev_l, theta_l] = ...
+            QS.dvAverageNematic(dev_vtx(:, left), theta_vtx(:, left)) ;
+        tre_l = mean(tre_vtx(:, left), 2) ;
         
         % right quarter
-        [dvtre_r, theta_r] = ...
-            QS.dvAverageNematic(dvtre_vtx(:, right), theta_vtx(:, right)) ;
-        treps_r = mean(treps_vtx(:, right), 2) ;
+        [dev_r, theta_r] = ...
+            QS.dvAverageNematic(dev_vtx(:, right), theta_vtx(:, right)) ;
+        tre_r = mean(tre_vtx(:, right), 2) ;
         
         % dorsal quarter
-        [dvtre_d, theta_d] = ...
-            QS.dvAverageNematic(dvtre_vtx(:, dorsal), theta_vtx(:, dorsal)) ;
-        treps_d = mean(treps_vtx(:, dorsal), 2) ;
+        [dev_d, theta_d] = ...
+            QS.dvAverageNematic(dev_vtx(:, dorsal), theta_vtx(:, dorsal)) ;
+        tre_d = mean(tre_vtx(:, dorsal), 2) ;
         
         % ventral quarter
-        [dvtre_v, theta_v] = ...
-            QS.dvAverageNematic(dvtre_vtx(:, ventral), theta_vtx(:, ventral)) ;
-        treps_v = mean(treps_vtx(:, ventral), 2) ;
+        [dev_v, theta_v] = ...
+            QS.dvAverageNematic(dev_vtx(:, ventral), theta_vtx(:, ventral)) ;
+        tre_v = mean(tre_vtx(:, ventral), 2) ;
         
         % save the metric strain
         readme.strainrate = 'strain rate on faces, epsilon=1/2(nabla_i v_j + nabla_j v_i) - vn b_ij' ;
-        readme.treps = 'Tr[g^{-1} epsilon]';
-        readme.dvtre = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] )';
-        readme.theta = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector';
+        readme.tre = 'Tr[g^{-1} epsilon] scalar field on faces -- multiply by 1/2 to compare to dev';
+        readme.dev = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) magnitude, scalar field on faces';
+        readme.theta = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector in embedding space';
         readme.dvij = 'symmetrized covariant derivative 0.5 * (d_i v_j + d_j v_i)';
         readme.gg = 'metric tensor on faces';
         readme.bb = 'second fundamental form on faces';
@@ -415,37 +307,37 @@ for tp = tp2do
         readme.strainrate_vtx = 'strain rate on vertices, epsilon=1/2(nabla_i v_j + nabla_j v_i) - vn b_ij' ;
         readme.gg_vtx = 'metric tensor on vertices';
         readme.bb_vtx = 'second fundamental form on vertices';
-        readme.treps_vtx = 'Tr[g^{-1} epsilon], on mesh vertices' ;
-        readme.dvtre_vtx = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) on mesh vertices';
+        readme.tre_vtx = 'Tr[g^{-1} epsilon], on mesh vertices' ;
+        readme.dev_vtx = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) on mesh vertices';
         readme.theta_vtx = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector on mesh vertices';
-        readme.dvtre_ap = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged circumferentially';
-        readme.dvtre_l = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on left quarter, on vertices';
-        readme.dvtre_r = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on right quarter, on vertices';
-        readme.dvtre_d = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on dorsal quarter, on vertices';
-        readme.dvtre_v = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on ventral quarter, on vertices';
+        readme.dev_ap = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged circumferentially';
+        readme.dev_l = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on left quarter, on vertices';
+        readme.dev_r = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on right quarter, on vertices';
+        readme.dev_d = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on dorsal quarter, on vertices';
+        readme.dev_v = 'sqrt( Tr[g^{-1} epsilon g^{-1} epsilon] ) averaged on ventral quarter, on vertices';
         readme.theta_ap = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged circumferentially, on vertices';
         readme.theta_l = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on left quarter, on vertices';
         readme.theta_r = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on right quarter, on vertices';
         readme.theta_d = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on dorsal quarter, on vertices';
         readme.theta_v = 'arctan( e_phi / e_zeta ), where e is the positive-eigenvalue eigenvector, averaged on ventral quarter, on vertices';
-        readme.treps_ap = 'Tr[g^{-1} epsilon], averaged circumferentially, on vertices';
-        readme.treps_l = 'Tr[g^{-1} epsilon], averaged on left quarter, on vertices';
-        readme.treps_r = 'Tr[g^{-1} epsilon], averaged on right quarter, on vertices';
-        readme.treps_d = 'Tr[g^{-1} epsilon], averaged on dorsal quarter, on vertices';
-        readme.treps_v = 'Tr[g^{-1} epsilon], averaged on ventral quarter, on vertices';
+        readme.tre_ap = 'Tr[g^{-1} epsilon], averaged circumferentially, on vertices';
+        readme.tre_l = 'Tr[g^{-1} epsilon], averaged on left quarter, on vertices';
+        readme.tre_r = 'Tr[g^{-1} epsilon], averaged on right quarter, on vertices';
+        readme.tre_d = 'Tr[g^{-1} epsilon], averaged on dorsal quarter, on vertices';
+        readme.tre_v = 'Tr[g^{-1} epsilon], averaged on ventral quarter, on vertices';
         readme.note = 'The pullback space is taken to range from zeta=[0, 1] and phi=[0, 1]' ; 
         disp(['saving ', estrainFn])
-        save(estrainFn, 'strainrate', 'treps', 'dvtre', 'theta', ...
+        save(estrainFn, 'strainrate', 'tre', 'dev', 'theta', 'theta_pb', ...
             'dvij', 'gg', 'bb', 'lambda', 'lambda_mesh', 'readme', ...
-            'dvtre_ap', 'dvtre_l', 'dvtre_r', 'dvtre_d', 'dvtre_v', ...
+            'dev_ap', 'dev_l', 'dev_r', 'dev_d', 'dev_v', ...
             'theta_ap', 'theta_l', 'theta_r', 'theta_d', 'theta_v', ...
-            'treps_ap', 'treps_l', 'treps_r', 'treps_d', 'treps_v', ...
-            'strainrate_vtx', 'treps_vtx', 'dvtre_vtx', 'theta_vtx', ...
+            'tre_ap', 'tre_l', 'tre_r', 'tre_d', 'tre_v', ...
+            'strainrate_vtx', 'tre_vtx', 'dev_vtx', 'theta_vtx', ...
             'gg_vtx', 'bb_vtx')
         
         % Save info histogram as debug check
         clf
-        plot(dvtre(:) .* cos(theta(:)), dvtre(:) .* sin(theta(:)), '.')
+        plot(dev(:) .* cos(theta(:)), dev(:) .* sin(theta(:)), '.')
         xlabel('deviator$[\varepsilon]_\zeta$', 'interpreter', 'latex')
         ylabel('deviator$[\varepsilon]_\phi$', 'interpreter', 'latex')  
         axis equal

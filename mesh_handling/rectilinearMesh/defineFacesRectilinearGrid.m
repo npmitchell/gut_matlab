@@ -32,6 +32,8 @@ function [faces, faceIDgrid] = defineFacesRectilinearGrid(uv, nU, nV)
 % -------
 % faces : 2 * (nU-1) * (nV-1) x 3 int array
 %   A simple triangulation of the rectilinear mesh (connectivityList)
+% faceIDgrid : #faces x 1 int array
+%   indexes faces as a rectilinear grid
 %
 % NPMitchell 2020
 

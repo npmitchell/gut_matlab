@@ -1,11 +1,11 @@
 function [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(mesh, options)
 % metricSPhiGridMesh(mesh, varargin)
 %   Identify the bond on each face of a rectilinear grid mesh that is along
-%   x and y (s and phi). Assumes input mesh is rectilinear with indices
+%   x and y (z and phi). Assumes input mesh is rectilinear with indices
 %   increasing first along x, then along y. Mesh may be periodic in either
 %   or both directions.
 %
-% todo: allow passing topologicalStructureTools instead of recompute
+% Note: Allows passing topologicalStructureTools instead of recomputing
 %
 % Parameters
 % ----------
@@ -30,9 +30,9 @@ function [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(mesh, opti
 % Returns
 % -------
 % labels : struct with fields
-%   fe_is_u : #faces x 3 int array
+%   fe_is_u : #faces x 3 int array matching feIDx (face-Edge IDs)
 %       whether a bond in the triangulation is along u (row)
-%   fe_is_v : #faces x 3 int array
+%   fe_is_v : #faces x 3 int array match feIDx (face-Edge IDs)
 %       whether a bond in the triangulation is along v (column)
 % dbonds : struct with fields
 %   If mesh has no baseSpace (no mesh.u field), then output has fields:
@@ -50,12 +50,12 @@ function [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(mesh, opti
 %           directed bonds in coordinate space of mesh vertices
 %   If the input mesh is a closed cylinder, cutMesh is an additional field
 %       cutMesh : struct with fields
-%           f : nU*
-%           u : 
-%           v : 
-%           vn : 
-%           nU : 
-%           nV : 
+%           f : (nU-1)*2*(nV-1) x 3 int array, face connectivity list
+%           u : #vertices x 2 float array, pullback vertex positions
+%           v : #vertices x 3 float array, embedding vertex positions
+%           vn : #vertices x 3 float array, vertex normals
+%           nU : int, number of vertices along pullback U direction
+%           nV : int, number of vertices along pullback V direction
 %       
 % topStructTools : optional cell array output, with elements
 %   eIDx : #bonds x 2 int
@@ -140,8 +140,8 @@ if nargout > 1
 
     % Return directed bond vectors for bonds along u and along v as struct
     % with fields u, v
-    dbond_u = eij(sum(fe_is_u .* feIDx, 2), :) ;
-    dbond_v = eij(sum(fe_is_v .* feIDx, 2), :) ;
+    dbond_u3d = eij(sum(fe_is_u .* feIDx, 2), :) ;
+    dbond_v3d = eij(sum(fe_is_v .* feIDx, 2), :) ;
     
     % Check for a base space of the mesh
     if isfield(mesh, 'u')
@@ -167,15 +167,15 @@ if nargout > 1
         dbonds_baseSpace.v = dbond_v ;
         
         % Return dbonds as struct with fields realSpace and baseSpace
-        dbonds_realSpace.u = dbond_u ;
-        dbonds_realSpace.v = dbond_v ;
+        dbonds_realSpace.u = dbond_u3d ;
+        dbonds_realSpace.v = dbond_v3d ;
         
         % Store in master struct
         dbonds.realSpace = dbonds_realSpace ;
         dbonds.baseSpace = dbonds_baseSpace ;
     else
-        dbonds.u = dbond_u ;
-        dbonds.v = dbond_v ;
+        dbonds.u = dbond_u3d ;
+        dbonds.v = dbond_v3d ;
     end
     
 end
