@@ -91,6 +91,11 @@ end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
 end
+% if isfield(options, 'climitWide')
+%     climitWide = options.climitWide ;
+% else
+%     climitWide = climit * 3; 
+% end
 if isfield(options, 'maxWFrac')
     maxWFrac = options.maxWFrac ;
 end
@@ -204,7 +209,7 @@ bwr256 = bluewhitered(256) ;
 close all
 
 % Compute or load all timepoints
-apKymoFn = fullfile(datdir, 'apKymographsMetricKinematics.mat') ;
+apKymoFn = fullfile(datdir, 'apKymographMetricKinematics.mat') ;
 lKymoFn = fullfile(datdir, 'leftKymographMetricKinematics.mat') ;
 rKymoFn = fullfile(datdir, 'rightKymographMetricKinematics.mat') ;
 dKymoFn = fullfile(datdir, 'dorsalKymographMetricKinematics.mat') ;
@@ -896,19 +901,14 @@ for qq = 1:5
     end
     
     %% Plot lobe Kinematics -- instantaneous data
-    ms2plot = {'gdot', 'divv', 'H2vn'} ;
-    for jj = 1:length(ms2plot)
-        m2plot = ms2plot{jj} ; 
-
-        fn = fullfile(outdirs{qq}, ...
-            ['lobe_kinematics_' avgLabel{qq} '.png']) ;
-        fn_withH = fullfile(outdirs{qq}, ...
-            ['lobe_kinematics_' avgLabel{qq} '_withH.png']) ;
-        aux_plotPathlineMetricKinematicsLobes_subpanels(QS, m2plot, fn, fn_withH, ...
-            lobes, tps, divv, H2vn, HH, lobeYlabels, avgStrings{qq}, ...
-            titleLobeBase, divvcolor, H2vncolor, ...
-            Hposcolor, Hnegcolor, Hsz, overwrite)
-    end
+    fn = fullfile(outdirs{qq}, ...
+        ['lobe_kinematics_' avgLabel{qq} '.png']) ;
+    fn_withH = fullfile(outdirs{qq}, ...
+        ['lobe_kinematics_' avgLabel{qq} '_withH.png']) ;
+    aux_plotPathlineMetricKinematicsLobes_subpanels(QS, m2plot, fn, fn_withH, ...
+        lobes, tps, divv, H2vn, HH, lobeYlabels, avgStrings{qq}, ...
+        titleLobeBase, divvcolor, H2vncolor, ...
+        Hposcolor, Hnegcolor, Hsz, overwrite)
     
     %% Fold kinematics -- cumprod gdot
     cumsum_cumprod = {'cumsum', 'cumprod'} ;

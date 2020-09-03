@@ -7,6 +7,16 @@ function initializeQuapSlap(QS, xp, opts)
 % QS : QuapSlap object whose properties to fill in
 % xp : Imsane Experiment class instance belonging to QS
 % opts : struct with fields
+%   xp : ImSAnE class object instance
+%   flipy : bool
+%   meshDir : str
+%   timeUnits : str
+%   spaceUnits : str
+%   nU : int
+%   nV : int
+%   lambda : optional float 
+%   lambda_mesh : optional float 
+%   lambda_err : optional float
 %   
 %
 % NPMitchell 2020
@@ -19,8 +29,8 @@ QS.timeUnits = opts.timeUnits ;
 QS.spaceUnits = opts.spaceUnits ;
 QS.fileBase.fn = xp.fileMeta.filenameFormat ;
 QS.ssfactor = xp.detectOptions(1).ssfactor ;
-QS.nV = opts.nV ;
 QS.nU = opts.nU ;
+QS.nV = opts.nV ;
 if isfield(opts, 'timeinterval')
     QS.timeInterval = opts.timeInterval ;
 else
@@ -75,14 +85,29 @@ QS.dir.texturePatchIm = fullfile(meshDir, 'images_texturepatch') ;
 uvDir = fullfile(QS.dir.mesh, sprintf('gridCoords_nU%04d_nV%04d', QS.nU, QS.nV)) ;
 QS.dir.uvCoord = uvDir ;
 
+% define string for smoothing params
+if isfield(opts, 'lambda')
+    QS.smoothing.lambda = opts.lambda ;
+end
+if isfield(opts, 'lambda_mesh')
+    QS.smoothing.lambda_mesh = opts.lambda_mesh ;
+end
+if isfield(opts, 'lambda_err')
+    QS.smoothing.lambda_err = opts.lambda_err ;
+end
+l_lmesh_lerr =  strrep(sprintf('lambda%0.03f_lmesh%0.3f_lerr%0.3f', ...
+    QS.smoothing.lambda, QS.smoothing.lambda_mesh, ...
+    QS.smoothing.lambda_err), '.', 'p') ;
+l_lmesh = strrep(sprintf('lambda%0.03f_lmesh%0.3f', ...
+    QS.smoothing.lambda, QS.smoothing.lambda_mesh), '.', 'p') ;
+
 % Metric strain dirs
 QS.dir.metricKinematics = struct() ;
 QS.dir.metricKinematics.root = fullfile(uvDir, 'metricKinematics') ;
 QS.dir.metricKinematics.smoothing = fullfile(uvDir, 'metricKinematics', ...
-    'lambda%0.03f_lerr%0.3f_lmesh%0.3f') ;
+    l_lmesh_lerr) ;
 QS.dir.metricKinematics.measurements = ...
-    fullfile(uvDir, 'metricKinematics', ...
-    'lambda%0.03f_lerr%0.3f_lmesh%0.3f', 'measurements') ;
+    fullfile(uvDir, 'metricKinematics', l_lmesh_lerr, 'measurements') ;
 QS.fullFileBase.metricKinematics = struct() ;
 QS.fullFileBase.metricKinematics.divv = ...
     fullfile(QS.dir.metricKinematics.measurements, 'divv_vertices_%06d') ;
@@ -94,8 +119,7 @@ QS.fullFileBase.metricKinematics.gdot = ...
 % Metric Kinematics along pathlines
 QS.dir.metricKinematics.pathline = struct() ;
 QS.dir.metricKinematics.pathline.root = ...
-    fullfile(uvDir, 'metricKinematics', ...
-    'lambda%0.03f_lerr%0.3f_lmesh%0.3f', 'pathline_%04dt0') ;
+    fullfile(uvDir, 'metricKinematics', l_lmesh_lerr, 'pathline_%04dt0') ;
 QS.dir.metricKinematics.pathline.measurements = ...
     fullfile(QS.dir.metricKinematics.pathline.root, 'measurements') ;
 
@@ -115,19 +139,19 @@ QS.fullFileBase.gstrainRate = fullfile(QS.dir.gstrainRate, ...
 %% Strain Rate
 QS.dir.strainRate = struct() ;
 QS.dir.strainRate.root = fullfile(uvDir, 'strainRate') ;
-QS.dir.strainRate.smoothing = fullfile(uvDir, 'strainRate', ...
-    'lambda%0.03f_lmesh%0.3f') ;
+QS.dir.strainRate.smoothing = fullfile(uvDir, 'strainRate', l_lmesh) ;
 QS.dir.strainRate.measurements = ...
-    fullfile(uvDir, 'strainRate', ...
-    'lambda%0.03f_lmesh%0.3f', 'measurements') ;
+    fullfile(uvDir, 'strainRate', l_lmesh, 'measurements') ;
 QS.fileBase.strainRate = 'strainRate_%06d.mat' ;
 QS.fullFileBase.strainRate = fullfile(QS.dir.strainRate.measurements, ...
     QS.fileBase.strainRate) ; 
+QS.fileBase.strain = 'strain_%06d.mat' ;
+QS.fullFileBase.strain = fullfile(QS.dir.strainRate.measurements, ...
+    QS.fileBase.strain) ; 
 % Strain rates along pathlines -- to be filled in with smoothing and t0
 QS.dir.strainRate.pathline = struct() ;
 QS.dir.strainRate.pathline.root = ...
-    fullfile(uvDir, 'strainRate', ...
-    'lambda%0.03f_lmesh%0.3f', 'pathline_%04dt0') ;
+    fullfile(uvDir, 'strainRate', l_lmesh, 'pathline_%04dt0') ;
 QS.dir.strainRate.pathline.measurements = ...
     fullfile(QS.dir.strainRate.pathline.root, 'measurements') ;
 
@@ -329,26 +353,19 @@ QS.fullFileBase.spcutMeshSmRSCPLY2x = ...
 QS.fileBase.spcutMeshSmRSC2x = '%06d_spcMSmRSC2x' ;
 
 QS.fileBase.im_uv = [QS.fileBase.name, '_pbuv.tif'] ;
-QS.fullFileBase.im_uv = ...
-    fullfile(QS.dir.im_uv, QS.fileBase.im_uv) ;
+QS.fullFileBase.im_uv = fullfile(QS.dir.im_uv, QS.fileBase.im_uv) ;
 QS.fileBase.im_r = [QS.fileBase.name, '_pbr.tif'] ;
-QS.fullFileBase.im_r = ...
-    fullfile(QS.dir.im_r, QS.fileBase.im_r) ;
+QS.fullFileBase.im_r = fullfile(QS.dir.im_r, QS.fileBase.im_r) ;
 QS.fileBase.im_re = [QS.fileBase.name, '_pbre.tif'] ;
-QS.fullFileBase.im_re =  ...
-    fullfile(QS.dir.im_re, QS.fileBase.im_re) ;
+QS.fullFileBase.im_re = fullfile(QS.dir.im_re, QS.fileBase.im_re) ;
 QS.fileBase.im_sp = [QS.fileBase.name, '_pbsp.tif'] ;
-QS.fullFileBase.im_sp = ...
-    fullfile(QS.dir.im_sp, QS.fileBase.im_sp);
+QS.fullFileBase.im_sp = fullfile(QS.dir.im_sp, QS.fileBase.im_sp);
 QS.fileBase.im_spe = [QS.fileBase.name, '_pbspe.tif'] ;
-QS.fullFileBase.im_spe = ...
-    fullfile(QS.dir.im_spe, QS.fileBase.im_spe);
+QS.fullFileBase.im_spe = fullfile(QS.dir.im_spe, QS.fileBase.im_spe);
 QS.fileBase.im_speLUT = [QS.fileBase.name, '_pbspe_LUT.tif'] ;
-QS.fullFileBase.im_speLUT = ...
-    fullfile(QS.dir.im_spe, QS.fileBase.im_speLUT);
+QS.fullFileBase.im_speLUT = fullfile(QS.dir.im_spe, QS.fileBase.im_speLUT);
 QS.fileBase.im_up = [QS.fileBase.name, '_pbup.tif'] ;
-QS.fullFileBase.im_up = ...
-     fullfile(QS.dir.im_up, QS.fileBase.im_up) ;
+QS.fullFileBase.im_up = fullfile(QS.dir.im_up, QS.fileBase.im_up) ;
 
  %% Smoothed pullbacks (pb)
 QS.fileBase.im_sp_sm = [QS.fileBase.name, '_pbspsm.tif'] ;
@@ -494,23 +511,31 @@ QS.fullFileBase.decAvg2x = fullfile(QS.dir.pivAvgDEC2x.data, ...
 %% 2x Velocities -- simple/surface-Lagrangian averaging
 QS.dir.pivSimAvg2x = fullfile(QS.dir.piv, 'simpleAvgDoubleRes') ;
 QS.fileName.pivSimAvg2x = struct() ;
-QS.fileName.pivSimAvg2x.v2dum = fullfile(QS.dir.pivSimAvg2x, 'v2dMum_simpletimeavg2x.mat') ;
-QS.fileName.pivSimAvg2x.v2d = fullfile(QS.dir.pivSimAvg2x, 'v2dM_simpletimeavg2x.mat') ;
-QS.fileName.pivSimAvg2x.vn  = fullfile(QS.dir.pivSimAvg2x, 'vnM_simpletimeavg2x.mat') ;
-QS.fileName.pivSimAvg2x.v3d = fullfile(QS.dir.pivSimAvg2x, 'vM_simpletimeavg2x.mat') ;
-QS.fileName.pivSimAvg2x.vv  = fullfile(QS.dir.pivSimAvg2x, 'vvM_simpletimeavg2x.mat') ;
-QS.fileName.pivSimAvg2x.vf  = fullfile(QS.dir.pivSimAvg2x, 'vfM_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.v2dum = ...
+    fullfile(QS.dir.pivSimAvg2x, 'v2dMum_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.v2d = ...
+    fullfile(QS.dir.pivSimAvg2x, 'v2dM_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.vn = ...
+    fullfile(QS.dir.pivSimAvg2x, 'vnM_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.v3d = ...
+    fullfile(QS.dir.pivSimAvg2x, 'vM_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.vv = ...
+    fullfile(QS.dir.pivSimAvg2x, 'vvM_simpletimeavg2x.mat') ;
+QS.fileName.pivSimAvg2x.vf = ...
+    fullfile(QS.dir.pivSimAvg2x, 'vfM_simpletimeavg2x.mat') ;
 QS.dir.pivSimAvgDEC2x = struct() ;
 QS.dir.pivSimAvgDEC2x.data   = fullfile(QS.dir.pivSimAvg2x, 'dec') ;
 QS.dir.pivSimAvgDEC2x.div2d  = fullfile(QS.dir.pivSimAvg2x, 'dec_div2d') ;
 QS.dir.pivSimAvgDEC2x.div3d  = fullfile(QS.dir.pivSimAvg2x, 'dec_div3d') ;
-QS.dir.pivSimAvgDEC2x.div3dTexture = fullfile(QS.dir.pivSimAvg2x, 'dec_div3dTexture') ;
+QS.dir.pivSimAvgDEC2x.div3dTexture = ...
+    fullfile(QS.dir.pivSimAvg2x, 'dec_div3dTexture') ;
 QS.dir.pivSimAvgDEC2x.rot2d  = fullfile(QS.dir.pivSimAvg2x, 'dec_rot2d') ;
 QS.dir.pivSimAvgDEC2x.rot3d  = fullfile(QS.dir.pivSimAvg2x, 'dec_rot3d') ;
-QS.dir.pivSimAvgDEC2x.rot3dTexture = fullfile(QS.dir.pivSimAvg2x, 'dec_rot3dTexture') ;
+QS.dir.pivSimAvgDEC2x.rot3dTexture = ...
+    fullfile(QS.dir.pivSimAvg2x, 'dec_rot3dTexture') ;
 QS.dir.pivSimAvgDEC2x.harm2d = fullfile(QS.dir.pivSimAvg2x, 'dec_harm2d') ;
 QS.dir.pivSimAvgDEC2x.harm3d = fullfile(QS.dir.pivSimAvg2x, 'dec_harm3d') ;
-QS.fullFileBase.decSimAvg2x = fullfile(QS.dir.pivSimAvgDEC2x.data, ...
+QS.fullFileBase.decSimAvg2x  = fullfile(QS.dir.pivSimAvgDEC2x.data, ...
                               [QS.fileBase.name '_dec.mat'] ) ;
 
 %% Eulerian kinematics

@@ -527,6 +527,9 @@ opts.a_fixed = 2.0 ;
 opts.adjustlow = 1.00 ;         % floor for intensity adjustment
 opts.adjusthigh = 99.9 ;        % ceil for intensity adjustment (clip)
 opts.phiMethod = 'curves3d' ;
+opts.lambda_mesh = 0.002 ;
+opts.lambda = 0.01 ;
+opts.lambda_err = 0.01 ;
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
@@ -1372,9 +1375,6 @@ QS.measurePIV3d(options) ;
 % options.plot_correlations = true ;
 % options.plot_gdot_correlations = false ;
 % options.plot_gdot_decomp = true ;
-% options.lambda_mesh = 0.002 ;
-% options.lambda = 0.02 ;
-% options.lambda_err = 0.03 ;
 % options.samplingResolution = '2x'; 
 % QS.measureMetricKinematics(options)
 
@@ -1402,9 +1402,6 @@ QS.helmholtzHodge(options) ;
 %% Compressibility & kinematics for Lagrangian
 options = struct() ;
 options.overwrite = false ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.01 ;
-options.lambda_err = 0.01 ;
 options.samplingResolution = '1x'; 
 QS.measureMetricKinematics(options)
 %% Metric Kinematics Kymographs & Correlations
@@ -1419,9 +1416,6 @@ options.plot_correlations = true ;
 options.plot_raw_correlations = true ;
 options.plot_gdot_correlations = false ;
 options.plot_gdot_decomp = false ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.01 ;
-options.lambda_err = 0.01 ;
 options.climit = 0.1 ;
 QS.plotMetricKinematics(options)
 
@@ -1445,9 +1439,6 @@ QS.plotPathlineVelocities(options)
 %% Measure Pathline Kinematics
 options = struct() ;
 options.overwrite = false ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.01 ;
-options.lambda_err = 0.01 ;
 QS.measurePathlineMetricKinematics(options)
 %% Plot Pathline Kinematics
 options = struct() ;
@@ -1458,9 +1449,6 @@ options.plot_kymographs_cumprod = false ;
 options.plot_correlations = false ;
 options.plot_fold_kinematics = true ;
 options.plot_lobe_kinematics = true ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.01 ;
-options.lambda_err = 0.01 ;
 options.climit = 0.10 ;
 QS.plotPathlineMetricKinematics(options)
 
@@ -1479,43 +1467,46 @@ QS.measureStressPattern(options) ;
 option = struct() ;
 options.overwrite = true ;
 options.preview = false ;
-options.lambda_mesh = 0.001 ;
-options.lambda = 0.01 ;
 QS.measureMetricStrainRate(options) 
 %% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
 options = struct() ;
 options.overwrite = true ;
-options.overwriteImages = true ;
+options.overwriteImages = false ;
 options.preview = false ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.01 ;
 QS.measureStrainRate(options) 
 %% Kymograph strain rates
 options = struct() ;
 options.overwrite = true ;
-options.lambda = 0.01 ;
-options.lambda_mesh = 0.002 ;
 options.skipTimePoint = true ;
-options.clim_deviatoric = 0.1 ;
+options.clim_trace = 0.05 ;
+options.clim_deviatoric = 0.05 ;
 QS.plotStrainRate(options)
 %% Measure strain rate along pathlines
 options = struct() ;
+options.overwrite = false ;
+options.overwriteImages = true ;
+options.plot_dzdp = false ;
+QS.measurePathlineStrainRate(options)
+%% Measure strain along pathlines
+options = struct() ;
 options.overwrite = true ;
 options.overwriteImages = true ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.01 ;
-options.lambda_err = 0.01 ;
-QS.measurePathlineStrainRate(options)
+options.plot_dzdp = false ;
+options.median_filter_strainRates = false ;
+options.climitInitial = 0.01 ;
+options.climitStrainRamp = 0.01 ;
+QS.measurePathlineStrain(options)
 %% Pathline strain rate plots
 options = struct() ;
 options.overwrite = true ;
 options.plot_kymographs = true ;
 options.plot_kymographs_strain = true ;
-options.plot_fold_kinematics = true ;
-options.plot_lobe_kinematics = true ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.01 ;
-options.climit = 0.10 ;
+options.plot_fold_strainRate = true ;
+options.plot_lobe_strainRate = true ;
+options.plot_fold_strain = true ;
+options.plot_lobe_strain = true ;
+options.climit = 0.05 ;
+options.climitWide = 1.0 ;
 QS.plotPathlineStrainRate(options)
 
 %% Measure surface area growh of lobes and folds in Eulerian frame

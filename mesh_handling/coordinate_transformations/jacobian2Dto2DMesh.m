@@ -1,4 +1,4 @@
-function J_2D_To_2D = jacobian2Dto2DMesh(u2d, x2d, ff)
+function [J_2D_To_2D, outputStruct] = jacobian2Dto2DMesh(u2d, x2d, ff)
 %JACOBIAN2DTO2DMESH(x2d, u3d, ff) 
 %   Construct jacobian for mapping 2d->2d, from X->U.
 %
@@ -18,6 +18,9 @@ function J_2D_To_2D = jacobian2Dto2DMesh(u2d, x2d, ff)
 %   The components of this matrix are the partial derivatives: du^i/dx^j
 %   i.e., the Jacobian used to transform the CONTRAVARIANT components of a
 %   tensor
+% outputStruct : struct, additional information
+%   inconsistent_ordering : bool, whether normals are all facing same
+%   direction (+z or -z)
 % 
 % Dillon Cislo, NPMitchell 2020
 
@@ -76,6 +79,13 @@ end
 
 if (numel(unique(normals(:,3))) ~= 1)
     warning('Mesh faces are inconsistently ordered');
+    if nargout > 1
+        outputStruct.consistent_ordering = false ;
+    end
+else
+    if nargout > 1
+        outputStruct.consistent_ordering = true ;
+    end
 end
 
 % Calculate the (e1Hat, t1Hat)-basis --------------------------------------

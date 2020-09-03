@@ -11,8 +11,10 @@ function plotPathlineStrainRate(QS, options)
 %   plot_kymographs         : bool
 %   plot_kymographs_cumsum  : bool
 %   plot_correlations       : bool 
-%   plot_fold_kinematics    : bool
-%   plot_lobe_kinematics    : bool
+%   plot_fold_strainRate    : bool
+%   plot_lobe_strainRate    : bool
+%   plot_fold_strain        : bool
+%   plot_lobe_strain        : bool
 % 
 % Returns
 % -------
@@ -24,13 +26,30 @@ function plotPathlineStrainRate(QS, options)
 overwrite = false ;
 plot_kymographs = true ;
 plot_kymographs_strain = true ;
-plot_fold_kinematics = true ;
-plot_lobe_kinematics = true ;
+plot_fold_strainRate = true ;
+plot_lobe_strainRate = true ;
+plot_fold_strain = true ;
+plot_lobe_strain = true ;
+maxWFrac = 0.03 ;  % Maximum halfwidth of feature/fold regions as fraction of ap length
 t0 = QS.t0set() ;
+t0Pathline = t0 ;
+featureIDOptions = struct() ;
+
+sRate_trace_label = '$\frac{1}{2}\mathrm{Tr} [\bf{g}^{-1}\dot{\varepsilon}]$';
+sRate_deviator_label = ...
+    '$||\dot{\varepsilon}-\frac{1}{2}$Tr$\left[\mathbf{g}^{-1}\dot{\varepsilon}\right]\bf{g}||$' ;
+% sRate_theta_label = '$\theta_{\mathrm{Dev}[\varepsilon]}$'; 
+strain_trace_label = '$\frac{1}{2}\mathrm{Tr} [\bf{g}^{-1}\varepsilon]$';
+strain_trace_label_norm = '$||\mathrm{Tr} [\varepsilon]||$';
+strain_deviator_label = ...
+    '$||\varepsilon-\frac{1}{2}$Tr$\left[\mathbf{g}^{-1}\varepsilon\right]\bf{g}||$' ;
+strain_deviator_label_short = ...
+    '$||$Dev$\left[\varepsilon\right]||$' ;
+% strain_theta_label = '$\theta_{\mathrm{Dev}[\dot{\varepsilon}]}$'; 
 
 %% Parameter options
-lambda = 0.02 ;
-lambda_mesh = 0.002 ;
+lambda = QS.smoothing.lambda ;
+lambda_mesh = QS.smoothing.lambda_mesh ;
 climit = 0.2 ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
@@ -52,8 +71,8 @@ end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;
 end
-if isfield(options, 't0')
-    t0 = options.t0 ;
+if isfield(options, 't0Pathline')
+    t0Pathline = options.t0Pathline ;
 end
 if isfield(options, 'climit')
     climit = options.climit ;
@@ -61,19 +80,36 @@ end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
 end
+if isfield(options, 'climitWide')
+    climitWide = options.climitWide ;
+else
+    climitWide = climit * 3; 
+end
+if isfield(options, 'maxWFrac')
+    maxWFrac = options.maxWFrac ;
+end
+if isfield(options, 'featureIDOptions')
+    featureIDOptions = options.featureIDOptions ;
+end
 
 %% Operational options
 if isfield(options, 'plot_kymographs')
     plot_kymographs = options.plot_kymographs ;
 end
-if isfield(options, 'plot_kymographs_cumprod')
-    plot_kymographs_strain = options.plot_kymographs_cumprod ;
+if isfield(options, 'plot_kymographs_strain')
+    plot_kymographs_strain = options.plot_kymographs_strain ;
 end
-if isfield(options, 'plot_fold_kinematics')
-    plot_fold_kinematics = options.plot_fold_kinematics ;
+if isfield(options, 'plot_fold_strainRate')
+    plot_fold_strainRate = options.plot_fold_strainRate ;
 end
-if isfield(options, 'plot_lobe_kinematics')
-    plot_lobe_kinematics = options.plot_lobe_kinematics ;
+if isfield(options, 'plot_lobe_strainRate')
+    plot_lobe_strainRate = options.plot_lobe_strainRate ;
+end
+if isfield(options, 'plot_fold_strain')
+    plot_fold_strain = options.plot_fold_strain ;
+end
+if isfield(options, 'plot_lobe_strain')
+    plot_lobe_strain = options.plot_lobe_strain ;
 end
 
 %% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
@@ -104,11 +140,6 @@ set(gcf, 'visible', 'off')
 imagesc([-1, 0, 1; -1, 0, 1])
 caxis([-1, 1])
 bwr256 = bluewhitered(256) ;
-%% Colormap
-close all
-set(gcf, 'visible', 'off')
-imagesc([-1, 0, 1; -1, 0, 1])
-caxis([-1, 1])
 bbr256 = blueblackred(256) ;
 % clf
 % set(gcf, 'visible', 'off')
@@ -117,11 +148,19 @@ bbr256 = blueblackred(256) ;
 % pos256 = bluewhitered(256) ;
 close all
 pm256 = phasemap(256) ;
+bluecolor = QS.plotting.colors(1, :) ;
+orangecolor = QS.plotting.colors(2, :) ;
+yellowcolor = QS.plotting.colors(3, :) ;
+purplecolor = QS.plotting.colors(4, :) ;
+greencolor = QS.plotting.colors(5, :) ;
+graycolor = QS.plotting.colors(8, :) ;
+browncolor = QS.plotting.colors(9, :) ;
 
-
-%% Load time offset for first fold, t0
-QS.t0set() ;
-tfold = QS.t0 ;
+%% Choose colors
+trecolor = yellowcolor ;
+Hposcolor = greencolor ;
+Hnegcolor = purplecolor ;
+Hsz = 3 ;  % size of scatter markers for mean curvature
 
 %% load from QS
 if doubleResolution
@@ -134,25 +173,7 @@ end
 
 %% Test incompressibility of the flow on the evolving surface
 % We relate the normal velocities to the divergence / 2 * H.
-tps = QS.xp.fileMeta.timePoints(1:end-1) - tfold;
-
-% preallocate for cumulative error
-ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
-dv_apM   = zeros(ntps, nU) ;   % dv averaged
-tr_apM   = zeros(ntps, nU) ;   
-th_apM   = zeros(ntps, nU) ;   
-dv_lM   = zeros(ntps, nU) ;    % left averaged
-tr_lM = zeros(ntps, nU) ;
-th_lM = zeros(ntps, nU) ;
-dv_rM   = zeros(ntps, nU) ;    % right averaged
-tr_rM = zeros(ntps, nU) ;
-th_rM = zeros(ntps, nU) ;
-dv_dM   = zeros(ntps, nU) ;    % dorsal averaged
-tr_dM = zeros(ntps, nU) ;
-th_dM = zeros(ntps, nU) ;
-dv_vM   = zeros(ntps, nU) ;    % ventral averaged
-tr_vM = zeros(ntps, nU) ;
-th_vM = zeros(ntps, nU) ;
+tps = QS.xp.fileMeta.timePoints(1:end-1) - t0 ;
 
 % Output directory is inside metricKinematics dir
 mKPDir = fullfile(sKDir, sprintf('pathline_%04dt0', t0)) ;
@@ -169,40 +190,52 @@ lKymoFn = fullfile(datdir, 'leftKymographPathlineStrainRate.mat') ;
 rKymoFn = fullfile(datdir, 'rightKymographPathlineStrainRate.mat') ;
 dKymoFn = fullfile(datdir, 'dorsalKymographPathlineStrainRate.mat') ;
 vKymoFn = fullfile(datdir, 'ventralKymographPathlineStrainRate.mat') ;
+apSKymoFn = fullfile(datdir, 'apKymographPathlineStrain.mat') ;
+lSKymoFn = fullfile(datdir, 'leftKymographPathlineStrain.mat') ;
+rSKymoFn = fullfile(datdir, 'rightKymographPathlineStrain.mat') ;
+dSKymoFn = fullfile(datdir, 'dorsalKymographPathlineStrain.mat') ;
+vSKymoFn = fullfile(datdir, 'ventralKymographPathlineStrain.mat') ;
 files_exist = exist(apKymoFn, 'file') && ...
     exist(lKymoFn, 'file') && exist(rKymoFn, 'file') && ...
     exist(dKymoFn, 'file') && exist(vKymoFn, 'file') ;
 if files_exist
-    load(apKymoFn, 'tr_apM', 'dv_apM', 'th_apM', ...
-        'str_apM', 'sdv_apM', 'sth_apM')
-    load(lKymoFn, 'tr_lM', 'dv_lM', 'th_lM', ...
-        'str_lM', 'sdv_lM', 'sth_lM')
-    load(rKymoFn, 'tr_rM', 'dv_rM', 'th_rM', ...
-        'str_rM', 'sdv_rM', 'sth_rM')
-    load(dKymoFn, 'tr_dM', 'dv_dM', 'th_dM', ...
-        'str_dM', 'sdv_dM', 'sth_dM')
-    load(vKymoFn, 'tr_vM', 'dv_vM', 'th_vM', ...
-        'str_vM', 'sdv_vM', 'sth_vM')
+    load(apKymoFn, 'tr_apM', 'dv_apM', 'th_apM')
+    load(lKymoFn, 'tr_lM', 'dv_lM', 'th_lM')
+    load(rKymoFn, 'tr_rM', 'dv_rM', 'th_rM')
+    load(dKymoFn, 'tr_dM', 'dv_dM', 'th_dM')
+    load(vKymoFn, 'tr_vM', 'dv_vM', 'th_vM')
 else
+    % preallocate for kymos
+    ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
+    dv_apM   = zeros(ntps, nU) ;   % dv averaged
+    tr_apM   = zeros(ntps, nU) ;   
+    th_apM   = zeros(ntps, nU) ;   
+    dv_lM   = zeros(ntps, nU) ;    % left averaged
+    tr_lM = zeros(ntps, nU) ;
+    th_lM = zeros(ntps, nU) ;
+    dv_rM   = zeros(ntps, nU) ;    % right averaged
+    tr_rM = zeros(ntps, nU) ;
+    th_rM = zeros(ntps, nU) ;
+    dv_dM   = zeros(ntps, nU) ;    % dorsal averaged
+    tr_dM = zeros(ntps, nU) ;
+    th_dM = zeros(ntps, nU) ;
+    dv_vM   = zeros(ntps, nU) ;    % ventral averaged
+    tr_vM = zeros(ntps, nU) ;
+    th_vM = zeros(ntps, nU) ;
+
     for tp = QS.xp.fileMeta.timePoints(1:end-1)
         close all
         disp(['t = ' num2str(tp)])
         tidx = QS.xp.tIdx(tp) ;
 
         % Check for timepoint measurement on disk
-        srfn = fullfile(datdir, sprintf('strainRate_series_%06d.mat', tp))   ;
+        srfn = fullfile(datdir, sprintf('strainRate_%06d.mat', tp))   ;
 
         % Load timeseries measurements
         load(srfn, 'tre_ap', 'tre_l', 'tre_r', 'tre_d', 'tre_v', ...
             'dev_ap', 'dev_l', 'dev_r', 'dev_d', 'dev_v', ...
-            'theta_ap', 'theta_l', 'theta_r', 'theta_d', 'theta_v', ...
-            'strain_tr_ap', 'strain_tr_l', 'strain_tr_r', ...
-            'strain_tr_d', 'strain_tr_v', ...
-            'strain_th_ap', 'strain_th_l', 'strain_th_r', ....
-            'strain_th_d', 'strain_th_v', ...
-            'strain_dv_ap', 'strain_dv_l', 'strain_dv_r', ...
-            'strain_dv_d', 'strain_dv_v') ;
-
+            'theta_ap', 'theta_l', 'theta_r', 'theta_d', 'theta_v')
+   
         %% Store in matrices
         % dv averaged
         tr_apM(tidx, :) = tre_ap ;
@@ -228,6 +261,58 @@ else
         tr_vM(tidx, :) = tre_v ;
         dv_vM(tidx, :) = dev_v ;
         th_vM(tidx, :) = theta_v ;
+        
+        %% Save kymograph data
+        save(apKymoFn, 'tr_apM', 'dv_apM', 'th_apM')
+        save(lKymoFn, 'tr_lM', 'dv_lM', 'th_lM')
+        save(rKymoFn, 'tr_rM', 'dv_rM', 'th_rM')
+        save(dKymoFn, 'tr_dM', 'dv_dM', 'th_dM')
+        save(vKymoFn, 'tr_vM', 'dv_vM', 'th_vM')
+    end
+end
+
+% Now load or collate kymograph data for accumulated strains
+files_exist = exist(apSKymoFn, 'file') && ...
+    exist(lSKymoFn, 'file') && exist(rSKymoFn, 'file') && ...
+    exist(dSKymoFn, 'file') && exist(vSKymoFn, 'file') ;
+if files_exist
+    load(apSKymoFn, 'str_apM', 'sdv_apM', 'sth_apM')
+    load(lSKymoFn, 'str_lM', 'sdv_lM', 'sth_lM')
+    load(rSKymoFn, 'str_rM', 'sdv_rM', 'sth_rM')
+    load(dSKymoFn, 'str_dM', 'sdv_dM', 'sth_dM')
+    load(vSKymoFn, 'str_vM', 'sdv_vM', 'sth_vM')
+else
+    % preallocate for kymos
+    ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
+    sdv_apM   = zeros(ntps, nU) ;   % dv averaged
+    str_apM   = zeros(ntps, nU) ;   
+    sth_apM   = zeros(ntps, nU) ;   
+    sdv_lM   = zeros(ntps, nU) ;    % left averaged
+    str_lM = zeros(ntps, nU) ;
+    sth_lM = zeros(ntps, nU) ;
+    sdv_rM   = zeros(ntps, nU) ;    % right averaged
+    str_rM = zeros(ntps, nU) ;
+    sth_rM = zeros(ntps, nU) ;
+    sdv_dM   = zeros(ntps, nU) ;    % dorsal averaged
+    str_dM = zeros(ntps, nU) ;
+    sth_dM = zeros(ntps, nU) ;
+    sdv_vM   = zeros(ntps, nU) ;    % ventral averaged
+    str_vM = zeros(ntps, nU) ;
+    sth_vM = zeros(ntps, nU) ;
+
+    for tp = QS.xp.fileMeta.timePoints(1:end-1)
+        close all
+        disp(['t = ' num2str(tp)])
+        tidx = QS.xp.tIdx(tp) ;
+
+        % Check for timepoint measurement on disk
+        sfn = fullfile(datdir, sprintf('strain_%06d.mat', tp))   ;
+        load(sfn, 'strain_tr_ap', 'strain_tr_l', 'strain_tr_r', ...
+            'strain_tr_d', 'strain_tr_v', ...
+            'strain_th_ap', 'strain_th_l', 'strain_th_r', ....
+            'strain_th_d', 'strain_th_v', ...
+            'strain_dv_ap', 'strain_dv_l', 'strain_dv_r', ...
+            'strain_dv_d', 'strain_dv_v') ;
 
         %% Store accumulated strain in matrices
         % dv averaged
@@ -256,34 +341,15 @@ else
         sth_vM(tidx, :) = strain_th_v ;
     end
     
-    %% Save kymographs
-    save(apKymoFn, 'tr_apM', 'dv_apM', 'th_apM', ...
-        'str_apM', 'sdv_apM', 'sth_apM')
-    save(lKymoFn, 'tr_lM', 'dv_lM', 'th_lM', ...
-        'str_lM', 'sdv_lM', 'sth_lM')
-    save(rKymoFn, 'tr_rM', 'dv_rM', 'th_rM', ...
-        'str_rM', 'sdv_rM', 'sth_rM')
-    save(dKymoFn, 'tr_dM', 'dv_dM', 'th_dM', ...
-        'str_dM', 'sdv_dM', 'sth_dM')
-    save(vKymoFn, 'tr_vM', 'dv_vM', 'th_vM', ...
-        'str_vM', 'sdv_vM', 'sth_vM')
+    %% Save kymograph data
+    save(apSKymoFn, 'str_apM', 'sdv_apM', 'sth_apM')
+    save(lSKymoFn, 'str_lM', 'sdv_lM', 'sth_lM')
+    save(rSKymoFn, 'str_rM', 'sdv_rM', 'sth_rM')
+    save(dSKymoFn, 'str_dM', 'sdv_dM', 'sth_dM')
+    save(vSKymoFn, 'str_vM', 'sdv_vM', 'sth_vM')
 end
 
-%% Store kymograph data in cell arrays
-trsK = {tr_apM, tr_lM, tr_rM, tr_dM, tr_vM} ;
-dvsK = {dv_apM, dv_lM, dv_rM, dv_dM, dv_vM} ;
-thsK = {th_apM, th_lM, th_rM, th_dM, th_vM} ;
-
-%% Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
-dvDir = fullfile(mKPDir, 'avgDV') ;
-lDir = fullfile(mKPDir, 'avgLeft') ;
-rDir = fullfile(mKPDir, 'avgRight') ;
-dDir = fullfile(mKPDir, 'avgDorsal') ;
-vDir = fullfile(mKPDir, 'avgVentral') ;
-outdirs = {dvDir, lDir, rDir, dDir, vDir} ;
-
-%% To grab fold locationsrobustly, find minima of div(v) from ap average
-% and grab folds and lobes indexed in Lagrangian coords
+%% Load mean curvature kymograph data
 try
     metricKDir = QS.dir.metricKinematics.root ;
     dirs = dir(metricKDir) ; 
@@ -294,17 +360,38 @@ try
             end
         end
     end
-    loadDir = fullfile(metricKDir, sprintf('pathline_%04dt0', t0), ...
+    loadDir = fullfile(metricKDir, sprintf('pathline_%04dt0', t0Pathline), ...
         'measurements') ;
-    apKymoFn = fullfile(loadDir, 'apKymographsMetricKinematics.mat') ;
-    load(apKymoFn, 'divv_apM')
+    apKymoMetricKinFn = fullfile(loadDir, 'apKymographMetricKinematics.mat') ;
+    load(apKymoMetricKinFn, 'HH_apM')
+    lKymoMetricKinFn = fullfile(loadDir, 'leftKymographMetricKinematics.mat') ;
+    load(lKymoMetricKinFn, 'HH_lM')
+    rKymoMetricKinFn = fullfile(loadDir, 'rightKymographMetricKinematics.mat') ;
+    load(rKymoMetricKinFn, 'HH_rM')
+    dKymoMetricKinFn = fullfile(loadDir, 'dorsalKymographMetricKinematics.mat') ;
+    load(dKymoMetricKinFn, 'HH_dM')
+    vKymoMetricKinFn = fullfile(loadDir, 'ventralKymographMetricKinematics.mat') ;
+    load(vKymoMetricKinFn, 'HH_vM')
 catch
     error('Run QS.plotPathlineMetricKinematics() before QS.plotPathlineStrainRate()')
 end
-div1d = mean(divv_apM(tps > 20 & tps < 50, :), 1) ;
-div1dsm = savgol(div1d, 2, 11) ;
-[~, valleys] = maxk(-islocalmin(div1dsm) .* div1dsm, 3) ;
-valleys = sort(valleys) ;
+    
+%% Load/compute featureIDs
+featureIDs = QS.getPathlineFeatureIDs('vertices', featureIDOptions) ;
+
+%% Store kymograph data in cell arrays
+trsK = {0.5*tr_apM, 0.5*tr_lM, 0.5*tr_rM, 0.5*tr_dM, 0.5*tr_vM} ;
+dvsK = {dv_apM, dv_lM, dv_rM, dv_dM, dv_vM} ;
+thsK = {th_apM, th_lM, th_rM, th_dM, th_vM} ;
+HHsK = {HH_apM, HH_lM, HH_rM, HH_dM, HH_vM} ;
+
+%% Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
+dvDir = fullfile(mKPDir, 'avgDV') ;
+lDir = fullfile(mKPDir, 'avgLeft') ;
+rDir = fullfile(mKPDir, 'avgRight') ;
+dDir = fullfile(mKPDir, 'avgDorsal') ;
+vDir = fullfile(mKPDir, 'avgVentral') ;
+outdirs = {dvDir, lDir, rDir, dDir, vDir} ;
 
 %% Now plot different measured quantities as kymographs
 clim_zoom = climit * 0.3 ;
@@ -324,37 +411,31 @@ if plot_kymographs
         dvK = dvsK{qq} ;
         thK = thsK{qq} ;
         
-        titles = {'dilation rate, $\textrm{Tr}[g^{-1}\dot{\varepsilon}]$',...
-            'shear rate, $||\varepsilon-\frac{1}{2}$Tr$\left[\mathbf{g}^{-1}\dot{\varepsilon}\right]\bf{g}||$'} ;
-        labels = {['$\textrm{Tr}[g^{-1}\dot{\varepsilon}]$ ' unitstr], ...
-            ['$||\varepsilon-\frac{1}{2}$Tr$\left[\mathbf{g}^{-1}\dot{\varepsilon}\right]\bf{g}||$' unitstr]} ;
+        titles = {['dilation rate, ' sRate_trace_label],...
+            ['shear rate, ', sRate_deviator_label]} ;
+        labels = {[sRate_trace_label ' ' unitstr], ...
+            [sRate_deviator_label ' ' unitstr]} ;
         names = {'dilation', 'deviator'} ;
         
-        %% Plot trace/deviator DV-averaged kymograph
-        for pp = 1:2
-            
+        %% Plot strainRate DV-averaged Lagrangian pathline kymographs 
+        % Check if images already exist on disk
+
+        % Consider both wide color limit and narrow
+        zoomstr = {'_wide', '', '_zoom'} ;
+        climits = {climit, 0.5*climit, 0.25*climit} ;
+        
+        for pp = 1:length(climits)
+            %% Plot STRAIN traceful DV-averaged pathline kymograph
             % Check if images already exist on disk
-            fn = fullfile(odir, [ names{pp} '.png']) ;
-            fn_zoom = fullfile(odir, [names{pp} '_zoom_early.png']) ;
-            
-            if ~exist(fn, 'file') || ~exist(fn_zoom, 'file') || overwrite
+            fn = fullfile(odir, [ names{1} zoomstr{pp} '.png']) ;
+            fn_early = fullfile(odir, [names{1} zoomstr{pp} '_early.png']) ;
+            if ~exist(fn, 'file') || ~exist(fn_early, 'file') || overwrite
                 close all
                 set(gcf, 'visible', 'off')
-                if pp == 1
-                    imagesc((1:nU)/nU, tps, trK)
-                    caxis([-climit, climit])
-                    colormap(bwr256)
-                else
-                    % Map intensity from dev and color from the theta
-                    indx = max(1, round(mod(2*thK(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
-                    colors = pm256(indx, :) ;
-                    devKclipped = min(dvK / climit, 1) ;
-                    colorsM = devKclipped(:) .* colors ;
-                    colorsM = reshape(colorsM, [size(dvK, 1), size(dvK, 2), 3]) ;
-                    imagesc((1:nU)/nU, tps, colorsM)
-                    caxis([0, climit])
-                end
-
+                imagesc((1:nU)/nU, tps, trK)
+                caxis([-climits{pp}, climits{pp}])
+                colormap(bbr256)
+                
                 % Plot fold identifications
                 hold on;
                 fons1 = max(1, fons(1)) ;
@@ -365,15 +446,10 @@ if plot_kymographs
                 t3ones = ones(size(tps(fons3:end))) ;
                 tidx0 = QS.xp.tIdx(t0) ;
 
-                % OPTION 1: use QS.folds
-                % plot(folds.folds(tidx0, 1) * t1ones / nU, tps(fons1:end))
-                % plot(folds.folds(tidx0, 2) * t2ones / nU, tps(fons2:end))
-                % plot(folds.folds(tidx0, 3) * t3ones / nU, tps(fons3:end))
-
                 % OPTION 1: use identified div(v) < 0
-                plot(valleys(1) * t1ones / nU, tps(fons1:end))
-                plot(valleys(2) * t2ones / nU, tps(fons2:end))
-                plot(valleys(3) * t3ones / nU, tps(fons3:end))
+                plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
+                plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
+                plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
                 
                 % % Add folds to plot
                 % hold on;
@@ -389,137 +465,103 @@ if plot_kymographs
                 % for ii = laterID
                 %     thisFoldTimes = tps(fons(ii):end) ;
                 %     t_ones = ones(size(thisFoldTimes)) ;
-                %     plot(valleys(ii) * t_ones / nU, thisFoldTimes)
+                %     plot(featureIDs(ii) * t_ones / nU, thisFoldTimes)
                 % end
                 
                 % Titles 
-                title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
+                title([titles{1}, titleadd{qq}], 'Interpreter', 'Latex')
                 ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
                 xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
-
-                if pp == 1
-                    cb = colorbar() ;
-                elseif pp == 2
-                    % Colorbar and phasewheel
-                    colormap(gca, phasemap)
-                    phasebar('colormap', phasemap, ...
-                        'location', [0.82, 0.7, 0.1, 0.135], 'style', 'nematic')
-                    ax = gca ;
-                    get(gca, 'position')
-                    cb = colorbar('location', 'eastOutside') ;
-                    drawnow
-                    axpos = get(ax, 'position') ;
-                    cbpos = get(cb, 'position') ;
-                    set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3), cbpos(4)*0.6])
-                    set(ax, 'position', axpos) 
-                    hold on;
-                    caxis([0, climit])
-                    colormap(gca, gray)
-                end
+                cb = colorbar() ;
                 
                 % title and save
-                ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
-                fn = fullfile(odir, [ names{pp} '.png']) ;
+                ylabel(cb, labels{1}, 'Interpreter', 'Latex')  
                 disp(['saving ', fn])
                 export_fig(fn, '-png', '-nocrop', '-r200')   
-
-                if pp == 1
-                    % Zoom in on small values
-                    caxis([-clim_zoom, clim_zoom])
-                    colormap(bwr256)
-                    fn = fullfile(odir, [names{pp} '_zoom.png']) ;
-                    disp(['saving ', fn])
-                    export_fig(fn, '-png', '-nocrop', '-r200')   
-                    % Zoom in on early times
-                    ylim([min(tps), max(fons) + 10])
-                    caxis([-clim_zoom, clim_zoom])
-                    colormap(bwr256)
-                    fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
-                    disp(['saving ', fn])
-                    export_fig(fn, '-png', '-nocrop', '-r200')   
-                elseif pp == 2
-                    % Zoom in on color limits by changing intensity clip
-                    close all
-                    set(gcf, 'visible', 'off')
-                    
-                    % Map intensity from dev and color from the theta
-                    indx = max(1, round(mod(2*thK(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
-                    colors = pm256(indx, :) ;
-                    devKclipped = min(dvK / clim_zoom, 1) ;
-                    colorsM = devKclipped(:) .* colors ;
-                    colorsM = reshape(colorsM, [size(dvK, 1), size(dvK, 2), 3]) ;
-                    imagesc((1:nU)/nU, tps, colorsM)
-                    caxis([0, clim_zoom])
-                    
-                    % Add folds to plot
-                    hold on;
-                    
-                    % Plot fold identifications
-                    hold on;
-                    fons1 = max(1, fons(1)) ;
-                    fons2 = max(1, fons(2)) ;
-                    fons3 = max(1, fons(3)) ;
-                    t1ones = ones(size(tps(fons1:end))) ;
-                    t2ones = ones(size(tps(fons2:end))) ;
-                    t3ones = ones(size(tps(fons3:end))) ;
-                    tidx0 = QS.xp.tIdx(t0) ;
-                    
-                    % OPTION 1: use QS.folds
-                    % plot(folds.folds(tidx0, 1) * t1ones / nU, tps(fons1:end))
-                    % plot(folds.folds(tidx0, 2) * t2ones / nU, tps(fons2:end))
-                    % plot(folds.folds(tidx0, 3) * t3ones / nU, tps(fons3:end))
-                    
-                    % OPTION 1: use identified div(v) < 0
-                    plot(valleys(1) * t1ones / nU, tps(fons1:end))
-                    plot(valleys(2) * t2ones / nU, tps(fons2:end))
-                    plot(valleys(3) * t3ones / nU, tps(fons3:end))
                 
-                    % Colorbar and phasewheel
-                    colormap(gca, phasemap)
-                    phasebar('colormap', phasemap, ...
-                        'location', [0.82, 0.7, 0.1, 0.135], 'style', 'nematic')
-                    ax = gca ;
-                    get(gca, 'position')
-                    cb = colorbar('location', 'eastOutside') ;
-                    drawnow
-                    axpos = get(ax, 'position') ;
-                    cbpos = get(cb, 'position') ;
-                    set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3), cbpos(4)*0.6])
-                    set(ax, 'position', axpos) 
-                    hold on;
-                    caxis([0, clim_zoom])
-                    colormap(gca, gray)
+                % Zoom in on early times
+                ylim([min(tps), min(max(fons) + 10, max(tps))])
+                disp(['saving ', fn_early])
+                export_fig(fn_early, '-png', '-nocrop', '-r200')   
+            end
 
-                    % title and save
-                    title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
-                    ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-                    xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
-                    ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
+            %% DEVIATOR -- strain rate
+            fn = fullfile(odir, [ names{2} zoomstr{pp} '.png']) ;
+            fn_early = fullfile(odir, [names{2} zoomstr{pp} '_early.png']) ;
+            if ~exist(fn, 'file') || ~exist(fn_early, 'file') || overwrite
+                close all
+                set(gcf, 'visible', 'off')
+                % Map intensity from dev and color from the theta
+                indx = max(1, round(mod(2*thK(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
+                colors = pm256(indx, :) ;
+                devKclipped = min(dvK / climits{pp}, 1) ;
+                colorsM = devKclipped(:) .* colors ;
+                colorsM = reshape(colorsM, [size(dvK, 1), size(dvK, 2), 3]) ;
+                imagesc((1:nU)/nU, tps, colorsM)
+                caxis([0, climits{pp}])
+
+                % Add folds to plot
+                hold on;
+
+                % Plot fold identifications
+                hold on;
+                fons1 = max(1, fons(1)) ;
+                fons2 = max(1, fons(2)) ;
+                fons3 = max(1, fons(3)) ;
+                t1ones = ones(size(tps(fons1:end))) ;
+                t2ones = ones(size(tps(fons2:end))) ;
+                t3ones = ones(size(tps(fons3:end))) ;
+
+                % OPTION 1: use identified div(v) < 0
+                plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
+                plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
+                plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
+
+                % Colorbar and phasewheel
+                colormap(gca, phasemap)
+                phasebar('colormap', phasemap, ...
+                    'location', [0.82, 0.7, 0.1, 0.135], 'style', 'nematic') ;
+                ax = gca ;
+                get(gca, 'position')
+                cb = colorbar('location', 'eastOutside') ;
+                drawnow
+                axpos = get(ax, 'position') ;
+                cbpos = get(cb, 'position') ;
+                set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3), cbpos(4)*0.6])
+                set(ax, 'position', axpos) 
+                hold on;
+                caxis([0, climits{pp}])
+                colormap(gca, gray)
+
+                % title and save
+                title([titles{2}, titleadd{qq}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+                ylabel(cb, labels{2}, 'Interpreter', 'Latex')  
                     
-                    % Zoom in on small values
-                    fn = fullfile(odir, [names{pp} '_zoom.png']) ;
-                    disp(['saving ', fn])
-                    export_fig(fn, '-png', '-nocrop', '-r200')   
-                    % Zoom in on early times
-                    ylim([min(tps), max(fons) + 10])
-                    fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
-                    disp(['saving ', fn])
-                    export_fig(fn, '-png', '-nocrop', '-r200')   
-                end
+                % title and save
+                ylabel(cb, labels{2}, 'Interpreter', 'Latex')  
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+                
+                % Zoom in on early times
+                ylim([min(tps), min(max(fons) + 10, max(tps))])
+                disp(['saving ', fn_early])
+                export_fig(fn_early, '-png', '-nocrop', '-r200')   
             end
         end
     end
 end
 
-%% Kymographs of cumulative products along pathlines 
-strK = {str_apM, str_lM, str_rM, str_dM, str_vM} ;
+%% Kymographs of cumulative STRAIN along pathlines 
+% strain trace kymograph, strain deviator kymograph, strain theta kymograph
+strK = {0.5*str_apM, 0.5*str_lM, 0.5*str_rM, 0.5*str_dM, 0.5*str_vM} ;
 sdvK = {sdv_apM, sdv_lM, sdv_rM, sdv_dM, sdv_vM} ;
 sthK = {sth_apM, sth_lM, sth_rM, sth_dM, sth_vM} ;
 
 if plot_kymographs_strain
     titleadd = {': circumferentially averaged', ...
         ': left side', ': right side', ': dorsal side', ': ventral side'} ;
-    
     
     for qq = 1:length(outdirs)
         % Prep the output directory for this averaging
@@ -529,148 +571,129 @@ if plot_kymographs_strain
         end
 
         % Unpack what to plot (averaged kymographs, vary averaging region)
-        trK_pos = cumprod(1 + strK{qq}(tps>eps, :), 1) ;
-        trK_neg = flipud(cumprod(flipud(1 ./ (1 + strK{qq}(tps<eps, :))), 1)) ;
-        trK = cat(1, trK_neg, trK_pos) ;
+        trK = strK{qq} ;
         
-        labels = {['$\Pi$d$t \, \left[1+\textrm{Tr}[g^{-1}\dot{\varepsilon}]\right)$ ' unitstr], ...
-            ['$\Pi \,$d$t \, \left( 1 + ||\varepsilon-\frac{1}{2}\mathrm{Tr}\left[\mathbf{g}^{-1}\dot{\varepsilon}\right)\bf{g}||\right)$' unitstr]} ;
+        labels = {[strain_trace_label, ' ', unitstr], ...
+            [strain_deviator_label, ' ', unitstr]} ;
+        titles = {['dilation, ', strain_trace_label],...
+            ['shear, ' strain_deviator_label]};
+        names = {'strain_trace_t0', 'strain_deviator_t0'} ;
         
-        titles = {'dilation, $\Pi$d$t \, \left[1+\textrm{Tr}[g^{-1}\dot{\varepsilon}]\right)$ ',...
-            'shear, $\Pi \,$d$t \, \left( 1 + ||\varepsilon-\frac{1}{2}\mathrm{Tr}\left[\mathbf{g}^{-1}\dot{\varepsilon}\right)\bf{g}||\right)$'} ;
-        names = {'Idilation_t0', 'Ideviator_t0'} ;
-        climitWide = climit * 3; 
-        
-        %% Plot dilation DV-averaged Lagrangian pathline kymograph 
+        %% Plot STRAIN DV-averaged Lagrangian pathline kymographs 
         % Check if images already exist on disk
-        fn = fullfile(odir, [ names{1} '.png']) ;
-        fn_zoom = fullfile(odir, [names{1} '_zoom_early.png']) ;
-        if ~exist(fn, 'file') || ~exist(fn_zoom, 'file') || overwrite
-            close all
-            set(gcf, 'visible', 'off')
-            imagesc((1:nU)/nU, tps, trK)
-            caxis([1-climitWide, 1+climitWide])
-            colormap(bwr256)
 
-            % Plot fold identifications
-            hold on;
-            fons1 = max(1, fons(1)) ;
-            fons2 = max(1, fons(2)) ;
-            fons3 = max(1, fons(3)) ;
-            t1ones = ones(size(tps(fons1:end))) ;
-            t2ones = ones(size(tps(fons2:end))) ;
-            t3ones = ones(size(tps(fons3:end))) ;
-            tidx0 = QS.xp.tIdx(t0) ;
-
-            % OPTION 1: use QS.folds
-            % plot(folds.folds(tidx0, 1) * t1ones / nU, tps(fons1:end))
-            % plot(folds.folds(tidx0, 2) * t2ones / nU, tps(fons2:end))
-            % plot(folds.folds(tidx0, 3) * t3ones / nU, tps(fons3:end))
-
-            % OPTION 1: use identified div(v) < 0
-            plot(valleys(1) * t1ones / nU, tps(fons1:end))
-            plot(valleys(2) * t2ones / nU, tps(fons2:end))
-            plot(valleys(3) * t3ones / nU, tps(fons3:end))
-
-            % title and save
-            title([titles{1}, titleadd{1}], 'Interpreter', 'Latex')
-            ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-            xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
-            cb = colorbar() ;
-            ylabel(cb, labels{1}, 'Interpreter', 'Latex')  
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')   
-
-            % Zoom in on small values
-            caxis([1-climitWide, 1+climitWide])
-            colormap(bwr256)
-            fn = fullfile(odir, [names{1} '_zoom.png']) ;
-            tmp = strsplit(fn, filesep) ;
-            disp(['saving ', tmp{end}])
-            export_fig(fn, '-png', '-nocrop', '-r200')   
-            % Zoom in on early times
-            ylim([min(tps), max(fons) + 10])
-            caxis([1-climitWide, 1+climitWide])
-            colormap(bwr256)
-            tmp = strsplit(fn_zoom, filesep) ;
-            disp(['saving ', tmp{end}])
-            export_fig(fn_zoom, '-png', '-nocrop', '-r200')   
-        end
+        % Consider both wide color limit and narrow
+        zoomstr = {'_wide', '', '_zoom'} ;
+        climits = {climitWide, 0.5*(climit + climitWide), climit} ;
         
-        %% Plot shear DV-averaged Lagrangian pathline kymograph 
-        % Check if images already exist on disk
-        fn = fullfile(odir, [ names{2} '.png']) ;
-        fn_zoom = fullfile(odir, [names{2} '_zoom_early.png']) ;
-        if ~exist(fn, 'file') || ~exist(fn_zoom, 'file') || overwrite
-            close all
-            set(gcf, 'visible', 'off')
-            % Map intensity from dev and color from the theta
-            indx = max(1, round(mod(2*sthK{qq}(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
-            colors = pm256(indx, :) ;
-            devKclipped = min(sdvK{qq} / climitWide, 1) ;
-            colorsM = devKclipped(:) .* colors ;
-            colorsM = reshape(colorsM, [size(sdvK{qq}, 1), size(sdvK{qq}, 2), 3]) ;
-            imagesc((1:nU)/nU, tps, colorsM)
-            caxis([1-climitWide, 1+climitWide])
+        for pp = 1:length(climits)
+            %% Plot STRAIN traceful DV-averaged pathline kymograph
+            % Check if filenames exist on disk
+            fn = fullfile(odir, [ names{1} zoomstr{pp} '.png']) ;
+            fn_early = fullfile(odir, [ names{1} zoomstr{pp} '_early.png']) ;
+            if ~exist(fn, 'file') || ~exist(fn_early, 'file') || overwrite
+                close all
+                set(gcf, 'visible', 'off')
+                imagesc((1:nU)/nU, tps, trK)
+                caxis([-climits{pp}, climits{pp}])
+                colormap(bbr256)
 
-            % Plot fold identifications
-            hold on;
-            fons1 = max(1, fons(1)) ;
-            fons2 = max(1, fons(2)) ;
-            fons3 = max(1, fons(3)) ;
-            t1ones = ones(size(tps(fons1:end))) ;
-            t2ones = ones(size(tps(fons2:end))) ;
-            t3ones = ones(size(tps(fons3:end))) ;
-            tidx0 = QS.xp.tIdx(t0) ;
+                % Plot fold identifications
+                hold on;
+                fons1 = max(1, fons(1)) ;
+                fons2 = max(1, fons(2)) ;
+                fons3 = max(1, fons(3)) ;
+                t1ones = ones(size(tps(fons1:end))) ;
+                t2ones = ones(size(tps(fons2:end))) ;
+                t3ones = ones(size(tps(fons3:end))) ;
+                tidx0 = QS.xp.tIdx(t0) ;
+                
+                % OPTION 1: use identified div(v) < 0
+                plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
+                plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
+                plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
 
-            % OPTION 1: use QS.folds
-            % plot(folds.folds(tidx0, 1) * t1ones / nU, tps(fons1:end))
-            % plot(folds.folds(tidx0, 2) * t2ones / nU, tps(fons2:end))
-            % plot(folds.folds(tidx0, 3) * t3ones / nU, tps(fons3:end))
+                % title and save
+                title([titles{1}, titleadd{1}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+                cb = colorbar() ;
+                ylabel(cb, labels{1}, 'Interpreter', 'Latex')  
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
 
-            % OPTION 1: use identified div(v) < 0
-            plot(valleys(1) * t1ones / nU, tps(fons1:end))
-            plot(valleys(2) * t2ones / nU, tps(fons2:end))
-            plot(valleys(3) * t3ones / nU, tps(fons3:end))
-
-            % Titles 
-            title([titles{2}, titleadd{2}], 'Interpreter', 'Latex')
-            ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-            xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
-
-            % Colorbar and phasewheel
-            colormap(gca, phasemap)
-            phasebar('colormap', phasemap, ...
-                'location', [0.82, 0.7, 0.1, 0.135], 'style', 'nematic')
-            ax = gca ;
-            get(gca, 'position')
-            cb = colorbar('location', 'eastOutside') ;
-            drawnow
-            axpos = get(ax, 'position') ;
-            cbpos = get(cb, 'position') ;
-            set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3), cbpos(4)*0.6])
-            set(ax, 'position', axpos) 
-            hold on;
-            caxis([0, climitWide])
-            colormap(gca, gray)
-
-            % title and save
-            ylabel(cb, labels{2}, 'Interpreter', 'Latex')  
-            fn = fullfile(odir, [ names{2} '.png']) ;
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')   
-            
-            % Zoom in on small values
-            fn = fullfile(odir, [names{2} '_zoom.png']) ;
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')   
-            % Zoom in on early times
-            ylim([min(tps), max(fons) + 10])
-            fn = fullfile(odir, [names{2} '_early.png']) ;
-            disp(['saving ', fn])
-            export_fig(fn, '-png', '-nocrop', '-r200')   
-        end
+                % Zoom in on early times
+                ylim([min(tps), min(max(fons) + 10, max(tps))])
+                caxis([-climits{pp}, climits{pp}])
+                colormap(bbr256)
+                tmp = strsplit(fn_early, filesep) ;
+                disp(['saving ', tmp{end}])
+                export_fig(fn_early, '-png', '-nocrop', '-r200')   
+            end
         
+            %% Plot STRAIN deviator DV-averaged pathline kymograph 
+            % Check if images already exist on disk
+            fn = fullfile(odir, [ names{2} zoomstr{pp} '.png']) ;
+            fn_early = fullfile(odir, [names{2} zoomstr{pp} '_early.png']) ;
+            if ~exist(fn, 'file') || ~exist(fn_early, 'file') || overwrite
+
+                close all
+                set(gcf, 'visible', 'off')
+                % Map intensity from dev and color from the theta
+                indx = max(1, round(mod(2*sthK{qq}(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
+                colors = pm256(indx, :) ;
+                devKclipped = min(sdvK{qq} / climits{pp}, 1) ;
+                colorsM = devKclipped(:) .* colors ;
+                colorsM = reshape(colorsM, [size(sdvK{qq}, 1), size(sdvK{qq}, 2), 3]) ;
+                imagesc((1:nU)/nU, tps, colorsM)
+
+                % Plot fold identifications
+                hold on;
+                fons1 = max(1, fons(1)) ;
+                fons2 = max(1, fons(2)) ;
+                fons3 = max(1, fons(3)) ;
+                t1ones = ones(size(tps(fons1:end))) ;
+                t2ones = ones(size(tps(fons2:end))) ;
+                t3ones = ones(size(tps(fons3:end))) ;
+                tidx0 = QS.xp.tIdx(t0) ;
+
+                % OPTION 1: use identified div(v) < 0
+                plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
+                plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
+                plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
+
+                % Titles 
+                title([titles{2}, titleadd{2}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+
+                % Colorbar and phasewheel
+                colormap(gca, phasemap)
+                phasebar('colormap', phasemap, ...
+                    'location', [0.82, 0.7, 0.1, 0.135], 'style', 'nematic') ;
+                ax = gca ;
+                get(gca, 'position')
+                cb = colorbar('location', 'eastOutside') ;
+                drawnow
+                axpos = get(ax, 'position') ;
+                cbpos = get(cb, 'position') ;
+                set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3), cbpos(4)*0.6])
+                set(ax, 'position', axpos) 
+                hold on;
+                caxis([0, climits{pp}])
+                colormap(gca, gray)
+
+                % title and save
+                ylabel(cb, labels{2}, 'Interpreter', 'Latex')  
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+
+                % Zoom in on early times
+                ylim([min(tps), min(max(fons) + 10, max(tps))])
+                disp(['saving ', fn_early])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+            end
+        end
     end
 end
 
@@ -678,400 +701,297 @@ end
 % Sample divv near each fold
 foldw = 0.05 ;
 endw = 0.10 ;
-cut = [round(endw*nU), valleys(1)-round(foldw*nU), ...
-        valleys(1)+round(foldw*nU), valleys(2)-round(foldw*nU), ...
-        valleys(2)+round(foldw*nU), valleys(3)-round(foldw*nU), ... 
-        valleys(3)+round(foldw*nU), round((1-endw) * nU)] ;
+cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
+        featureIDs(1)+round(foldw*nU), featureIDs(2)-round(foldw*nU), ...
+        featureIDs(2)+round(foldw*nU), featureIDs(3)-round(foldw*nU), ... 
+        featureIDs(3)+round(foldw*nU), round((1-endw) * nU)] ;
 lobes = { cut(1):cut(2), cut(3):cut(4), cut(5):cut(6), cut(7):cut(8) } ;
 avgStrings = {'dv-averaged', 'left side', 'right side', ...
     'dorsal side', 'ventral side'} ;
 avgLabel = {'dv', 'left', 'right', 'dorsal', 'ventral'} ;
-titleFoldBase = 'Lagrangian metric kinematics along folds, ' ;
-titleLobeBase = 'Lagrangian metric kinematics along lobes, ' ;
+titleRateFoldBase = 'Lagrangian pathline strain rate in folds, ' ;
+titleRateLobeBase = 'Lagrangian pathline strain rate in lobes, ' ;
+titleFoldBase = 'Lagrangian pathline strain in folds, ' ;
+titleLobeBase = 'Lagrangian pathline strain in lobes, ' ;
 
-foldYlabels = {'anterior fold', 'middle fold', 'posterior fold'} ;
-lobeYlabels = {'lobe 1', 'lobe 2', 'lobe 3', 'lobe 4'} ;
-for qq = 1:5 
-    divv = divvsK{qq} ;
-    % Explore a range of widths for plotting
-    for width = 1:round(0.05 * nU)
-        fn = fullfile(outdirs{qq}, ...
-            [sprintf('fold_kinematics_w%03d_', 2*width+1), ...
-            avgLabel{qq}, '.png']) ;
-        if ( ~exist(fn, 'file') || overwrite  ) && plot_fold_kinematics
-            close all
-            ymin = 0 ;
-            ymax = 0 ;
-            % Each fold is valley+/- width
-            for jj = 1:length(valleys)
-                axisColl{jj} = subplot(length(valleys), 1, jj) ;
-                valley = (valleys(jj)-width):(valleys(jj)+width) ;
-                dvj = mean(divv(:, valley), 2) ;
-                Hvj = mean(H2vn(:, valley), 2) ;
-                plot(tps, dvj, '.-', 'Color', QS.plotting.colors(1, :))
-                hold on;
-                plot(tps, Hvj, '.-', 'Color', QS.plotting.colors(2, :))
-                if jj == 1
-                    % Title and labels
-                    sgtitle([titleFoldBase, avgStrings{qq}, ', ', ...
-                        '$w_{\textrm{fold}}=', ...
-                        num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'], ...
-                        'Interpreter', 'Latex')
-                    legend({'$\nabla\cdot\mathbf{v}_\parallel$', ...
-                        '$v_n 2H$'}, 'Interpreter', 'Latex', ...
-                        'location', 'eastOutside')  
-                    drawnow
-                    pos = get(gca, 'position') ;
-                elseif jj == length(valleys)
-                    xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-                end
-                ylabel(foldYlabels{jj}, 'Interpreter', 'Latex')
-                ylims = ylim() ;
-                ymin = min(ymin, ylims(1)) ;
-                ymax = max(ymax, ylims(2)) ;
-            end
-
-            for jj = 1:length(valleys)
-                axes(axisColl{jj})
-                pos2 = get(gca, 'position') ;
-                set(gca, 'position', [pos2(1) pos2(2) pos(3) pos2(4)])
-                ylim([ymin, ymax])
-
-                % Mark wherever the divv<0 and also vn2H<0
-                valley = (valleys(jj)-width):(valleys(jj)+width) ;
-                dvj = mean(divv(:, valley), 2) ;
-                Hvj = mean(H2vn(:, valley), 2) ;
-                dvpos = dvj > 0 ;
-                Hvpos = Hvj > 0 ;
-                scatter(tps(dvpos), ...
-                    (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
-                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                    'markerFaceColor', QS.plotting.colors(1, :), ...
-                    'HandleVisibility', 'off')
-                hold on;
-                scatter(tps(Hvpos), ...
-                    ymin * ones(size(tps(Hvpos))), 5,  ...
-                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                    'markerFaceColor', QS.plotting.colors(2, :), ...
-                    'HandleVisibility', 'off')
-                ylim([ymin-0.1*(ymax-ymin), ymax])
-            end
-
-            % Save figure
-            disp(['Saving figure: ', fn])
-            saveas(gcf, fn)
-        end
-    end
+if length(featureIDs) == 3
+    foldYlabels = {'anterior fold', 'middle fold', 'posterior fold'} ;
+    lobeYlabels = {'lobe 1', 'lobe 2', 'lobe 3', 'lobe 4'} ;
+    foldYlabelsStrainRate = {...
+        {'anterior fold'; 'strain rate, $\dot{\varepsilon}$'}, ...
+        {'middle fold'; 'strain rate, $\dot{\varepsilon}$'}, ...
+        {'posterior fold'; 'strain rate, $\dot{\varepsilon}$'}} ;
+    lobeYlabelsStrainRate = {...
+        {'lobe 1'; 'strain rate, $\dot{\varepsilon}$'}, ...
+        {'lobe 2'; 'strain rate, $\dot{\varepsilon}$'}, ...
+        {'lobe 3'; 'strain rate, $\dot{\varepsilon}$'}, ...
+        {'lobe 4'; 'strain rate, $\dot{\varepsilon}$'}};
+    foldYlabelsStrain = {...
+        {'anterior fold'; 'strain rate, $\varepsilon$'}, ...
+        {'middle fold'; 'strain rate, $\varepsilon$'}, ...
+        {'posterior fold'; 'strain rate, $\varepsilon$'}} ;
+    lobeYlabelsStrain = {...
+        {'lobe 1'; 'strain, $\varepsilon$'}, ...
+        {'lobe 2'; 'strain, $\varepsilon$'}, ...
+        {'lobe 3'; 'strain, $\varepsilon$'}, ...
+        {'lobe 4'; 'strain, $\varepsilon$'}};
+    foldYlabelsStrainRateComposite = {...
+        ['anterior fold, ' sRate_trace_label], ...
+        ['anterior fold, ' sRate_deviator_label_short], ...
+        ['middle fold, ' sRate_trace_label], ...
+        ['middle fold, ' sRate_deviator_label_short], ...
+        ['posterior fold, ' sRate_trace_label], ...
+        ['posterior fold, ' sRate_deviator_label_short]} ;
+    foldYlabelsStrainComposite = {...
+        ['anterior fold, ' strain_trace_label], ...
+        ['anterior fold, ' strain_deviator_label_short], ...
+        ['middle fold, ' strain_trace_label], ...
+        ['middle fold, ' strain_deviator_label_short], ...
+        ['posterior fold, ' strain_trace_label], ...
+        ['posterior fold, ' strain_deviator_label_short]} ;
+    % foldYlabelsStrainRatio = {...
+    %     'anterior fold, $\frac{||\mathrm{Dev}\left[\varepsilon\right]||}{ ||\mathrm{Tr} [\varepsilon]||}$', ...
+    %     'middle fold, $\frac{||\mathrm{Dev}\left[\varepsilon\right]||}{ ||\mathrm{Tr} [\varepsilon]||}$', ...
+    %     'posterior fold, $\frac{||\mathrm{Dev}\left[\varepsilon\right]||}{ ||\mathrm{Tr} [\varepsilon]||}$'} ;
+    lobeYlabelsStrainRateComposite = {...
+        ['lobe 1, ' sRate_trace_label], ...
+        ['lobe 1, ' sRate_deviator_label_short], ...
+        ['lobe 2, ' sRate_trace_label], ...
+        ['lobe 2, ' sRate_deviator_label_short], ...
+        ['lobe 3, ' sRate_trace_label], ...
+        ['lobe 3, ' sRate_deviator_label_short], ...
+        ['lobe 4, ' sRate_trace_label], ...
+        ['lobe 4, ' sRate_deviator_label_short]} ;
+    lobeYlabelsStrainComposite = {...
+        ['lobe 1, ' strain_trace_label], ...
+        ['lobe 1, ' strain_deviator_label_short], ...
+        ['lobe 2, ' strain_trace_label], ...
+        ['lobe 2, ' strain_deviator_label_short], ...
+        ['lobe 3, ' strain_trace_label], ...
+        ['lobe 3, ' strain_deviator_label_short], ...
+        ['lobe 4, ' strain_trace_label], ...
+        ['lobe 4, ' strain_deviator_label_short]} ;
+    % lobeYlabelsStrainRatio = {...
+    %   'lobe 1 $\frac{||\mathrm{Dev}\left[\varepsilon\right]||}{ ||\mathrm{Tr} [\varepsilon]||}$', ...
+    %   'lobe 2, $\frac{||\mathrm{Dev}\left[\varepsilon\right]||}{ ||\mathrm{Tr} [\varepsilon]||}$', ...
+    %   'lobe 3, $\frac{||\mathrm{Dev}\left[\varepsilon\right]||}{ ||\mathrm{Tr} [\varepsilon]||}$', ...
+    %   'lobe 4, $\frac{||\mathrm{Dev}\left[\varepsilon\right]||}{ ||\mathrm{Tr} [\varepsilon]||}$'} ;
+else
+    error('How many featureIDs? Allow variability here')
+end
+for qq = 1:length(trsK)
+    %% STRAIN RATE
+    trK = trsK{qq} ;
+    dvK = dvsK{qq} ;
+    thK = thsK{qq} ;
+    HHK = HHsK{qq} ;
     
-    %% Fold kinematics -- cumprod gdot
-    for width = 1:round(0.05 * nU)
-        fn = fullfile(outdirs{qq}, ...
-            [sprintf('fold_kinematics_gdot_cumprod_w%03d_', 2*width+1), ...
-            avgLabel{qq}, '.png']) ;
-        if ( ~exist(fn, 'file') || overwrite ) && plot_fold_kinematics
-            close all
-            ymin = 0 ;
-            ymax = 0 ;
-            % Each fold is valley+/- width
-            for jj = 1:length(valleys)
-                axisColl{jj} = subplot(length(valleys), 1, jj) ;
-                valley = (valleys(jj)-width):(valleys(jj)+width) ;
-                
-                % div(v), H*2*vn, gdot
-                ddj = mean(divv(:, valley), 2) ;
-                Hdj = mean(H2vn(:, valley), 2) ;
-                gdj = mean(divv(:, valley) - H2vn(:, valley), 2) ;
-                
-                % Take cumulative product marching forward from t0
-                gpj_pos = cumprod(1 + gdj(tps > eps)) ;
-                gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
-                gpj = cat(1, gpj_neg, gpj_pos) ;               
-                % Take cumulative product marching forward from t0
-                dpj_pos = cumprod(1 + ddj(tps > eps)) ;
-                dpj_neg = flipud(cumprod(flipud(1 ./ (1 + ddj(tps < eps))))) ;
-                dpj = cat(1, dpj_neg, dpj_pos) ;
-                % Take cumulative product marching forward from t0
-                Hpj_pos = cumprod(1 + Hdj(tps > eps)) ;
-                Hpj_neg = flipud(cumprod(flipud(1 ./ (1 + Hdj(tps < eps))))) ;
-                Hpj = cat(1, Hpj_neg, Hpj_pos) ;
-                
-                % Plot all three
-                plot(tps, dpj, '.-', 'Color', QS.plotting.colors(1, :))
-                hold on;
-                plot(tps, Hpj, '.-', 'Color', QS.plotting.colors(2, :))
-                plot(tps, gpj, '.-', 'Color', QS.plotting.colors(3, :))
-                
-                if jj == 1
-                    % Title and labels
-                    sgtitle([titleFoldBase, avgStrings{qq}, ', ', ...
-                        '$w_{\textrm{fold}}=', ...
-                        num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'], ...
-                        'Interpreter', 'Latex')
-                    legend({'$\Pi(1+\nabla\cdot\mathbf{v}_\parallel)$', ...
-                        '$\Pi(1+v_n 2H)$', ...
-                        '$\Pi(1+\frac{1}{2}\mathrm{Tr}\left[g^{-1} \dot{g} \right])$'}, ...
-                        'Interpreter', 'Latex', 'location', 'eastOutside')  
-                    drawnow
-                    pos = get(gca, 'position') ;
-                elseif jj == length(valleys)
-                    xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-                end
-                ylabel(foldYlabels{jj}, 'Interpreter', 'Latex')
-                ylims = ylim() ;
-                ymin = min(ymin, ylims(1)) ;
-                ymax = max(ymax, ylims(2)) ;
-            end
-
-            for jj = 1:length(valleys)
-                axes(axisColl{jj})
-                pos2 = get(gca, 'position') ;
-                set(gca, 'position', [pos2(1) pos2(2) pos(3) pos2(4)])
-                ylim([ymin, ymax])
-
-                % Mark wherever the divv<0 and also vn2H<0
-                valley = (valleys(jj)-width):(valleys(jj)+width) ;
-                dvj = mean(divv(:, valley), 2) ;
-                Hvj = mean(H2vn(:, valley), 2) ;
-                dvpos = dvj > 0 ;
-                Hvpos = Hvj > 0 ;
-                scatter(tps(dvpos), ...
-                    (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
-                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                    'markerFaceColor', QS.plotting.colors(1, :), ...
-                    'HandleVisibility', 'off')
-                hold on;
-                scatter(tps(Hvpos), ...
-                    ymin * ones(size(tps(Hvpos))), 5,  ...
-                    'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                    'markerFaceColor', QS.plotting.colors(2, :), ...
-                    'HandleVisibility', 'off')
-                ylim([ymin-0.1*(ymax-ymin), ymax])
-            end
-
-            % Save figure
-            disp(['Saving figure: ', fn])
-            saveas(gcf, fn)
+    % FOLDS: Explore a range of widths for plotting
+    for width = 1:round(0.03 * nU)
+        % Define the regions that are considered folds in Lagrangian
+        % longitudinal coordinates 
+        foldRegions = cell(length(featureIDs), 1) ;
+        for jj = 1:length(featureIDs)
+            foldRegions{jj} = (featureIDs(jj)-width):(featureIDs(jj)+width) ;
         end
         
-        % Plot all gdots on one axis
+        %% fold kinematics -- Strain rate, one axis for each fold
         fn = fullfile(outdirs{qq}, ...
-            [sprintf('fold_kinematics_gdot_cumprod_compare_w%03d_', 2*width+1), ...
+            [sprintf('fold_strainRate_w%03d_', 2*width+1), ...
             avgLabel{qq}, '.png']) ;
-        if ~exist(fn, 'file') || overwrite 
-            close all
-            % Each fold is valley+/- width
-            for jj = 1:length(valleys)
-                valley = (valleys(jj)-width):(valleys(jj)+width) ;
-                
-                % div(v), H*2*vn, gdot
-                gdj = mean(divv(:, valley) - H2vn(:, valley), 2) ;
-                
-                % Take cumulative product marching forward from t0
-                gpj_pos = cumprod(1 + gdj(tps > eps)) ;
-                gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
-                gpj = cat(1, gpj_neg, gpj_pos) ;               
-
-                % Plot this fold
-                plot(tps, gpj, '.-', 'Color', QS.plotting.colors(jj+3, :))
-                hold on;
-            end    
+        fn_withH = fullfile(outdirs{qq}, ...
+            [sprintf('fold_strainRate_w%03d_', 2*width+1), ...
+            avgLabel{qq}, '_withH.png']) ;
+        if plot_fold_strainRate
+            plotOpts.overwrite = overwrite ;
+            plotOpts.H_on_yyaxis = true ; 
             
-            % Title and labels
-            sgtitle(['Tissue dilation in folds, ', avgStrings{qq}, ', ', ...
+            aux_plotPathlineStrainFeatures_subpanels(QS, fn, fn_withH, ...
+            featureIDs, width, nU, tps, trK, dvK, thK, HHK, ...
+            avgStrings{qq}, titleRateFoldBase, ...
+            foldYlabelsStrainRate, sRate_trace_label, sRate_deviator_label, ...
+            trecolor, Hposcolor, Hnegcolor, Hsz, pm256, plotOpts)
+        end
+        
+        %% fold kinematics -- Strain rate, all folds on one axis
+        fnbase = fullfile(outdirs{qq}, ...
+            [sprintf('fold_strainRate_compare_w%03d_', 2*width+1), ...
+            avgLabel{qq}]) ;
+        fns.fn = [fnbase '.png'] ;
+        fns.early = [fnbase '_early.png'] ;
+        fns.norms = [fnbase '_norms.png'] ;
+        fns.norms_early = [fnbase '_norms_early.png'] ;
+        fns.withH = [fnbase '_withH.png'] ;
+        plotOpts.overwrite = overwrite ;
+        plotOpts.phasecmap = pm256 ;
+        measurements.fons = fons - t0 ;
+        measurements.regions = foldRegions ;
+        data.timepoints = tps ;
+        data.tr = trK ;
+        data.dv = dvK ;
+        data.th = thK ;
+        data.HH = HHK ;
+        labels.avgString = [avgStrings{qq}, ', ', ...
+            '$w_{\textrm{fold}}=', ...
+            num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'];
+        labels.titleBase = titleFoldBase ;
+        labels.ylabel = 'fold strain rate, $\langle\dot{\varepsilon}\rangle$' ;
+        labels.ylabel_ratios = 'fold strain rate, $\langle||\mathrm{Tr}[\dot{\varepsilon}]||\rangle/\langle||\mathrm{Dev}[\dot{\varepsilon}]||\rangle$' ;
+        labels.legend = foldYlabelsStrainRateComposite ;
+        labels.legend_ratios = foldYlabels ;
+        labels.trace = strain_trace_label ;
+        labels.deviator = strain_deviator_label ;
+        aux_plotPathlineStrainRegions(QS, ...
+            fns, measurements, data, labels, plotOpts)
+    end
+       
+    %% Plot lobe Kinematics -- STRAIN RATE, one axis per lobe
+    if plot_lobe_strainRate
+        fn = fullfile(outdirs{qq}, ...
+            ['lobe_strainRate_' avgLabel{qq} '.png']) ;
+        fn_withH = fullfile(outdirs{qq}, ...
+            ['lobe_strainRate_' avgLabel{qq} '_withH.png']) ;
+        aux_plotPathlineStrainLobes_subpanels(QS, ...
+            fn, fn_withH, ...
+            lobes, tps, trK, dvK, thK, HHK, avgStrings{qq}, ...
+            titleRateLobeBase, lobeYlabelsStrainRate, ...
+            sRate_trace_label, sRate_deviator_label, trecolor,...
+            Hposcolor, Hnegcolor, Hsz, pm256, overwrite) 
+    end
+    
+    %% Lobe STRAIN RATE -- all lobes on one axis
+    if plot_lobe_strainRate
+        fnbase = fullfile(outdirs{qq}, 'lobe_strainRate_compare') ;
+        fns.fn = [fnbase '.png'] ;
+        fns.early = [fnbase '_early.png'] ;
+        fns.norms = [fnbase '_norms.png'] ;
+        fns.norms_early = [fnbase '_norms_early.png'] ;
+        fns.withH = [fnbase '_withH.png'] ;
+        plotOpts.overwrite = overwrite ;
+        plotOpts.phasecmap = pm256 ;
+        measurements.fons = fons - t0 ;
+        measurements.regions = lobes ;
+        data.timepoints = tps ;
+        data.tr = trK ;
+        data.dv = dvK ;
+        data.th = thK ;
+        data.HH = HHK ;
+        labels.avgString = avgStrings{qq} ;
+        labels.titleBase = titleLobeBase ;
+        labels.ylabel = 'lobe strain rate, $\langle\dot{\varepsilon}\rangle$' ;
+        labels.ylabel_ratios = 'lobe strain rate, $\langle||\mathrm{Tr}[\dot{\varepsilon}]||\rangle/\langle||\mathrm{Dev}[\dot{\varepsilon}]||\rangle$' ;
+        labels.legend = lobeYlabelsStrainRateComposite ;
+        labels.legend_ratios = lobeYlabels ;
+        labels.trace = strain_trace_label ;
+        labels.deviator = strain_deviator_label ;
+        aux_plotPathlineStrainRegions(QS, ...
+            fns, measurements, data, labels, plotOpts)     
+    end
+    
+    %% Fold kinematics -- STRAIN, one fold on each axis
+    trK = strK{qq} ;
+    dvK = sdvK{qq} ;
+    thK = sthK{qq} ;
+    HHK = HHsK{qq} ;
+    for width = 1:round(0.05 * nU)
+        % Define the regions that are considered folds in Lagrangian
+        % longitudinal coordinates 
+        foldRegions = cell(length(featureIDs), 1) ;
+        for jj = 1:length(featureIDs)
+            foldRegions{jj} = (featureIDs(jj)-width):(featureIDs(jj)+width) ;
+        end
+
+        % Define filenames
+        fn = fullfile(outdirs{qq}, ...
+            [sprintf('fold_strain_w%03d_', 2*width+1), ...
+            avgLabel{qq}, '.png']) ;
+        fn_withH = fullfile(outdirs{qq}, ...
+            [sprintf('fold_strain_w%03d_', 2*width+1), ...
+            avgLabel{qq}, '_withH.png']) ;
+        
+        if plot_fold_strain
+            plotOpts.overwrite = overwrite ;
+            plotOpts.H_on_yyaxis = true ; 
+            aux_plotPathlineStrainFeatures_subpanels(QS, fn, fn_withH, ...
+            featureIDs, width, nU, tps, trK, dvK, thK, HHK, ...
+            avgStrings{qq}, titleFoldBase, foldYlabelsStrain, ...
+            strain_trace_label, strain_deviator_label, ...
+            trecolor, Hposcolor, Hnegcolor, Hsz, pm256, plotOpts)
+        end
+        
+        %% Plot STRAIN -- all folds on one axis
+        if plot_fold_strain
+            fnbase = fullfile(outdirs{qq}, ...
+                [sprintf('fold_strain_compare_w%03d_', 2*width+1), ...
+                avgLabel{qq}]) ;
+            fns.fn = [fnbase '.png'] ;
+            fns.early = [fnbase '_early.png'] ;
+            fns.norms = [fnbase '_norms.png'] ;
+            fns.norms_early = [fnbase '_norms_early.png'] ;
+            fns.withH = [fnbase '_withH.png'] ;
+            plotOpts.overwrite = overwrite ;
+            plotOpts.phasecmap = pm256 ;
+            measurements.fons = fons - t0 ;
+            measurements.regions = foldRegions ;
+            data.timepoints = tps ;
+            data.tr = trK ;
+            data.dv = dvK ;
+            data.th = thK ;
+            data.HH = HHK ;
+            labels.avgString = [avgStrings{qq}, ', ', ...
                 '$w_{\textrm{fold}}=', ...
-                num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'], ...
-                'Interpreter', 'Latex')
-            legend(foldYlabels, 'Interpreter', 'Latex', 'location', 'eastOutside')  
-            drawnow
-            xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-            ylabel('$\frac{1}{2}\mathrm{Tr} \left[g^{-1} \dot{g}\right]$', ...
-                'Interpreter', 'Latex')
+                num2str(100*(2*width + 1)/ nU), '$\%$\, L_\zeta$'];
+            labels.titleBase = titleFoldBase ;
+            labels.ylabel = 'fold strain, $\langle\varepsilon\rangle$' ;
+            labels.ylabel_ratios = 'fold strain, $\langle||\mathrm{Dev}[\varepsilon]||\rangle/\langle||\mathrm{Tr}[\varepsilon]||\rangle$' ;
+            labels.legend = foldYlabelsStrainComposite ;
+            labels.legend_ratios = foldYlabels ;
+            labels.trace = strain_trace_label ;
+            labels.deviator = strain_deviator_label ;
+            aux_plotPathlineStrainRegions(QS, ...
+                fns, measurements, data, labels, plotOpts)
         end
-        
-        % Save figure
-        disp(['Saving figure: ', fn])
-        saveas(gcf, fn)
-    end
-   
-    %% Plot lobe Kinematics
-    fn = fullfile(outdirs{qq}, ...
-        ['lobe_kinematics_' avgLabel{qq} '.png']) ;
-    if ( ~exist(fn, 'file') || overwrite ) && plot_lobe_kinematics
-        close all
-        ymin = 0 ;
-        ymax = 0 ;
-        % Each fold is valley+/- width
-        for jj = 1:length(lobes)
-            axisColl{jj} = subplot(length(lobes), 1, jj) ;
-            dvj = mean(divv(:, lobes{jj}), 2) ;
-            Hvj = mean(H2vn(:, lobes{jj}), 2) ;
-            plot(tps, dvj, '.-', 'Color', QS.plotting.colors(1, :))
-            hold on;
-            plot(tps, Hvj, '.-', 'Color', QS.plotting.colors(2, :))
-            if jj == 1
-                % Title and labels
-                sgtitle([titleLobeBase, avgStrings{qq}], ...
-                    'Interpreter', 'Latex')
-                legend({'$\nabla\cdot\mathbf{v}_\parallel$', ...
-                    '$v_n 2H$'}, 'Interpreter', 'Latex', ...
-                    'location', 'eastOutside')  
-                drawnow
-                pos = get(gca, 'position') ;
-            elseif jj == length(valleys)
-                xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-            end
-            ylabel(lobeYlabels{jj}, 'Interpreter', 'Latex')
-            ylims = ylim() ;
-            ymin = min(ymin, ylims(1)) ;
-            ymax = max(ymax, ylims(2)) ;
-        end
-
-        for jj = 1:length(lobes)
-            axes(axisColl{jj})
-            pos2 = get(gca, 'position') ;
-            set(gca, 'position', [pos2(1) pos2(2) pos(3) pos2(4)])
-            ylim([ymin, ymax])
-
-            % Mark wherever the divv<0 and also vn2H<0
-            dvj = mean(divv(:, lobes{jj}), 2) ;
-            Hvj = mean(H2vn(:, lobes{jj}), 2) ;
-            dvpos = dvj > 0 ;
-            Hvpos = Hvj > 0 ;
-            scatter(tps(dvpos), ...
-                (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
-                'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                'markerFaceColor', QS.plotting.colors(1, :), ...
-                'HandleVisibility', 'off')
-            hold on;
-            scatter(tps(Hvpos), ...
-                ymin * ones(size(tps(Hvpos))), 5,  ...
-                'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                'markerFaceColor', QS.plotting.colors(2, :), ...
-                'HandleVisibility', 'off')
-            ylim([ymin-0.1*(ymax-ymin), ymax])
-        end
-
-        % Save figure
-        disp(['Saving figure: ', fn])
-        saveas(gcf, fn)
     end
     
-    %% Lobe kinematics -- cumprod gdot
-    fn = fullfile(outdirs{qq}, ...
-        sprintf('lobe_kinematics_gdot_cumprod.png')) ;
-    if ( ~exist(fn, 'file') || overwrite ) && plot_lobe_kinematics
-        close all
-        ymin = 0 ;
-        ymax = 0 ;
-        for jj = 1:length(lobes)
-            axisColl{jj} = subplot(length(lobes), 1, jj) ;
-            
-            % div(v), H*2*vn, gdot
-            ddj = mean(divv(:, lobes{jj}), 2) ;
-            Hdj = mean(H2vn(:, lobes{jj}), 2) ;
-            gdj = mean(divv(:, lobes{jj}) - H2vn(:, lobes{jj}), 2) ;
-
-            % Take cumulative product marching forward from t0
-            gpj_pos = cumprod(1 + gdj(tps > eps)) ;
-            gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
-            gpj = cat(1, gpj_neg, gpj_pos) ;               
-            % Take cumulative product marching forward from t0
-            dpj_pos = cumprod(1 + ddj(tps > eps)) ;
-            dpj_neg = flipud(cumprod(flipud(1 ./ (1 + ddj(tps < eps))))) ;
-            dpj = cat(1, dpj_neg, dpj_pos) ;
-            % Take cumulative product marching forward from t0
-            Hpj_pos = cumprod(1 + Hdj(tps > eps)) ;
-            Hpj_neg = flipud(cumprod(flipud(1 ./ (1 + Hdj(tps < eps))))) ;
-            Hpj = cat(1, Hpj_neg, Hpj_pos) ;
-
-            % Plot all three
-            plot(tps, dpj, '.-', 'Color', QS.plotting.colors(1, :))
-            hold on;
-            plot(tps, Hpj, '.-', 'Color', QS.plotting.colors(2, :))
-            plot(tps, gpj, '.-', 'Color', QS.plotting.colors(3, :))
-
-            if jj == 1
-                % Title and labels
-                sgtitle([titleLobeBase, avgStrings{qq}], ...
-                    'Interpreter', 'Latex')
-                legend({'$\Pi(1+\nabla\cdot\mathbf{v}_\parallel)$', ...
-                    '$\Pi(1+v_n 2H)$', ...
-                    '$\Pi(1+\frac{1}{2}\mathrm{Tr}\left[g^{-1} \dot{g} \right])$'}, ...
-                    'Interpreter', 'Latex', 'location', 'eastOutside')  
-                drawnow
-                pos = get(gca, 'position') ;
-            elseif jj == length(valleys)
-                xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-            end
-            ylabel(lobeYlabels{jj}, 'Interpreter', 'Latex')
-            ylims = ylim() ;
-            ymin = min(ymin, ylims(1)) ;
-            ymax = max(ymax, ylims(2)) ;
-        end
-
-        for jj = 1:length(lobes)
-            axes(axisColl{jj})
-            pos2 = get(gca, 'position') ;
-            set(gca, 'position', [pos2(1) pos2(2) pos(3) pos2(4)])
-            ylim([ymin, ymax])
-
-            % Mark wherever the divv<0 and also vn2H<0
-            dvj = mean(divv(:, lobes{jj}), 2) ;
-            Hvj = mean(H2vn(:, lobes{jj}), 2) ;
-            dvpos = dvj > 0 ;
-            Hvpos = Hvj > 0 ;
-            scatter(tps(dvpos), ...
-                (ymin-0.05*(ymax-ymin)) * ones(size(tps(dvpos))), 5, ...
-                'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                'markerFaceColor', QS.plotting.colors(1, :), ...
-                'HandleVisibility', 'off')
-            hold on;
-            scatter(tps(Hvpos), ...
-                ymin * ones(size(tps(Hvpos))), 5,  ...
-                'markeredgecolor', 'none', 'markerFaceAlpha', 0.6, ...
-                'markerFaceColor', QS.plotting.colors(2, :), ...
-                'HandleVisibility', 'off')
-            ylim([ymin-0.1*(ymax-ymin), ymax])
-        end
-
-        % Save figure
-        disp(['Saving figure: ', fn])
-        saveas(gcf, fn)
+    %% Lobe kinematics -- STRAIN, one axis per lobe
+    fn = fullfile(outdirs{qq}, sprintf('lobe_strain.png')) ;
+    fn_withH = fullfile(outdirs{qq}, sprintf('lobe_strain_withH.png')) ;
+    if plot_lobe_strain
+        plotOpts.overwrite = overwrite ;
+        aux_plotPathlineStrainLobes_subpanels(QS, fn, fn_withH, ...
+            lobes, tps, trK, dvK, thK, HHK, ...
+            avgStrings{qq}, titleLobeBase, lobeYlabelsStrain, ...
+            strain_trace_label, strain_deviator_label, ...
+            trecolor, Hposcolor, Hnegcolor, Hsz, pm256, plotOpts)
     end
 
-    % Plot all gdots on one axis
-    fn = fullfile(outdirs{qq}, ...
-        sprintf('lobe_kinematics_gdot_cumprod_compare.png')) ;
-    if ( ~exist(fn, 'file') || overwrite ) && plot_lobe_kinematics
-        close all
-        % Each fold is valley+/- width
-        for jj = 1:length(lobes)
-            % div(v), H*2*vn, gdot
-            gdj = mean(divv(:, lobes{jj}) - H2vn(:, lobes{jj}), 2) ;
-
-            % Take cumulative product marching forward from t0
-            gpj_pos = cumprod(1 + gdj(tps > eps)) ;
-            gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
-            gpj = cat(1, gpj_neg, gpj_pos) ;               
-
-            % Plot this fold
-            plot(tps, gpj, '.-', 'Color', QS.plotting.colors(jj+3, :))
-            hold on;
-        end    
-
-        % Title and labels
-        sgtitle(['Tissue dilation in lobes, ', avgStrings{qq}, ...
-            ', $\frac{1}{2}\mathrm{Tr} \left[g^{-1} \dot{g}\right]$'], ...
-            'Interpreter', 'Latex')
-        legend(lobeYlabels, 'Interpreter', 'Latex', 'location', 'eastOutside')  
-        drawnow
-        xlabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-        ylabel('$\frac{1}{2}\mathrm{Tr} \left[g^{-1} \dot{g}\right]$', ...
-            'Interpreter', 'Latex')
-        
-        % Save figure
-        disp(['Saving figure: ', fn])
-        saveas(gcf, fn)
+    %% lobe kinematics -- STRAIN, all lobes on one axis
+    if plot_lobe_strain
+        fnbase = fullfile(outdirs{qq}, 'lobe_strain_compare') ;
+        fns.fn = [fnbase '.png'] ;
+        fns.early = [fnbase '_early.png'] ;
+        fns.norms = [fnbase '_norms.png'] ;
+        fns.norms_early = [fnbase '_norms_early.png'] ;
+        fns.withH = [fnbase '_withH.png'] ;
+        plotOpts.overwrite = overwrite ;
+        plotOpts.phasecmap = pm256 ;
+        measurements.fons = fons - t0 ;
+        measurements.regions = lobes ;
+        data.timepoints = tps ;
+        data.tr = trK ;
+        data.dv = dvK ;
+        data.th = thK ;
+        data.HH = HHK ;
+        labels.avgString = avgStrings{qq} ;
+        labels.titleBase = titleLobeBase ;
+        labels.ylabel = 'lobe strain, $\langle\varepsilon\rangle$' ;
+        labels.ylabel_ratios = 'lobe strain, $\langle||\mathrm{Dev}[\varepsilon]||\rangle/\langle||\mathrm{Tr}[\varepsilon]||\rangle$' ;
+        labels.legend = lobeYlabelsStrainComposite ;
+        labels.legend_ratios = lobeYlabels ;
+        labels.trace = strain_trace_label ;
+        labels.deviator = strain_deviator_label ;
+        aux_plotPathlineStrainRegions(QS, ...
+            fns, measurements, data, labels, plotOpts)     
     end
 
 end

@@ -41,13 +41,17 @@ classdef QuapSlap < handle
     %       2d velocities at PIV evaluation coordinates in scaled pix/min, but 
     %       proportional to um/min (scaled by dilation of map)
     properties
-        xp
-        timeInterval
-        timeUnits
-        spaceUnits
-        dir
-        dirBase
-        fileName
+        xp                      % ImSAnE experiment class instance
+        timeInterval = 1        % increment in time between timepoints with 
+                                % indices differing by 1. For example, if
+                                % timePoints are [0,1,2,4] and these are 
+                                % [1,1,2] minutes apart, then timeInterval 
+                                % is 1. 
+        timeUnits = 'min'       % units of the timeInterval (ex 'min')
+        spaceUnits = '$\mu$m'   % units of the embedding space (ex '$\mu$m')
+        dir                     % str, directory where QuapSlap data lives
+        dirBase                 % 
+        fileName                % fileName
         fileBase
         fullFileBase
         ssfactor                % subsampling factor for probabilities 
@@ -66,8 +70,11 @@ classdef QuapSlap < handle
             'ssfold', [], ...               % #timepoints x #folds float, positional pathlength along centerline of folds
             'rssmax', [], ...               % #timepoints x 1 float, maximum proper length of the surface over time
             'rssfold', []) ;                % #timepoints x #folds float, positional proper length along surface of folds
-        a_fixed
-        phiMethod = '3dcurves'  % must be '3dcurves' or 'texture'
+        a_fixed                 % aspect ratio for fixed geometry pullback meshes
+        phiMethod = '3dcurves'  % method for determining Phi map in pullback mesh creation, with 
+                                % the full map from embedding to pullback being [M'=(Phi)o()o()]. 
+                                % This string specifier must be '3dcurves' (geometric phi stabilization) 
+                                % or 'texture' (optical flow phi stabilization)
         endcapOptions
         plotting = struct('preview', false, ... % display intermediate results
             'save_ims', true, ...               % save images
@@ -131,10 +138,18 @@ classdef QuapSlap < handle
             'vv', []) ;          % velocity field after in-place (uv) avg
         cleanCntrlines
         pivPullback = 'sp_sme' ; % coordinate system used for velocimetry
-        pathlines = struct('t0', [], ...   % timestamp (not an index) at which pathlines form regular grid in space
-            'piv', [], ...                 % Lagrangian pathlines from piv coords
-            'vertices', [], ...            % Lagrangian pathlines from mesh vertices
-            'faces', []) ;                 % Lagrangian pathlines from mesh face barycenters
+        smoothing = struct(...
+            'lambda', 0.01, ...             % diffusion const for field smoothing on mesh
+            'lambda_mesh', 0.002, ...       % diffusion const for vertex smoothing of mesh itself
+            'lambda_err', 0.01) ;           % diffusion const for fields inferred from already-smoothed fields on mesh
+        pathlines = struct('t0', [], ...    % timestamp (not an index) at which pathlines form regular grid in space
+            'piv', [], ...                  % Lagrangian pathlines from piv coords
+            'vertices', [], ...             % Lagrangian pathlines from mesh vertices
+            'faces', [], ...                % Lagrangian pathlines from mesh face barycenters
+            'featureIDs', struct(...        % struct with features in pathline coords
+                'vertices', [], ...         % longitudinal position of features from pathlines threaded through pullback mesh vertices at t=t0Pathline
+                'piv', [], ...              % longitudinal position of features from pathlines threaded through PIV evaluation coordinates at t=t0Pathline
+                'faces', []));              % longitudinal position of features from pathlines threaded through pullback mesh face barycenters at t=t0Pathline
     end
     
     % Some methods are hidden from public view. These are used internally
@@ -151,6 +166,7 @@ classdef QuapSlap < handle
         plotPathlineVelocitiesTimePoint(QS, tp, options)
         plotStrainRateTimePoint(QS, tp, options) 
         plotPathlineStrainRateTimePoint(QS, tp, options)
+        plotPathlineStrainTimePoint(QS, tp, options)
     end
     
     % Public methods, accessible from outside the class and reliant on 
@@ -998,7 +1014,31 @@ classdef QuapSlap < handle
                 QS.pathlines.faces = facePathlines ;
             end
         end
-                
+        featureIDs = measurePathlineFeatureIDs(QS, pathlineType, options)
+        function featureIDs = getPathlineFeatureIDs(QS, pathlineType, options)
+            % featureIDs = GETPATHLINEFEATUREIDS(QS, options)
+            %   recall, load, or interactively identify feature locations 
+            %   as positions in zeta, the longitudinal pullback coordinate 
+            %
+            if nargin < 2
+                pathlineType = 'vertices' ;
+            end
+            if nargin < 3
+                options = struct() ;
+            end
+            if strcmpi(pathlineType, 'vertices')
+                if isempty(QS.pathlines.featureIDs.vertices)
+                    featureIDs = measurePathlineFeatureIDs(QS, ...
+                        pathlineType, options) ;
+                    QS.pathlines.featureIDs.vertices = featureIDs ;
+                else
+                    featureIDs = QS.pathlines.featureIDs.vertices ;
+                end
+            else
+                error('Code for this pathlineType here')
+            end
+        end
+        
         %% Velocities -- Lagrangian Averaging
         timeAverageVelocities(QS, samplingResolution, options)
         function loadVelocityAverage(QS, varargin)
@@ -1150,6 +1190,7 @@ classdef QuapSlap < handle
         measureStrainRate(QS, options)
         plotStrainRate(QS, options)
         measurePathlineStrainRate(QS, options)
+        measurePathlineStrain(QS, options)
         plotPathlineStrainRate(QS, options)
         
         %% timepoint-specific coordinate transformations
@@ -1175,8 +1216,9 @@ classdef QuapSlap < handle
             %
             % Parameters
             % ----------
-            % im : NxM numeric array
-            %   image in which pixel coordinates are defined
+            % im : NxM numeric array or 2 ints
+            %   image in which pixel coordinates are defined or dimensions
+            %   of the image (pullback image in pixels)
             % XY : Qx2 numeric array
             %   pixel coordinates to convert to pullback space
             % doubleCovered : bool
@@ -1190,7 +1232,13 @@ classdef QuapSlap < handle
             % vmax : float
             %   extent of pullback mesh coordinates in v direction (Y)
             %   before double covering/tiling
+            %
+            % Returns
+            % -------
+            % uv : Qx2 numeric array
+            %   pullback coordinates of input pixel coordinates
             
+            % Input defaults
             if nargin < 3
                 doubleCovered = true ;
             end
@@ -1199,6 +1247,15 @@ classdef QuapSlap < handle
             end
             if nargin < 5
                 vmax = 1.0 ;
+            end
+            
+            % Input checking
+            if size(XY, 2) ~= 2
+                if size(XY, 1) == 2
+                    XY = XY' ;
+                else
+                    error('XY must be passed as #pts x 2 numeric array')
+                end
             end
             % size of extended image
             if any(size(im) > 2) 
@@ -1352,6 +1409,7 @@ classdef QuapSlap < handle
         [cutMesh, cutMeshC] = doubleResolution(cutMesh, preview)
         
         function [mag_ap, theta_ap] = dvAverageNematic(magnitude, theta)
+            %[mag_ap, theta_ap] = DVAVERAGENEMATIC(magnitude, theta)
             % Given a nematic field defined on a rectilinear grid, with 
             % Q(i,j) being in the ith ap position and jth dv position,
             % average the nematic field over the dv positions (dimension 2)

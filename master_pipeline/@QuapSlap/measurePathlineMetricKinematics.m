@@ -306,7 +306,7 @@ end
 disp('done with measuring pathline metric kinematics')
 
 %% Combine DV-averaged profiles into kymographs
-apKymoFn = fullfile(outdir, 'apKymographsMetricKinematics.mat') ;
+apKymoFn = fullfile(outdir, 'apKymographMetricKinematics.mat') ;
 lKymoFn = fullfile(outdir, 'leftKymographMetricKinematics.mat') ;
 rKymoFn = fullfile(outdir, 'rightKymographMetricKinematics.mat') ;
 dKymoFn = fullfile(outdir, 'dorsalKymographMetricKinematics.mat') ;

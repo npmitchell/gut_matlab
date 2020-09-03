@@ -362,6 +362,9 @@ opts.adjusthigh = 99.9 ;                 % ceil for intensity adjustment (clip)
 % opts.adjustlow = 0 ;                  %  floor for intensity adjustment
 % opts.adjusthigh = 0 ;                 % ceil for intensity adjustment (clip)
 opts.phiMethod = 'curves3d' ;
+options.lambda_mesh = 0.002 ;
+options.lambda = 0.01 ;
+options.lambda_err = 0.01 ;
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')

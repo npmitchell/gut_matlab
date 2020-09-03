@@ -1,6 +1,8 @@
 function aux_plotMetricKinematicsFolds_integrated(QS, m2plot, ...
     fn, fn_withH, foldIds, width, nU, tps, divv, H2vn, HH, foldYlabels, ...
     avgString, Hsz, overwrite, cumsum_cumprod)
+
+error('depricated? pretty sure')
 %aux_plotMetricKinematicsFolds_2panel_withH
 %(fn, divv, H2vn, HH, width, foldYlabels)
 %   Plot the fold kinematics (either divv, H2vn, OR gdot) for all folds, on
