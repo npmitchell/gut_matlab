@@ -38,9 +38,9 @@ overwrite = false ;
 plot_Hgdot = true ;
 plot_flows = true ;
 plot_factors = true ;
-lambda = 0.01 ; 
-% by default, lambda_mesh = lambda, whether defined here or in options
-lambda_err = 0.01 ;
+lambda = QS.smoothing.lambda ; 
+lambda_mesh = QS.smoothing.lambda_mesh ;
+lambda_err = QS.smoothing.lambda_err ;
 climit = 0.2 ;
 climit_veln = climit * 10 ;
 climit_H = climit * 2 ;
@@ -67,14 +67,11 @@ end
 if isfield(options, 'lambda')
     lambda = options.lambda ;
 end
-if isfield(options, 'lambda_err')
-    lambda_err = options.lambda_err ;
-end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;
-else
-    % default lambda_mesh is equal to lambda 
-    lambda_mesh = lambda ;
+end
+if isfield(options, 'lambda_err')
+    lambda_err = options.lambda_err ;
 end
 if isfield(options, 'climit')
     climit = options.climit ;
@@ -113,12 +110,12 @@ buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 if strcmp(averagingStyle, 'simple')
     mKDir = fullfile(QS.dir.metricKinematicsSimple, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
-        lambda, lambda_err, lambda_mesh), '.', 'p'));
+        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
+        lambda, lambda_mesh, lambda_err), '.', 'p'));
 else
     mKDir = fullfile(QS.dir.metricKinematics.root, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
-        lambda, lambda_err, lambda_mesh), '.', 'p'));
+        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
+        lambda, lambda_mesh, lambda_err), '.', 'p'));
 end
 folds = load(QS.fileName.fold) ;
 fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;

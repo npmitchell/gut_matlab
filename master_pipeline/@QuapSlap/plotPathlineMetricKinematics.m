@@ -40,9 +40,9 @@ t0 = QS.t0set() ;
 t0Pathline = QS.t0 ;
 
 %% Parameter options
-lambda = 0.02 ;
-lambda_mesh = 0.002 ;
-lambda_err = 0.03 ;
+lambda = QS.smoothing.lambda ;
+lambda_mesh = QS.smoothing.lambda_mesh ;
+lambda_err = QS.smoothing.lambda_err ;
 climit = 0.2 ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
@@ -131,8 +131,8 @@ xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 mKDir = fullfile(QS.dir.metricKinematics.root, ...
-    strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
-    lambda, lambda_err, lambda_mesh), '.', 'p'));
+    strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
+    lambda, lambda_mesh, lambda_err), '.', 'p'));
 folds = load(QS.fileName.fold) ;
 fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 
@@ -299,96 +299,9 @@ divvsK = {divv_apM, divv_lM, divv_rM, divv_dM, divv_vM} ;
 velnsK = {veln_apM, veln_lM, veln_rM, veln_dM, veln_vM} ;
 H2vnsK = {H2vn_apM, H2vn_lM, H2vn_rM, H2vn_dM, H2vn_vM} ;
 
-%% To grab fold location in Lagrangian coords robustly, find minima of 
-% divergence from ap average and grab folds and lobes indexed in 
-% Lagrangian coords
-% fIDfn is the feature ID filename for these Lagrangian data
-fIDfn = sprintf(QS.fileName.pathlines.featureIDs, t0Pathline) ;
-if exist(fIDfn, 'file')
-    load(fIDfn, 'featureIDs')
-    valleys = featureIDs ;
-else
-    nfeatures = input('How many features (ex folds) to identify in Lagrangian data? [Default=3]') ;
-    if isempty(nfeatures)
-        nfeatures = 3 ;
-    end
-    div1d = mean(divv_apM(tps > max(20, min(tps)) & ...
-        tps < min(max(tps), 60), :), 1) ;
-    div1dsm = savgol(div1d, 2, 11) ;
-    [~, valleys] = maxk(-islocalmin(div1dsm) .* div1dsm, nfeatures) ;
-    valleys = sort(valleys) ;
-    
-    % Show guess overlaying div(v) data
-    figure ;
-    set(gcf, 'visible', 'on')
-    subplot(1, 2, 1)
-    imagesc((1:nU)/nU, tps, divv_apM)
-    colormap(bwr256)
-    caxis([-climit, climit])
-    hold on;
-    for qq = 1:nfeatures
-        plot(valleys(qq)/nU * ones(size(tps)), tps) ;
-    end
-    title('Guess for featureIDs on divergence(v)')
-    subplot(1, 2, 2) ;
-    imagesc((1:nU)/nU, tps, veln_apM)
-    colormap(bwr256)
-    caxis([-max(abs(veln_apM(:))), max(abs(veln_apM(:)))])
-    hold on;
-    for qq = 1:nfeatures
-        plot(valleys(qq)/nU * ones(size(tps)), tps) ;
-    end
-    title('Guess for featureIDs on normal velocity')
-    disp(['Guessed automatic features to be: [' num2str(valleys) ']'])
-    
-    % Update the guess
-    for qq = 1:nfeatures
-        qok = false ;
-        while ~qok
-            msg = ['What is the Lagrangian zeta ID of feature ' num2str(qq) '? '] ;
-            newvalley = input(msg) ;
-            if isa(newvalley, 'double')
-                valleys(qq) = newvalley ;
-            end
-            
-            % Show guess overlaying div(v) data
-            clf;
-            set(gcf, 'visible', 'on')
-            ax1 = subplot(1, 2, 1) ;
-            imagesc((1:nU)/nU, tps, divv_apM)
-            colormap(bwr256)
-            caxis([-climit, climit])
-            hold on;
-            title('Guess for featureIDs on divergence(v)')
-            ax2 = subplot(1, 2, 2) ;
-            imagesc((1:nU)/nU, tps, veln_apM)
-            colormap(bwr256)
-            caxis([-max(abs(veln_apM(:))), max(abs(veln_apM(:)))])
-            hold on;
-            for pp = 1:nfeatures
-                axes(ax1)
-                plot(valleys(pp)/nU * ones(size(tps)), tps) ;
-                axes(ax2)
-                plot(valleys(pp)/nU * ones(size(tps)), tps) ;
-            end
-            axes(ax2)
-            title('Guess for featureIDs on normal velocity')
-            disp(['Guessed automatic features to be: [' num2str(valleys) ']'])
-            
-            % Check it -- is the new feature look good?
-            qYN = input(['does feature ' num2str(qq) ' look ok?'], 's') ;
-            if contains(lower(qYN), 'y')
-                qok = true ;
-            end
-        end
-    end
-    featureIDs = valleys ;
-    % Save valleys
-    save(fIDfn, 'featureIDs')
-end
-
-%% Plot valley identifications
-
+%% Obtain location of folds / features
+featureOpts = struct() ;
+featureIDs = QS.getPathlineFeatureIDs('vertices', featureOpts) ;
 
 %% Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
 dvDir = fullfile(mKPDir, 'avgDV') ;
@@ -460,9 +373,9 @@ if plot_kymographs
                 % plot(folds.folds(tidx0, 3) * t3ones / nU, tps(fons3:end))
 
                 % OPTION 1: use identified div(v) < 0
-                plot(valleys(1) * t1ones / nU, tps(fons1:end))
-                plot(valleys(2) * t2ones / nU, tps(fons2:end))
-                plot(valleys(3) * t3ones / nU, tps(fons3:end))
+                plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
+                plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
+                plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
                 
                 % title and save
                 title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
@@ -487,6 +400,96 @@ if plot_kymographs
                 fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
                 disp(['saving ', fn])
                 export_fig(fn, '-png', '-nocrop', '-r200')   
+            end
+        end
+    end
+end
+
+%% Kymographs of cumulative sums along pathlines
+if plot_kymographs_cumsum
+    titleadd = {': circumferentially averaged', ...
+        ': left side', ': right side', ': dorsal side', ': ventral side'} ;
+
+    for qq = 1:length(outdirs)
+        % Prep the output directory for this averaging
+        odir = outdirs{qq} ;
+        if ~exist(odir, 'dir')
+            mkdir(odir)
+        end
+
+        % Unpack what to plot (averaged kymographs, vary averaging region)
+        HHK = HHsK{qq} ;
+        if t0Pathline > 1
+            gdotK = cumsum(gdotsK{qq}, 1) - sum(gdotsK{qq}(1:(t0Pathline-1),:), 1) ;
+            divvK = cumsum(divvsK{qq}, 1) - sum(divvsK{qq}(1:(t0Pathline-1),:), 1) ;
+            velnK = cumsum(velnsK{qq}, 1) - sum(velnsK{qq}(1:(t0Pathline-1),:), 1) ;
+            H2vnK = cumsum(H2vnsK{qq}, 1) - sum(H2vnsK{qq}(1:(t0Pathline-1),:), 1) ;
+        else
+            gdotK = cumsum(gdotsK{qq}, 1) ;
+            divvK = cumsum(divvsK{qq}, 1) ;
+            velnK = cumsum(velnsK{qq}, 1) ;
+            H2vnK = cumsum(H2vnsK{qq}, 1) ;
+        end
+        m2plot = {gdotK, divvK, velnK, H2vnK} ;
+        titles = {'$\int_{-\infty}^t \textrm{d}t \,  \frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
+            'divergence of flow, $\int_{-\infty}^t \textrm{d}t \,  \nabla \cdot \mathbf{v}$', ...
+            'normal velocity, $\int_{-\infty}^t \textrm{d}t \,  v_n$', ...
+            'normal motion, $\int_{-\infty}^t \textrm{d}t \,  v_n 2 H$'} ;
+        labels = {'$\int_{-\infty}^t \textrm{d}t \, \frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]$ ', ...
+            '$\int_{-\infty}^t \textrm{d}t \,  \nabla \cdot \mathbf{v}$ ', ...
+            'normal velocity, $\int_{-\infty}^t \textrm{d}t \,  v_n$ ', ...
+            'normal motion, $\int_{-\infty}^t \textrm{d}t \,  v_n 2 H $ '} ;
+        names = {'Igdot', 'Idivv', 'Iveln', 'IH2vn'} ;
+        climits = [climit, climit, climit_veln, climit] ;
+        climits = climits * 4; 
+        
+        %% Plot gdot/HH/divv/veln/H2vn DV-averaged kymograph
+        for pp = 1:length(m2plot)
+            % Check if images already exist on disk
+            fn = fullfile(odir, [ names{pp} '.png']) ;
+            fn_zoom = fullfile(odir, [names{pp} '_zoom.png']) ;
+            fn_zoom_early = fullfile(odir, [names{pp} '_zoom_early.png']) ;
+            if ~exist(fn, 'file') || ~exist(fn_zoom, 'file') || overwrite
+                close all
+                set(gcf, 'visible', 'off')
+                imagesc((1:nU)/nU, tps, m2plot{pp})
+                caxis([-climits(pp), climits(pp)])
+                colormap(bwr256)
+                % Add folds to plot
+                hold on;
+                fons1 = max(1, fons(1)) ;
+                fons2 = max(1, fons(2)) ;
+                fons3 = max(1, fons(3)) ;
+                t1ones = ones(size(tps(fons1:end))) ;
+                t2ones = ones(size(tps(fons2:end))) ;
+                t3ones = ones(size(tps(fons3:end))) ;
+                plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
+                plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
+                plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
+
+                % title and save
+                title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+                cb = colorbar() ;
+                ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
+                tmp = strsplit(fn, filesep) ;
+                disp(['saving ', tmp{end}, ': ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+
+                % Zoom in on small values
+                caxis([-climits(pp)/2, climits(pp)/2])
+                colormap(bwr256)
+                tmp = strsplit(fn_zoom, filesep) ;
+                disp(['saving ', tmp{end}])
+                export_fig(fn_zoom, '-png', '-nocrop', '-r200')   
+                % Zoom in on early times
+                ylim([min(tps), max(fons) + 10])
+                caxis([-climits(pp)/2, climits(pp)/2])
+                colormap(bwr256)
+                tmp = strsplit(fn_zoom_early, filesep) ;
+                disp(['saving ', tmp{end}])
+                export_fig(fn_zoom_early, '-png', '-nocrop', '-r200')   
             end
         end
     end
@@ -521,7 +524,7 @@ if plot_kymographs_cumprod
         labels = {'$\bar{\epsilon}$', ...
             '$ \Pi_{0}^{t}\, \left[ 1 + \nabla \cdot \mathbf{v}(\tau) \right]$' , ...
             'normal motion, $\Pi_{0}^{t}\, \left[ 1 + v_n(\tau) 2 H(\tau)\right] $' } ;
-        names = {'Igdot_t0', 'Idivv_t0', 'IH2vn_t0'} ;
+        names = {'Pgdot_t0', 'Pdivv_t0', 'PH2vn_t0'} ;
         climits = [climit, climit, climit] ;
         climits = climits * 3; 
         
@@ -568,89 +571,6 @@ if plot_kymographs_cumprod
                 % Zoom in on early times
                 ylim([min(tps), max(fons) + 10])
                 caxis([1-climits(pp)/3, 1+climits(pp)/3])
-                colormap(bwr256)
-                tmp = strsplit(fn_zoom, filesep) ;
-                disp(['saving ', tmp{end}])
-                export_fig(fn_zoom, '-png', '-nocrop', '-r200')   
-            end
-        end
-    end
-end
-
-%% Kymographs of cumulative sums along pathlines
-if plot_kymographs_cumsum
-    titleadd = {': circumferentially averaged', ...
-        ': left side', ': right side', ': dorsal side', ': ventral side'} ;
-
-    for qq = 1:length(outdirs)
-        % Prep the output directory for this averaging
-        odir = outdirs{qq} ;
-        if ~exist(odir, 'dir')
-            mkdir(odir)
-        end
-
-        % Unpack what to plot (averaged kymographs, vary averaging region)
-        HHK = HHsK{qq} ;
-        gdotK = cumsum(gdotsK{qq}, 1) ;
-        divvK = cumsum(divvsK{qq}, 1) ;
-        velnK = cumsum(velnsK{qq}, 1) ;
-        H2vnK = cumsum(H2vnsK{qq}, 1) ;
-        m2plot = {gdotK, divvK, velnK, H2vnK} ;
-        titles = {'$\int_{-\infty}^t \textrm{d}t \,  \frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
-            'divergence of flow, $\int_{-\infty}^t \textrm{d}t \,  \nabla \cdot \mathbf{v}$', ...
-            'normal velocity, $\int_{-\infty}^t \textrm{d}t \,  v_n$', ...
-            'normal motion, $\int_{-\infty}^t \textrm{d}t \,  v_n 2 H$'} ;
-        labels = {['$\int_{-\infty}^t \textrm{d}t \, \frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
-            ['$\int_{-\infty}^t \textrm{d}t \,  \nabla \cdot \mathbf{v}$ ' unitstr], ...
-            ['normal velocity, $\int_{-\infty}^t \textrm{d}t \,  v_n$ ' vunitstr] , ...
-            ['normal motion, $\int_{-\infty}^t \textrm{d}t \,  v_n 2 H $ ' unitstr]} ;
-        names = {'Igdot', 'Idivv', 'Iveln', 'IH2vn'} ;
-        climits = [climit, climit, climit_veln, climit] ;
-        climits = climits * 3; 
-        
-        %% Plot gdot/HH/divv/veln/H2vn DV-averaged kymograph
-        for pp = 1:length(m2plot)
-            % Check if images already exist on disk
-            fn = fullfile(odir, [ names{pp} '.png']) ;
-            fn_zoom = fullfile(odir, [names{pp} '_zoom_early.png']) ;
-            if ~exist(fn, 'file') || ~exist(fn_zoom, 'file') || overwrite
-                close all
-                set(gcf, 'visible', 'off')
-                imagesc((1:nU)/nU, tps, m2plot{pp})
-                caxis([-climits(pp), climits(pp)])
-                colormap(bwr256)
-                % Add folds to plot
-                hold on;
-                fons1 = max(1, fons(1)) ;
-                fons2 = max(1, fons(2)) ;
-                fons3 = max(1, fons(3)) ;
-                t1ones = ones(size(tps(fons1:end))) ;
-                t2ones = ones(size(tps(fons2:end))) ;
-                t3ones = ones(size(tps(fons3:end))) ;
-                tidx0 = QS.xp.tIdx(t0) ;
-                plot(folds.folds(tidx0, 1) * t1ones / nU, tps(fons1:end))
-                plot(folds.folds(tidx0, 2) * t2ones / nU, tps(fons2:end))
-                plot(folds.folds(tidx0, 3) * t3ones / nU, tps(fons3:end))
-
-                % title and save
-                title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
-                ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
-                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
-                cb = colorbar() ;
-                ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
-                disp(['saving ', fn])
-                export_fig(fn, '-png', '-nocrop', '-r200')   
-
-                % Zoom in on small values
-                caxis([-climits(pp)/3, climits(pp)/3])
-                colormap(bwr256)
-                fn = fullfile(odir, [names{pp} '_zoom.png']) ;
-                tmp = strsplit(fn, filesep) ;
-                disp(['saving ', tmp{end}])
-                export_fig(fn, '-png', '-nocrop', '-r200')   
-                % Zoom in on early times
-                ylim([min(tps), max(fons) + 10])
-                caxis([-climits(pp)/3, climits(pp)/3])
                 colormap(bwr256)
                 tmp = strsplit(fn_zoom, filesep) ;
                 disp(['saving ', tmp{end}])
@@ -861,10 +781,10 @@ end
 % Sample divv/H2vn/gdot in each lobe
 foldw = 0.05 ;
 endw = 0.10 ;
-cut = [round(endw*nU), valleys(1)-round(foldw*nU), ...
-        valleys(1)+round(foldw*nU), valleys(2)-round(foldw*nU), ...
-        valleys(2)+round(foldw*nU), valleys(3)-round(foldw*nU), ... 
-        valleys(3)+round(foldw*nU), round((1-endw) * nU)] ;
+cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
+        featureIDs(1)+round(foldw*nU), featureIDs(2)-round(foldw*nU), ...
+        featureIDs(2)+round(foldw*nU), featureIDs(3)-round(foldw*nU), ... 
+        featureIDs(3)+round(foldw*nU), round((1-endw) * nU)] ;
 lobes = { cut(1):cut(2), cut(3):cut(4), cut(5):cut(6), cut(7):cut(8) } ;
 avgStrings = {'dv-averaged', 'left side', 'right side', ...
     'dorsal side', 'ventral side'} ;
@@ -895,7 +815,7 @@ for qq = 1:5
         
         aux_plotPathlineMetricKinematicsFolds_subpanels(QS, ...
             fn, fn_withH, ...
-            valleys, width, nU, tps, divv, H2vn, HH, titleFoldBase, ...
+            featureIDs, width, nU, tps, divv, H2vn, HH, titleFoldBase, ...
             foldYlabels, avgStrings{qq}, divvcolor, H2vncolor, ...
             Hposcolor, Hnegcolor, Hsz, overwrite)
     end
@@ -905,7 +825,7 @@ for qq = 1:5
         ['lobe_kinematics_' avgLabel{qq} '.png']) ;
     fn_withH = fullfile(outdirs{qq}, ...
         ['lobe_kinematics_' avgLabel{qq} '_withH.png']) ;
-    aux_plotPathlineMetricKinematicsLobes_subpanels(QS, m2plot, fn, fn_withH, ...
+    aux_plotPathlineMetricKinematicsLobes_subpanels(QS, fn, fn_withH, ...
         lobes, tps, divv, H2vn, HH, lobeYlabels, avgStrings{qq}, ...
         titleLobeBase, divvcolor, H2vncolor, ...
         Hposcolor, Hnegcolor, Hsz, overwrite)
@@ -928,7 +848,7 @@ for qq = 1:5
                 avgLabel{qq}, '_withH.png']) ;
             if plot_fold_kinematics
                 aux_plotPathlineMetricKinematicsFolds_integrated_subpanels(QS, ...
-                    fn, valleys, width, nU, tps, divv, H2vn, titleFoldBase, ...
+                    fn, featureIDs, width, nU, tps, divv, H2vn, titleFoldBase, ...
                     foldYlabels, avgStrings{qq}, ...
                     divvcolor, H2vncolor, gdotcolor, overwrite, sumprod)
             end
@@ -948,7 +868,7 @@ for qq = 1:5
                     sprintf('_cumprod_compare_w%03d_', 2*width+1), ...
                     avgLabel{qq}, '_withH.png']) ;
                 aux_plotPathlineMetricKinematicsFolds_integrated(QS, m2plot, fn, fn_withH, ...
-                    valleys, width, nU, tps, divv, H2vn, HH, foldYlabels, ...
+                    featureIDs, width, nU, tps, divv, H2vn, HH, foldYlabels, ...
                     avgStrings{qq}, Hsz, overwrite, sumprod) 
             end
         end

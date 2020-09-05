@@ -22,7 +22,10 @@ overwrite = false ;
 overwriteImages = false ;
 plot_dzdp = false ;
 plot_comparison = false ;
-median_filter_strainRates = true ;
+median_filter_strainRates = false ;
+climitInitial = 0.05 ;
+climitRamp = 0.005 ;
+climitRatio = 1 ;
 
 %% Parameter options
 lambda_mesh = 0.002 ;
@@ -40,6 +43,9 @@ t0 = QS.t0 ;
 if nargin < 2
     options = struct() ;
 end
+if isfield(options, 'median_filter_strainRates')
+    median_filter_strainRates = options.median_filter_strainRates ;
+end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
@@ -53,6 +59,15 @@ if isfield(options, 'plot_dzdp')
     plot_dzdp = options.plot_dzdp ;
 end
 %% parameter options
+if isfield(options, 'climitInitial')
+    climitInitial = options.climitInitial ;
+end
+if isfield(options, 'climitRamp')
+    climitRamp = options.climitRamp ;
+end
+if isfield(options, 'climitRatio')
+    climitRatio = options.climitRatio ;
+end
 if isfield(options, 'lambda')
     lambda = options.lambda ;
 end
@@ -101,7 +116,13 @@ folds = load(QS.fileName.fold) ;
 fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 
 %% Colormap
+close all
+set(gcf, 'visible', 'off')
+imagesc([-1, 0, 1; -1, 0, 1])
+caxis([-1, 1])
 bwr256 = bluewhitered(256) ;
+bbr256 = blueblackred(256) ;
+close all
 
 %% load from QS
 if doubleResolution
@@ -156,8 +177,6 @@ ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
 for tidx = 1:ntps
     % Identify current timepoint
     tp = QS.xp.fileMeta.timePoints(tidx) ;
-    
-    close all
     disp(['t = ' num2str(tp)])
     QS.setTime(tp) ;
     
@@ -183,26 +202,28 @@ for tidx = 1:ntps
         end
 
         %% Identify prev and next timepoints's strainRates
-        if tidx > 1
-            tp_prev = QS.xp.fileMeta.timePoints(tidx-1) ;
-            srfnMesh0 = fullfile(outdir, sprintf('strainRate_%06d.mat', tp_prev)) ;
-            try
-                tmp = load(srfnMesh0, 'strainrate') ;
-                strainRate0 = tmp.strainrate ;
-                clearvars tmp
-            catch 
-                error(msg)
+        if median_filter_strainRates
+            if tidx > 1
+                tp_prev = QS.xp.fileMeta.timePoints(tidx-1) ;
+                srfnMesh0 = fullfile(outdir, sprintf('strainRate_%06d.mat', tp_prev)) ;
+                try
+                    tmp = load(srfnMesh0, 'strainrate') ;
+                    strainRate0 = tmp.strainrate ;
+                    clearvars tmp
+                catch 
+                    error(msg)
+                end
             end
-        end
-        if tidx < ntps
-            tp_next = QS.xp.fileMeta.timePoints(tidx + 1) ;
-            srfnMesh2 = fullfile(outdir, sprintf('strainRate_%06d.mat', tp_next)) ;
-            try
-                tmp = load(srfnMesh2, 'strainrate') ;
-                strainRate2 = tmp.strainrate ;
-                clearvars tmp
-            catch
-                error(msg)
+            if tidx < ntps
+                tp_next = QS.xp.fileMeta.timePoints(tidx + 1) ;
+                srfnMesh2 = fullfile(outdir, sprintf('strainRate_%06d.mat', tp_next)) ;
+                try
+                    tmp = load(srfnMesh2, 'strainrate') ;
+                    strainRate2 = tmp.strainrate ;
+                    clearvars tmp
+                catch
+                    error(msg)
+                end
             end
         end
         
@@ -265,9 +286,12 @@ for tidx = 1:ntps
 
             % Time increment
             dt = QS.timeInterval * (tp - tp_prev) ;
+            assert(dt == 1)
 
+            % DEBUG
             % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
-            mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
+            % mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
+            mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) ;
             umax = max(mesh1.u(:, 1)) ;  % Note umax = mesh1.ar
             vmax = max(mesh1.u(:, 2)) ;  % vmax is typically 1.0
             
@@ -347,7 +371,14 @@ for tidx = 1:ntps
 
             % Construct the Jacobian matrix on each mesh face
             J01 = jacobian2Dto2DMesh(mesh1.u, DXY10, mesh1.f);
-
+            
+            % % Check that jacobians are nearly unity
+            % avgJ = [0 0 0 0]' ;
+            % for tj = 1:length(J01)
+            %     avgJ = avgJ + J01{tj}(:) ;
+            % end
+            % avgJ = avgJ ./ length(J01) ;
+            
             % If any mesh faces are flipped, force their Jacobian 
             % transformation to be unity
             normals = faceNormal(triangulation(mesh1.f, ...
@@ -385,7 +416,12 @@ for tidx = 1:ntps
             catch
                 error('Ensure that all uv lie in the mesh.u')
             end
-
+            
+            % % Check fieldfaces
+            % trisurf(mesh1.f(fieldfaces, :), mesh1.u(:, 1), mesh1.u(:, 2), ...
+            %     mesh1.u(:, 2) * 0)
+            % view(2)
+            
             %% Median filter the strainRates while accumulating them 
             if median_filter_strainRates
                 % Transform the strainRate from t0 to t1 using 
@@ -503,13 +539,18 @@ for tidx = 1:ntps
                         waitfor(gcf)
                     end
                 end
+                % Store strainrate in #vP x 4 array
+                ezz = strainrate(:, 1) ;
+                ezp = strainrate(:, 2) ;
+                epz = strainrate(:, 2) ;
+                epp = strainrate(:, 3) ;
+            else
+                % Store strainrate in #vP x 4 array
+                ezz = strainrate(:, 1) ;
+                ezp = strainrate(:, 2) ;
+                epz = strainrate(:, 3) ;
+                epp = strainrate(:, 4) ;
             end
-            % Store strainrate in #vP x 4 array
-            ezz = strainrate(:, 1) ;
-            ezp = strainrate(:, 2) ;
-            epz = strainrate(:, 2) ;
-            epp = strainrate(:, 3) ;
-            
             %% ------------------------------------------------------------
             % Consider each pathline, add the strainRate * dt to the
             % accumulated strain from previous timepoint, which is called 
@@ -547,8 +588,10 @@ for tidx = 1:ntps
             mesh1 = tmp.spcutMeshSmRS ;
             clearvars tmp
 
+            % DEBUG
             % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
-            mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
+            % mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
+            mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1))  ;
 
             dt = QS.timeInterval ;
             % Note: strainrate is already interpolated onto pathlines
@@ -575,7 +618,7 @@ for tidx = 1:ntps
             pm256 = phasemap(256) ;
             indx = max(1, round(mod(2*strain_th(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
             colors = pm256(indx, :) ;
-            devKclipped = min(strain_dv / 0.1, 1) ;
+            devKclipped = min(strain_dv / max(strain_dv), 1) ;
             colorsM = devKclipped(:) .* colors ;
             colorsM = reshape(colorsM, [nU, nV, 3]) ;
             imagesc(1:nU, 1:nV, permute(colorsM, [2, 1, 3]))
@@ -638,6 +681,22 @@ for tidx = 1:ntps
             QS.dvAverageNematic(strain_dv(:, ventral), strain_th(:, ventral)) ;
         strain_tr_v = mean(strain_tr(:, ventral), 2) ;
 
+        % % Check the strain accumulation
+        % set(gcf, 'visible', 'on')
+        % subplot(2, 1, 1)
+        % imagesc(strain_tr')
+        % title(['t = ', num2str(tp)])
+        % limit = std(strain_tr(:)) ;
+        % caxis([-limit, limit])
+        % colormap(bbr256)
+        % colorbar()
+        % subplot(2, 1, 2)
+        % imagesc(strain_dv')
+        % colormap parula
+        % caxis([0, std(abs(strain_dv(:)))])
+        % colorbar()
+        % drawnow
+        
         %% Save the strain 
         readme.strain = 'integrated strain tensor' ;
         readme.strain_tr = 'integrated strain trace Tr[g^{-1} epsilon]';        
@@ -673,13 +732,15 @@ for tidx = 1:ntps
             'strain_th_ap', 'strain_th_l', 'strain_th_r', ...
             'strain_th_d', 'strain_th_v')
     else
-        load(estrainFn, 'strain')
+        load(estrainFn, 'strain', 'strain_tr_ap', 'strain_dv_ap')
         % Load mesh 
         tmp = load(sprintf(QS.fullFileBase.spcutMeshSmRS, tp)) ;
         mesh1 = tmp.spcutMeshSmRS ;
         clearvars tmp
         % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
-        mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
+        % DEBUG
+        % mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) * mesh1.ar ;
+        mesh1.u(:, 1) = mesh1.u(:, 1) / max(mesh1.u(:, 1)) ;
     end
     
     % Plot the result
@@ -690,6 +751,10 @@ for tidx = 1:ntps
     plotOpts.debug = debug ;
     plotOpts.t0Pathline = t0Pathline ;
     plotOpts.plot_comparison = plot_comparison ;
+    bulk = round([0.2 * nU, 0.7 * nU]) ;
+    plotOpts.clim_trace = 2 * max(abs(strain_tr_ap(bulk))) ; 
+    % climitInitial + climitRamp * (tp - QS.xp.fileMeta.timePoints(1)) * QS.timeInterval ;
+    plotOpts.clim_deviator = 5 * max(abs(strain_dv_ap(bulk))) ;
     QS.plotPathlineStrainTimePoint(tp, plotOpts)
 end
 disp('done with integrated pathline strain calculations')
@@ -704,10 +769,9 @@ vKymoFn = fullfile(outdir, 'ventralKymographPathlineStrain.mat') ;
 files_exist = exist(apKymoFn, 'file') && ...
     exist(lKymoFn, 'file') && exist(rKymoFn, 'file') && ...
     exist(dKymoFn, 'file') && exist(vKymoFn, 'file') ;
-if ~files_exist 
+if ~files_exist || overwrite || true
     disp('Compiling kymograph data to save to disk...')
     for tp = QS.xp.fileMeta.timePoints(1:end-1)
-        close all
         tidx = QS.xp.tIdx(tp) ;
 
         % Check for timepoint measurement on disk
@@ -762,6 +826,6 @@ if ~files_exist
     disp(['Saved kymograph data to: ' vKymoFn])
     disp('done with strain kymograph data saving')
 else
-    disp('strainRate kymograph data already on disk')    
+    disp('strain kymograph data already on disk')    
 end
 

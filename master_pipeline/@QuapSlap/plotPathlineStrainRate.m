@@ -62,15 +62,6 @@ if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
 %% parameter options
-if isfield(options, 'lambda')
-    lambda = options.lambda ;
-end
-if isfield(options, 'lambda_err')
-    lambda_err = options.lambda_err ;
-end
-if isfield(options, 'lambda_mesh')
-    lambda_mesh = options.lambda_mesh ;
-end
 if isfield(options, 't0Pathline')
     t0Pathline = options.t0Pathline ;
 end
@@ -128,9 +119,6 @@ QS.getXYZLims ;
 xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
-sKDir = fullfile(QS.dir.strainRate.root, ...
-    strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f'], ...
-    lambda, lambda_mesh), '.', 'p'));
 folds = load(QS.fileName.fold) ;
 fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 
@@ -176,7 +164,7 @@ end
 tps = QS.xp.fileMeta.timePoints(1:end-1) - t0 ;
 
 % Output directory is inside metricKinematics dir
-mKPDir = fullfile(sKDir, sprintf('pathline_%04dt0', t0)) ;
+mKPDir = sprintf(QS.dir.strainRate.pathline.root, t0Pathline) ;
 datdir = fullfile(mKPDir, 'measurements') ;
 % Data for kinematics on meshes (defined on vertices) [not needed here]
 % mdatdir = fullfile(mKDir, 'measurements') ;
@@ -207,19 +195,19 @@ if files_exist
 else
     % preallocate for kymos
     ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
-    dv_apM   = zeros(ntps, nU) ;   % dv averaged
-    tr_apM   = zeros(ntps, nU) ;   
-    th_apM   = zeros(ntps, nU) ;   
-    dv_lM   = zeros(ntps, nU) ;    % left averaged
+    dv_apM = zeros(ntps, nU) ;   % dv averaged
+    tr_apM = zeros(ntps, nU) ;   
+    th_apM = zeros(ntps, nU) ;   
+    dv_lM = zeros(ntps, nU) ;    % left averaged
     tr_lM = zeros(ntps, nU) ;
     th_lM = zeros(ntps, nU) ;
-    dv_rM   = zeros(ntps, nU) ;    % right averaged
+    dv_rM = zeros(ntps, nU) ;    % right averaged
     tr_rM = zeros(ntps, nU) ;
     th_rM = zeros(ntps, nU) ;
-    dv_dM   = zeros(ntps, nU) ;    % dorsal averaged
+    dv_dM = zeros(ntps, nU) ;    % dorsal averaged
     tr_dM = zeros(ntps, nU) ;
     th_dM = zeros(ntps, nU) ;
-    dv_vM   = zeros(ntps, nU) ;    % ventral averaged
+    dv_vM = zeros(ntps, nU) ;    % ventral averaged
     tr_vM = zeros(ntps, nU) ;
     th_vM = zeros(ntps, nU) ;
 
@@ -384,6 +372,10 @@ trsK = {0.5*tr_apM, 0.5*tr_lM, 0.5*tr_rM, 0.5*tr_dM, 0.5*tr_vM} ;
 dvsK = {dv_apM, dv_lM, dv_rM, dv_dM, dv_vM} ;
 thsK = {th_apM, th_lM, th_rM, th_dM, th_vM} ;
 HHsK = {HH_apM, HH_lM, HH_rM, HH_dM, HH_vM} ;
+% strain trace kymograph, strain deviator kymograph, strain theta kymograph
+strK = {0.5*str_apM, 0.5*str_lM, 0.5*str_rM, 0.5*str_dM, 0.5*str_vM} ;
+sdvK = {sdv_apM, sdv_lM, sdv_rM, sdv_dM, sdv_vM} ;
+sthK = {sth_apM, sth_lM, sth_rM, sth_dM, sth_vM} ;
 
 %% Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
 dvDir = fullfile(mKPDir, 'avgDV') ;
@@ -425,7 +417,7 @@ if plot_kymographs
         climits = {climit, 0.5*climit, 0.25*climit} ;
         
         for pp = 1:length(climits)
-            %% Plot STRAIN traceful DV-averaged pathline kymograph
+            %% Plot STRAIN RATE traceful DV-averaged pathline kymograph
             % Check if images already exist on disk
             fn = fullfile(odir, [ names{1} zoomstr{pp} '.png']) ;
             fn_early = fullfile(odir, [names{1} zoomstr{pp} '_early.png']) ;
@@ -482,7 +474,8 @@ if plot_kymographs
                 % Zoom in on early times
                 ylim([min(tps), min(max(fons) + 10, max(tps))])
                 disp(['saving ', fn_early])
-                export_fig(fn_early, '-png', '-nocrop', '-r200')   
+                export_fig(fn_early, '-png', '-nocrop', '-r200')  
+                clf
             end
 
             %% DEVIATOR -- strain rate
@@ -553,12 +546,182 @@ if plot_kymographs
     end
 end
 
-%% Kymographs of cumulative STRAIN along pathlines 
-% strain trace kymograph, strain deviator kymograph, strain theta kymograph
-strK = {0.5*str_apM, 0.5*str_lM, 0.5*str_rM, 0.5*str_dM, 0.5*str_vM} ;
-sdvK = {sdv_apM, sdv_lM, sdv_rM, sdv_dM, sdv_vM} ;
-sthK = {sth_apM, sth_lM, sth_rM, sth_dM, sth_vM} ;
+%% Compare kymo of cumulative STRAIN to summed strainRate raw
+if plot_kymographs_strain
+    titleadd = {': circumferentially averaged', ...
+        ': left side', ': right side', ': dorsal side', ': ventral side'} ;
 
+    for qq = 1:length(outdirs)
+        % Prep the output directory for this averaging
+        odir = outdirs{qq} ;
+        if ~exist(odir, 'dir')
+            mkdir(odir)
+        end
+
+        % Unpack what to plot (averaged kymographs, vary averaging region)
+        rtrK = trsK{qq} ;  % strainRate
+        rdvK = dvsK{qq} ;
+        rthK = thsK{qq} ;
+        s_trK = strK{qq} ;  % strain
+        s_dvK = sdvK{qq} ;
+        s_thK = sthK{qq} ; 
+        
+        labels = {strain_trace_label, strain_deviator_label} ;
+        titles = {['dilation, ' strain_trace_label],...
+            ['shear, ', strain_deviator_label]} ;
+        names = {'strain_trace_t0', 'strain_deviator_t0'} ;
+        
+        %% Plot STRAIN DV-averaged Lagrangian pathline kymographs 
+        % Check if images already exist on disk
+
+        % Consider both wide color limit and narrow
+        zoomstr = {'_wide', '', '_zoom'} ;
+        climits = {climitWide, 0.5*(climit + climitWide), climit} ;
+        
+        for pp = 1:length(climits)
+            %% Plot STRAIN traceful DV-averaged pathline kymograph
+            % Check if filenames exist on disk
+            fn = fullfile(odir, [ 'check_' names{1} zoomstr{pp} '.png']) ;
+            fn_early = fullfile(odir, [ 'check_' names{1} zoomstr{pp} '_early.png']) ;
+            if ~exist(fn, 'file') || ~exist(fn_early, 'file') || overwrite
+                close all
+                set(gcf, 'visible', 'off')
+                subplot(2, 1, 1)
+                imagesc((1:nU)/nU, tps, s_trK)
+                caxis([-climits{pp}, climits{pp}])
+                colormap(bbr256)
+                
+                subplot(2, 1, 2)
+                imagesc((1:nU)/nU, tps, cumsum(rtrK, 1))
+                caxis([-climits{pp}, climits{pp}])
+                colormap(bbr256)
+
+                % Plot fold identifications
+                for subplotID = 1:2
+                    subplot(2, 1, subplotID)
+                    hold on;
+                    fons1 = max(1, fons(1)) ;
+                    fons2 = max(1, fons(2)) ;
+                    fons3 = max(1, fons(3)) ;
+                    t1ones = ones(size(tps(fons1:end))) ;
+                    t2ones = ones(size(tps(fons2:end))) ;
+                    t3ones = ones(size(tps(fons3:end))) ;
+                    tidx0 = QS.xp.tIdx(t0) ;
+
+                    % OPTION 1: use identified div(v) < 0
+                    plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
+                    plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
+                    plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
+                end
+                
+                % Title and save
+                subplot(2, 1, 1)
+                title([titles{1}, titleadd{1}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+                cb = colorbar() ;
+                ylabel(cb, labels{1}, 'Interpreter', 'Latex')  
+                % Second axis labels/title
+                subplot(2, 1, 2)
+                title(['summed strain rate', titleadd{1}], 'Interpreter', 'Latex')
+                ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+                xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+                cb = colorbar() ;
+                ylabel(cb, labels{1}, 'Interpreter', 'Latex')  
+                disp(['saving ', fn])
+                export_fig(fn, '-png', '-nocrop', '-r200')   
+
+                % Zoom in on early times
+                subplot(2, 1, 1)
+                ylim([min(tps), min(max(fons) + 10, max(tps))])
+                subplot(2, 1, 2)
+                ylim([min(tps), min(max(fons) + 10, max(tps))])
+                caxis([-climits{pp}, climits{pp}])
+                colormap(bbr256)
+                tmp = strsplit(fn_early, filesep) ;
+                disp(['saving ', tmp{end}])
+                export_fig(fn_early, '-png', '-nocrop', '-r200')   
+            end
+        
+%             %% Plot STRAIN deviator DV-averaged pathline kymograph 
+%             % Check if images already exist on disk
+%             fn = fullfile(odir, [ 'check_' names{2} zoomstr{pp} '.png']) ;
+%             fn_early = fullfile(odir, ['check_' names{2} zoomstr{pp} '_early.png']) ;
+%             if ~exist(fn, 'file') || ~exist(fn_early, 'file') || overwrite
+% 
+%                 close all
+%                 set(gcf, 'visible', 'off')
+%                 % Map intensity from dev and color from the theta
+%                 subplot(2, 1, 1) ;
+%                 popts.x = (1:nU)/nU ;
+%                 popts.y = tps ; 
+%                 popts.colormap = pm256 ;
+%                 popts.climit = climits{pp} ;
+%                 vectorHeatMap(s_dvK, 2 * s_thK, popts) ;
+% 
+%                 % Do raw sum
+%                 [raw_sdK, raw_stK] = QS.averageNematic(dvK, thK) ;
+%                 vectorHeatMap(dvK, thK, popts) ;
+%                 
+%                 for subplotID = 1:2
+%                     % Plot fold identifications
+%                     hold on;
+%                     fons1 = max(1, fons(1)) ;
+%                     fons2 = max(1, fons(2)) ;
+%                     fons3 = max(1, fons(3)) ;
+%                     t1ones = ones(size(tps(fons1:end))) ;
+%                     t2ones = ones(size(tps(fons2:end))) ;
+%                     t3ones = ones(size(tps(fons3:end))) ;
+%                     tidx0 = QS.xp.tIdx(t0) ;
+% 
+%                     % OPTION 1: use identified div(v) < 0
+%                     plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
+%                     plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
+%                     plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
+%                 end
+% 
+%                 % Titles 
+%                 subplot(2, 1, 1)
+%                 title([titles{2}, titleadd{2}], 'Interpreter', 'Latex')
+%                 ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+%                 xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+%                 % Second axis labels/title
+%                 subplot(2, 1, 2)
+%                 title(['summed strain rate', titleadd{1}], 'Interpreter', 'Latex')
+%                 ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
+%                 xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
+% 
+%                 % Colorbar and phasewheel
+%                 colormap(gca, phasemap)
+%                 phasebar('colormap', phasemap, ...
+%                     'location', [0.82, 0.7, 0.1, 0.135], 'style', 'nematic') ;
+%                 ax = gca ;
+%                 get(gca, 'position')
+%                 cb = colorbar('location', 'eastOutside') ;
+%                 drawnow
+%                 axpos = get(ax, 'position') ;
+%                 cbpos = get(cb, 'position') ;
+%                 set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3), cbpos(4)*0.6])
+%                 set(ax, 'position', axpos) 
+%                 hold on;
+%                 caxis([0, climits{pp}])
+%                 colormap(gca, gray)
+% 
+%                 % title and save
+%                 ylabel(cb, labels{2}, 'Interpreter', 'Latex')  
+%                 disp(['saving ', fn])
+%                 export_fig(fn, '-png', '-nocrop', '-r200')   
+% 
+%                 % Zoom in on early times
+%                 ylim([min(tps), min(max(fons) + 10, max(tps))])
+%                 disp(['saving ', fn_early])
+%                 export_fig(fn, '-png', '-nocrop', '-r200')   
+%             end
+        end
+    end
+end
+
+%% Kymographs of cumulative STRAIN along pathlines 
 if plot_kymographs_strain
     titleadd = {': circumferentially averaged', ...
         ': left side', ': right side', ': dorsal side', ': ventral side'} ;
@@ -573,8 +736,7 @@ if plot_kymographs_strain
         % Unpack what to plot (averaged kymographs, vary averaging region)
         trK = strK{qq} ;
         
-        labels = {[strain_trace_label, ' ', unitstr], ...
-            [strain_deviator_label, ' ', unitstr]} ;
+        labels = {strain_trace_label, strain_deviator_label} ;
         titles = {['dilation, ', strain_trace_label],...
             ['shear, ' strain_deviator_label]};
         names = {'strain_trace_t0', 'strain_deviator_t0'} ;
@@ -727,9 +889,9 @@ if length(featureIDs) == 3
         {'lobe 3'; 'strain rate, $\dot{\varepsilon}$'}, ...
         {'lobe 4'; 'strain rate, $\dot{\varepsilon}$'}};
     foldYlabelsStrain = {...
-        {'anterior fold'; 'strain rate, $\varepsilon$'}, ...
-        {'middle fold'; 'strain rate, $\varepsilon$'}, ...
-        {'posterior fold'; 'strain rate, $\varepsilon$'}} ;
+        {'anterior fold'; 'strain, $\varepsilon$'}, ...
+        {'middle fold'; 'strain, $\varepsilon$'}, ...
+        {'posterior fold'; 'strain, $\varepsilon$'}} ;
     lobeYlabelsStrain = {...
         {'lobe 1'; 'strain, $\varepsilon$'}, ...
         {'lobe 2'; 'strain, $\varepsilon$'}, ...

@@ -43,7 +43,7 @@ if ~exist(fn, 'file') || overwrite
             Hpj_pos = cumsum(Hdj(tps > eps)) ;
             Hpj_neg = flipud(cumsum(flipud(-Hdj(tps < eps)))) ;
             Hpj = cat(1, Hpj_neg, Hpj_pos) ;
-        else
+        elseif strcmpi(cumsum_cumprod, 'cumprod')
             % Take cumulative product marching forward from t0
             gpj_pos = cumprod(1 + gdj(tps > eps)) ;
             gpj_neg = flipud(cumprod(flipud(1 ./ (1 + gdj(tps < eps))))) ;
@@ -55,7 +55,9 @@ if ~exist(fn, 'file') || overwrite
             % Take cumulative product marching forward from t0
             Hpj_pos = cumprod(1 + Hdj(tps > eps)) ;
             Hpj_neg = flipud(cumprod(flipud(1 ./ (1 + Hdj(tps < eps))))) ;
-            Hpj = cat(1, Hpj_neg, Hpj_pos) ;            
+            Hpj = cat(1, Hpj_neg, Hpj_pos) ;    
+        else
+            error(['Could not recognize cumsum_cumprod = ' cumsum_cumprod])
         end
         
         % Plot all three
@@ -76,11 +78,13 @@ if ~exist(fn, 'file') || overwrite
                     '$\int $d$t \, v_n 2H$', ...
                     '$\int $d$t \, \frac{1}{2}\mathrm{Tr}\left[g^{-1} \dot{g} \right]$'}, ...
                     'Interpreter', 'Latex', 'location', 'eastOutside')  
-            else
+            elseif strcmp(cumsum_cumprod, 'cumprod')
                 legend({'$\Pi(1+\nabla\cdot\mathbf{v}_\parallel)$', ...
                     '$\Pi(1+v_n 2H)$', ...
                     '$\Pi(1+\frac{1}{2}\mathrm{Tr}\left[g^{-1} \dot{g} \right])$'}, ...
-                    'Interpreter', 'Latex', 'location', 'eastOutside')                  
+                    'Interpreter', 'Latex', 'location', 'eastOutside')      
+            else
+                error(['Could not recognize cumsum_cumprod = ' cumsum_cumprod])            
             end
             drawnow
             pos = get(gca, 'position') ;

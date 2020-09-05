@@ -33,9 +33,9 @@ plot_factors = true ;
 plot_Hgdot = false ;
 
 %% Parameter options
-lambda = 0.01 ; 
-lambda_err = 0.01 ;
-lambda_mesh = 0.002 ;
+lambda = QS.smoothing.lambda ; 
+lambda_err = QS.smoothing.lambda_err ;
+lambda_mesh = QS.smoothing.lambda_mesh ;
 climit = 0.2 ;
 climit_err = 0.2 ;
 climit_veln = climit * 10 ;
@@ -95,6 +95,9 @@ end
 if isfield(options, 'plot_kymographs_cumsum')
     plot_kymographs_cumsum = options.plot_kymographs_cumsum ;
 end
+if isfield(options, 'plot_kymographs_cumprod')
+    plot_kymographs_cumprod = options.plot_kymographs_cumprod ;
+end
 if isfield(options, 'plot_correlations')
     plot_correlations = options.plot_correlations ;
 end
@@ -127,8 +130,8 @@ xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 mKDir = fullfile(QS.dir.metricKinematics.root, ...
-    strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
-    lambda, lambda_err, lambda_mesh), '.', 'p'));
+    strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
+    lambda, lambda_mesh, lambda_err), '.', 'p'));
 folds = load(QS.fileName.fold) ;
 fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 

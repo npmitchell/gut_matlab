@@ -1383,17 +1383,17 @@ QS.measurePIV3d(options) ;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Pullback pathline time averaging of velocities
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.preview = false ;
 QS.timeAverageVelocities(options)
-%% Velocity plots for pathline time averaging 
+% Velocity plots for pathline time averaging 
 options.overwrite = false ;
 options.plot_vxyz = false ;
 options.invertImage = true ;
 options.averagingStyle = 'Lagrangian'; 
 options.samplingResolution = '1x'; 
 QS.plotTimeAvgVelocities(options)
-%% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
+% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
 options = struct() ;
 options.overwrite = false ;
 options.samplingResolution = '1x' ;
@@ -1404,14 +1404,16 @@ options = struct() ;
 options.overwrite = false ;
 options.samplingResolution = '1x'; 
 QS.measureMetricKinematics(options)
-%% Metric Kinematics Kymographs & Correlations
+% Metric Kinematics Kymographs & Correlations
 options = struct() ;
 options.overwrite = false ;
 options.overwrite_timePoints = false ;
 options.plot_Hgdot = false ;
-options.plot_flows = true ;
+options.plot_flows = false ;
 options.plot_factors = false ;
 options.plot_kymographs = true ;
+options.plot_kymographs_cumsum = true ;
+options.plot_kymographs_cumprod = true ;
 options.plot_correlations = true ;
 options.plot_raw_correlations = true ;
 options.plot_gdot_correlations = false ;
@@ -1419,28 +1421,28 @@ options.plot_gdot_decomp = false ;
 options.climit = 0.1 ;
 QS.plotMetricKinematics(options)
 
-%% Pullback pathlines connecting Lagrangian grids
+% Pullback pathlines connecting Lagrangian grids
 options = struct() ;
 options.overwrite = false ;
-options.preview = true ;
+options.preview = false ;
 options.debug = false ; 
 QS.measurePullbackPathlines(options)
-%% Query velocities along pathlines
+% Query velocities along pathlines
 options = struct() ;
 options.overwrite = false ;
-options.preview = true ;
+options.preview = false ;
 QS.measurePathlineVelocities(options)
-%% plot the pathline velocities 
+% plot the pathline velocities 
 options = struct() ;
 options.overwrite = false ;
 options.gridTopology = 'triangulated' ;
 QS.plotPathlineVelocities(options)
 
-%% Measure Pathline Kinematics
+% Measure Pathline Kinematics
 options = struct() ;
 options.overwrite = false ;
 QS.measurePathlineMetricKinematics(options)
-%% Plot Pathline Kinematics
+% Plot Pathline Kinematics
 options = struct() ;
 options.overwrite = true ;
 options.plot_kymographs = false ;
@@ -1471,7 +1473,7 @@ QS.measureMetricStrainRate(options)
 %% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
 options = struct() ;
 options.overwrite = true ;
-options.overwriteImages = false ;
+options.overwriteImages = true ;
 options.preview = false ;
 QS.measureStrainRate(options) 
 %% Kymograph strain rates
@@ -1487,22 +1489,23 @@ options.overwrite = false ;
 options.overwriteImages = true ;
 options.plot_dzdp = false ;
 QS.measurePathlineStrainRate(options)
-%% Measure strain along pathlines
+% Measure strain along pathlines
 options = struct() ;
 options.overwrite = true ;
 options.overwriteImages = true ;
 options.plot_dzdp = false ;
 options.median_filter_strainRates = false ;
-options.climitInitial = 0.01 ;
-options.climitStrainRamp = 0.01 ;
+options.climitInitial = 0.05 ;
+options.climitRamp = 0.01 ;
+options.climitRatio = 1 ;
 QS.measurePathlineStrain(options)
-%% Pathline strain rate plots
+% Pathline strain rate plots
 options = struct() ;
 options.overwrite = true ;
-options.plot_kymographs = true ;
+options.plot_kymographs = false ;
 options.plot_kymographs_strain = true ;
-options.plot_fold_strainRate = true ;
-options.plot_lobe_strainRate = true ;
+options.plot_fold_strainRate = false ;
+options.plot_lobe_strainRate = false ;
 options.plot_fold_strain = true ;
 options.plot_lobe_strain = true ;
 options.climit = 0.05 ;

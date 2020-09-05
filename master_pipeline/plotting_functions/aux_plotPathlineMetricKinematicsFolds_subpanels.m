@@ -10,6 +10,7 @@ function aux_plotPathlineMetricKinematicsFolds_subpanels(QS, fn, fn_withH, ...
 
 if ~exist(fn, 'file') || ~exist(fn_withH, 'file') || overwrite 
     close all
+    set(gcf, 'visible', 'off')
     ymin = 0 ;
     ymax = 0 ;
     % Each fold is valley+/- width

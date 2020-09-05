@@ -86,9 +86,7 @@ xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 if strcmp(averagingStyle, 'Lagrangian')
-    sKDir = fullfile(QS.dir.strainRate.root, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f'], ...
-        lambda, lambda_mesh), '.', 'p'));
+    sKDir = QS.dir.strainRate.smoothing;
 else
     error('Have not implemented strain rate measurements based on simple averaging')
 end
@@ -168,6 +166,8 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
             msg = [msg num2str(lambda) ','] ;
             msg = [msg ' before running ', ...
                     'QS.measurePathlineStrainRate()'] ;
+                
+            load(srfnMesh, 'strainrate_vtx', 'gg_vtx', 'dx_vtx', 'dy_vtx') 
             error(msg)
         end
         %% Interpolate StrainRate from vertices onto pathlines

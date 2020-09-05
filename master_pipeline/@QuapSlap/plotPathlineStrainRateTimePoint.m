@@ -83,9 +83,7 @@ t0 = QS.t0set() ;
 QS.getXYZLims ;
 xyzlim = QS.plotting.xyzlim_um ;
 % Output directory
-egImDir = strrep(sprintf( ...
-    QS.dir.strainRate.pathline.root, lambda, lambda_mesh, t0Pathline), ...
-    '.', 'p') ;
+egImDir = sprintf( QS.dir.strainRate.pathline.root, t0Pathline) ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 
@@ -118,17 +116,20 @@ if redo_images
     %% load the metric strain
     % Define metric strain filename        
     if ~isfield(options, 'tre') || ~isfield(options, 'dev') || ...
-            ~isfield(options, 'theta')
-        estrainFn = fullfile(strrep(sprintf(QS.dir.strainRate.pathline.measurements, ...
-            lambda, lambda_mesh, t0Pathline), '.', 'p'), ...
-            sprintf(QS.fileBase.strainRate, tp)) ;
+            ~isfield(options, 'theta') || ...
+            ~isfield(options, 'strain_tr') || ~isfield(options, 'strain_dv') || ...
+            ~isfield(options, 'strain_th')
+        estrainFn = fullfile(sprintf(QS.dir.strainRate.pathline.measurements, ...
+            t0Pathline), sprintf(QS.fileBase.strainRate, tp)) ;
         disp(['Loading strainrate results from disk: ' estrainFn])
-        load(estrainFn, 'strainrate', 'tre', 'dev', 'theta', ...
-            'strain', 'strain_tr', 'strain_dv', 'strain_th')
+        load(estrainFn, 'strainrate', 'tre', 'dev', 'theta')
     else
         tre = options.tre ;
         dev = options.dev ;
         theta = options.theta ;
+        % strain_tr = options.strain_tr ;
+        % strain_dv = options.strain_dv ;
+        % strain_th = options.strain_th ;
     end
 
 
@@ -262,61 +263,61 @@ if redo_images
         clf
     end    
     close all
-
-    %% Now plot STRAIN in 2d
-    close all
-    set(gcf, 'visible', 'off') ;
-    if ~exist(fn_strain2d, 'file') || overwrite
-        % Panel 1 --> trace
-        subplot(1, 2, 1)
-        trisurf(cutMesh.f, ...
-            cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
-            cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
-            'FaceVertexCData', 0.5 * strain_tr(:), 'edgecolor', 'none')
-        daspect([1,1,1])
-        cb = colorbar('location', 'southOutside') ;
-
-        caxis([-clim_strain, clim_strain])
-        title(labels{1}, 'Interpreter', 'Latex')   
-        colormap(bbr256)
-        axis off
-        view(2)
-
-        % Panel 2 --> deviator 
-        subplot(1, 2, 2)
-        % Intensity from dev and color from the theta
-        indx = max(1, round(mod(2*strain_th(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
-        colors = pm256(indx, :) ;
-        colors = min(strain_dv(:) / clim_strain, 1) .* colors ;
-        trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
-            cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
-            'FaceVertexCData', colors, 'edgecolor', 'none')
-        daspect([1,1,1])
-        title(labels{2}, 'Interpreter', 'Latex')   
-
-        % Colorbar and phasewheel
-        colormap(gca, phasemap)
-        phasebar('colormap', phasemap, ...
-            'location', [0.82, 0.12, 0.1, 0.135], 'style', 'nematic') ;
-        axis off
-        view(2)
-        ax = gca ;
-        cb = colorbar('location', 'southOutside') ;
-        drawnow
-        axpos = get(ax, 'position') ;
-        cbpos = get(cb, 'position') ;
-        set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3)*0.6, cbpos(4)])
-        set(ax, 'position', axpos) ;
-        hold on;
-        caxis([0, clim_strain])
-        colormap(gca, gray)
-
-        % Save the image
-        sgtitle(['strain rate, ', tstr], 'Interpreter', 'latex') 
-        saveas(gcf, fn_strain2d) ;
-        clf
-    end    
-    close all
+% 
+% %% Now plot STRAIN in 2d
+% close all
+% set(gcf, 'visible', 'off') ;
+% if ~exist(fn_strain2d, 'file') || overwrite
+%     % Panel 1 --> trace
+%     subplot(1, 2, 1)
+%     trisurf(cutMesh.f, ...
+%         cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
+%         cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
+%         'FaceVertexCData', 0.5 * strain_tr(:), 'edgecolor', 'none')
+%     daspect([1,1,1])
+%     cb = colorbar('location', 'southOutside') ;
+% 
+%     caxis([-clim_strain, clim_strain])
+%     title(labels{1}, 'Interpreter', 'Latex')   
+%     colormap(bbr256)
+%     axis off
+%     view(2)
+% 
+%     % Panel 2 --> deviator 
+%     subplot(1, 2, 2)
+%     % Intensity from dev and color from the theta
+%     indx = max(1, round(mod(2*strain_th(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
+%     colors = pm256(indx, :) ;
+%     colors = min(strain_dv(:) / clim_strain, 1) .* colors ;
+%     trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
+%         cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
+%         'FaceVertexCData', colors, 'edgecolor', 'none')
+%     daspect([1,1,1])
+%     title(labels{2}, 'Interpreter', 'Latex')   
+% 
+%     % Colorbar and phasewheel
+%     colormap(gca, phasemap)
+%     phasebar('colormap', phasemap, ...
+%         'location', [0.82, 0.12, 0.1, 0.135], 'style', 'nematic') ;
+%     axis off
+%     view(2)
+%     ax = gca ;
+%     cb = colorbar('location', 'southOutside') ;
+%     drawnow
+%     axpos = get(ax, 'position') ;
+%     cbpos = get(cb, 'position') ;
+%     set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3)*0.6, cbpos(4)])
+%     set(ax, 'position', axpos) ;
+%     hold on;
+%     caxis([0, clim_strain])
+%     colormap(gca, gray)
+% 
+%     % Save the image
+%     sgtitle(['strain rate, ', tstr], 'Interpreter', 'latex') 
+%     saveas(gcf, fn_strain2d) ;
+%     clf
+% end    
+% close all
 
 
     %% Compare trace to trace of gdot determined via kinematics
@@ -324,8 +325,7 @@ if redo_images
     set(gcf, 'visible', 'off') ;
     if (~exist(fn_strainRateCompare, 'file') || overwrite) && plot_comparison
         % Load gdot trace from kinematics
-        fn_gdot = sprintf(QS.fullFileBase.metricKinematics.gdot, lambda, ...
-            lambda, lambda_mesh, tp) ;
+        fn_gdot = sprintf(QS.fullFileBase.metricKinematics.gdot, tp) ;
         load([strrep(fn_gdot, '.', 'p'), '.mat'], 'gdot')
 
         % Panel 1

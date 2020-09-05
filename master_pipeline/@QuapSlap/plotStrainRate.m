@@ -17,21 +17,29 @@ function plotStrainRate(QS, options)
 % 
 % NPMitchell 2020
 
-%% Unpack required params
-lambda = options.lambda ;
-lambda_mesh = options.lambda_mesh ;
-% Sampling resolution: whether to use a double-density mesh
-samplingResolution = '1x'; 
-debug = false ;
-
-%% Parameters
+% Default parameters
 overwrite = false ;
 clim_trace = 0.05 ;
 clim_deviatoric = 0.05 ;
 averagingStyle = 'Lagrangian' ;
 skipTimePoint = false ;
+lambda = QS.smoothing.lambda ;
+lambda_mesh = QS.smoothing.lambda_mesh ;
+
+%% Unpack required params
+% Sampling resolution: whether to use a double-density mesh
+samplingResolution = '1x'; 
+debug = false ;
+
+%% Parameters
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
+end
+if isfield(options, 'lambda')
+    lambda = options.lambda ;
+end
+if isfield(options, 'lambda_mesh')
+    lambda_mesh = options.lambda_mesh ;
 end
 if isfield(options, 'mesh')
     mesh = options.mesh ;

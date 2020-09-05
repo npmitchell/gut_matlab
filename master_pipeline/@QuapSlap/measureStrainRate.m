@@ -113,7 +113,8 @@ for tp = tp2do
     
     % DEBUG
     % Normalize the zeta to fixed aspect ratio (ar=aspectratio relaxed)
-    mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) * mesh.ar ;
+    % mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) * mesh.ar ;
+    mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) ;
     clearvars tmp
 
     % Define metric strain filename        

@@ -25,12 +25,11 @@ t0Pathline = options.t0Pathline ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
 debug = false ;
+clim_tre = 0.5 ;
+clim_dev = 0.5 ;
 
 %% Parameters
 overwrite = false ;
-clim_trace = 0.05 ;
-clim_deviatoric = 0.05 ;
-clim_strain = 0.5 ;
 averagingStyle = 'Lagrangian' ;
 plot_comparison = false ;
 
@@ -52,10 +51,18 @@ else
     cutMesh = [] ;
 end
 if isfield(options, 'clim_trace')
-    clim_trace = options.clim_trace ;
+    clim_tre = options.clim_trace ;
+elseif isfield(options, 'clim_tre')
+    clim_tre = options.clim_tre ;
+elseif isfield(options, 'clim_tr')
+    clim_tre = options.clim_tr ;
 end
-if isfield(options, 'clim_deviatoric')
-    clim_deviatoric = options.clim_deviatoric ;
+if isfield(options, 'clim_deviator')
+    clim_dev = options.clim_deviator ;
+elseif isfield(options, 'clim_dev')
+    clim_dev = options.clim_dev ;
+elseif isfield(options, 'clim_dv')
+    clim_dev = options.clim_dv ;
 end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
@@ -84,8 +91,7 @@ QS.getXYZLims ;
 xyzlim = QS.plotting.xyzlim_um ;
 % Output directory
 egImDir = strrep(sprintf( ...
-    QS.dir.strainRate.pathline.root, lambda, lambda_mesh, t0Pathline), ...
-    '.', 'p') ;
+    QS.dir.strainRate.pathline.root, t0Pathline), '.', 'p') ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 
@@ -112,7 +118,7 @@ if redo_images
     if ~isfield(options, 'tre') || ~isfield(options, 'dev') || ...
             ~isfield(options, 'theta')
         estrainFn = fullfile(strrep(sprintf(QS.dir.strainRate.pathline.measurements, ...
-            lambda, lambda_mesh, t0Pathline), '.', 'p'), ...
+            t0Pathline), '.', 'p'), ...
             sprintf(QS.fileBase.strain, tp)) ;
         disp(['Loading strainrate results from disk: ' estrainFn])
         load(estrainFn, 'strain_tr', 'strain_dv', 'strain_th')
@@ -164,7 +170,6 @@ if redo_images
         end
     end
 
-
     %% Prepare directories for images
     dirs2make = { fullfile(egImDir, 'strain2d')} ;
     for ii = 1:length(dirs2make)
@@ -210,7 +215,7 @@ if redo_images
         daspect([1,1,1])
         cb = colorbar('location', 'southOutside') ;
 
-        caxis([-clim_strain, clim_strain])
+        caxis([-clim_tre, clim_tre])
         title(labels{1}, 'Interpreter', 'Latex')   
         colormap(bbr256)
         axis off
@@ -221,7 +226,7 @@ if redo_images
         % Intensity from dev and color from the theta
         indx = max(1, round(mod(2*strain_th(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
         colors = pm256(indx, :) ;
-        colors = min(strain_dv(:) / clim_strain, 1) .* colors ;
+        colors = min(strain_dv(:) / clim_dev, 1) .* colors ;
         trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
             cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
             'FaceVertexCData', colors, 'edgecolor', 'none')
@@ -242,11 +247,12 @@ if redo_images
         set(cb, 'position', [cbpos(1), cbpos(2), cbpos(3)*0.6, cbpos(4)])
         set(ax, 'position', axpos) ;
         hold on;
-        caxis([0, clim_strain])
+        caxis([0, clim_dev])
         colormap(gca, gray)
 
         % Save the image
         sgtitle(['strain rate, ', tstr], 'Interpreter', 'latex') 
+        disp(['saving figure: ', fn_strain2d])
         saveas(gcf, fn_strain2d) ;
         clf
     end    

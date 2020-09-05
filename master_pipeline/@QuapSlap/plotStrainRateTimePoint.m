@@ -276,8 +276,7 @@ fn = fullfile(egImDir, 'strainRate2d', ...
         sprintf(['compare_' QS.fileBase.spcutMeshSm '.png'], tp));
 if (~exist(fn, 'file') || overwrite) && plot_comparison
     % Load gdot trace from kinematics
-    fn_gdot = sprintf(QS.fullFileBase.metricKinematics.gdot, lambda, ...
-        lambda, lambda_mesh, tp) ;
+    fn_gdot = sprintf(QS.fullFileBase.metricKinematics.gdot, tp) ;
     load([strrep(fn_gdot, '.', 'p'), '.mat'], 'gdot')
 
     % Panel 1

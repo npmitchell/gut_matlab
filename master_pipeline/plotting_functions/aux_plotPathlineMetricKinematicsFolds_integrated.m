@@ -73,6 +73,7 @@ end
 %% Same plot but add mean curvature as second panel
 if ~exist(fn_withH, 'file') || overwrite 
     close all
+    set(gcf, 'visible', 'off')
     subplot(2, 1, 1)
     % Each fold is valley+/- width
     for jj = 1:length(foldIds)

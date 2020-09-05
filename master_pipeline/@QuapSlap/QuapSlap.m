@@ -1016,7 +1016,7 @@ classdef QuapSlap < handle
         end
         featureIDs = measurePathlineFeatureIDs(QS, pathlineType, options)
         function featureIDs = getPathlineFeatureIDs(QS, pathlineType, options)
-            % featureIDs = GETPATHLINEFEATUREIDS(QS, options)
+            % featureIDs = GETPATHLINEFEATUREIDS(QS, pathlineType, options)
             %   recall, load, or interactively identify feature locations 
             %   as positions in zeta, the longitudinal pullback coordinate 
             %
