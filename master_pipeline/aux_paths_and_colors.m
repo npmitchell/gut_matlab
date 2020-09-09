@@ -4,7 +4,8 @@ codepath = '/mnt/data/code/' ;
 gutpath = fullfile(codepath, 'gut_matlab') ;
 meshlabCodeDir = fullfile(codepath, 'meshlab_codes') ;
 
-addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
+% Add the addpath_recurse function
+addpath(fullfile(codepath, 'gut_matlab', 'addpath_recurse'))
 
 % Codepath + gutpath folders
 addpath('./plotting_functions')
@@ -29,6 +30,7 @@ addpath(fullfile(gutpath, ['ExtPhaseCorrelation' filesep])) ;
 addpath(fullfile(gutpath, 'savgol')) ;
 addpath(fullfile(codepath, 'DEC')) ;
 addpath(fullfile(codepath, 'TexturePatch_for_git', 'TexturePatch')) ;
+addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
 % addpath(genpath('/mnt/crunch/djcislo/MATLAB/TexturePatch'));
 disp('done')
 

@@ -7,11 +7,13 @@ function makeH5SeriesPrestabForTraining(masterSettings)
 %% Unpack arguments
 fn = masterSettings.fn_prestab(1:end-4) ;
 nChannels = masterSettings.nChannels ;
+channelsUsed = masterSettings.channelsUsed ;    
 timePoints = masterSettings.timePoints ;
 ssfactor = masterSettings.ssfactor ;
 stackResolution = masterSettings.stackResolution ;
 dataDir = masterSettings.dir16bit_prestab ;
 preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
+swapZT = masterSettings.swapZT ;
 
 %% I. INITIALIZE
 
@@ -91,7 +93,7 @@ fileMeta.swapZT             = 1;
 % first_tp is also required, which sets the tp to do individually.
 first_tp = timePoints(1) ;
 expMeta                     = struct();
-expMeta.channelsUsed        = 1;
+expMeta.channelsUsed        = channelsUsed ;
 expMeta.channelColor        = 1;
 expMeta.description         = 'Apical membrane in Drosophila gut';
 expMeta.dynamicSurface      = 1;
@@ -128,7 +130,7 @@ if exist(msls_detOpts_fn, 'file')
     disp(['WARNING: overwriting ssfactor to saved value in ' msls_detOpts_fn])
 else
     % these are dummy options -- do not save them
-    channel = 1;
+    channel = channelsUsed ;
     foreGroundChannel = 1;
     ssfactor = ssfactor;
     niter = 25 ;

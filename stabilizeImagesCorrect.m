@@ -1,5 +1,7 @@
 %% Stabilize images by removing jitter taken from MIPs. 
 % NPM 2019-2020
+%
+% Script version of stabilizeImages() function.
 % 
 % We compute the shifts to stabilize all volumes and write the 16
 % bit stabilized volumes to disk. We generate the stabilized MIPs and show

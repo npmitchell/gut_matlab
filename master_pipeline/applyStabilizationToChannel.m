@@ -1,4 +1,5 @@
-function stabilizeImages(fileName, fileNameOut, rgbName, typename, ...
+function applyStabilizationToChannel(stabChannel, ...
+    fileName, fileNameOut, rgbName, typename, ...
     timePoints, times_todo, t_ref, mipDir, mipStabDir, mipsRGBDir, Options)
 % STABILIZEIMAGES()
 % Stabilize images of a single channel by removing jitter taken from MIPs
@@ -58,7 +59,6 @@ function stabilizeImages(fileName, fileNameOut, rgbName, typename, ...
 % NPMitchell 2020
 
 %% Default options
-channel = 1;
 if count(fileName, '%') == 2
     timechannel = 'tc' ;
 elseif count(fileName, '%') == 1
@@ -69,12 +69,9 @@ end
 
 %% Unpack Options
 im_intensity = Options.im_intensity ;
-imref_intensity = Options.imref_intensity ; 
+imref_intensity = Options.imref_intensity ;
 overwrite_mips = Options.overwrite_mips ;
 overwrite_tiffs = Options.overwrite_tiffs ;
-if isfield(Options, 'stabChannel')
-    channel = Options.stabChannel ;
-end
 
 %% Make the subdirectories for the mips if not already existing
 mipdirs = {mipStabDir, mipsRGBDir, ...
@@ -113,95 +110,16 @@ if exist(shiftfn, 'file') && ~overwrite_mips
     dx = round(0.5 * (x_1 + x_3)) ;
     dy = round(0.5 * (y_1 + x_2)) ;
     dz = round(0.5 * (y_2 + y_3)) ;
-else
-    disp('Shifts not on disk, computing them...')
-    % Load MIP data into im_1 and im_2 for all times
-    disp('Loading MIP data for all times...')
-    NTimes = length(timePoints);
-    % preallocate im_1 for speed
-    tmp = imread(fullfile(mipDir, sprintf(name1,timePoints(1),channel))) ;
-    im_1 = zeros([size(tmp) length(timePoints)]) ;
-    % preallocate im_2 for speed
-    tmp = imread(fullfile(mipDir, sprintf(name11,timePoints(1),channel))) ;
-    im_2 = zeros([size(tmp) length(timePoints)]) ;
-    for tid = 1:length(timePoints)
-        time = timePoints(tid) ;
-        % weight the different views equally
-        im1a = fullfile(mipDir, sprintf(name1, time, channel)) ;
-        im1b = fullfile(mipDir, sprintf(name2, time, channel)) ;
-        im_1(:,:,tid) = imread(im1a) + imread(im1b) ;
-
-        im2a = fullfile(mipDir, sprintf(name11, time, channel)) ;
-        im2b = fullfile(mipDir, sprintf(name21, time, channel)) ;
-    
-        im_2(:,:,tid) = imread(im2a) + imread(im2b) ;
-        im3a = fullfile(mipDir, sprintf(name12, time, channel)) ;
-        im3b = fullfile(mipDir, sprintf(name22, time, channel)) ;
-        im_3(:,:,tid) = imread(im3a) + imread(im3b);
-    end
-    disp('done loading data into im_1 and im_2')
-    
-    % Compute shifts via phase correlation
-    disp('Computing/overwriting shifts')
-    shifts = struct('x_1',[],'y_1',[],'x_2',[],'y_2',[]);
-    for time = 1 :NTimes
-        [shiftx,shifty,~] = xcorr2fft(im_1(:,:,time), im_1(:,:,t_ref_ind));
-        shifts(time).x_1 = shiftx;
-        shifts(time).y_1 = shifty; 
-
-        [shiftx,shifty,~] = xcorr2fft(im_2(:,:,time), im_2(:,:,t_ref_ind));
-        shifts(time).x_2 = shiftx;
-        shifts(time).y_2 = shifty; 
-
-        [shiftx,shifty,~] = xcorr2fft(im_3(:,:,time), im_3(:,:,t_ref_ind));
-        shifts(time).x_3 = shiftx;
-        shifts(time).y_3 = shifty; 
-    end
-    disp('done defining phase correlations')
-
-    %% Convert correlations to shifts
-    x_1 =  cat(1,shifts.x_1); % rows        (x) 
-    y_1 =  cat(1,shifts.y_1); % columns     (y)
-    x_2 =  cat(1,shifts.x_2); % columns #2  (y)
-    y_2 =  cat(1,shifts.y_2); % leaves      (z) 
-    x_3 =  cat(1,shifts.x_3); % rows    #2  (x) 
-    y_3 =  cat(1,shifts.y_3); % leaves  #2  (z) 
-    % Average contributions from different views on the same shift axis
-    dx = round(0.5 * (x_1 + x_3)) ;
-    dy = round(0.5 * (y_1 + x_2)) ;
-    dz = round(0.5 * (y_2 + y_3)) ;
-
-    %% Plot the shifts
-    disp('Plotting shifts...')
-    close('all')
-    hold all;
-    % Consider view 0
-    plot(timePoints, x_1, '.-', 'DisplayName', 'x (dim1 of view 0)')
-    plot(timePoints, y_1, '.-', 'DisplayName', 'y (dim2 of view 0)')
-    % Also consider view 1,2
-    plot(timePoints, y_2, '.-', 'DisplayName', 'z (dim2 of view 1)')
-    plot(timePoints, x_3, 's--', 'DisplayName', 'x (dim1 of view 2)')
-    plot(timePoints, x_2, 'o--', 'DisplayName', 'y (dim1 of view 1)')
-    plot(timePoints, y_3, '^--', 'DisplayName', 'z (dim2 of view 2)')
-    ylabel('shift [pixels]')
-    xlabel('timestamp')
-    legend('location', 'best')
-    title('Jitter stabilization')
-    saveas(gcf, fullfile(mipDir, 'jitter_stabilization.png'))
-    disp('done plotting shifts, see Figure')
-    disp('Saving shifts to shifts_stab.mat in mipDir')
-    save(fullfile(mipDir, 'shifts_stab.mat'), 'shifts', 't_ref', 't_ref_ind')
 end
 
 %% Clear the individual shift values
 clearvars x_1 y_1 x_2 y_2 x_3 y_3
 close('all')
 % Define stackSize, which is the number of frames in the z dimension
-disp('defining stackSize (which is number of valid matching files)...')
 done = false ;
 stackSize = 0 ;
 if strcmp(timechannel, 'tc')
-    name_ref = sprintf(fileName, t_ref, channel) ;
+    name_ref = sprintf(fileName, t_ref, stabChannel) ;
 elseif strcmp(timechannel, 't')
     name_ref = sprintf(fileName, t_ref) ;
 else
@@ -222,7 +140,7 @@ disp('building reference MIP...')
 if strcmp(timechannel, 't')
     name_ref = sprintf(fileName, t_ref);
 elseif strcmp(timechannel, 'tc')
-    name_ref = sprintf(fileName, t_ref, channel);
+    name_ref = sprintf(fileName, t_ref, stabChannel);
 else
     error('handle case here')
 end
@@ -236,7 +154,7 @@ mip_ref = squeeze(max(im_ref3D,[],3));
 clear tmp
 disp('done creating reference MIP')
 
-%% Build image for each timepoint =========================================
+%% Build MIP image for each stabilized timepoint ==========================
 disp('Running through timepoints to build ims...')
 tidx_todoA = 1:10:length(timePoints) ;
 tidx_todoB = setdiff(1:length(timePoints), tidx_todoA) ;
@@ -251,9 +169,9 @@ for tid = tidx_todo
             name_out = sprintf(fileNameOut, time) ;
             rgb_outname = sprintf(rgbName, time) ;
         elseif strcmp(timechannel, 'tc')
-            im0fn = sprintf(fileName, time, channel);    
-            name_out = sprintf(fileNameOut, time, channel) ;
-            rgb_outname = sprintf(rgbName, time, channel) ;
+            im0fn = sprintf(fileName, time, stabChannel);    
+            name_out = sprintf(fileNameOut, time, stabChannel) ;
+            rgb_outname = sprintf(rgbName, time, stabChannel) ;
         else
             error('handle case here')
         end
@@ -375,12 +293,12 @@ for tid = tidx_todo
                 m12fn = fullfile(mipStabDir, sprintf(name12,time)) ;
                 m22fn = fullfile(mipStabDir, sprintf(name22,time)) ;
             elseif strcmp(timechannel, 'tc')
-                m1fn = fullfile(mipStabDir, sprintf(name1,  time, channel)) ;
-                m2fn = fullfile(mipStabDir, sprintf(name2,  time, channel)) ;
-                m11fn = fullfile(mipStabDir, sprintf(name11,time, channel)) ;
-                m21fn = fullfile(mipStabDir, sprintf(name21,time, channel)) ;
-                m12fn = fullfile(mipStabDir, sprintf(name12,time, channel)) ;
-                m22fn = fullfile(mipStabDir, sprintf(name22,time, channel)) ;
+                m1fn = fullfile(mipStabDir, sprintf(name1,  time, stabChannel)) ;
+                m2fn = fullfile(mipStabDir, sprintf(name2,  time, stabChannel)) ;
+                m11fn = fullfile(mipStabDir, sprintf(name11,time, stabChannel)) ;
+                m21fn = fullfile(mipStabDir, sprintf(name21,time, stabChannel)) ;
+                m12fn = fullfile(mipStabDir, sprintf(name12,time, stabChannel)) ;
+                m22fn = fullfile(mipStabDir, sprintf(name22,time, stabChannel)) ;
             end
 
             % Convert to uint8
@@ -407,30 +325,3 @@ for tid = tidx_todo
     end
 end
 disp('done building ims and saving stab tifs...')
-
-
-% %% check the result for final timePoint in todo
-% disp('Checking the first and reference frame...')
-% mip_1   = squeeze(max(im,[],2));
-% mip_ref = squeeze(max(im_ref3D,[],2));
-% if strcmp(typename, 'uint8')
-%     rgb = zeros(size(mip_ref,1),size(mip_ref,2),3,'uint8');
-%     rgb(:,:,1)= uint8(mip_1 * im_intensity);
-%     rgb(:,:,2)= uint8(mip_1 * im_intensity);
-%     rgb(:,:,2)= uint8(mip_ref * im_intensity);
-%     rgb(:,:,3)= uint8(mip_ref * imref_intensity);
-%     rgb(rgb(:) > 255) = 255 ;
-% elseif strcmp(typename, 'uint16')
-%     rgb = zeros(size(mip_ref,1),size(mip_ref,2),3,'uint16');
-%     rgb(:,:,1)= uint16(mip_1 * im_intensity);
-%     rgb(:,:,2)= uint16(mip_1 * im_intensity);
-%     rgb(:,:,2)= uint16(mip_ref * im_intensity);
-%     rgb(:,:,3)= uint16(mip_ref * imref_intensity);
-%     rgb(rgb(:) > 65535) = 65535 ;
-% else
-%     error(['Have not coded for RGB overlay ', ...
-%         'with given typename: ', typename, '. Do so here'])
-% end
-% imshow(rgb,[])
-% set(gcf, 'visible', 'on')
-% 
