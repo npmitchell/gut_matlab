@@ -38,6 +38,7 @@ timePoints = QS.xp.fileMeta.timePoints ;
 apdvoutdir = QS.dir.cntrline ;
 meshDir = QS.dir.mesh ;
 axorder = QS.data.axisOrder ;
+ilastikOutputAxisOrder = QS.data.ilastikOutputAxisOrder ;
 apdProbFileName = QS.fullFileBase.apdProb ;
 
 % Default options
@@ -72,6 +73,91 @@ rawapdvmatname = fullfile(apdvoutdir, 'apdv_coms_from_training.mat') ;
 preview = false ;
 if isfield(opts, 'preview')
     preview = opts.preview ;
+end
+
+%% Dorsal COM for first timepoint
+tt = timePoints(1) ;
+% load the probabilities for anterior posterior dorsal
+apfn = sprintf(apdProbFileName, tt);
+disp(['Reading ' apfn])
+apdat = h5read(apfn, '/exported_data');
+
+if strcmpi(ilastikOutputAxisOrder, 'cxyz')
+    ddat = permute(squeeze(apdat(dorsalChannel, :, :, :)), axorder) ;
+elseif strcmpi(ilastikOutputAxisOrder, 'xyzc')
+    ddat = permute(squeeze(apdat(:, :, :, dorsalChannel)), axorder) ;
+else
+    error('Did not recognize ilastikOutputAxisOrder')
+end
+
+options.check = preview_com ; 
+options.check_slices = check_slices ; 
+options.color = 'green' ;
+
+% Load dcom if already on disk
+if exist(dcomname, 'file') && ~overwrite
+    disp('Loading dorsal COM from disk')
+    dcom = dlmread(dcomname) ;
+else
+    if exist(dcomname, 'file')
+        disp('Overwriting existing dorsal COM on disk')
+    else
+        disp('Computing dorsal COM for the first time')
+    end
+    search4com = true ;
+    % start with a threshold == dorsal_thres, iteratively lower if
+    % necessary
+    tmp_dorsal_thres = dorsal_thres ;
+    while search4com 
+        try
+            msg = 'Finding com region of dorsal data: ' ;
+            disp([msg 'thres=' num2str(tmp_dorsal_thres)])
+            close all
+            dcom = com_region(ddat, tmp_dorsal_thres, options) ;
+            search4com = false ;
+        catch
+            disp('no region found, lowering dorsal threshold for prob cloud') ;
+            tmp_dorsal_thres = 0.9 * tmp_dorsal_thres ;
+        end
+
+        if tmp_dorsal_thres < 1e-9
+            msg = 'Could not find any dorsal signal within 1e-9' ;
+            disp(msg)
+            disp('Showing dorsal signal volume, leaf by leaf')
+            clf; set(gcf, 'visible', 'on')
+            for qq=1:size(ddat, 1)
+                imshow(squeeze(ddat(qq, :, :)))
+                title(['dorsal signal, x=' num2str(qq)])
+                pause(0.01)                            
+            end
+            error(msg)
+        end
+    end
+    
+    % load current mesh & plot the dorsal dot
+    for ii = 1:3
+        subplot(1, 3, ii)
+        mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, tt)) ;
+        trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
+        hold on;
+        plot3(dcom(1) * QS.ssfactor, dcom(2) * QS.ssfactor, dcom(3) * QS.ssfactor, 'o')
+        axis equal
+        if ii == 1
+            view(0, 90)
+        elseif ii == 2
+            view(90, 0)
+        else
+            view(0, 270)
+        end
+        xlabel('x')
+        ylabel('y')
+        zlabel('z')
+    end
+    sgtitle('Dorsal COM for APDV coordinates')
+    saveas(gcf, [QS.fileName.dcom(1:end-3) 'png'])
+    
+    % SAVE DCOM
+    dlmwrite(dcomname, dcom) ;
 end
 
 %% Iterate through each mesh to compute acom(t) and pcom(t). Prepare file.
@@ -126,9 +212,16 @@ if ~load_from_disk || overwrite
 
             % rawfn = fullfile(rootdir, ['Time_' timestr '_c1_stab.h5' ]);
             % rawdat = h5read(rawfn, '/inputData');
-            adat = squeeze(apdat(anteriorChannel,:,:,:)) ;
-            pdat = squeeze(apdat(posteriorChannel,:,:,:)) ;
-
+            if strcmpi(ilastikOutputAxisOrder, 'cxyz')
+                adat = squeeze(apdat(anteriorChannel,:,:,:)) ;
+                pdat = squeeze(apdat(posteriorChannel,:,:,:)) ;
+            elseif strcmpi(ilastikOutputAxisOrder, 'xyzc')
+                adat = squeeze(apdat(:,:,:,anteriorChannel)) ;
+                pdat = squeeze(apdat(:,:,:,posteriorChannel)) ;
+            else
+                error('Did not recognize ilastikAxisOrder. Code here')
+            end
+            
             % define axis order: 
             % if 1, 2, 3: axes will be yxz
             % if 1, 3, 2: axes will be yzx
@@ -147,7 +240,39 @@ if ~load_from_disk || overwrite
             % [~, acom] = match_training_to_vertex(adat, thres, vertices, options) ;
             % [~, pcom] = match_training_to_vertex(pdat, thres, vertices, options) ;
             acoms(tidx, :) = acom ;
-            pcoms(tidx, :) = pcom 
+            pcoms(tidx, :) = pcom ;
+            if preview
+                disp('acom = ')
+                acoms(tidx, :)
+                disp('pcom = ')
+                pcoms(tidx, :)
+            end
+            
+            % PLOT APD points on mesh
+            if tidx == 1
+                % load current mesh & plot the dorsal dot
+                clf
+                for ii = 1:3
+                    subplot(1, 3, ii)
+                    mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, tt)) ;
+                    trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
+                    hold on;
+                    plot3(acom(1) * QS.ssfactor, acom(2) * QS.ssfactor, acom(3) * QS.ssfactor, 'o')
+                    plot3(pcom(1) * QS.ssfactor, pcom(2) * QS.ssfactor, pcom(3) * QS.ssfactor, 'o')
+                    plot3(dcom(1) * QS.ssfactor, dcom(2) * QS.ssfactor, dcom(3) * QS.ssfactor, 'o')
+                    axis equal
+                    if ii == 1
+                        view(0, 90)
+                    elseif ii == 2
+                        view(90, 0)
+                    else
+                        view(0, 270)
+                    end
+                end
+                sgtitle('APD COMs for APDV coordinates')
+                saveas(gcf, fullfile(QS.dir.mesh, 'apd_coms.png'))
+            end
+            
         end
         % Save raw data to .mat
         save(rawapdvmatname, 'acoms', 'pcoms')
@@ -176,8 +301,8 @@ if ~load_from_disk || overwrite
     if preview
         plot(timePoints, acoms - mean(acoms,1), '.')
         hold on
-        plot(timepts, acom_sm - mean(acoms, 1), '-')
-        title('Smoothed COMs for AP')
+        plot(timePoints, acom_sm - mean(acoms, 1), '-')
+        sgtitle('Smoothed COMs for AP')
     end
     clear acom pcom
     
@@ -227,61 +352,6 @@ end
 
 disp('done with AP COMs')
 
-
-%% Dorsal COM for first timepoint
-tt = timePoints(1) ;
-% load the probabilities for anterior posterior dorsal
-apfn = sprintf(apdProbFileName, tt);
-disp(['Reading ' apfn])
-apdat = h5read(apfn, '/exported_data');
-ddat = permute(squeeze(apdat(dorsalChannel, :, :, :)), axorder) ;
-options.check = preview_com ; 
-options.check_slices = check_slices ; 
-options.color = 'green' ;
-
-% Load dcom if already on disk
-if exist(dcomname, 'file') && ~overwrite
-    disp('Loading dorsal COM from disk')
-    dcom = dlmread(dcomname) ;
-else
-    if exist(dcomname, 'file')
-        disp('Overwriting existing dorsal COM on disk')
-    else
-        disp('Computing dorsal COM for the first time')
-    end
-    search4com = true ;
-    % start with a threshold == dorsal_thres, iteratively lower if
-    % necessary
-    tmp_dorsal_thres = dorsal_thres ;
-    while search4com 
-        try
-            msg = 'Finding com region of dorsal data: ' ;
-            disp([msg 'thres=' num2str(tmp_dorsal_thres)])
-            close all
-            dcom = com_region(ddat, tmp_dorsal_thres, options) ;
-            search4com = false ;
-        catch
-            disp('no region found, lowering dorsal threshold for prob cloud') ;
-            tmp_dorsal_thres = 0.9 * tmp_dorsal_thres ;
-        end
-
-        if tmp_dorsal_thres < 1e-9
-            msg = 'Could not find any dorsal signal within 1e-9' ;
-            disp(msg)
-            disp('Showing dorsal signal volume, leaf by leaf')
-            clf; set(gcf, 'visible', 'on')
-            for qq=1:size(ddat, 1)
-                imshow(squeeze(ddat(qq, :, :)))
-                title(['dorsal signal, x=' num2str(qq)])
-                pause(0.01)                            
-            end
-            error(msg)
-        end
-    end
-
-    % SAVE DCOM
-    dlmwrite(dcomname, dcom) ;
-end
 %%%%%%%%%%%%%%%%%%%%%%
 if preview
     % % disp('Showing dorsal segmentation...')
@@ -322,21 +392,24 @@ if preview
 end
 
 %% Display APDV COMS over time
-[xyzlim, ~, ~, ~] = QS.getXYZLims() ;
-for tidx = 1:length(timePoints)
-    tp = timePoints(tidx) ;
-    % Plot the APDV points
-    clf
-    plot3(acom_sm(tidx, 1), acom_sm(tidx, 2), acom_sm(tidx, 3), 'ro')
-    hold on;
-    plot3(acoms(tidx, 1), acoms(tidx, 2), acoms(tidx, 3), 'r.')
-    plot3(pcom_sm(tidx, 1), pcom_sm(tidx, 2), pcom_sm(tidx, 3), 'b^')
-    plot3(pcoms(tidx, 1), pcoms(tidx, 2), pcoms(tidx, 3), 'b.')
-    plot3(dcom(1, 1), dcom(1, 2), dcom(1, 3), 'cs')
-    axis equal
-    title(['t = ', num2str(tp)]) 
-    pause(0.01)
+try
+    [xyzlim, ~, ~, ~] = QS.getXYZLims() ;
+    for tidx = 1:length(timePoints)
+        tp = timePoints(tidx) ;
+        % Plot the APDV points
+        clf
+        plot3(acom_sm(tidx, 1), acom_sm(tidx, 2), acom_sm(tidx, 3), 'ro')
+        hold on;
+        plot3(acoms(tidx, 1), acoms(tidx, 2), acoms(tidx, 3), 'r.')
+        plot3(pcom_sm(tidx, 1), pcom_sm(tidx, 2), pcom_sm(tidx, 3), 'b^')
+        plot3(pcoms(tidx, 1), pcoms(tidx, 2), pcoms(tidx, 3), 'b.')
+        plot3(dcom(1, 1), dcom(1, 2), dcom(1, 3), 'cs')
+        axis equal
+        title(['t = ', num2str(tp)]) 
+        pause(0.01)
+    end
+catch
+    disp('Could not display aligned meshes')
 end
-
 
 disp('done')

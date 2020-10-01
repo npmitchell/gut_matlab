@@ -35,13 +35,15 @@ clear; close all; clc;
 % change this path, for convenience
 % cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
-cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
+% cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
 % cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
 % .=========.
 % |  VIP10  |
 % .=========.
 % cd /mnt/crunch/gut/48YGal4UasLifeActRuby/201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
+% cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
+cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202007151930_1p4um_0p5msexp/Time3views_25x_60s/data/
 
 dataDir = cd ;
 
@@ -74,14 +76,14 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 1 ;
     channelsUsed = 1 ;
-    timePoints = 0:318 ;
+    timePoints = 0:300 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
     timeInterval = 1 ;  % physical interval between timepoints
     timeUnits = 'min' ; % physical unit of time between timepoints
     spaceUnits = '$\mu$m' ; % physical unit of time between timepoints
-    scale = 0.02 ;      % scale for conversion to 16 bit
+    scale = 0.04 ;      % scale for conversion to 16 bit
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
     file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
@@ -96,6 +98,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'flipy', flipy, ...
         'timeInterval', timeInterval, ...
         'timeUnits', timeUnits, ...
+        'spaceUnits', timeUnits, ...
         'scale', scale, ...
         'file32Base', file32Base, ...
         'fn', fn,...
@@ -488,8 +491,8 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(189:end)
-        try
+    for tp = xp.fileMeta.timePoints(0:197)
+        % try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
             % xp.rescaleStackToUnitAspect();
@@ -499,18 +502,20 @@ else
             detectOpts2.post_smoothing = 1 ;
             detectOpts2.timepoint = xp.currentTime ;
             detectOpts2.fileName = sprintf( fn, xp.currentTime );
+            % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+            %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4_octree12.mlx') ;
             detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
                  'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
             xp.setDetectOptions( detectOpts2 );
             xp.detectSurface();
             % For next time, use the output mesh as an initial mesh
             detectOpts2.init_ls_fn = 'none' ;
-        catch
-            disp('Could not create mesh -- skipping for now')
-            % On next timepoint, use the tp previous to current time
-            detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
-                    num2str(tp - 1, '%06d' ) '.' detectOptions.dtype] ;
-        end
+        % catch
+        %     disp('Could not create mesh -- skipping for now')
+        %     % On next timepoint, use the tp previous to current time
+        %     detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
+        %             num2str(tp - 1, '%06d' ) '.' detectOptions.dtype] ;
+        % end
     end
 end
 

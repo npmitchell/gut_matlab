@@ -5,7 +5,11 @@ function makeH5SeriesPrestabForTraining(masterSettings)
 % training.
 
 %% Unpack arguments
-fn = masterSettings.fn_prestab(1:end-4) ;
+if strcmp(masterSettings.fn_prestab(end-3:end), '.tif')
+    fn = masterSettings.fn_prestab(1:end-4) ;
+else
+    fn = masterSettings.fn_prestab ;
+end
 nChannels = masterSettings.nChannels ;
 channelsUsed = masterSettings.channelsUsed ;    
 timePoints = masterSettings.timePoints ;
@@ -68,7 +72,7 @@ fileMeta.filenameFormat     = [fn, '.tif'];
 fileMeta.nChannels          = nChannels;
 fileMeta.timePoints         = timePoints ;
 fileMeta.stackResolution    = stackResolution;
-fileMeta.swapZT             = 1;
+fileMeta.swapZT             = swapZT;
 
 % Set required additional information on the experiment. A verbal data set
 % description, Jitter correct by translating  the sample, which time point
@@ -94,7 +98,7 @@ fileMeta.swapZT             = 1;
 first_tp = timePoints(1) ;
 expMeta                     = struct();
 expMeta.channelsUsed        = channelsUsed ;
-expMeta.channelColor        = 1;
+expMeta.channelColor        = 1:length(channelsUsed) ;
 expMeta.description         = 'Apical membrane in Drosophila gut';
 expMeta.dynamicSurface      = 1;
 expMeta.jitterCorrection    = 0;  % 1: Correct for sample translation

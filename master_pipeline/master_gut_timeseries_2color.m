@@ -53,7 +53,7 @@ cd(dataDir)
 
 %% Global options
 % Decide whether to change previously stored detection Opts, if they exist
-overwrite_masterSettings = false ;
+overwrite_masterSettings = true ;
 overwrite_mips = false ;
 overwrite_detOpts = false ;
 run_full_dataset_ms = false ;
@@ -74,7 +74,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 2 ;
     channelsUsed = [1 2];
-    timePoints = 0:249 ;
+    timePoints = 0:167 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
@@ -86,6 +86,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     file32Base = 'TP%d_Ch%d_Ill0_Ang0,60,120,180,240,300.tif'; 
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
     fn = 'Time_%06d_c%d_stab';
+    fnCombined = 'Time_%06d_stab' ;
     fn_prestab = 'Time_%06d_c%d.tif';
     set_preilastikaxisorder = 'xyzc' ;
     swapZT = 0 ;
@@ -101,6 +102,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'scale', scale, ...
         'file32Base', file32Base, ...
         'fn', fn,...
+        'fnCombined', fnCombined, ...
         'fn_prestab', fn_prestab, ...
         'set_preilastikaxisorder', set_preilastikaxisorder, ...
         'swapZT', swapZT); 
@@ -143,6 +145,7 @@ if loadMaster
     fn_prestab = masterSettings.fn_prestab ;
     set_preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
     swapZT = masterSettings.swapZT ;
+    fnCombined = masterSettings.fnCombined ;
 end
 dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
 dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
@@ -217,9 +220,14 @@ applyStabilizationToChannel(2, fileNameIn, fileNameOut, ...
     rgbName, typename, timePoints, timePoints, timePoints(50), ...
     mipDir, mipoutdir2, mips_stab_check2, stabOptions)
 
-%% Collate multiple colors into one TIFF
+%% Collate multiple colors into one TIFF pre-stabilization
+fileNameIn = fullfile(dir16bit_prestab, fn_prestab) ;
+fileNameOut = fullfile(dir16bit_prestab, 'Time_%06d.tif') ;
+collateColors(fileNameIn, fileNameOut, timePoints, channelsUsed) ; 
+
+%% Collate multiple colors post stabilization
 fileNameIn = fullfile(dir16bit, [fn '.tif']) ;
-fileNameOut = fullfile(dir16bit, 'Time_%06d_stab.tif') ;
+fileNameOut = fullfile(dir16bit, [fnCombined '.tif']) ;
 collateColors(fileNameIn, fileNameOut, timePoints, channelsUsed) ; 
 
 %%   -I. master_gut_timeseries_prestab_for_training.m
@@ -227,6 +235,7 @@ collateColors(fileNameIn, fileNameOut, timePoints, channelsUsed) ;
 cd(dir16bit)
 dataDir = cd ;
 masterSettings.dir16bit_prestab = dir16bit_prestab ;
+masterSettings.fn_prestab = 'Time_%06d.tif';
 makeH5SeriesPrestabForTraining(masterSettings)
 cd(dir16bit)
 
@@ -339,7 +348,7 @@ if exist(msls_detOpts_fn, 'file') && ~overwrite_detOpts
     load(msls_detOpts_fn, 'detectOptions')
 else
     channel = channelsUsed ;
-    foreGroundChannel = 1;
+    foreGroundChannel = 2;
     ssfactor = 4;
     niter = 15 ;
     niter0 = 15 ;
@@ -358,21 +367,21 @@ else
     end
     pre_nu = -4 ;
     pre_smoothing = 0 ;
-    post_nu = 3 ;
-    post_smoothing = 2 ;
+    post_nu = 2 ;
+    post_smoothing = 1 ;
     zdim = 2 ;
     init_ls_fn = 'msls_initguess.h5';
     % mlxprogram = fullfile(meshlabCodeDir, ...
     %     'laplace_refine_HCLaplace_LaplaceSPreserve_QuadEdgeCollapse60kfaces.mlx') ;
     mlxprogram = fullfile(meshlabCodeDir, ...
         'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
-    radius_guess = 40 ;
-    center_guess = '200,75,75' ;
+    radius_guess = 30 ;
+    center_guess = '100,75,75' ;
     dtype = 'h5' ;
     mask = 'none' ;
     prob_searchstr = '_stab_Probabilities.h5' ;
     preilastikaxisorder= set_preilastikaxisorder; ... % axis order in input to ilastik as h5s. To keep as saved coords use xyzc
-    ilastikaxisorder= 'cxyz'; ... % axis order as output by ilastik probabilities h5
+    ilastikaxisorder= 'czyx'; ... % axis order as output by ilastik probabilities h5
     imsaneaxisorder = 'xyzc'; ... % axis order relative to mesh axis order by which to process the point cloud prediction. To keep as mesh coords, use xyzc
     include_boundary_faces = true ;
     smooth_with_matlab = -1;
@@ -401,7 +410,7 @@ else
         'post_smoothing', post_smoothing, ...
         'exit_thres', exit_thres, ...
         'foreGroundChannel', foreGroundChannel, ...
-        'fileName', sprintf( fn, xp.currentTime ), ...
+        'fileName', sprintf( fnCombined, xp.currentTime ), ...
         'mslsDir', meshDir, ...
         'ofn_ls', ofn_ls, ...
         'ofn_ply', ofn_ply,...
@@ -444,7 +453,7 @@ else
 end
 
 % Overwrite certain parameters for script structure
-detectOptions.fileName = sprintf( fn, xp.currentTime ) ;
+detectOptions.fileName = sprintf( fnCombined, xp.currentTime ) ;
 detectOptions.run_full_dataset = run_full_dataset ;
 detectOptions.ms_scriptDir = ms_scriptDir ;
 meshDir = detectOptions.mslsDir ;
@@ -509,7 +518,7 @@ if strcmp(detectOptions.run_full_dataset, projectDir)
     disp('Running dataset mode')
     xp.setTime(xp.fileMeta.timePoints(1));
     detectOpts2 = detectOptions ;
-    detectOpts2.fileName = sprintf( fn, xp.currentTime ) ;
+    detectOpts2.fileName = sprintf( fnCombined, xp.currentTime ) ;
     detectOpts2.nu = 4 ;
     detectOpts2.niter0 = 5 ;
     xp.setDetectOptions( detectOpts2 );
@@ -518,7 +527,7 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(0:197)
+    for tp = xp.fileMeta.timePoints(159:end)
         % try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
@@ -528,11 +537,13 @@ else
             detectOpts2 = detectOptions ;
             detectOpts2.post_smoothing = 1 ;
             detectOpts2.timepoint = xp.currentTime ;
-            detectOpts2.fileName = sprintf( fn, xp.currentTime );
+            detectOpts2.fileName = sprintf( fnCombined, xp.currentTime );
             % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
             %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4_octree12.mlx') ;
+            % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+            %      'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
             detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-                 'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
+                  'surface_rm_resample30k_reconstruct_LS3_ssfactor4.mlx') ;
             xp.setDetectOptions( detectOpts2 );
             xp.detectSurface();
             % For next time, use the output mesh as an initial mesh
@@ -548,6 +559,7 @@ end
 
 %% Define QuapSlap object
 opts.meshDir = meshDir ;
+opts.ilastikOutputAxisOrder = 'xyzc';  % used in APDV alignment
 opts.flipy = flipy ;
 opts.timeInterval = timeInterval ;
 opts.timeUnits = timeUnits ;
@@ -590,8 +602,8 @@ close all
 % Skip if already done
 
 % Define your two-channel colors
-color1 = [0.5 0 0.5] ;
-color2 = [0 0.5 0.5] ;
+color1 = [1 1 1] ;
+color2 = [0 1 1] ;
 % which timepoint
 tp = 50 ;
 % grab mesh filename
@@ -600,16 +612,16 @@ meshfn = sprintf(QS.fullFileBase.mesh, tp) ;
 QS.setTime(tp)
 QS.getCurrentData()
 IV = QS.currentData.IV ;
-% which page do you want to look at in cross section?
+%% which page do you want to look at in cross section?
 leaf = 500 ;
 % unpack two channel data
 if any(size(IV) > 1)
     IV1 = IV{1} ;
     IV2 = IV{2} ;
     % make an rgb image cyan/magenta
-    red = IV1(leaf, :, :) * color1(1) + IV2(leaf, :, :) * color2(1) ;
-    grn = IV1(leaf, :, :) * color1(2) + IV2(leaf, :, :) * color2(2) ;
-    blu = IV1(leaf, :, :) * color1(3) + IV2(leaf, :, :) * color2(3) ;
+    red = squeeze(IV1(leaf, :, :) * color1(1) + IV2(leaf, :, :) * color2(1)) ;
+    grn = squeeze(IV1(leaf, :, :) * color1(2) + IV2(leaf, :, :) * color2(2)) ;
+    blu = squeeze(IV1(leaf, :, :) * color1(3) + IV2(leaf, :, :) * color2(3)) ;
     im = cat(3, red, grn, blu) ;
 else
     IV = IV{1} ;
@@ -618,6 +630,8 @@ else
 end
 % Load up the mesh
 mesh = read_ply_mod(meshfn) ;
+% Normal shift
+mesh.v = mesh.v + QS.normalShift .* mesh.vn;
 % Make this number larger to sample more of the nearby mesh
 width = 5 ;
 % Show the cross-section
@@ -625,7 +639,7 @@ inds = find(abs(mesh.v(:, 1) - leaf) < width) ;
 imshow(permute(im, [2, 1, 3]))
 if any(inds)
     hold on;
-    plot(mesh.v(inds, 2), mesh.v(inds, 3), 'co')
+    plot(mesh.v(inds, 2), mesh.v(inds, 3), '.')
 end
                 
 %% Inspect all meshes in 3D
@@ -707,19 +721,23 @@ clearvars msls_exten msls_detOpts_fn niter niter0 nu
 %% APDV ilastik training
 % Train on anterior (A), posterior (P), background (B), and 
 % dorsal anterior (D) location in different iLastik channels.
+% Default order is 1-A, 2-P, 3-bg, 4-D. 
 % Perform on pre-stabilized H5s, NOT on stabilized H5s. 
 % anteriorChannel, posteriorChannel, and dorsalChannel specify the iLastik
 % training channel that is used for each specification.
 % Name the h5 file output from iLastik as ..._Probabilities_apcenterline.h5
+% with dataset name /exported_data.
 % Train for anterior dorsal (D) only at the first time point, because
 % that's the only one that's used. 
 % Dorsal anterior for the gut is at the fused site where additional 
-% 48YGAL4-expressing muscle-like cells form a seam.
+% 48YGAL4-expressing muscle-like cells form a seam, against heart tube.
 % Posterior is at the rear of the yolk, where the endoderm closes, for 
-% apical surface training.
+% apical surface training. 
 % Anterior is at the junction of the midgut with the foregut.
 
-%% 3. align_meshes_APDV or load transformations if already done
+%% 3. align_meshes_APDV based on first timepoint APD training
+% NOTE: later timepoints are irrelevant here, since we will use anterior
+% and posterior training from earlier to extract centerlines.
 % Skip if already done.
 
 % Try to load the results to test if we must do calculation 
@@ -924,26 +942,31 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     Options.Rotation = QS.APDV.rot ;
     Options.Translation = QS.APDV.trans ;
     Options.Dilation = QS.APDV.resolution ;
-    Options.numLayers = [2, -2];  % at layerSpacing 2, 2 marches ~0.5 um 
-    Options.layerSpacing = 2 ;
+    Options.numLayers = [6, -6];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
+    Options.layerSpacing = 1 ;
     
     % Save it
+    disp('Saving metadat')
     save(metafn, 'metadat', 'Options')
 else
     load(metafn, 'metadat', 'Options')
 end
 
 % Use first timepoint's intensity limits throughout
-QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.95)
+% QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.95)
+QS.data.adjustlow = 1000 ;
+QS.data.adjusthigh = 65535 ;
 
 %% Plot on surface for all TP 
 options = metadat ;
 options.overwrite = false ;
-options.plot_dorsal = false ;
-options.plot_ventral = false ;
-options.plot_right = false ;
-options.plot_left = false ;
+options.plot_dorsal = true ;
+options.plot_ventral = true ;
+options.plot_right = true ;
+options.plot_left = true ;
 options.plot_perspective = true ;
+options.channel = 1 ;
+% Options.falseColors = [1, 1, 1; 0, 1, 0]; 
 QS.plotSeriesOnSurfaceTexturePatch(options, Options)
 clearvars Options
 

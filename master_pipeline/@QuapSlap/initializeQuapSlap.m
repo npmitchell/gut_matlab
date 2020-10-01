@@ -48,6 +48,9 @@ end
 if isfield(opts, 'axisOrder')
     QS.data.axisOrder = opts.axisOrder ;
 end
+if isfield(opts, 'ilastikOutputAxisOrder')
+    QS.data.ilastikOutputAxisOrder = opts.ilastikOutputAxisOrder ;
+end
 
 % Assign which pullback coordsys is used for velocimetry
 if isfield(opts, 'pivPullback')

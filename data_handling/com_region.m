@@ -52,7 +52,19 @@ function com = com_region(probability_grid, thres, varargin)
         else
             check = false ;
         end
-
+        
+        if isfield(varargin{1}, 'waitForPress')
+            waitForPress = varargin{1}.waitForPress ;
+        else
+            waitForPress = false ;
+        end
+        
+        if isfield(varargin{1}, 'clearFigures')
+            clearFigures = varargin{1}.clearFigures ;
+        else
+            clearFigures = true ;
+        end
+        
         if isfield(varargin{1}, 'check_slices')
             check_slices = varargin{1}.check_slices ;
         else
@@ -77,12 +89,26 @@ function com = com_region(probability_grid, thres, varargin)
         xyzgrid = [] ;
     end
     
-    bwcc = bwconncomp(probability_grid > thres) ; 
-    npix = cellfun(@numel,bwcc.PixelIdxList);
-    [~, indexOfMax] = max(npix); 
-    % isolate the largest connected component
-    biggest = zeros(size(probability_grid));
-    biggest(bwcc.PixelIdxList{indexOfMax}) = 1;
+    % Find big region, decreasing thres if needed
+    bwccOk = false ;
+    thresIter = thres ;
+    while ~bwccOk
+        try
+            bwcc = bwconncomp(probability_grid > thresIter) ; 
+            npix = cellfun(@numel,bwcc.PixelIdxList);
+            [~, indexOfMax] = max(npix); 
+            % isolate the largest connected component
+            biggest = zeros(size(probability_grid));
+            biggest(bwcc.PixelIdxList{indexOfMax}) = 1;
+            bwccOk = true ;
+        catch
+            disp('Could not segment big region, decrease threshold')
+            thresIter = thresIter * 0.9 ;
+            if thresIter < 0.01
+                error('Threshold of 0.01 still did not yield a connected component')
+            end
+        end
+    end
     % Now multiply with probability
     mass = probability_grid .* biggest ;
     % Get center of mass. There are two ways
@@ -105,6 +131,10 @@ function com = com_region(probability_grid, thres, varargin)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Check the com
     if check
+        if clearFigures
+            close all
+        end
+        
         % Show relative to the mesh
         pprob = permute(probability_grid, [2 1 3]) ;
         iso = isosurface(pprob, 0.5) ;
@@ -121,19 +151,26 @@ function com = com_region(probability_grid, thres, varargin)
         ylim([0, size(probability_grid, 2)])
         zlim([0, size(probability_grid, 3)])
         hold off
-        title('COM and pointcloud. Click any button to continue')
-        
-        % Show the figure
-        disp('Showing com and pointcloud. Click any button to continue')
-        drawnow;
-        % disp(clock) ;
-        try
-            waitforbuttonpress
-            % Close figure or leave it open
-            disp('mouse or key pressed')
-            % waitfor(gcf)
-        catch
-            disp('figure closed')
+        if waitForPress
+            title('COM and pointcloud. Click any button to continue')
+
+            % Show the figure
+            disp('Showing com and pointcloud. Click any button to continue')
+            drawnow;
+            % disp(clock) ;
+            try
+                waitforbuttonpress
+                % Close figure or leave it open
+                disp('mouse or key pressed')
+                % waitfor(gcf)
+            catch
+                disp('figure closed')
+            end
+        else
+            % Show the figure
+            title('COM and pointcloud')
+            disp('Previewing COM and pointcloud. Continuing...')
+            drawnow;
         end
         % disp(clock)        
     end

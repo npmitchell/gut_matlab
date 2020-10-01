@@ -54,10 +54,19 @@ for time = timePoints
     for cqq = 1:length(channels)
         channel = channels(cqq) ;
         scale = scales(cqq) ;
-        fileName = fullfile(dir32bit, sprintf(file32Name, time, channel)) ;
+        if sum(file32Name == '%') == 1
+            fileName = fullfile(dir32bit, sprintf(file32Name, time)) ;
+        else
+            fileName = fullfile(dir32bit, sprintf(file32Name, time, channel)) ;
+        end
         disp(['32 bit file ' fileName])
 
-        out16name = fullfile(dir16bit, sprintf(file16Name, time, channel)) ;
+        % 16bit name
+        if sum(file16Name == '%') == 1
+            out16name = fullfile(dir16bit, sprintf(file16Name, time)) ;
+        else
+            out16name = fullfile(dir16bit, sprintf(file16Name, time, channel)) ;
+        end
         disp(['Seeking ' out16name])
         if exist(out16name, 'file')
             disp(' --> 16bit file exists, skipping')
