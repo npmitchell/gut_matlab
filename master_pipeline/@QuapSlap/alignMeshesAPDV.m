@@ -592,7 +592,11 @@ for tidx = 1:length(timePoints)
         tmp2 = trisurf(faces_to_plot, xyz(:, 1), xyz(:,2), xyz(:, 3), ...
             xyz(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.5) ;
         clearvars faces_to_plot
-        [~,~,~] = apply_ambient_occlusion(tmp2, 'SoftLighting', true) ; % 'ColorMap', viridis) ;
+        try
+            [~,~,~] = apply_ambient_occlusion(tmp2, 'SoftLighting', true) ; % 'ColorMap', viridis) ;
+        catch
+            debugMsg(1, 'Could not apply ambient occlusion \n')
+        end
         boxx = [xmin, xmin, xmin, xmin, xmax, xmax, xmax, xmax, xmin] ;
         boxy = [ymin, ymax, ymax, ymin, ymin, ymax, ymax, ymin, ymin] ;
         boxz = [zmin, zmin, zmax, zmax, zmax, zmax, zmin, zmin, zmin] ;

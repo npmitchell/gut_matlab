@@ -29,10 +29,14 @@ plot_ventral = true ;
 plot_left = true ;
 plot_right = true ;
 plot_perspective = true ;
+channel = [] ;  % by default, plot all channels
 
 %% Unpack Options
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
+end
+if isfield(options, 'channel')
+    channel = options.channel ;
 end
 if isfield(options, 'plot_dorsal')
     plot_dorsal = options.plot_dorsal ;
@@ -244,8 +248,14 @@ for tidx = tidx_todo
         end
 
         % Create the texture patch
-        texture_patch_3d( mesh.f, VV, mesh.f, TV, IV, Options );
-
+        if ~isempty(channel)
+            IV2plot = cell(1) ;
+            IV2plot{1} = IV{channel} ;
+            texture_patch_3d( mesh.f, VV, mesh.f, TV, IV2plot, Options );
+        else
+            texture_patch_3d( mesh.f, VV, mesh.f, TV, IV, Options );
+        end
+        
         % format the figure
         disp('formatting figure...')
         axis equal
