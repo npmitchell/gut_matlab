@@ -122,6 +122,18 @@ QS.dir.metricKinematics.pathline.root = ...
     fullfile(uvDir, 'metricKinematics', l_lmesh_lerr, 'pathline_%04dt0') ;
 QS.dir.metricKinematics.pathline.measurements = ...
     fullfile(QS.dir.metricKinematics.pathline.root, 'measurements') ;
+QS.fileBase.metricKinematics = struct() ;
+QS.fileBase.metricKinematics.pathline.Hfn = 'HH_pathline%04d_%06d.mat' ;
+QS.fileBase.metricKinematics.pathline.gdot = 'gdot_pathline%04d_%06d.mat' ;
+QS.fileBase.metricKinematics.pathline.divv = 'divv_pathline%04d_%06d.mat' ;
+QS.fileBase.metricKinematics.pathline.veln = 'veln_pathline%04d_%06d.mat' ;
+QS.fileBase.metricKinematics.pathline.radius = 'radius_pathline%04d_%06d.mat' ;
+QS.fileBase.metricKinematics.pathline.kymographs = struct() ;
+QS.fileBase.metricKinematics.pathline.kymographs.ap = 'apKymographMetricKinematics.mat' ;
+QS.fileBase.metricKinematics.pathline.kymographs.d = 'dKymographMetricKinematics.mat' ;
+QS.fileBase.metricKinematics.pathline.kymographs.v = 'vKymographMetricKinematics.mat' ;
+QS.fileBase.metricKinematics.pathline.kymographs.l = 'lKymographMetricKinematics.mat' ;
+QS.fileBase.metricKinematics.pathline.kymographs.r = 'rKymographMetricKinematics.mat' ;
 
 % Metric deformation ('metric strain' or 'meshMetric)
 QS.dir.gstrain = fullfile(uvDir, 'metricStrain') ;
@@ -393,7 +405,8 @@ QS.dir.piv3d = fullfile(QS.dir.piv, 'piv3d') ;
 QS.dir.pivt2d = fullfile(QS.dir.piv, 'vt2d') ;
 QS.dir.pivn2d = fullfile(QS.dir.piv, 'vn2d') ;
 QS.dir.pivdilation = fullfile(QS.dir.piv, 'dilation') ;
-QS.fileName.pivRaw = fullfile(QS.dir.piv, 'piv_results.mat') ;
+QS.fileName.pivRaw = struct() ;
+QS.fileName.pivRaw.raw = fullfile(QS.dir.piv, 'piv_results.mat') ;
 QS.fullFileBase.piv3d = fullfile(QS.dir.piv3d, 'piv3d_%04d.mat') ;
 % pathlines data
 QS.dir.pathlines = struct() ;
@@ -441,8 +454,7 @@ QS.fileName.pivAvg.vn  = fullfile(QS.dir.pivAvg, 'vnM_avg.mat') ;
 QS.fileName.pivAvg.v3d = fullfile(QS.dir.pivAvg, 'vM_avg.mat')  ;
 QS.fileName.pivAvg.vv  = fullfile(QS.dir.pivAvg, 'vvM_avg.mat') ;
 QS.fileName.pivAvg.vf  = fullfile(QS.dir.pivAvg, 'vfM_avg.mat') ;
-
-%% Helmholtz-Hodge and DEC -- Lagrangian averaging
+% Helmholtz-Hodge and DEC -- Lagrangian averaging
 QS.dir.pivAvgDEC = struct() ;
 QS.dir.pivAvgDEC.data   = fullfile(QS.dir.pivAvg, 'dec') ;
 QS.dir.pivAvgDEC.div2d  = fullfile(QS.dir.pivAvg, 'dec_div2d') ;
@@ -456,6 +468,28 @@ QS.dir.pivAvgDEC.harm3d = fullfile(QS.dir.pivAvg, 'dec_harm3d') ;
 QS.fullFileBase.decAvg = fullfile(QS.dir.pivAvgDEC.data, ...
                               [QS.fileBase.name '_dec.mat'] ) ;
                           
+%% Velocities -- no averaging
+QS.dir.pivRaw = fullfile(QS.dir.piv, 'noAvg') ;
+QS.fileName.pivRaw.v2dum = fullfile(QS.dir.pivRaw, 'v2dMum_simpletimeavg.mat') ;
+QS.fileName.pivRaw.v2d = fullfile(QS.dir.pivRaw, 'v2dM_simpletimeavg.mat') ;
+QS.fileName.pivRaw.vn  = fullfile(QS.dir.pivRaw, 'vnM_simpletimeavg.mat') ;
+QS.fileName.pivRaw.v3d = fullfile(QS.dir.pivRaw, 'vM_simpletimeavg.mat') ;
+QS.fileName.pivRaw.vv  = fullfile(QS.dir.pivRaw, 'vvM_simpletimeavg.mat') ;
+QS.fileName.pivRaw.vf  = fullfile(QS.dir.pivRaw, 'vfM_simpletimeavg.mat');
+% Helmholtz-Hodge and DEC -- simple/surface-Lagrangian averaging
+QS.dir.pivRawDEC = struct() ;
+QS.dir.pivRawDEC.data   = fullfile(QS.dir.pivRaw, 'dec') ;
+QS.dir.pivRawDEC.div2d  = fullfile(QS.dir.pivRaw, 'dec_div2d') ;
+QS.dir.pivRawDEC.div3d  = fullfile(QS.dir.pivRaw, 'dec_div3d') ;
+QS.dir.pivRawDEC.div3dTexture = fullfile(QS.dir.pivRaw, 'dec_div3dTexture') ;
+QS.dir.pivRawDEC.rot2d  = fullfile(QS.dir.pivRaw, 'dec_rot2d') ;
+QS.dir.pivRawDEC.rot3d  = fullfile(QS.dir.pivRaw, 'dec_rot3d') ;
+QS.dir.pivRawDEC.rot3dTexture = fullfile(QS.dir.pivRaw, 'dec_rot3dTexture') ;
+QS.dir.pivRawDEC.harm2d = fullfile(QS.dir.pivRaw, 'dec_harm2d') ;
+QS.dir.pivRawDEC.harm3d = fullfile(QS.dir.pivRaw, 'dec_harm3d') ;
+QS.fullFileBase.decRaw = fullfile(QS.dir.pivRawDEC.data, ...
+                              [QS.fileBase.name '_dec.mat'] ) ;
+
 %% Velocities -- simple/surface-Lagrangian averaging
 QS.dir.pivSimAvg = fullfile(QS.dir.piv, 'simpleAvg') ;
 % QS.dir.pivSimAvgCurl = fullfile(QS.dir.pivSimAvg, 'rot') ;

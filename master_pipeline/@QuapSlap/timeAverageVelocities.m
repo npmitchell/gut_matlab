@@ -9,6 +9,9 @@ function timeAverageVelocities(QS, options)
 % ----------
 % QS : QuapSlap class instance
 % options : struct with fields 
+%   plotOptions : optional struct with fields
+%       vtscale : float
+%       vnscale : float
 %   overwrite : bool
 %       overwrite previous results
 %   preview : bool
@@ -34,6 +37,7 @@ function timeAverageVelocities(QS, options)
 
 %% Default options
 overwrite = false ;
+overwriteImages = false ;
 preview = true ;
 timePoints = QS.xp.fileMeta.timePoints ;
 pivimCoords = QS.piv.imCoords ;
@@ -49,6 +53,9 @@ twidth = 2 ;          % average over (t-twidth, t+twidth) timepoints
 % as PIV reference coord sys
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
+end
+if isfield(options, 'overwriteImages')
+    overwriteImages = options.overwriteImages ;
 end
 if isfield(options, 'preview')
     preview = options.preview ;
@@ -171,7 +178,6 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
             assert(~any(isnan(piv3d.v0_rs(:))))
             assert(~any(isnan(piv3d.v3dfaces_rs(:))))
             assert(~any(isnan(piv3d.v0n_rs(:))))
-            assert(~any(isnan(piv3d.v0t2d(:))))
         catch
            % disp('inpainting NaNs in pt0 & pt1')
            error(['There are NaNs in the velocity data. Could use ', ...
@@ -231,6 +237,11 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
             tripulse = [ 0.3333; 0.6666; 1; 0.6666; 0.3333];
             tripulse = tripulse ./ sum(tripulse(:)) ;
             % tripulse = reshape(tripulse, [length(tripulse), 1]) ;
+        elseif twidth == 1
+            tripulse = [ 0.5; 1; 0.5];
+            tripulse = tripulse ./ sum(tripulse(:)) ;
+        elseif twidth == 0
+            tripulse = [ 1 ] ;
         else
             error(['build tripulse of twidth ' num2str(twidth) ' here'])
         end
@@ -403,14 +414,22 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         vvsmM(tidx, :, :) = vvMtp ;           % in um/min rs, 3d velocities at mesh vertices
         v2dsmM(tidx, :, :) = v2dMtp ;         % in pixels/ min, 2d velocities at PIV evaluation coordinates
         v2dsmMum(tidx, :, :) = v2dMumtp ;     % in scaled pix/min, but proportional to um/min, 2d velocities at PIV evaluation coordinates
-        
+
+        % Check that no NaNs
+        assert(~any(isnan(vsmM(:))))
+        assert(~any(isnan(vvsmM(:))))
+        assert(~any(isnan(vnsmM(:))))
+        assert(~any(isnan(v2dsmM(:))))
+        assert(~any(isnan(v2dsmMum(:))))
+        assert(~any(isnan(vfsmM(:))))
+
         %% Plot this timepoint
         close all
         plotOptions.vsm = squeeze(vsmM(tidx, :, :))  ;
         plotOptions.vnsm = squeeze(vnsmM(tidx, :, :))  ;
         plotOptions.v2dsm = squeeze(v2dsmM(tidx, :, :)) ;
         plotOptions.v2dsmum = squeeze(v2dsmMum(tidx, :, :)) ;
-        plotOptions.overwrite = overwrite ;
+        plotOptions.overwrite = overwriteImages ;
         QS.plotAverageVelocitiesTimePoint(tp, plotOptions) ;
     end
     
@@ -432,7 +451,7 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
     save(fileNames.vv, 'vvsmM') 
     save(fileNames.v2d, 'v2dsmM') 
     save(fileNames.v2dum, 'v2dsmMum') 
-    
+        
     disp('done')
 
 end

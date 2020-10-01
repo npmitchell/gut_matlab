@@ -40,6 +40,7 @@ climit = 0.2 ;
 climit_err = 0.2 ;
 climit_veln = climit * 10 ;
 climit_H = climit * 2 ;
+climit_radius = 0 ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
 
@@ -51,7 +52,7 @@ if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
 if isfield(options, 'overwrite_timePoints')
-    overwrite = options.overwrite_timePoints ;
+    overwrite_timePoints = options.overwrite_timePoints ;
 end
 %% parameter options
 if isfield(options, 'lambda')
@@ -74,6 +75,9 @@ if isfield(options, 'climit_veln')
 end
 if isfield(options, 'climit_H')
     climit_H = options.climit_H ;
+end
+if isfield(options, 'climit_radius')
+    climit_radius = options.climit_radius ;
 end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
@@ -160,36 +164,31 @@ tps = QS.xp.fileMeta.timePoints(1:end-1) - tfold;
 
 % preallocate for cumulative error
 ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
-HH_M   = zeros(ntps, nU, nV) ;      % all vertices
-divv_M = zeros(ntps, nU, nV) ; 
-veln_M = zeros(ntps, nU, nV) ; 
-gdot_M = zeros(ntps, nU, nV) ; 
-H2vn_M = zeros(ntps, nU, nV) ;
-HH_apM   = zeros(ntps, nU) ;        % dv averaged
+HH_apM   = zeros(ntps, nU) ;   % dv averaged
 divv_apM = zeros(ntps, nU) ;
 veln_apM = zeros(ntps, nU) ;
 gdot_apM = zeros(ntps, nU) ;
-H2vn_apM = zeros(ntps, nU) ;
-HH_lM   = zeros(ntps, nU) ;         % left averaged
+radi_apM = zeros(ntps, nU) ;
+HH_lM   = zeros(ntps, nU) ;    % left averaged
 divv_lM = zeros(ntps, nU) ;
 veln_lM = zeros(ntps, nU) ;
 gdot_lM = zeros(ntps, nU) ;
-H2vn_lM = zeros(ntps, nU) ;
-HH_rM   = zeros(ntps, nU) ;         % right averaged
+radi_lM = zeros(ntps, nU) ;
+HH_rM   = zeros(ntps, nU) ;    % right averaged
 divv_rM = zeros(ntps, nU) ;
 veln_rM = zeros(ntps, nU) ;
 gdot_rM = zeros(ntps, nU) ;
-H2vn_rM = zeros(ntps, nU) ;
-HH_dM   = zeros(ntps, nU) ;         % dorsal averaged
+radi_rM = zeros(ntps, nU) ;
+HH_dM   = zeros(ntps, nU) ;    % dorsal averaged
 divv_dM = zeros(ntps, nU) ;
 veln_dM = zeros(ntps, nU) ;
 gdot_dM = zeros(ntps, nU) ;
-H2vn_dM = zeros(ntps, nU) ;
-HH_vM   = zeros(ntps, nU) ;         % ventral averaged
+radi_dM = zeros(ntps, nU) ;
+HH_vM   = zeros(ntps, nU) ;    % ventral averaged
 divv_vM = zeros(ntps, nU) ;
 veln_vM = zeros(ntps, nU) ;
 gdot_vM = zeros(ntps, nU) ;
-H2vn_vM = zeros(ntps, nU) ;
+radi_vM = zeros(ntps, nU) ;
 
 % Output directory is inside metricKinematics dir
 outdir = fullfile(mKDir, 'measurements') ;
@@ -201,6 +200,7 @@ end
 unitstr = [ '[1/' QS.timeUnits ']' ];
 Hunitstr = [ '[1/' QS.spaceUnits ']' ];
 vunitstr = [ '[' QS.spaceUnits '/' QS.timeUnits ']' ];
+runitstr = [ '[' QS.spaceUnits ']' ] ;
     
 % Compute or load all timepoints
 for tp = QS.xp.fileMeta.timePoints(1:end-1)
@@ -214,6 +214,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     dfn = fullfile(outdir, sprintf('divv_vertices_%06d.mat', tp)) ;
     nfn = fullfile(outdir, sprintf('veln_vertices_%06d.mat', tp)) ;
     H2vnfn = fullfile(outdir, sprintf('H2vn_vertices_%06d.mat', tp)) ;
+    rfn = fullfile(outdir, sprintf('radius_vertices_%06d.mat', tp)) ;
 
     % Load timeseries measurements
     load(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
@@ -221,6 +222,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     load(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
     load(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
     load(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
+    load(rfn, 'radius', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v') 
 
     % separate 2d/3d data
     H2d = HH ;
@@ -233,6 +235,8 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     veln3d = veln(:, 1:nV-1) ;
     H2vn2d = H2vn ;
     H2vn3d = H2vn(:, 1:nV-1) ;
+    radi2d = radius ;
+    radi3d = radius(:, 1:nV-1) ;
     
     %% Plot results
     % % operational plotting options
@@ -249,11 +253,13 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     pOptions.divv2d = divv2d ;
     pOptions.gdot2d = gdot2d ;
     pOptions.veln2d = veln2d ;
+    pOptions.radi2d = radi2d ;
     pOptions.H2d = H2d ;
     pOptions.H2vn3d = H2vn3d ;
     pOptions.divv3d = divv3d ;
     pOptions.gdot3d = gdot3d ;
     pOptions.veln3d = veln3d ;
+    pOptions.radi3d = radi3d ;
     pOptions.H3d = H3d ;
     pOptions.cutMesh = [] ;
     pOptions.mesh = [] ;
@@ -276,6 +282,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     divv_apM(tidx, :) = divv_ap ;
     veln_apM(tidx, :) = veln_ap ;
     H2vn_apM(tidx, :) = H2vn_ap ;
+    radi_apM(tidx, :) = radius_ap ;
 
     % left quarter
     HH_lM(tidx, :) = HH_l ;
@@ -283,6 +290,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     divv_lM(tidx, :) = divv_l ;
     veln_lM(tidx, :) = veln_l ;
     H2vn_lM(tidx, :) = H2vn_l ;
+    radi_lM(tidx, :) = radius_l ;
 
     % right quarter
     HH_rM(tidx, :) = HH_r ;
@@ -290,6 +298,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     divv_rM(tidx, :) = divv_r ;
     veln_rM(tidx, :) = veln_r ;
     H2vn_rM(tidx, :) = H2vn_r ;
+    radi_rM(tidx, :) = radius_r ;
 
     % dorsal quarter
     HH_dM(tidx, :) = HH_d ;
@@ -297,6 +306,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     divv_dM(tidx, :) = divv_d ;
     veln_dM(tidx, :) = veln_d ;
     H2vn_dM(tidx, :) = H2vn_d ;
+    radi_dM(tidx, :) = radius_r ;
 
     % ventral quarter
     HH_vM(tidx, :) = HH_v ;
@@ -304,6 +314,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     divv_vM(tidx, :) = divv_v ;
     veln_vM(tidx, :) = veln_v ;
     H2vn_vM(tidx, :) = H2vn_v ;
+    radi_vM(tidx, :) = radius_v ;
 end
 
 %% Store kymograph data in cell arrays
@@ -312,6 +323,7 @@ gdotsK = {gdot_apM, gdot_lM, gdot_rM, gdot_dM, gdot_vM} ;
 divvsK = {divv_apM, divv_lM, divv_rM, divv_dM, divv_vM} ;
 velnsK = {veln_apM, veln_lM, veln_rM, veln_dM, veln_vM} ;
 H2vnsK = {H2vn_apM, H2vn_lM, H2vn_rM, H2vn_dM, H2vn_vM} ;
+radisK = {radi_apM, radi_lM, radi_rM, radi_dM, radi_vM} ;
 
 %% Now plot different measured quantities as kymographs
 if plot_kymographs
@@ -338,20 +350,24 @@ if plot_kymographs
         divvK = divvsK{qq} ;
         velnK = velnsK{qq} ;
         H2vnK = H2vnsK{qq} ;
-        m2plot = {gdotK, HHK, divvK, velnK, H2vnK} ;
+        radiK = radisK{qq} ;
+        m2plot = {gdotK, HHK, divvK, velnK, H2vnK, radiK} ;
         titles = {'$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
             'mean curvature, $H$', ...
             'divergence of flow, $\nabla \cdot \mathbf{v}$', ...
             'normal velocity, $v_n$', ...
-            'normal motion, $v_n 2 H$'} ;
+            'normal motion, $v_n 2 H$', ...
+            'radius'} ;
         labels = {['$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
             ['mean curvature, $H$ ' Hunitstr], ...
             ['$\nabla \cdot \mathbf{v}$ ' unitstr], ...
             ['normal velocity, $v_n$ ' vunitstr] , ...
-            ['normal motion, $v_n 2 H $ ' unitstr]} ;
-        names = {'gdot', 'HH', 'divv', 'veln', 'H2vn'} ;
-        climits = [climit, climit_H, climit, climit_veln, climit] ;
-
+            ['normal motion, $v_n 2 H $ ' unitstr], ...
+            ['radius ' runitstr]} ;
+        names = {'gdot', 'HH', 'divv', 'veln', 'H2vn', 'radius'} ;
+        climits = [climit, climit_H, climit, climit_veln, climit, climit_radius] ;
+        cmaps = {bwr256, bwr256, bwr256, bwr256, bwr256, 'parula'};
+            
         %% Plot gdot/HH/divv/veln/H2vn DV-averaged kymograph
         for pp = 1:length(m2plot)
             
@@ -363,16 +379,16 @@ if plot_kymographs
                 close all
                 set(gcf, 'visible', 'off')
                 imagesc((1:nU)/nU, tps, m2plot{pp})
-                caxis([-climits(pp), climits(pp)])
-                colormap(bwr256)
+                if climits(pp) > 0
+                    caxis([-climits(pp), climits(pp)])
+                end
+                colormap(cmaps{pp})
                 % Add folds to plot
                 hold on;
-                fons1 = max(1, fons(1)) ;
-                fons2 = max(1, fons(2)) ;
-                fons3 = max(1, fons(3)) ;
-                plot(folds.folds(fons1:end-1, 1) / nU, tps(fons1:end))
-                plot(folds.folds(fons2:end-1, 2) / nU, tps(fons2:end))
-                plot(folds.folds(fons3:end-1, 3) / nU, tps(fons3:end))
+                for ii = 1:length(fons)
+                    fonsi = max(1, fons(ii) ) ; 
+                    plot(folds.folds(fonsi:end-1, ii) / nU, tps(fonsi:end))            
+                end
 
                 % title and save
                 title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
@@ -385,21 +401,22 @@ if plot_kymographs
                 export_fig(fn, '-png', '-nocrop', '-r200')   
 
                 % Zoom in on small values
-                caxis([-climits(pp)/3, climits(pp)/3])
-                fn = fullfile(odir, [names{pp} '_zoom.png']) ;
-                disp(['saving ', fn])
-                export_fig(fn, '-png', '-nocrop', '-r200')   
-                % Zoom in on early times
-                ylim([min(tps), max(fons) + 10])
-                caxis([-climits(pp)/3, climits(pp)/3])
-                fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
-                disp(['saving ', fn])
-                export_fig(fn, '-png', '-nocrop', '-r200')   
+                if climits(pp) > 0
+                    caxis([-climits(pp)/3, climits(pp)/3])
+                    fn = fullfile(odir, [names{pp} '_zoom.png']) ;
+                    disp(['saving ', fn])
+                    export_fig(fn, '-png', '-nocrop', '-r200')   
+                    % Zoom in on early times
+                    ylim([min(tps), max(fons) + 10])
+                    caxis([-climits(pp)/3, climits(pp)/3])
+                    fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
+                    disp(['saving ', fn])
+                    export_fig(fn, '-png', '-nocrop', '-r200')  
+                end
             end
         end
     end
 end
-
 
 %% Metric Kinematic Correlations -- vertex-by-vertex
 % Plot both all time and select times

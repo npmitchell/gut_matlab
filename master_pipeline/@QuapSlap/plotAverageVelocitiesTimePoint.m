@@ -45,10 +45,19 @@ if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
 if isfield(options, 'vtscale')
-    vtscale = options.vtscale ;
+    if options.vtscale > 0
+        vtscale = options.vtscale ;
+    end
+end
+if isfield(options, 'vnscale')
+    if options.vnscale > 0
+        vnscale = options.vnscale ;
+    end
 end
 if isfield(options, 'vscale')
-    vscale = options.vscale ;
+    if options.vscale > 0
+        vscale = options.vscale ;
+    end
 end
 if isfield(options, 'alphaVal')
     alphaVal = options.alphaVal ;

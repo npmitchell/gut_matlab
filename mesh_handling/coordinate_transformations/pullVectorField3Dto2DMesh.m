@@ -33,6 +33,12 @@ jac3d_to_2d = jacobian3Dto2DMesh(v2d, v3d, ff) ;
 vfield2d = zeros(size(fieldfaces, 1), 2);
 for f = 1:length(fieldfaces)
     vfield2d(f,:) = jac3d_to_2d{fieldfaces(f)} * vfield3d(f,:)';
+    
+    if any(any(isnan(jac3d_to_2d{fieldfaces(f)})))
+        debugMsg(1, ['jacobian is singular for face ' ...
+            num2str(fieldfaces(f))])
+    end
+    
 end
 
 

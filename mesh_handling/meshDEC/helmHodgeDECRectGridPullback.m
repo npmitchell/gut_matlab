@@ -9,7 +9,7 @@ function [divs, rots, harms, glueMesh] = ...
 % ----------
 % cutM : struct with fields v,f
 % facevf : #faces x 3 float array
-%   vector field defined on faces
+%   vector field defined on faces of cutM?
 % Options : struct with fields
 %   lambda : smoothing diffusion constant
 % varargin : keyword arguments (optional)

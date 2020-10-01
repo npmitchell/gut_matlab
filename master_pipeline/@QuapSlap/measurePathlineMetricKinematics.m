@@ -31,9 +31,9 @@ plot_gdot_correlations = false ;
 plot_gdot_decomp = true ;
 
 %% Parameter options
-lambda_mesh = 0.002 ;
-lambda = 0.01 ; 
-lambda_err = 0.01 ;
+lambda = QS.smoothing.lambda ; 
+lambda_mesh = QS.smoothing.lambda_mesh ;
+lambda_err = QS.smoothing.lambda_err ;
 climit = 0.2 ;
 climit_err = 0.2 ;
 climit_veln = climit * 10 ;
@@ -60,9 +60,6 @@ if isfield(options, 'lambda_err')
 end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;
-else
-    % default lambda_mesh is equal to lambda 
-    lambda_mesh = lambda ;
 end
 if isfield(options, 'climit')
     climit = options.climit ;
@@ -121,12 +118,12 @@ buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 if strcmp(averagingStyle, 'Lagrangian')
     mKDir = fullfile(QS.dir.metricKinematics.root, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
-        lambda, lambda_err, lambda_mesh), '.', 'p'));
+        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
+        lambda, lambda_mesh, lambda_err), '.', 'p'));
 else
     mKDir = fullfile(QS.dir.metricKinematicsSimple, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lerr%0.3f_lmesh%0.3f'], ...
-        lambda, lambda_err, lambda_mesh), '.', 'p'));
+        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
+        lambda, lambda_mesh, lambda_err), '.', 'p'));
 end
 
 %% load from QS
@@ -142,7 +139,7 @@ end
 lastIdx = length(QS.xp.fileMeta.timePoints) - 1 ;
 coarseIdx = 1:10:lastIdx ;
 fineIdx = setdiff(1:lastIdx, coarseIdx) ;
-allIdx = [80, coarseIdx, fineIdx ] ;
+allIdx = [coarseIdx, fineIdx ] ;
 tp2do = QS.xp.fileMeta.timePoints(allIdx) ;
 
 % DONE WITH PREPARATIONS
@@ -180,10 +177,11 @@ for tp = tp2do
     efn = fullfile(outdir, sprintf('gdot_pathline%04d_%06d.mat', t0Pathline, tp)) ;
     dfn = fullfile(outdir, sprintf('divv_pathline%04d_%06d.mat', t0Pathline, tp)) ;
     nfn = fullfile(outdir, sprintf('veln_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+    rfn = fullfile(outdir, sprintf('radius_pathline%04d_%06d.mat', t0Pathline, tp)) ;
     H2vnfn = fullfile(outdir, sprintf('H2vn_pathline%04d_%06d.mat', t0Pathline, tp)) ;
     files_missing = ~exist(Hfn, 'file') || ~exist(efn, 'file') || ...
          ~exist(dfn, 'file') || ~exist(nfn, 'file') || ...
-          ~exist(H2vnfn, 'file') ;
+          ~exist(H2vnfn, 'file') || ~exist(rfn, 'file') ;
     
     if overwrite || files_missing
         disp('Computing pathline metric kinematics...')
@@ -192,6 +190,7 @@ for tp = tp2do
         efnMesh = fullfile(mdatdir, sprintf('gdot_vertices_%06d.mat', tp)) ;
         dfnMesh = fullfile(mdatdir, sprintf('divv_vertices_%06d.mat', tp)) ;
         nfnMesh = fullfile(mdatdir, sprintf('veln_vertices_%06d.mat', tp)) ;
+        rfnMesh = fullfile(mdatdir, sprintf('radius_vertices_%06d.mat', tp)) ;
         H2vnfnMesh = fullfile(mdatdir, sprintf('H2vn_vertices_%06d.mat', tp)) ;
 
         try
@@ -200,6 +199,7 @@ for tp = tp2do
             load(dfnMesh, 'divv')
             load(nfnMesh, 'veln') 
             load(H2vnfnMesh, 'H2vn') 
+            load(rfnMesh, 'radius') 
         catch
             msg = 'Run QS.measureMetricKinematics() ' ;
             msg = [msg 'with lambdas=(mesh,lambda,err)=('] ;
@@ -224,6 +224,7 @@ for tp = tp2do
         divv = QS.interpolateOntoPullbackXY(XY, divv, options) ;
         veln = QS.interpolateOntoPullbackXY(XY, veln, options) ;
         H2vn = QS.interpolateOntoPullbackXY(XY, H2vn, options) ;
+        radius = QS.interpolateOntoPullbackXY(XY, radius, options) ;
                 
         % OPTION 1: simply reshape, tracing each XY dot to its t0Pathline
         % grid coordinate
@@ -232,6 +233,7 @@ for tp = tp2do
         divv = reshape(divv, [nU, nV]) ;
         veln = reshape(veln, [nU, nV]) ;
         H2vn = reshape(H2vn, [nU, nV]) ;
+        radius = reshape(radius, [nU, nV]) ;
         
         %% OPTION 2: the following regrids onto original XY coordinates,
         % rendering the process of following pathlines moot. 
@@ -250,12 +252,13 @@ for tp = tp2do
         % H2vn = binData2dGrid([XY, H2vn], [1,Lx], vminmax, nU, nV) ;
            
         % Average along DV -- do not ignore last row at nV since not quite
-        % redundant in this version of the algorithm
+        % redundant in this version of the algorithm -- is that true?
         HH_ap = nanmean(HH, 2) ;
         gdot_ap = nanmean(gdot, 2) ;
         divv_ap = nanmean(divv, 2) ;
         veln_ap = nanmean(veln, 2) ;
         H2vn_ap = nanmean(H2vn, 2) ;
+        radius_ap = nanmean(radius, 2) ;
         
         % quarter bounds
         q0 = round(nV * 0.125) ;
@@ -273,6 +276,7 @@ for tp = tp2do
         divv_l = nanmean(divv(:, left), 2) ;
         veln_l = nanmean(veln(:, left), 2) ;
         H2vn_l = nanmean(H2vn(:, left), 2) ;
+        radius_l = nanmean(radius(:, left), 2) ;
         
         % right quarter
         HH_r = nanmean(HH(:, right), 2) ;
@@ -280,6 +284,7 @@ for tp = tp2do
         divv_r = nanmean(divv(:, right), 2) ;
         veln_r = nanmean(veln(:, right), 2) ;
         H2vn_r = nanmean(H2vn(:, right), 2) ;
+        radius_r = nanmean(radius(:, right), 2) ;
         
         % dorsal quarter
         HH_d = nanmean(HH(:, dorsal), 2) ;
@@ -287,6 +292,7 @@ for tp = tp2do
         divv_d = nanmean(divv(:, dorsal), 2) ;
         veln_d = nanmean(veln(:, dorsal), 2) ;
         H2vn_d = nanmean(H2vn(:, dorsal), 2) ;
+        radius_d = nanmean(radius(:, dorsal), 2) ;
         
         % ventral quarter
         HH_v = nanmean(HH(:, ventral), 2) ;
@@ -294,6 +300,7 @@ for tp = tp2do
         divv_v = nanmean(divv(:, ventral), 2) ;
         veln_v = nanmean(veln(:, ventral), 2) ;
         H2vn_v = nanmean(H2vn(:, ventral), 2) ;
+        radius_v = nanmean(radius(:, ventral), 2) ;
         
         % Save results
         save(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
@@ -301,6 +308,8 @@ for tp = tp2do
         save(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
         save(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
         save(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v')
+        save(rfn, 'radius', 'radius_ap', 'radius_l', 'radius_r', ...
+            'radius_d', 'radius_v')
     end
 end
 disp('done with measuring pathline metric kinematics')
@@ -325,6 +334,7 @@ if ~files_exist || overwrite
         efn = fullfile(outdir, sprintf('gdot_pathline%04d_%06d.mat', t0Pathline, tp)) ;
         dfn = fullfile(outdir, sprintf('divv_pathline%04d_%06d.mat', t0Pathline, tp)) ;
         nfn = fullfile(outdir, sprintf('veln_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+        rfn = fullfile(outdir, sprintf('radius_pathline%04d_%06d.mat', t0Pathline, tp)) ;
         H2vnfn = fullfile(outdir, sprintf('H2vn_pathline%04d_%06d.mat', t0Pathline, tp)) ;
 
         % Load timeseries measurements
@@ -333,6 +343,7 @@ if ~files_exist || overwrite
         load(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
         load(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
         load(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
+        load(rfn, 'radius', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v') 
 
         %% Store in matrices
         % dv averaged
@@ -341,6 +352,7 @@ if ~files_exist || overwrite
         divv_apM(tidx, :) = divv_ap ;
         veln_apM(tidx, :) = veln_ap ;
         H2vn_apM(tidx, :) = H2vn_ap ;
+        radius_apM(tidx, :) = radius_ap ; 
 
         % left quarter
         HH_lM(tidx, :) = HH_l ;
@@ -348,6 +360,7 @@ if ~files_exist || overwrite
         divv_lM(tidx, :) = divv_l ;
         veln_lM(tidx, :) = veln_l ;
         H2vn_lM(tidx, :) = H2vn_l ;
+        radius_lM(tidx, :) = radius_l ; 
 
         % right quarter
         HH_rM(tidx, :) = HH_r ;
@@ -355,6 +368,7 @@ if ~files_exist || overwrite
         divv_rM(tidx, :) = divv_r ;
         veln_rM(tidx, :) = veln_r ;
         H2vn_rM(tidx, :) = H2vn_r ;
+        radius_rM(tidx, :) = radius_r ; 
 
         % dorsal quarter
         HH_dM(tidx, :) = HH_d ;
@@ -362,6 +376,7 @@ if ~files_exist || overwrite
         divv_dM(tidx, :) = divv_d ;
         veln_dM(tidx, :) = veln_d ;
         H2vn_dM(tidx, :) = H2vn_d ;
+        radius_dM(tidx, :) = radius_d ; 
 
         % ventral quarter
         HH_vM(tidx, :) = HH_v ;
@@ -369,15 +384,20 @@ if ~files_exist || overwrite
         divv_vM(tidx, :) = divv_v ;
         veln_vM(tidx, :) = veln_v ;
         H2vn_vM(tidx, :) = H2vn_v ;
+        radius_vM(tidx, :) = radius_v ; 
     end
     
     disp('Saving DV-averaged kymograph data')
     % Save the DV-averaged kymographs
-    save(apKymoFn, 'HH_apM', 'gdot_apM', 'divv_apM', ...
-        'veln_apM', 'H2vn_apM')
-    save(lKymoFn, 'HH_lM', 'gdot_lM', 'divv_lM', 'veln_lM', 'H2vn_lM')
-    save(rKymoFn, 'HH_rM', 'gdot_rM', 'divv_rM', 'veln_rM', 'H2vn_rM')
-    save(dKymoFn, 'HH_dM', 'gdot_dM', 'divv_dM', 'veln_dM', 'H2vn_dM')
-    save(vKymoFn, 'HH_vM', 'gdot_vM', 'divv_vM', 'veln_vM', 'H2vn_vM')
+    save(apKymoFn, 'HH_apM', 'gdot_apM', 'divv_apM', 'veln_apM', ...
+        'H2vn_apM', 'radius_apM')
+    save(lKymoFn, 'HH_lM', 'gdot_lM', 'divv_lM', 'veln_lM', ...
+        'H2vn_lM', 'radius_lM')
+    save(rKymoFn, 'HH_rM', 'gdot_rM', 'divv_rM', 'veln_rM', ...
+        'H2vn_rM', 'radius_rM')
+    save(dKymoFn, 'HH_dM', 'gdot_dM', 'divv_dM', 'veln_dM', ...
+        'H2vn_dM', 'radius_dM')
+    save(vKymoFn, 'HH_vM', 'gdot_vM', 'divv_vM', 'veln_vM', ...
+        'H2vn_vM', 'radius_vM')
     
 end

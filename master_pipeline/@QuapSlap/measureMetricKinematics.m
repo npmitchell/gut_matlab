@@ -187,7 +187,7 @@ ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
 lastIdx = length(QS.xp.fileMeta.timePoints) - 1 ;
 coarseIdx = 1:10:lastIdx ;
 fineIdx = setdiff(1:lastIdx, coarseIdx) ;
-allIdx = [66, coarseIdx, fineIdx ] ;
+allIdx = [coarseIdx, fineIdx ] ;
 tp2do = QS.xp.fileMeta.timePoints(allIdx) ;
 
 % Output directory is inside metricKinematics dir
@@ -208,9 +208,11 @@ for tp = tp2do
     dfn = fullfile(outdir, sprintf('divv_vertices_%06d.mat', tp)) ;
     nfn = fullfile(outdir, sprintf('veln_vertices_%06d.mat', tp)) ;
     H2vnfn = fullfile(outdir, sprintf('H2vn_vertices_%06d.mat', tp)) ;
+    rfn = fullfile(outdir, sprintf('radius_vertices_%06d.mat', tp)) ;
 
     redo_comp = overwrite || ~exist(Hfn, 'file') || ~exist(efn, 'file') ;
-    redo_comp = redo_comp || ~exist(dfn, 'file') || ~exist(dfn, 'file') ;
+    redo_comp = redo_comp || ~exist(dfn, 'file') || ~exist(nfn, 'file') ;
+    redo_comp = redo_comp || ~exist(H2vnfn, 'file') || ~exist(rfn, 'file') ;
 
     if redo_comp
         tic 
@@ -348,12 +350,20 @@ for tp = tp2do
             gdot3d = divv3d - H2vn3d ;
         end
     
+        %% Obtain radius from distance from vertices to hoop average
+        cntrline = mean(reshape(mesh.v, [nU, nV-1, 3]), 2) ;
+        radi3d = vecnorm(reshape(mesh.v, [nU, nV-1, 3]) - cntrline, 2, 3) ;
+        radi3d = radi3d(:) ;
+        radi2d = radi3d ;
+        radi2d(nU*(nV-1)+1:nU*nV) = radi3d(1:nU) ;
+        
         %% Store data on disk
         HH = reshape(H2d, [nU,nV]) ;
         gdot = reshape(gdot2d, [nU,nV]) ;
         divv = reshape(divv2d, [nU,nV]) ;
         veln = reshape(veln2d, [nU,nV]) ;
         H2vn = reshape(H2vn2d, [nU, nV]) ;
+        radius = reshape(radi2d, [nU, nV]) ;
         
         % Average along DV -- ignore last redudant row at nV
         HH_ap = mean(HH(:, 1:nV-1), 2) ;
@@ -361,6 +371,7 @@ for tp = tp2do
         divv_ap = mean(divv(:, 1:nV-1), 2) ;
         veln_ap = mean(veln(:, 1:nV-1), 2) ;
         H2vn_ap = mean(H2vn(:, 1:nV-1), 2) ;
+        radius_ap = mean(radius(:, 1:nV-1), 2) ;
         
         % quarter bounds
         q0 = round(nV * 0.125) ;
@@ -378,6 +389,7 @@ for tp = tp2do
         divv_l = mean(divv(:, left), 2) ;
         veln_l = mean(veln(:, left), 2) ;
         H2vn_l = mean(H2vn(:, left), 2) ;
+        radius_l = mean(radius(:, left), 2) ;
         
         % right quarter
         HH_r = mean(HH(:, right), 2) ;
@@ -385,6 +397,7 @@ for tp = tp2do
         divv_r = mean(divv(:, right), 2) ;
         veln_r = mean(veln(:, right), 2) ;
         H2vn_r = mean(H2vn(:, right), 2) ;
+        radius_r = mean(radius(:, right), 2) ;
         
         % dorsal quarter
         HH_d = mean(HH(:, dorsal), 2) ;
@@ -392,6 +405,7 @@ for tp = tp2do
         divv_d = mean(divv(:, dorsal), 2) ;
         veln_d = mean(veln(:, dorsal), 2) ;
         H2vn_d = mean(H2vn(:, dorsal), 2) ;
+        radius_d = mean(radius(:, dorsal), 2) ;
         
         % ventral quarter
         HH_v = mean(HH(:, ventral), 2) ;
@@ -399,6 +413,7 @@ for tp = tp2do
         divv_v = mean(divv(:, ventral), 2) ;
         veln_v = mean(veln(:, ventral), 2) ;
         H2vn_v = mean(H2vn(:, ventral), 2) ;
+        radius_v = mean(radius(:, ventral), 2) ;
         
         %% Save timeseries measurements
         save(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
@@ -406,6 +421,7 @@ for tp = tp2do
         save(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
         save(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
         save(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v')
+        save(rfn, 'radius', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v')
         
         save_lambdas = true ;
         toc
@@ -417,6 +433,7 @@ for tp = tp2do
         load(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
         load(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
         load(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
+        load(rfn, 'radius', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v') 
         
         H2d = HH ;
         H3d = HH(:, 1:nV-1) ;
@@ -428,6 +445,8 @@ for tp = tp2do
         veln3d = veln(:, 1:nV-1) ;
         H2vn2d = H2vn ;
         H2vn3d = H2vn(:, 1:nV-1) ;
+        radi2d = radius ;
+        radi3d = radius(:, 1:nV-1) ;
         
         % Ensure that mesh and cutMesh are not assumed to be some other
         % timepoint's meshes
@@ -460,11 +479,13 @@ for tp = tp2do
     pOptions.divv2d = divv2d ;
     pOptions.gdot2d = gdot2d ;
     pOptions.veln2d = veln2d ;
+    pOptions.radi2d = radi2d ;
     pOptions.H2d = H2d ;
     pOptions.H2vn3d = H2vn3d ;
     pOptions.divv3d = divv3d ;
     pOptions.gdot3d = gdot3d ;
     pOptions.veln3d = veln3d ;
+    pOptions.radi3d = radi3d ;
     pOptions.H3d = H3d ;
     pOptions.cutMesh = cutMesh ;
     pOptions.mesh = mesh ;

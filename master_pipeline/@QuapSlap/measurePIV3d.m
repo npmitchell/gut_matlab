@@ -56,7 +56,7 @@ function measurePIV3d(QS, options)
 % NPMitchell 2020
 
 %% Default options
-vnscale = 3 ;
+vnscale = 2 ;
 vtscale = 5 ;
 
 %% Unpack options
@@ -145,7 +145,7 @@ else
     piv3d = cell(ntps, 1) ;
     
     disp('Loading raw PIV results')
-    piv = load(QS.fileName.pivRaw) ;
+    piv = load(QS.fileName.pivRaw.raw) ;
     
     % Iterate over all images with flow fields ----------------------------
     for ii=1:(ntps - 1)
@@ -168,13 +168,15 @@ else
         Ysz1 = size(im1, 1) ;
         
         % Load spcutMesh 
-        mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSm, timePoints(ii)), 'spcutMeshSm') ;
+        mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSm, ...
+            timePoints(ii)), 'spcutMeshSm') ;
         mesh0 = mesh0.spcutMeshSm ;
         umax0 = max(mesh0.u(:, 1)) ;
         vmax0 = max(mesh0.u(:, 2)) ;
         
         % Load next timepoint's spcutMesh
-        mesh1 = load(sprintf(QS.fullFileBase.spcutMeshSm, timePoints(ii + 1)), 'spcutMeshSm') ;
+        mesh1 = load(sprintf(QS.fullFileBase.spcutMeshSm, ...
+            timePoints(ii + 1)), 'spcutMeshSm') ;
         mesh1 = mesh1.spcutMeshSm ;
         umax1 = max(mesh1.u(:, 1)) ;
         vmax1 = max(mesh1.u(:, 2)) ;
@@ -230,11 +232,12 @@ else
             end
             clearvars dgrid
         end
+        
+        % Note: tm0f   will be [2*(nU-1)*(nV-1)*5] x 3
+        % Note: tm0v2d will be [nU*(nV-1)*4 + nU*nV] x 2
+        % Note: pt0    will be [#X0 * #Y0] x 3
         [tm0f, tm0v2d, tm0v3d, ~] = tileAnnularCutMesh(mesh0, tileCount);
         tm0XY = QS.uv2XY(im0, tm0v2d, doubleCovered, umax0, vmax0) ;
-        % tm0X = x2Xpix(tm0v2d(:, 1), Ysc0, umax0) ;
-        % tm0Y = y2Ypix(tm0v2d(:, 2), Ysc0) ;
-        % tm0XY = [tm0X, tm0Y] ;
         [pt0, fieldfaces, tr0] = interpolate2Dpts_3Dmesh(tm0f, tm0XY,...
                                         tm0v3d, [x0(:), y0(:)]) ;
         
@@ -452,6 +455,9 @@ else
         [v0n, v0t, v0t2d, jac, facenormals, g_ab, dilation] = ...
             resolveTangentNormalVelocities(tm0f, tm0v3d, v0, fieldfaces, tm0XY) ;
         
+        % Check for NaNs
+        assert(~any(isnan(v0t2d(:)))) 
+        
         % check this
         % imagesc(x0(:, 1), y0(1, :), reshape(v0n, size(x0)))
         % error('checking here -- erase this check if no debug')
@@ -504,8 +510,11 @@ else
         % If the velocity sampling is finer than 3 vectors on each face,
         % do one averaging pass before resolving onto faces
         [bincounts] = histc(fieldfaces, min(fieldfaces)-1:max(fieldfaces)+1) ;
-        if mean(bincounts(bincounts > 0)) > 3
-            error('Velocity is much finer than mesh -- do averaging step here. Have not needed to do this yet.')
+        if mean(bincounts(bincounts > 0)) > 20
+            msg = 'Velocity is much finer than mesh by factor of ';
+            msg = [msg num2str(mean(bincounts(bincounts > 0))) ] ;
+            msg = [msg '-- Do averaging step here. Have not needed to do this yet.'] ;
+            error(msg) 
         else
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             % Assign one velocity per face via interpolation
@@ -620,6 +629,18 @@ else
         datstruct.dilation_rs = dilation / resolution ;     % dilation of face from 3d to 2d
         datstruct.jacobian = jac ;          % jacobian of 3d->2d transformation
         datstruct.fieldfaces = fieldfaces ; % faces where v defined from PIV
+        
+        % Check for nans        
+        try
+            assert(~any(isnan(v0(:)))) 
+            assert(~any(isnan(v0n(:)))) 
+            assert(~any(isnan(v0t(:)))) 
+            assert(~any(isnan(datstruct.m0v3d(:)))) 
+            assert(~any(isnan(datstruct.v0t_rs(:)))) 
+            assert(~any(isnan(datstruct.v0t2d(:))))
+        catch
+            error('Velocities contain NaNs. Debug here.')
+        end
         
         % package the struct with a readme
         readme = struct ;

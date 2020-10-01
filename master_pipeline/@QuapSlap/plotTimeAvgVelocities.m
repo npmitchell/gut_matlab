@@ -39,7 +39,9 @@ plot_vxyz = false ;
 pivimCoords = QS.piv.imCoords ;  % coordinate system of the pullback images used in PIV
 averagingStyle = 'Lagrangian' ;  % Lagrangian or simple, how velocities are averaged over time
 samplingResolution = '1x' ;      % 1x or 2x, resolution of 
-
+vtscale = 0 ;                    % if zero, default is used
+vnscale = 0 ;                    % if zero, default is used
+vscale = 0 ;                     % if zero, default is used
 %% Unpack options
 if isfield(options, 'plot_vxyz')
     plot_vxyz = options.plot_vxyz ;
@@ -47,8 +49,14 @@ end
 if isfield(options, 'pivimCoords')
     pivimCoords = options.pivimCoords ;
 end
-if isfield(options, 'pivimCoords')
-    pivimCoords = options.pivimCoords ;
+if isfield(options, 'vtscale')
+    vtscale = options.vtscale ;
+end
+if isfield(options, 'vnscale')
+    vnscale = options.vnscale ;
+end
+if isfield(options, 'vscale')
+    vscale = options.vscale ;
 end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
@@ -153,6 +161,8 @@ for i = 1:size(vsmM, 1)
     options.vsm = vsm_ii ;
     options.v2dsmum = v2dsmum_ii ;
     options.vnsm = vnsm_ii ;
+    options.vtscale = vtscale ;
+    options.vnscale = vnscale ;
     QS.plotAverageVelocitiesTimePoint(tp, options)   
         
 end

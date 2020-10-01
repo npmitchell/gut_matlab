@@ -31,9 +31,15 @@ function plotPathlineMetricKinematics(QS, options)
 overwrite = false ;
 plot_kymographs = true ;
 plot_kymographs_cumsum = true ;
+plot_kymographs_cumprod = false ;
 plot_correlations = true ;
 plot_fold_kinematics = true ;
 plot_lobe_kinematics = true ;
+plot_ap = true ;
+plot_left = true ;
+plot_right = true ;
+plot_dorsal = true ;
+plot_ventral = true ;
 maxWFrac = 0.03 ;
 % Load time offset for first fold, t0
 t0 = QS.t0set() ;  
@@ -88,6 +94,11 @@ else
     % default is equal to 2*climit
     climit_H = 0.2 ;
 end
+if isfield(options, 'climit_radius')
+    climit_radius = options.climit_radius ;
+else
+    climit_radius = 0 ;
+end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
 end
@@ -112,6 +123,21 @@ if isfield(options, 'plot_kymographs_cumprod')
 end
 if isfield(options, 'plot_correlations')
     plot_correlations = options.plot_correlations ;
+end
+if isfield(options, 'plot_ap')
+    plot_ap = options.plot_ap ;
+end
+if isfield(options, 'plot_left')
+    plot_left = options.plot_left ;
+end
+if isfield(options, 'plot_right')
+    plot_right = options.plot_right ;
+end
+if isfield(options, 'plot_dorsal')
+    plot_dorsal = options.plot_dorsal ;
+end
+if isfield(options, 'plot_ventral')
+    plot_ventral = options.plot_ventral ;
 end
 
 %% Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
@@ -173,22 +199,27 @@ HH_apM   = zeros(ntps, nU) ;   % dv averaged
 divv_apM = zeros(ntps, nU) ;
 veln_apM = zeros(ntps, nU) ;
 gdot_apM = zeros(ntps, nU) ;
+radi_apM = zeros(ntps, nU) ;
 HH_lM   = zeros(ntps, nU) ;    % left averaged
 divv_lM = zeros(ntps, nU) ;
 veln_lM = zeros(ntps, nU) ;
 gdot_lM = zeros(ntps, nU) ;
+radi_lM = zeros(ntps, nU) ;
 HH_rM   = zeros(ntps, nU) ;    % right averaged
 divv_rM = zeros(ntps, nU) ;
 veln_rM = zeros(ntps, nU) ;
 gdot_rM = zeros(ntps, nU) ;
+radi_rM = zeros(ntps, nU) ;
 HH_dM   = zeros(ntps, nU) ;    % dorsal averaged
 divv_dM = zeros(ntps, nU) ;
 veln_dM = zeros(ntps, nU) ;
 gdot_dM = zeros(ntps, nU) ;
+radi_dM = zeros(ntps, nU) ;
 HH_vM   = zeros(ntps, nU) ;    % ventral averaged
 divv_vM = zeros(ntps, nU) ;
 veln_vM = zeros(ntps, nU) ;
 gdot_vM = zeros(ntps, nU) ;
+radi_vM = zeros(ntps, nU) ;
 
 % Output directory is inside metricKinematics dir
 mKPDir = fullfile(mKDir, sprintf('pathline_%04dt0', t0Pathline)) ;
@@ -218,12 +249,16 @@ files_exist = exist(apKymoFn, 'file') && ...
     exist(lKymoFn, 'file') && exist(rKymoFn, 'file') && ...
     exist(dKymoFn, 'file') && exist(vKymoFn, 'file') ;
 if files_exist
-    load(apKymoFn, 'HH_apM', 'gdot_apM', 'divv_apM', ...
-        'veln_apM', 'H2vn_apM')
-    load(lKymoFn, 'HH_lM', 'gdot_lM', 'divv_lM', 'veln_lM', 'H2vn_lM')
-    load(rKymoFn, 'HH_rM', 'gdot_rM', 'divv_rM', 'veln_rM', 'H2vn_rM')
-    load(dKymoFn, 'HH_dM', 'gdot_dM', 'divv_dM', 'veln_dM', 'H2vn_dM')
-    load(vKymoFn, 'HH_vM', 'gdot_vM', 'divv_vM', 'veln_vM', 'H2vn_vM')
+    load(apKymoFn, 'HH_apM', 'gdot_apM', 'divv_apM', 'veln_apM', ...
+        'H2vn_apM', 'radius_apM')
+    load(lKymoFn, 'HH_lM', 'gdot_lM', 'divv_lM', 'veln_lM', ...
+        'H2vn_lM', 'radius_lM')
+    load(rKymoFn, 'HH_rM', 'gdot_rM', 'divv_rM', 'veln_rM', ...
+        'H2vn_rM', 'radius_rM')
+    load(dKymoFn, 'HH_dM', 'gdot_dM', 'divv_dM', 'veln_dM', ...
+        'H2vn_dM', 'radius_dM')
+    load(vKymoFn, 'HH_vM', 'gdot_vM', 'divv_vM', 'veln_vM', ...
+        'H2vn_vM', 'radius_vM')
 else
     disp('Collating data into kymographs')
     for tp = QS.xp.fileMeta.timePoints(1:end-1)
@@ -244,6 +279,7 @@ else
         load(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
         load(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
         load(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
+        load(radifn, 'radius', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v') 
 
         %% Store in matrices
         % dv averaged
@@ -252,6 +288,7 @@ else
         divv_apM(tidx, :) = divv_ap ;
         veln_apM(tidx, :) = veln_ap ;
         H2vn_apM(tidx, :) = H2vn_ap ;
+        radi_apM(tidx, :) = radius_ap ;
 
         % left quarter
         HH_lM(tidx, :) = HH_l ;
@@ -259,6 +296,7 @@ else
         divv_lM(tidx, :) = divv_l ;
         veln_lM(tidx, :) = veln_l ;
         H2vn_lM(tidx, :) = H2vn_l ;
+        radi_lM(tidx, :) = radius_l ;
 
         % right quarter
         HH_rM(tidx, :) = HH_r ;
@@ -266,6 +304,7 @@ else
         divv_rM(tidx, :) = divv_r ;
         veln_rM(tidx, :) = veln_r ;
         H2vn_rM(tidx, :) = H2vn_r ;
+        radi_rM(tidx, :) = radius_r ;
 
         % dorsal quarter
         HH_dM(tidx, :) = HH_d ;
@@ -273,6 +312,7 @@ else
         divv_dM(tidx, :) = divv_d ;
         veln_dM(tidx, :) = veln_d ;
         H2vn_dM(tidx, :) = H2vn_d ;
+        radi_dM(tidx, :) = radius_d ;
 
         % ventral quarter
         HH_vM(tidx, :) = HH_v ;
@@ -280,16 +320,17 @@ else
         divv_vM(tidx, :) = divv_v ;
         veln_vM(tidx, :) = veln_v ;
         H2vn_vM(tidx, :) = H2vn_v ;
+        radi_vM(tidx, :) = radius_v ;
     end
     
     % Save the DV-averaged kymographs
     disp('Saving compiled kymograph data to disk')
     save(apKymoFn, 'HH_apM', 'gdot_apM', 'divv_apM', ...
-        'veln_apM', 'H2vn_apM')
-    save(lKymoFn, 'HH_lM', 'gdot_lM', 'divv_lM', 'veln_lM', 'H2vn_lM')
-    save(rKymoFn, 'HH_rM', 'gdot_rM', 'divv_rM', 'veln_rM', 'H2vn_rM')
-    save(dKymoFn, 'HH_dM', 'gdot_dM', 'divv_dM', 'veln_dM', 'H2vn_dM')
-    save(vKymoFn, 'HH_vM', 'gdot_vM', 'divv_vM', 'veln_vM', 'H2vn_vM')
+        'veln_apM', 'H2vn_apM', 'radius_apM')
+    save(lKymoFn, 'HH_lM', 'gdot_lM', 'divv_lM', 'veln_lM', 'H2vn_lM', 'radius_lM')
+    save(rKymoFn, 'HH_rM', 'gdot_rM', 'divv_rM', 'veln_rM', 'H2vn_rM', 'radius_rM')
+    save(dKymoFn, 'HH_dM', 'gdot_dM', 'divv_dM', 'veln_dM', 'H2vn_dM', 'radius_dM')
+    save(vKymoFn, 'HH_vM', 'gdot_vM', 'divv_vM', 'veln_vM', 'H2vn_vM', 'radius_vM')
 end
 
 %% Store kymograph data in cell arrays
@@ -298,6 +339,7 @@ gdotsK = {gdot_apM, gdot_lM, gdot_rM, gdot_dM, gdot_vM} ;
 divvsK = {divv_apM, divv_lM, divv_rM, divv_dM, divv_vM} ;
 velnsK = {veln_apM, veln_lM, veln_rM, veln_dM, veln_vM} ;
 H2vnsK = {H2vn_apM, H2vn_lM, H2vn_rM, H2vn_dM, H2vn_vM} ;
+radisK = {radius_apM, radius_lM, radius_rM, radius_dM, radius_vM} ;
 
 %% Obtain location of folds / features
 featureOpts = struct() ;
@@ -312,11 +354,12 @@ vDir = fullfile(mKPDir, 'avgVentral') ;
 outdirs = {dvDir, lDir, rDir, dDir, vDir} ;
 
 %% Now plot different measured quantities as kymographs
+do_plots = [plot_ap, plot_left, plot_right, plot_dorsal, plot_ventral] ;
 if plot_kymographs
     titleadd = {': circumferentially averaged', ...
         ': left side', ': right side', ': dorsal side', ': ventral side'} ;
 
-    for qq = 1:length(outdirs)
+    for qq = find(do_plots)
         % Prep the output directory for this averaging
         odir = outdirs{qq} ;
         if ~exist(odir, 'dir')
@@ -329,19 +372,22 @@ if plot_kymographs
         divvK = divvsK{qq} ;
         velnK = velnsK{qq} ;
         H2vnK = H2vnsK{qq} ;
-        m2plot = {gdotK, HHK, divvK, velnK, H2vnK} ;
+        radiK = radisK{qq} ;
+        m2plot = {gdotK, HHK, divvK, velnK, H2vnK, radiK} ;
         titles = {'$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]=\nabla\cdot\mathbf{v}_\parallel-v_n 2H$',...
             'mean curvature, $H$', ...
             'divergence of flow, $\nabla \cdot \mathbf{v}$', ...
             'normal velocity, $v_n$', ...
-            'normal motion, $v_n 2 H$'} ;
+            'normal motion, $v_n 2 H$', ...
+            'radius'} ;
         labels = {['$\frac{1}{2}\textrm{Tr}[g^{-1}\dot{g}]$ ' unitstr], ...
             ['mean curvature, $H$ ' Hunitstr], ...
             ['$\nabla \cdot \mathbf{v}$ ' unitstr], ...
             ['normal velocity, $v_n$ ' vunitstr] , ...
-            ['normal motion, $v_n 2 H $ ' unitstr]} ;
-        names = {'gdot', 'HH', 'divv', 'veln', 'H2vn'} ;
-        climits = [climit, climit_H, climit, climit_veln, climit_err] ;
+            ['normal motion, $v_n 2 H $ ' unitstr], ...
+            ['radius [' QS.spaceUnits ']']} ;
+        names = {'gdot', 'HH', 'divv', 'veln', 'H2vn', 'radi'} ;
+        climits = [climit, climit_H, climit, climit_veln, climit_err, climit_radius] ;
 
         %% Plot gdot/HH/divv/veln/H2vn DV-averaged kymograph
         for pp = 1:length(m2plot)
@@ -354,28 +400,18 @@ if plot_kymographs
                 close all
                 set(gcf, 'visible', 'off')
                 imagesc((1:nU)/nU, tps, m2plot{pp})
-                caxis([-climits(pp), climits(pp)])
+                if climits(pp) > 0
+                    caxis([-climits(pp), climits(pp)])
+                end
                 colormap(bwr256)
 
-                % Plot fold identifications
+                % Plot feature/fold identifications
                 hold on;
-                fons1 = max(1, fons(1)) ;
-                fons2 = max(1, fons(2)) ;
-                fons3 = max(1, fons(3)) ;
-                t1ones = ones(size(tps(fons1:end))) ;
-                t2ones = ones(size(tps(fons2:end))) ;
-                t3ones = ones(size(tps(fons3:end))) ;
-                tidx0 = QS.xp.tIdx(t0) ;
-
-                % OPTION 1: use QS.folds
-                % plot(folds.folds(tidx0, 1) * t1ones / nU, tps(fons1:end))
-                % plot(folds.folds(tidx0, 2) * t2ones / nU, tps(fons2:end))
-                % plot(folds.folds(tidx0, 3) * t3ones / nU, tps(fons3:end))
-
-                % OPTION 1: use identified div(v) < 0
-                plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
-                plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
-                plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
+                for ii = 1:length(fons)
+                    fonsi = max(1, fons(ii)) ;
+                    tones = ones(size(tps(fonsi:end))) ;
+                    plot(featureIDs(1) * tones / nU, tps(fonsi:end))
+                end
                 
                 % title and save
                 title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
@@ -406,11 +442,12 @@ if plot_kymographs
 end
 
 %% Kymographs of cumulative sums along pathlines
+do_plots = [plot_ap, plot_left, plot_right, plot_dorsal, plot_ventral] ;
 if plot_kymographs_cumsum
     titleadd = {': circumferentially averaged', ...
         ': left side', ': right side', ': dorsal side', ': ventral side'} ;
 
-    for qq = 1:length(outdirs)
+    for qq = find(do_plots)
         % Prep the output directory for this averaging
         odir = outdirs{qq} ;
         if ~exist(odir, 'dir')
@@ -455,18 +492,14 @@ if plot_kymographs_cumsum
                 imagesc((1:nU)/nU, tps, m2plot{pp})
                 caxis([-climits(pp), climits(pp)])
                 colormap(bwr256)
-                % Add folds to plot
+                % Add features/folds to plot
                 hold on;
-                fons1 = max(1, fons(1)) ;
-                fons2 = max(1, fons(2)) ;
-                fons3 = max(1, fons(3)) ;
-                t1ones = ones(size(tps(fons1:end))) ;
-                t2ones = ones(size(tps(fons2:end))) ;
-                t3ones = ones(size(tps(fons3:end))) ;
-                plot(featureIDs(1) * t1ones / nU, tps(fons1:end))
-                plot(featureIDs(2) * t2ones / nU, tps(fons2:end))
-                plot(featureIDs(3) * t3ones / nU, tps(fons3:end))
-
+                for ii = 1:length(fons)
+                    fonsi = max(1, fons(ii)) ;
+                    tones = ones(size(tps(fonsi:end))) ;
+                    plot(featureIDs(1) * tones / nU, tps(fonsi:end))
+                end
+                
                 % title and save
                 title([titles{pp}, titleadd{qq}], 'Interpreter', 'Latex')
                 ylabel(['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
@@ -500,9 +533,9 @@ if plot_kymographs_cumprod
     titleadd = {': circumferentially averaged', ...
         ': left side', ': right side', ': dorsal side', ': ventral side'} ;
 
-    for qq = 1:length(outdirs)
+    for qq = find(do_plots)
         % Prep the output directory for this averaging
-        odir = outdirs{qq} ;
+        odir = fullfile(outdirs{qq}, 'cumprods') ;
         if ~exist(odir, 'dir')
             mkdir(odir)
         end
@@ -596,7 +629,7 @@ if plot_correlations
     if ~exist(corrDir, 'dir')
         mkdir(corrDir)
     end
-    for sigma = 0:1
+    for sigma = 0
         outputFileNames = {fullfile(corrDir, ...
             sprintf('correlation_sigma%02d_alltime_div_2Hvn', sigma)), ...
             fullfile(corrDir, ...
@@ -781,13 +814,30 @@ end
 % Sample divv/H2vn/gdot in each lobe
 foldw = 0.05 ;
 endw = 0.10 ;
-cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
-        featureIDs(1)+round(foldw*nU), featureIDs(2)-round(foldw*nU), ...
-        featureIDs(2)+round(foldw*nU), featureIDs(3)-round(foldw*nU), ... 
-        featureIDs(3)+round(foldw*nU), round((1-endw) * nU)] ;
-lobes = { cut(1):cut(2), cut(3):cut(4), cut(5):cut(6), cut(7):cut(8) } ;
+
+if length(featureIDs) == 1
+    cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
+            featureIDs(1)+round(foldw*nU), round((1-endw) * nU)] ;
+    lobes = { cut(1):cut(2), cut(3):cut(4) } ;
+elseif length(featureIDs) == 2
+    cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
+            featureIDs(1)+round(foldw*nU), featureIDs(2)-round(foldw*nU), ...
+            featureIDs(2)+round(foldw*nU),  round((1-endw) * nU)] ;
+    lobes = { cut(1):cut(2), cut(3):cut(4), cut(5):cut(6) } ;
+elseif length(featureIDs) == 3
+    cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
+            featureIDs(1)+round(foldw*nU), featureIDs(2)-round(foldw*nU), ...
+            featureIDs(2)+round(foldw*nU), featureIDs(3)-round(foldw*nU), ... 
+            featureIDs(3)+round(foldw*nU), round((1-endw) * nU)] ;
+    lobes = { cut(1):cut(2), cut(3):cut(4), cut(5):cut(6), cut(7):cut(8) } ;
+else
+    error('Code for this number of features here')
+end
+
+    
 avgStrings = {'dv-averaged', 'left side', 'right side', ...
     'dorsal side', 'ventral side'} ;
+do_plots = [plot_ap, plot_left, plot_right, plot_dorsal, plot_ventral] ;
 avgLabel = {'dv', 'left', 'right', 'dorsal', 'ventral'} ;
 titleFoldBase = 'Lagrangian metric kinematics along folds, ' ;
 titleLobeBase = 'Lagrangian metric kinematics along lobes, ' ;
@@ -795,14 +845,14 @@ titleLobeBase = 'Lagrangian metric kinematics along lobes, ' ;
 % todo: modify if different # of features
 foldYlabels = {'anterior fold', 'middle fold', 'posterior fold'} ;
 lobeYlabels = {'lobe 1', 'lobe 2', 'lobe 3', 'lobe 4'} ;
-for qq = 1:5 
+for qq = find(do_plots)
     divv = divvsK{qq} ;
     H2vn = H2vnsK{qq} ;
     HH = HHsK{qq} ;
     if ~exist(outdirs{qq}, 'dir')
         mkdir(outdirs{qq})
     end
-    
+
     %% Plot fold Kinematics -- instantaneous data
     % Explore a range of widths for plotting
     for width = 1:round(maxWFrac * nU)
@@ -812,14 +862,14 @@ for qq = 1:5
         fn_withH = fullfile(outdirs{qq}, ...
             [sprintf('fold_kinematics_w%03d_', 2*width+1), ...
             avgLabel{qq}, '_withH.png']) ;
-        
+
         aux_plotPathlineMetricKinematicsFolds_subpanels(QS, ...
             fn, fn_withH, ...
             featureIDs, width, nU, tps, divv, H2vn, HH, titleFoldBase, ...
             foldYlabels, avgStrings{qq}, divvcolor, H2vncolor, ...
             Hposcolor, Hnegcolor, Hsz, overwrite)
     end
-    
+
     %% Plot lobe Kinematics -- instantaneous data
     fn = fullfile(outdirs{qq}, ...
         ['lobe_kinematics_' avgLabel{qq} '.png']) ;
@@ -829,20 +879,24 @@ for qq = 1:5
         lobes, tps, divv, H2vn, HH, lobeYlabels, avgStrings{qq}, ...
         titleLobeBase, divvcolor, H2vncolor, ...
         Hposcolor, Hnegcolor, Hsz, overwrite)
-    
+
     %% Fold kinematics -- cumprod gdot
     cumsum_cumprod = {'cumsum', 'cumprod'} ;
-    
+
     for spij = 1:2
         sumprod = cumsum_cumprod{spij} ;
+        odir = fullfile(outdirs{qq}, [sumprod 's']) ;
+        if ~exist(odir, 'dir')
+            mkdir(odir)
+        end
         for width = 1:round(maxWFrac * nU)
             %% Plot kinematics on separate axis for each fold
-            % ms2plot = {'gdot', 'divv', 'H2vn'} ;
-            fn = fullfile(outdirs{qq}, ...
+            % ms2plot = {'gdot', 'divv', 'H2vn'} ;    
+            fn = fullfile(odir, ...
                 ['fold_kinematics_', sumprod, ...
                 sprintf('_w%03d_', 2*width+1), ...
                 avgLabel{qq}, '.png']) ;
-            fn_withH = fullfile(outdirs{qq}, ...
+            fn_withH = fullfile(odir, ...
                 ['fold_kinematics_', sumprod, ...
                 sprintf('w%03d_', 2*width+1), ...
                 avgLabel{qq}, '_withH.png']) ;
@@ -858,14 +912,14 @@ for qq = 1:5
             for jj = 1:length(ms2plot)
                 m2plot = ms2plot{jj} ; 
 
-                fn = fullfile(outdirs{qq}, ...
+                fn = fullfile(odir, ...
                     ['fold_kinematics_', m2plot, '_', sumprod, ...
                     sprintf('_compare_w%03d_', 2*width+1), ...
                     avgLabel{qq}, '.png']) ;
 
-                fn_withH = fullfile(outdirs{qq}, ...
+                fn_withH = fullfile(odir, ...
                     ['fold_kinematics_', m2plot, '_', sumprod, ...
-                    sprintf('_cumprod_compare_w%03d_', 2*width+1), ...
+                    sprintf('_compare_w%03d_', 2*width+1), ...
                     avgLabel{qq}, '_withH.png']) ;
                 aux_plotPathlineMetricKinematicsFolds_integrated(QS, m2plot, fn, fn_withH, ...
                     featureIDs, width, nU, tps, divv, H2vn, HH, foldYlabels, ...
@@ -891,10 +945,10 @@ for qq = 1:5
             for jj = 1:length(ms2plot)
                 m2plot = ms2plot{jj} ; 
 
-                fn = fullfile(outdirs{qq}, ...
+                fn = fullfile(odir, ...
                     ['lobe_kinematics_', m2plot, '_', ...
                     sumprod, '_compare.png']) ;
-                fn_withH = fullfile(outdirs{qq}, ...
+                fn_withH = fullfile(odir, ...
                     ['lobe_kinematics_' m2plot '_', ...
                     sumprod, '_compare_withH.png']) ;
                 aux_plotPathlineMetricKinematicsLobes_integrated(QS, m2plot, fn, fn_withH, ...

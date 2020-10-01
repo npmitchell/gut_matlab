@@ -47,7 +47,8 @@ cutMeshClosed.f(cutMesh.f > (nV-1)*nU) = cutMeshClosed.f(cutMesh.f > (nV-1)*nU) 
 if isfield(cutMesh, 'vn')
     cutMeshClosed.vn = cutMesh.vn(1:end-nU, :) ;
 else  
-    cutMeshClosed.vn = per_vertex_normals(cutMeshClosed.v, cutMeshClosed.f, 'Weighting', 'angle') ;
+    cutMeshClosed.vn = per_vertex_normals(cutMeshClosed.v, ...
+        cutMeshClosed.f, 'Weighting', 'angle') ;
 end
 cutMeshClosed.u = cutMesh.u(1:end-nU, :) ;
 

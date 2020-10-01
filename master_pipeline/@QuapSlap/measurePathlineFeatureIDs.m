@@ -43,10 +43,21 @@ if isempty(QS.pathlines.t0)
     QS.pathlines.t0 = QS.t0set() ;
 end
 t0Pathline = QS.pathlines.t0 ;
+nU = QS.nU ;
+climit = 0 ;
+bwr256 = bluewhitered(256) ;
+guess_minmax = 'min' ;          % whether initial guess is based on scalar field 1's local max or min values
+% todo: handle double resolution
 
 %% Unpack options
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
+end
+if isfield(options, 'climit')
+    climit = options.climit ;
+end
+if isfield(options, 'guess_minmax')
+    guess_minmax = options.guess_minmax ;
 end
 
 %% Identify pathline coodinates using desired scalar fields for inspection
@@ -60,15 +71,20 @@ if strcmpi(pathlineType, 'vertices')
     % Lagrangian coords
     % fIDfn is the feature ID filename for these Lagrangian data
     fIDfn = sprintf(QS.fileName.pathlines.featureIDs, t0Pathline) ;
-    if exist(fIDfn, 'file') || ~overwrite
+    if exist(fIDfn, 'file') && ~overwrite
         load(fIDfn, 'featureIDs')
     else
         %% Interactively choose the feature locations
 
         % Load scalar field data to choose featureIDs (ex, folds)
         if strcmpi(field1, 'radius') || strcmpi(field2, 'radius')
+            apKymoFn = fullfile( ...
+                sprintf(QS.dir.metricKinematics.pathline.measurements, ...
+                t0Pathline), ...
+                sprintf(QS.fileBase.metricKinematics.pathline.kymographs.ap, ...
+                t0Pathline)) ;
             try
-                tmp = load(apKymoRadiusFn, 'radius_apM') ;
+                tmp = load(apKymoFn, 'radius_apM') ;
                 if strcmpi(field1, 'radius') 
                     sf1 = tmp.radius_apM ;
                 else
@@ -77,9 +93,10 @@ if strcmpi(pathlineType, 'vertices')
             catch
                 error('Run QS.plotPathlineMetricKinematics() before QS.plotPathlineStrainRate()')
             end
-        elseif strcmpi(field1, 'divv') || strcmpi(field2, 'divv')
+        end
+        if strcmpi(field1, 'divv') || strcmpi(field2, 'divv')
             try
-                tmp = load(apKymoMetricKinFn, 'divv_apM') ;
+                tmp = load(apKymoFn, 'divv_apM') ;
                 if strcmpi(field1, 'divv') 
                     sf1 = tmp.divv_apM ;
                 else
@@ -88,9 +105,10 @@ if strcmpi(pathlineType, 'vertices')
             catch
                 error('Run QS.plotPathlineMetricKinematics() before QS.plotPathlineStrainRate()')
             end
-        elseif strcmpi(field1, 'veln') || strcmpi(field2, 'veln')
+        end
+        if strcmpi(field1, 'veln') || strcmpi(field2, 'veln')
             try
-                tmp = load(apKymoMetricKinFn, 'veln_apM') ;
+                tmp = load(apKymoFn, 'veln_apM') ;
                 if strcmpi(field1, 'veln') 
                     sf1 = tmp.veln_apM ;
                 else
@@ -108,10 +126,19 @@ if strcmpi(pathlineType, 'vertices')
         end
 
         % Make a guess as to the features using minima of field1
-        div1d = mean(sf1(tps > max(20, min(tps)) & ...
+        tps = QS.xp.fileMeta.timePoints - QS.t0 ;
+        sf1d = mean(sf1(tps > max(20, min(tps)) & ...
             tps < min(max(tps), 60), :), 1) ;
-        div1dsm = savgol(div1d, 2, 11) ;
-        [~, featureIDs] = maxk(-islocalmin(div1dsm) .* div1dsm, nfeatureIDs) ;
+        if any(isnan(sf1d)) || isem
+            sf1d = mean(sf1, 1) ;
+        end
+        div1dsm = savgol(sf1d, 2, 11) ;
+        
+        if strcmpi(guess_minmax, 'min')
+            [~, featureIDs] = maxk(abs(islocalmin(div1dsm) .* (div1dsm - mean(div1dsm))), nfeatureIDs) ;
+        else
+            [~, featureIDs] = maxk(abs(islocalmax(div1dsm) .* (div1dsm - mean(div1dsm))), nfeatureIDs) ;
+        end 
         featureIDs = sort(featureIDs) ;
 
         % Show guess overlaying field1 data
@@ -119,8 +146,18 @@ if strcmpi(pathlineType, 'vertices')
         set(gcf, 'visible', 'on')
         subplot(1, 2, 1)
         imagesc((1:nU)/nU, tps, sf1)
-        colormap(bwr256)
-        caxis([-climit, climit])
+        % If there are both positive and negative values, use diverging
+        % colormap
+        if any(sf1(:) > 0) && any(sf1(:) < 0) 
+            try
+                colormap(bwr256)
+            catch
+                debugMsg(1, 'Could not make colormap bwr256')
+            end
+        end
+        if climit > 0
+            caxis([-climit, climit])
+        end
         hold on;
         for qq = 1:nfeatureIDs
             plot(featureIDs(qq)/nU * ones(size(tps)), tps) ;
@@ -128,7 +165,15 @@ if strcmpi(pathlineType, 'vertices')
         title('Guess for featureIDs on divergence(v)')
         subplot(1, 2, 2) ;
         imagesc((1:nU)/nU, tps, sf2)
-        colormap(bwr256)
+        % If there are both positive and negative values, use diverging
+        % colormap
+        if any(sf2(:) > 0) && any(sf2(:) < 0) 
+            try
+                colormap(bwr256)
+            catch
+                debugMsg(1, 'Cound not set colormap to bwr256')
+            end
+        end
         caxis([-max(abs(sf2(:))), max(abs(sf2(:)))])
         hold on;
         for qq = 1:nfeatureIDs
@@ -155,15 +200,19 @@ if strcmpi(pathlineType, 'vertices')
                 clf;
                 set(gcf, 'visible', 'on')
                 ax1 = subplot(1, 2, 1) ;
-                imagesc((1:nU)/nU, tps, divv_apM)
+                imagesc((1:nU)/nU, tps, sf1)
                 colormap(bwr256)
-                caxis([-climit, climit])
+                if climit > 0
+                    caxis([-climit, climit])
+                else
+                    caxis([-max(abs(sf1(:))), max(abs(sf1(:)))])
+                end
                 hold on;
                 title('Guess for featureIDs on divergence(v)')
                 ax2 = subplot(1, 2, 2) ;
-                imagesc((1:nU)/nU, tps, veln_apM)
+                imagesc((1:nU)/nU, tps, sf2)
                 colormap(bwr256)
-                caxis([-max(abs(veln_apM(:))), max(abs(veln_apM(:)))])
+                caxis([-max(abs(sf2(:))), max(abs(sf2(:)))])
                 hold on;
                 for pp = 1:nfeatureIDs
                     axes(ax1)

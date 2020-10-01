@@ -75,6 +75,14 @@ if nargout > 2
     % u is 3d, w is 2d. jac takes u->w, jjac takes w->u
     [v0t2d, jac] = pullVectorField3Dto2DMesh(v0t, vertices2d, ...
         vertices, faces, fieldfaces) ;
+    
+    % % Inspect result
+    % bc = barycenter(vertices2d, faces) ;
+    % tri(triangulation(faces(fieldfaces, :), vertices2d(:, 1), vertices2d(:, 2)))
+    % hold on;
+    % quiver(bc(fieldfaces, 1), bc(fieldfaces, 2), v0t2d(:, 1), v0t2d(:, 2), 0)
+    % bad = find(isnan(v0t2d(:, 1))) ;
+    % plot(bc(bad, 1), bc(bad, 2), 'r.')
 end
 
 if nargout > 4

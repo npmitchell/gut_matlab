@@ -269,6 +269,7 @@ if ~exist(vthfn, 'file') || overwrite
     %% Now plot it
     xyf.x = xyf.v(:, 1) ;
     xyf.y = xyf.v(:, 2) ;
+    qopts.subsamplingMethod = 'random'; 
     vectorFieldHeatPhaseOnImage(imw, xyf, vx, vy, vtscale, qopts) ;
     clear qopts 
 end
