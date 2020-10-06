@@ -16,7 +16,10 @@ function helmholtzHodge(QS, options)
 %       the opacity of the heatmap to overlay
 %   invertImage : bool
 %       invert the data pullback under the velocity map
-%
+%   clipDiv : float (default=5.0)
+%       max allowed divergence measurement  
+%   clipRot : float (default=0.5)
+%       max allowed vorticity measurement
 %
 % NPMitchell 2020
 
@@ -34,6 +37,10 @@ lambda_smooth = 0.01 ;
 lambda_mesh = 0.001 ;
 samplingResolution = '1x' ;
 averagingStyle = 'Lagrangian' ;
+clipDiv = 5.0 ;                     % max allowed divergence measurement  
+clipRot = 0.5 ;                     % max allowed vorticity measurement
+sscaleDiv = 0.1 ;                   % climit (color limit) for divergence
+sscaleRot = 0.1 ;                   % climit (color limit) for vorticity
 
 %% Unpack options
 if isfield(options, 'samplingResolution')
@@ -45,11 +52,26 @@ end
 if isfield(options, 'preview')
     preview = options.preview ;
 end
+if isfield(options, 'averagingStyle')
+    averagingStyle = options.averagingStyle ;
+end
 if isfield(options, 'qsubU')
     qsubU = options.qsubU ;
 end
 if isfield(options, 'qsubV')
     qsubV = options.qsubV ;
+end
+if isfield(options, 'clipDiv')
+    clipDiv = options.clipDiv ;
+end
+if isfield(options, 'clipRot')
+    clipRot = options.clipRot ;
+end
+if isfield(options, 'sscaleDiv')
+    sscaleDiv = options.sscaleDiv ;
+end
+if isfield(options, 'sscaleRot')
+    sscaleRot = options.sscaleRot ;
 end
 if isfield(options, niter_smoothing)
     niter_smoothing = options.niter_smoothing ;
@@ -122,6 +144,26 @@ elseif strcmp(averagingStyle, 'simple')
         vf = QS.velocitySimpleAverage.vf ;
         v2dum = QS.velocitySimpleAverage.v2dum ;
         decDirRoot = QS.dir.pivSimAvgDEC ;
+        nU = QS.nU ;
+        nV = QS.nV ;
+        piv3dFileBase = QS.fullFileBase.piv3d ;
+        decFnBase = QS.fullFileBase.decSimAvg ;
+    end
+elseif strcmp(averagingStyle, 'none') 
+    if doubleResolution
+        QS.getVelocityRaw('vf', 'v2dum') ;
+        vf = QS.velocitySimpleAverage2x.vf ;
+        v2dum = QS.velocitySimpleAverage2x.v2dum ;
+        decDirRoot = QS.dir.pivRawDEC2x ;
+        nU = 2 * QS.nU - 1 ;
+        nV = 2 * QS.nV - 1 ;
+        piv3dFileBase = QS.fullFileBase.piv3d2x ;
+        decFnBase = QS.fullFileBase.decSimAvg2x ;
+    else
+        QS.getVelocityRaw('vf', 'v2dum') ;
+        vf = QS.velocityRaw.vf ;
+        v2dum = QS.velocityRaw.v2dum ;
+        decDirRoot = QS.dir.pivRawDEC ;
         nU = QS.nU ;
         nV = QS.nV ;
         piv3dFileBase = QS.fullFileBase.piv3d ;
@@ -235,7 +277,8 @@ for tidx = tidx2do
         [divs, rots, harms, glueMesh] = ...
             helmHodgeDECRectGridPullback(cutM, vfsm, Options,...
             'niterSmoothing', niter_smoothing, ...
-            'clipDiv', [-5, 5], 'clipRot', [-0.5, 0.5], ...
+            'clipDiv', [-clipDiv, clipDiv], ...
+            'clipRot', [-clipRot, clipRot], ...
             'preview', preview, 'method', 'both') ;
         
         %% save divs, rots, and harms as structs in .mat file
@@ -291,8 +334,8 @@ for tidx = tidx2do
         Options.rot3dfn_ventral = rot3dfn_ventral ;
         Options.qsubU = qsubU ; 
         Options.qsubV = qsubV ;
-        Options.sscaleDiv = 0.1 ;
-        Options.sscaleRot = 0.1 ;
+        Options.sscaleDiv = sscaleDiv ;
+        Options.sscaleRot = sscaleRot ;
         Options.qscaleDiv3d = 0 ;
         Options.qscaleRot3d = 0 ;
         Options.qscaleDiv2d = 0 ;

@@ -101,7 +101,8 @@ classdef QuapSlap < handle
             'spcutMeshSm', []) 
         data = struct('adjustlow', 0, ...
             'adjusthigh', 0, ...
-            'axisOrder', [1 2 3]) % options for scaling and transposing image intensity data
+            'axisOrder', [1 2 3], ...
+            'ilastikOutputAxisOrder', 'cxyz') % options for scaling and transposing image intensity data
         currentData = struct('IV', [], ...
             'adjustlow', 0, ...
             'adjusthigh', 0 )    % image intensity data in 3d and scaling
@@ -636,7 +637,11 @@ classdef QuapSlap < handle
             tmp = load(cutMeshfn, 'cutMesh') ;
             tmp.cutMesh.v = tmp.cutMesh.v + tmp.cutMesh.vn * QS.normalShift ;
             QS.currentMesh.cutMesh = tmp.cutMesh ;
-            QS.currentMesh.cutPath = dlmread(cutPfn, ',', 1, 0) ;
+            try
+                QS.currentMesh.cutPath = dlmread(cutPfn, ',', 1, 0) ;
+            catch
+                debugMsg(1, 'Could not load cutPath, cutMesh is limited\n')
+            end
         end
         
         % spcutMesh
@@ -896,7 +901,7 @@ classdef QuapSlap < handle
                     && isempty(QS.piv.Lx) 
                 disp("WARNING: Overwriting QS.piv with piv from disk")
             end
-            QS.piv.raw = load(QS.fileName.pivRaw) ;  
+            QS.piv.raw = load(QS.fileName.pivRaw.raw) ;  
             timePoints = QS.xp.fileMeta.timePoints ;
             if strcmp(QS.piv.imCoords, 'sp_sme')
                 im0 = imread(sprintf(QS.fullFileBase.im_sp_sme, ...
@@ -1037,6 +1042,38 @@ classdef QuapSlap < handle
             else
                 error('Code for this pathlineType here')
             end
+        end
+        
+        %% Velocities -- loading Raw / noAveraging
+        function loadVelocityRaw(QS, varargin)
+            % Load and pack into struct
+            if isempty(varargin)
+                varargin = {'v3d', 'v2dum', 'v2d', 'vn', 'vf', 'vv'};
+            end
+            if any(strcmp(varargin, 'v3d'))
+                load(QS.fileName.pivRaw.v3d, 'vsmM') ;
+                QS.velocityAverage.v3d = vsmM ;
+            end
+            if any(strcmp(varargin, 'v2dum'))
+                load(QS.fileName.pivRaw.v2dum, 'v2dsmMum') ;
+                QS.velocityAverage.v2dum = v2dsmMum ;
+            end
+            if any(strcmp(varargin, 'vn'))
+                load(QS.fileName.pivRaw.vn, 'vnsmM') ;
+                QS.velocityAverage.vn = vnsmM ;
+            end
+            if any(strcmp(varargin, 'vf'))
+                load(QS.fileName.pivRaw.vf, 'vfsmM') ;
+                QS.velocityAverage.vf = vfsmM ;
+            end
+            if any(strcmp(varargin, 'vv'))
+                load(QS.fileName.pivRaw.vv, 'vvsmM') ;
+                QS.velocityAverage.vv = vvsmM ;
+            end
+        end
+        function getVelocityRaw(QS, varargin)
+            % todo: check if all varargin are already loaded
+            loadVelocityRaw(QS, varargin{:})
         end
         
         %% Velocities -- Lagrangian Averaging
