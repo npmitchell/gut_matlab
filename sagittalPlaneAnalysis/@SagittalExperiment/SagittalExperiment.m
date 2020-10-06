@@ -19,8 +19,10 @@ classdef SagittalExperiment < handle
         timeUnits = 'min'       % units of the timeInterval (ex 'min')
         spaceUnits = '$\mu$m'   % units of the embedding space (ex '$\mu$m')
         dir = struct()          % struct of directory paths where data lives -- to be sprintf(..., zplane)
-        filename = struct()     % struct of filename paths where data lives -- to be sprintf(..., zplane)
-        zDir = struct()         % str, directory where data lives -- evaluated at z planes
+        filename = struct('landmarks', '', ...
+            'lobeFilters', '')     % struct of filename paths where data lives -- to be sprintf(..., zplane)
+        zDir = struct('landmarks', '', ...
+            'lobeFilters', '')         % str, directory where data lives -- evaluated at z planes
         t0                      % reference time in the experiment
         bw = cell(0)
         landmarks = cell(0) 

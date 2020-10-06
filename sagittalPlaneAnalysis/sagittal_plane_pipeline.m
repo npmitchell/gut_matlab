@@ -5,20 +5,29 @@ preview = true ;
 
 
 %% Paths
-addpath('/mnt/data/code/gut_matlab/sagittalPlaneAnalysis/')
-addpath('/mnt/data/code/gut_matlab/addpath_recurse/')
-addpath_recurse('/mnt/data/code/gptoolbox/external/toolbox_fast_marching/')
-addpath_recurse('/mnt/data/code/gptoolbox/mex/')
-addpath_recurse('/mnt/data/code/gut_matlab/distanceTransform/')
-addpath_recurse('/mnt/data/code/gut_matlab/curve_functions/')
-addpath_recurse('/mnt/data/code/gut_matlab/tiff_handling')
-addpath_recurse('/mnt/data/code/gut_matlab/data_handling')
-addpath_recurse('/mnt/data/code/imsane_for_git/imsane/generalfunctions/')
-addpath_recurse('/mnt/data/code/gut_matlab/plotting/')
-addpath_recurse('/mnt/data/code/gut_matlab/geometry/')
+% codedir = '/mnt/data/code/' ;
+% gutdir = '/mnt/data/code/gut_matlab/' ;
+% imsaneDir = fullfile(codedir, 'imsane_for_git') ;
+codedir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/' ;
+gutdir = fullfile(codedir, 'gut_matlab/') ;
+imsaneDir = fullfile(codedir, 'imsane') ;
+
+addpath(fullfile(gutdir, 'sagittalPlaneAnalysis/'))
+addpath(fullfile(gutdir, 'addpath_recurse'))
+addpath_recurse(fullfile(codedir, 'gptoolbox/external/toolbox_fast_marching/'))
+addpath_recurse(fullfile(codedir, 'gptoolbox/mex/'))
+addpath_recurse(fullfile(gutdir, 'distanceTransform/'))
+addpath_recurse(fullfile(gutdir, 'curve_functions/'))
+addpath_recurse(fullfile(gutdir, 'tiff_handling'))
+addpath_recurse(fullfile(gutdir, 'data_handling'))
+addpath_recurse(fullfile(imsaneDir, 'generalfunctions/'))
+addpath_recurse(fullfile(gutdir, 'plotting/'))
+addpath_recurse(fullfile(gutdir, 'geometry/'))
 
 %% Settings
-rootDir = '/mnt/data/confocal_data/gut/sagittal_plane/';
+% rootDir = '/mnt/data/confocal_data/gut/sagittal_plane/';
+% rootDir = '/Volumes/Elements/yosemite_vacation/sagittal_plane/';
+rootDir = '/Users/npmitchell/Desktop/yosemite_vacation/sagittal_plane/';
 
 % GFP
 % labelDir = fullfile(rootDir, '48YGAL4UASCAAXmChH2AGFP') ;
@@ -74,6 +83,10 @@ else
 end
 
 %% Unpacking
+
+% for now
+settings.dataDir = dataDir ;
+
 SE = SagittalExperiment(settings) ;
 SE.plotting.preview = preview ;
 

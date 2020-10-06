@@ -11,8 +11,9 @@ function path = compute_geodesic(D, x, options)
 %
 %   Set options.method = 'discrete' if you want to use a pure discrete
 %   gradient descent.
+%   Set options.preview = true to visualize intermediate results
 %
-%   Copyright (c) 2007 Gabriel Peyre
+%   Copyright (c) 2007 Gabriel Peyre, modifications NPMitchell 2020
 
 
 options.null = 0;
@@ -127,11 +128,16 @@ function path = extract_path_2d(A,end_points,options)
 %   Copyright (c) 2004 Gabriel Peyré
 
 options.null = 0;
+preview = false ;
 
 if isfield(options, 'trim_path')
     trim_path = options.trim_path;
 else
     trim_path = 1;
+end
+
+if isfield(options, 'preview')
+    preview = options.preview ;
 end
 
 if isfield(options, 'stepsize')
@@ -161,8 +167,26 @@ global grad;
 grad = compute_grad(A1);
 grad = -perform_vf_normalization(grad);
 
+%%%%%%%%%%%%%%%%%%%
 % path extraction
+%%%%%%%%%%%%%%%%%%%
+% Debug by visualizing gradients
+if preview
+    disp('compute_geodesic.extract_path_2d(): gradient')
+    imagesc(grad(:, :, 1))
+    pause(1)
+    colorbar()
+    imagesc(grad(:, :, 2))
+    pause(1)
+    colorbar()
+end
 path = stream2(grad(:,:,2),grad(:,:,1),end_points(2,:),end_points(1,:), str_options);
+
+if preview
+    disp('compute_geodesic.extract_path_2d(): path = ')
+    path
+end
+
 for i=1:length(path)
     path{i} = path{i}(:,2:-1:1);
 end
@@ -195,6 +219,15 @@ end
 if size(path, 2)~=2 && size(path, 1)==2
     path = path';
 end
+
+if preview 
+    disp('compute_geodesic.extract_path_2d(): end_points= ')
+    end_points
+    disp('compute_geodesic.extract_path_2d(): path= ')
+    path
+    imshow(A')
+end
+
 path = [path; compute_discrete_geodesic(A, round(path(end,:)))'];
 
 return;
