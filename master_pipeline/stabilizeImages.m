@@ -33,8 +33,6 @@ function stabilizeImages(fileName, fileNameOut, rgbName, typename, ...
 % mipDir : where MIPs are stored
 % mips_stab_check : output dir for the stabilized RGB overlays 
 % mipoutdir : output dir for the stabilized MIPs
-% im_intensity : scale for MIP output intensity
-% imref_intensity : scale for reference MIP intensity in RGB overlay
 % t_ref : timestamp of reference, matches other timepoints to this one
 % timePoints : all timestamps to consider in the sequence
 % times_todo : timestamps to correct/make output
@@ -43,7 +41,9 @@ function stabilizeImages(fileName, fileNameOut, rgbName, typename, ...
 % fileNameOut : output filename format string for stabilized volumes
 % rgbName : RGB overlay filename format string
 % Options : struct with fields
-%   stabChannel
+%    stabChannel : int (default=1), channel for stabilization 
+%    im_intensity : scale for MIP output intensity
+%    imref_intensity : scale for reference MIP intensity in RGB overlay
 %
 % Returns
 % -------

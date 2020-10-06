@@ -74,7 +74,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 2 ;
     channelsUsed = [1 2];
-    timePoints = 0:167 ;
+    timePoints = 0:178 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
@@ -284,7 +284,7 @@ xp = project.Experiment(projectDir, dataDir);
 % A filename base template - to be used throughout this script
 fileMeta                    = struct();
 fileMeta.dataDir            = dataDir;
-fileMeta.filenameFormat     = ['Time_%06d_stab.tif'];
+fileMeta.filenameFormat     = 'Time_%06d_stab.tif';
 fileMeta.nChannels          = nChannels;
 fileMeta.timePoints         = timePoints ;
 fileMeta.stackResolution    = stackResolution;
@@ -527,7 +527,7 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(159:end)
+    for tp = xp.fileMeta.timePoints(170:end)
         % try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
@@ -942,7 +942,7 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     Options.Rotation = QS.APDV.rot ;
     Options.Translation = QS.APDV.trans ;
     Options.Dilation = QS.APDV.resolution ;
-    Options.numLayers = [6, -6];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
+    Options.numLayers = [4, -4];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
     Options.layerSpacing = 1 ;
     
     % Save it

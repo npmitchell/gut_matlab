@@ -90,6 +90,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     fn = 'Time_%06d_c1_stab';
     fn_prestab = 'Time_%06d_c1.tif';
     set_preilastikaxisorder = 'xyzc' ;
+    swapZT = 1 ;
     masterSettings = struct('stackResolution', stackResolution, ...
         'nChannels', nChannels, ...
         'channelsUsed', channelsUsed, ...
@@ -103,6 +104,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'file32Base', file32Base, ...
         'fn', fn,...
         'fn_prestab', fn_prestab, ...
+        'swapZT', swapZT, ...
         'set_preilastikaxisorder', set_preilastikaxisorder); 
     disp('Saving masterSettings to ./masterSettings.mat')
     if exist('./masterSettings.mat', 'file')
@@ -142,6 +144,7 @@ if loadMaster
     fn = masterSettings.fn ;
     fn_prestab = masterSettings.fn_prestab ;
     set_preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
+    swapZT = masterSettings.swapZT ;
 end
 dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
 dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
@@ -180,8 +183,6 @@ makeMips(timePoints, dir16bit_prestab, fn_prestab, mipDir, Options)
 % name of directory to check the stabilization of mips
 mips_stab_check = fullfile(mipDir, 'stab_check') ;
 mipoutdir = fullfile(mipDir, 'mips_stab') ;
-im_intensity = 1 ; % 0.01 ;
-imref_intensity = 1 ; % 0.005 ;
 % Choose bit depth as typename
 typename = 'uint16' ;
 % Give file names for I/O
@@ -189,12 +190,15 @@ fileNameIn = fullfile(dir16bit_prestab, fn_prestab) ;
 fileNameOut = fullfile(dir16bit, [fn '.tif']) ;
 rgbName = [fn '.png'] ;
 typename = 'uint16' ; 
-overwrite_mips = false ;
-overwrite_tiffs = false ;
+Options = struct(); 
+Options.overwrite_mips = false ;
+Options.overwrite_tiffs = false ;
+Options.im_intensity = 1 ; % 0.01 ;
+Options.imref_intensity = 1 ; % 0.005 ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     timePoints, timePoints, timePoints(50), ...
-    im_intensity, imref_intensity, ...
-    mipDir, mipoutdir, mips_stab_check, overwrite_mips, overwrite_tiffs)
+    mipDir, mipoutdir, mips_stab_check, Options)
+
 
 %%   -I. master_gut_timeseries_prestab_for_training.m
 % Skip if already done
@@ -253,7 +257,7 @@ fileMeta.filenameFormat     = [fn, '.tif'];
 fileMeta.nChannels          = nChannels;
 fileMeta.timePoints         = timePoints ;
 fileMeta.stackResolution    = stackResolution;
-fileMeta.swapZT             = 1;
+fileMeta.swapZT             = masterSettings.swapZT;
 
 % Set required additional information on the experiment. A verbal data set
 % description, Jitter correct by translating  the sample, which time point
