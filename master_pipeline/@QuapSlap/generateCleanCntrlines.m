@@ -88,7 +88,9 @@ else
     % Now adjust the anomalous ones to fix them up
     ssrfix = zeros(length(anomalous), 1) ;
     if any(anomalous)
-        for qq = find(anomalous)
+        badID = find(anomalous) ;
+        for qqID = 1:length(find(anomalous))
+            qq = badID(qqID) ;
             % Find the last timepoint that was NOT anomalous and precedes 
             % the current one
             previd = find(~anomalous & (timePoints' < timePoints(qq)), 1, 'last') ;
@@ -98,6 +100,10 @@ else
             nextid = find(~anomalous & (timePoints' > timePoints(qq)), 1, 'first') ;
             cl1 = cntrlines{timePoints(previd)} ;
             cl2 = cntrlines{timePoints(nextid)} ;
+            if size(cl1, 2) == 4
+                cl1 = cl1(:, 2:4) ;
+                cl2 = cl2(:, 2:4) ;
+            end
             id = pointMatch(cl1, cl2) ;
             cline = (cl2(id, :) + cl1) * 0.5 ;
             cntrlines{timePoints(qq)} = cat(2, ss_from_xyz(cline), cline)  ;
@@ -113,6 +119,8 @@ else
             % load the centerline for prev timepoint
             clfns = dir(sprintf(centerlineBase, prevtp)) ;
             prevcline = dlmread(fullfile(clfns(1).folder, clfns(1).name)) ;
+            % Convert to APDV [um]
+            prevcline = ((rot * prevcline')' + trans) * resolution ; 
             % Find the SSR
             idx = pointMatch(cline, prevcline) ;
             ssrfix(qq) = sum(vecnorm(cline - prevcline(idx, :), 2, 2)) / length(idx) ;
@@ -155,10 +163,11 @@ else
         xlim(xyzlim_raw(1, :))
         ylim(xyzlim_raw(2, :))
         zlim(xyzlim_raw(3, :))
-        title('Visualizing the corrected centerlines')
+        title('Visualizing the corrected centerlines [pix]')
         pause(0.001)
     end
     clearvars cl
+    pause(2)
 
     % View the corrected centerlines
     for qq = timePoints
@@ -173,8 +182,8 @@ else
         xlim(xyzlim_um(1, :))
         ylim(xyzlim_um(2, :))
         zlim(xyzlim_um(3, :))
-        title('Visualizing the corrected RS centerlines')
-        pause(0.001)
+        title('Visualizing the corrected RS centerlines [um]')
+        pause(0.05)
     end
     clearvars cl
     close all

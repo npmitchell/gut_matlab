@@ -89,12 +89,24 @@ for i = 1:length(mipdirs)
         mkdir(mipdirs{i})
     end
 end
-name1  = fullfile('view1', 'mip_1_%03d_c%d.tif');
-name2  = fullfile('view2', 'mip_2_%03d_c%d.tif');
-name11 = fullfile('view11', 'mip_11_%03d_c%d.tif');
-name21 = fullfile('view21', 'mip_21_%03d_c%d.tif');
-name12 = fullfile('view12', 'mip_12_%03d_c%d.tif');
-name22 = fullfile('view22', 'mip_22_%03d_c%d.tif');
+
+timechannel='tc';
+if strcmp(timechannel, 'tc')
+    name1  = fullfile('view1', 'mip_1_%03d_c%d.tif');
+    name2  = fullfile('view2', 'mip_2_%03d_c%d.tif');
+    name11 = fullfile('view11', 'mip_11_%03d_c%d.tif');
+    name21 = fullfile('view21', 'mip_21_%03d_c%d.tif');
+    name12 = fullfile('view12', 'mip_12_%03d_c%d.tif');
+    name22 = fullfile('view22', 'mip_22_%03d_c%d.tif');
+elseif strcmp(timechannel, 't')
+    name1  = fullfile('view1', ['mip_1_%03d_c' num2str(channel) '.tif']);
+    name2  = fullfile('view2', ['mip_2_%03d_c' num2str(channel) '.tif']);
+    name11 = fullfile('view11', ['mip_11_%03d_c' num2str(channel) '.tif']);
+    name21 = fullfile('view21', ['mip_21_%03d_c' num2str(channel) '.tif']);
+    name12 = fullfile('view12', ['mip_12_%03d_c' num2str(channel) '.tif']);
+    name22 = fullfile('view22', ['mip_22_%03d_c' num2str(channel) '.tif']);
+end
+timechannel='t';
 t_ref_ind = find( timePoints == t_ref ) ;
 
 %% Define shifts for each time point ======================================
@@ -116,6 +128,7 @@ if exist(shiftfn, 'file') && ~overwrite_mips
 else
     disp('Shifts not on disk, computing them...')
     % Load MIP data into im_1 and im_2 for all times
+    
     disp('Loading MIP data for all times...')
     NTimes = length(timePoints);
     % preallocate im_1 for speed

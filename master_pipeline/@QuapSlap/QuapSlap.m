@@ -224,14 +224,68 @@ classdef QuapSlap < handle
             t0 = QS.t0 ;
         end
         
+        function makeMIPs(QS, dim, pages, timePoints, adjustIV)
+            if nargin < 5
+                adjustIV = false ;
+            end
+            if nargin < 4 
+                timePoints = QS.xp.fileMeta.timePoints;
+            elseif isempty(timePoints)
+                timePoints = QS.xp.fileMeta.timePoints;
+            end
+            if ~iscell(pages)
+                pages = {pages} ;
+            end
+            % create mip directories if needed
+            for qq = 1:length(pages)
+                outdir = sprintf(QS.dir.mip, dim, ...
+                            min(pages{qq}), max(pages{qq})) ;
+                if ~exist(outdir, 'dir')
+                    mkdir(outdir)
+                end
+            end
+            
+            % make the mips
+            for tp = timePoints
+                for qq = 1:length(pages)
+                    im = QS.mip(tp, dim, pages{qq}, adjustIV) ;
+                    imfn = sprintf(QS.fullFileBase.mip, dim, ...
+                        min(pages{qq}), max(pages{qq}), tp) ;
+                    imwrite(im, imfn,'tiff','Compression','none')
+                end
+            end
+
+        end
+        
+        function im = mip(QS, tp, dim, pages, adjustIV)
+            if nargin < 5
+                adjustIV = false ;
+            end
+            QS.setTime(tp)
+            QS.getCurrentData(adjustIV)
+            for qq = 1:length(QS.currentData.IV)
+                if dim == 1
+                    im = squeeze(max(QS.currentData.IV{qq}(pages, :, :), [], dim)) ;
+                elseif dim == 2
+                elseif dim == 3
+                else
+                    error('dim > 3 not understood')
+                end
+            end
+        end
+        
+        [acom,pcom,dcom] = computeAPDVCoords(QS, opts)
+        
         function [acom_sm, pcom_sm] = getAPCOMSm(QS) 
             % Load the anterior and posterior 'centers of mass' ie the
             % endpoints of the object's centerline
             try
                 acom_sm = h5read(QS.fileName.apdv, '/acom_sm') ;
                 pcom_sm = h5read(QS.fileName.apdv, '/pcom_sm') ;
+                assert(length(acom_sm) == length(QS.xp.fileMeta.timePoints))
             catch
-                [acom_sm, pcom_sm] = QS.computeAPDCOMs() ;
+                opts = load(QS.fileName.apdv_options) ;
+                [acom_sm, pcom_sm] = QS.computeAPDCOMs(opts.apdvOpts) ;
             end
         end
         
@@ -449,7 +503,10 @@ classdef QuapSlap < handle
             QS.data.adjusthigh = adjusthigh ;
         end
         
-        function getCurrentData(QS)
+        function getCurrentData(QS, adjustIV)
+            if nargin < 2
+                adjustIV = true ;
+            end
             if isempty(QS.currentTime)
                 error('No currentTime set. Use QuapSlap.setTime()')
             end
@@ -458,9 +515,13 @@ classdef QuapSlap < handle
                 QS.xp.loadTime(QS.currentTime);
                 QS.xp.rescaleStackToUnitAspect();
                 IV = QS.xp.stack.image.apply() ;
-                adjustlow = QS.data.adjustlow ;
-                adjusthigh = QS.data.adjusthigh ;
-                QS.currentData.IV = QS.adjustIV(IV, adjustlow, adjusthigh) ;
+                if adjustIV
+                    adjustlow = QS.data.adjustlow ;
+                    adjusthigh = QS.data.adjusthigh ;
+                    QS.currentData.IV = QS.adjustIV(IV, adjustlow, adjusthigh) ;
+                else
+                    QS.currentData.IV = IV ;
+                end
             end
         end
         
@@ -474,18 +535,28 @@ classdef QuapSlap < handle
                     IV = QS.currentData.IV ;
                 end
             end
+            
+            % If only one value of intensity limit is supplied, duplicate 
+            % for each channel of IV            
+            if numel(adjustlow) == 1 && length(IV) > 1
+                adjustlow = adjustlow *  ones(size(IV)) ;
+            end
+            if numel(adjusthigh) == 1 && length(IV) > 1
+                adjusthigh = adjusthigh *  ones(size(IV)) ;
+            end
+
             % custom image intensity adjustment
-            if adjustlow == 0 && adjusthigh == 0
+            if all(adjustlow == 0) && all(adjusthigh == 0)
                 disp('Using default limits for imadjustn')
                 for ii = 1:length(IV)
                     IV{ii} = imadjustn(IV{ii});
                 end
-            elseif adjustlow < 100 && adjusthigh < 100
+            elseif all(adjustlow < 100) && all(adjusthigh < 100)
                 disp('Taking custom limits for imadjustn as prctile')
                 for ii = 1:length(IV)
                     IVii = IV{ii} ;
-                    vlo = double(prctile( IVii(:) , adjustlow )) / double(max(IVii(:))) ;
-                    vhi = double(prctile( IVii(:) , adjusthigh)) / double(max(IVii(:))) ;
+                    vlo = double(prctile( IVii(:) , adjustlow(ii) )) / double(max(IVii(:))) ;
+                    vhi = double(prctile( IVii(:) , adjusthigh(ii))) / double(max(IVii(:))) ;
                     disp(['--> ', num2str(vlo), ', ', num2str(vhi), ...
                         ' for ', num2str(adjustlow), '/', num2str(adjusthigh)])
                     IV{ii} = imadjustn(IVii, [double(vlo); double(vhi)]) ;
@@ -493,10 +564,11 @@ classdef QuapSlap < handle
             else
                 % adjusthigh is > 100, so interpret as an intensity value
                 disp('Taking custom limits for imadjustn as direct intensity limit values')
+
                 for ii = 1:length(IV)
                     IVii = IV{ii} ;
-                    vlo = double(adjustlow) ;
-                    vhi = double(adjusthigh) ;
+                    vlo = double(adjustlow(ii)) ;
+                    vhi = double(adjusthigh(ii)) ;
                     disp(['--> ', num2str(vlo), ', ', num2str(vhi), ...
                         ' for ', num2str(adjustlow), '/', num2str(adjusthigh)])
                     tmp = (double(IVii) - vlo) / (vhi - vlo) ;
@@ -553,6 +625,33 @@ classdef QuapSlap < handle
                 ars(:, 2) = - ars(:, 2) ;
             end
         end
+        
+        function axyz = APDV2xyz(QS, a)
+            %ars = xyz2APDV(QS, a)
+            %   Transform 3d coords from APDV coord sys to XYZ data space
+            [rot, trans] = QS.getRotTrans() ;
+            if QS.flipy
+                a(:, 2) = - a(:, 2) ;
+            end
+            invRot = QS.invertRotation(rot) ;
+            preRot = a / QS.APDV.resolution - trans ; 
+            axyz = (invRot * preRot')' ;
+            % Note: ars = ((rot * axyz')' + trans) * QS.APDV.resolution ;
+        end
+        
+        function daxyz = APDV2dxyz(QS, a)
+            %ars = xyz2APDV(QS, a)
+            %   Transform 3d vectors from APDV coord sys to XYZ data space
+            [rot, trans] = QS.getRotTrans() ;
+            if QS.flipy
+                a(:, 2) = - a(:, 2) ;
+            end
+            invRot = QS.invertRotation(rot) ;
+            preRot = a / QS.APDV.resolution ; 
+            daxyz = (invRot * preRot')' ;
+            % Note: ars = ((rot * axyz')' + trans) * QS.APDV.resolution ;
+        end
+        
         function dars = dx2APDV(QS, da)
             %dars = dx2APDV(QS, da)
             %   Transform 3d difference vector from XYZ data space to APDV 
@@ -641,6 +740,9 @@ classdef QuapSlap < handle
                 QS.currentMesh.cutPath = dlmread(cutPfn, ',', 1, 0) ;
             catch
                 debugMsg(1, 'Could not load cutPath, cutMesh is limited\n')
+                % Wait, isn't cutP a field of cutMesh?
+                tmp.cutMesh.cutP
+                error('check this here --> is cutP a field?')
             end
         end
         
@@ -1473,6 +1575,12 @@ classdef QuapSlap < handle
             theta_ap = 0.5 * mod(theta_averages, 2*pi) ;
         end
        
+        function invRot = invertRotation(rot)
+            rotM = [rot(1, :), 0; rot(2,:), 0; rot(3,:), 0; 0,0,0,1] ;
+            tform = affine3d(rotM) ;
+            invtform = invert(tform) ;
+            invRot = invtform.T(1:3,1:3) ;
+        end
     end
     
 end

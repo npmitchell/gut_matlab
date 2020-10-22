@@ -40,16 +40,7 @@ meshDir = QS.dir.mesh ;
 axorder = QS.data.axisOrder ;
 ilastikOutputAxisOrder = QS.data.ilastikOutputAxisOrder ;
 
-if isfield(opts, 'aProbFileName')
-    aProbFileName = opts.aProbFileName ;
-else
-    aProbFileName = QS.fullFileBase.apdProb ;
-end
-if isfield(opts, 'pProbFileName')
-    pProbFileName = opts.pProbFileName ;
-else
-    pProbFileName = QS.fullFileBase.apdProb ;
-end
+apdProbFileName = QS.fullFileBase.apdProb ;
 
 % Default options
 overwrite = false ; 
@@ -57,8 +48,10 @@ preview_com = false ;
 check_slices = false ;
 
 % Unpack opts
+dorsal_thres = opts.dorsal_thres ;
 anteriorChannel = opts.anteriorChannel ;
 posteriorChannel = opts.posteriorChannel ;
+dorsalChannel = opts.dorsalChannel ;
 if isfield(opts, 'overwrite')
     overwrite = opts.overwrite ;
 end
@@ -75,13 +68,13 @@ if isfield(opts, 'smwindow')
     smwindow = opts.smwindow ;
 end
 
+dcomname = QS.fileName.dcom ;
 rawapdvname = QS.fileName.apdv ;
 rawapdvmatname = fullfile(apdvoutdir, 'apdv_coms_from_training.mat') ;
 preview = false ;
 if isfield(opts, 'preview')
     preview = opts.preview ;
 end
-
 
 %% Iterate through each mesh to compute acom(t) and pcom(t). Prepare file.
 acoms = zeros(length(timePoints), 3) ;
@@ -150,26 +143,17 @@ if ~load_from_disk || overwrite
             msg = ['Computing acom, pcom for ' num2str(tt) ] ;
             disp(msg)
             thres = 0.5 ;
-            % load the probabilities for anterior posterior dorsal
-            afn = sprintf(aProbFileName, tt);
-            pfn = sprintf(pProbFileName, tt);
-            disp(['Reading ', afn])
-            adatM = h5read(afn, '/exported_data');
-            if ~strcmp(afn, pfn)
-                disp(['Reading ' pfn])
-                pdatM = h5read(pfn, '/exported_data') ;
-            else
-                pdatM = adatM ;
-            end
+            apfn = sprintf(apdProbFileName, tt);
+            apdat = h5read(apfn, '/exported_data');
 
             % rawfn = fullfile(rootdir, ['Time_' timestr '_c1_stab.h5' ]);
             % rawdat = h5read(rawfn, '/inputData');
             if strcmpi(ilastikOutputAxisOrder, 'cxyz')
-                adat = squeeze(adatM(anteriorChannel,:,:,:)) ;
-                pdat = squeeze(pdatM(posteriorChannel,:,:,:)) ;
+                adat = squeeze(apdat(anteriorChannel,:,:,:)) ;
+                pdat = squeeze(apdat(posteriorChannel,:,:,:)) ;
             elseif strcmpi(ilastikOutputAxisOrder, 'xyzc')
-                adat = squeeze(adatM(:,:,:,anteriorChannel)) ;
-                pdat = squeeze(pdatM(:,:,:,posteriorChannel)) ;
+                adat = squeeze(apdat(:,:,:,anteriorChannel)) ;
+                pdat = squeeze(apdat(:,:,:,posteriorChannel)) ;
             else
                 error('Did not recognize ilastikAxisOrder. Code here')
             end
@@ -184,7 +168,6 @@ if ~load_from_disk || overwrite
             options.check = preview_com ;
             disp('Extracting acom')
             options.color = 'red' ;
-            
             acom = com_region(adat, thres, options) ;
             disp('Extracting pcom')
             options.color = 'blue' ;
@@ -205,11 +188,6 @@ if ~load_from_disk || overwrite
             if tidx == 1
                 % load current mesh & plot the dorsal dot
                 clf
-                try
-                    dcom = dlmread(QS.fileName.dcom) ;
-                catch
-                    error('Could not load dorsal COM: run QS.computeAPDVCoords() first')
-                end
                 for ii = 1:3
                     subplot(1, 3, ii)
                     mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, tt)) ;
@@ -228,7 +206,7 @@ if ~load_from_disk || overwrite
                     end
                 end
                 sgtitle('APD COMs for APDV coordinates')
-                saveas(gcf, fullfile(QS.dir.mesh, 'apd_coms_centerline.png'))
+                saveas(gcf, fullfile(QS.dir.mesh, 'apd_coms.png'))
             end
             
         end
@@ -307,9 +285,47 @@ end
 
 disp('done with AP COMs')
 
+%%%%%%%%%%%%%%%%%%%%%%
+if preview
+    % % disp('Showing dorsal segmentation...')
+    % clf
+    % for slice=1:2:size(ddat, 2)
+    %     im = squeeze(ddat(:, slice, :)) ;
+    %     % im(im < dorsal_thres) = 0 ;
+    %     imshow(im)
+    %     xlabel('x')
+    %     ylabel('z')
+    %     hold on
+    %     plot(dcom(:, 1), dcom(:, 3), 'o')
+    %     title([num2str(slice) '/' num2str(size(apdat, 3))])
+    %     pause(0.001)
+    % end
+    %%%%%%%%%%%%%%%%%%%%%%
+    fig = figure ;
+    disp('Displaying mesh in figure ...')
+    % iso = isosurface(rawdat, 880) ;
+    % patch(iso,'facecolor',[1 0 0],'facealpha',0.1,'edgecolor','none');
+    % view(3)
+    % camlight
+    % hold on;
+    trimesh(fvsub.faces, ...
+        vtx_sub(:, 1), vtx_sub(:,2), vtx_sub(:, 3), ...
+        vtx_sub(:, 1), 'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+    hold on;
+    plot3(acom(1), acom(2), acom(3), 'ro')
+    plot3(pcom(1), pcom(2), pcom(3), 'bo')
+    plot3(dcom(1), dcom(2), dcom(3), 'go')
+    xlabel('x [subsampled pixels]')
+    ylabel('y [subsampled pixels]')
+    zlabel('z [subsampled pixels]')
+    title('Original mesh in subsampled pixels, with APD marked')
+    axis equal
+    %%%%%%%%%%%%%%%%%%%%%%
+    waitfor(fig)
+end
+
 %% Display APDV COMS over time
 try
-    dcom = dlmread(QS.fileName.dcom) ;
     [xyzlim, ~, ~, ~] = QS.getXYZLims() ;
     for tidx = 1:length(timePoints)
         tp = timePoints(tidx) ;
@@ -326,7 +342,7 @@ try
         pause(0.01)
     end
 catch
-    disp('Could not display aligned meshes -- does dcom exist on file?')
+    disp('Could not display aligned meshes')
 end
 
 disp('done')

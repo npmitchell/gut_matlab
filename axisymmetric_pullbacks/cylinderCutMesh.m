@@ -652,9 +652,25 @@ if eulerChi ~= 1
     trisurf(face, vertex(:, 1), vertex(:, 2), vertex(:, 3), vertex(:, 3),...
         'EdgeColor', 'none', 'FaceAlpha', 0.4)
     hold on;
-    plot3(vertex(P, 1), vertex(P, 2), vertex(P, 3), '-', 'linewidth', 4)
+    plot3(vertex(P, 1), vertex(P, 2), vertex(P, 3), '-', 'linewidth', 1)
     axis equal
-    error(['Output mesh is NOT a topological disk! EulerChi = ' num2str(eulerChi)]);
+    
+    disp('Attempting to clean up mesh')
+    [ newface, newvertex, unreferenced, oldVertexIDx ] = ...
+        remove_unreferenced_vertices_from_mesh( face, vertex ) ;
+    
+    % Recompute euler characteristic
+    edge = edges( triangulation( face, vertex ) );
+    eulerChi = size(vertex, 1) - size(edge,1) + size(face,1);
+    if eulerChi ~=1
+        error(['Output mesh is NOT a topological disk! EulerChi = ' num2str(eulerChi)]);
+    else
+
+        cutMesh.f = newface ; 
+        cutMesh.v = newvertex ;
+        % Adjust indices here
+
+    end
 end
 
 

@@ -6,7 +6,7 @@ function generateCurrentCutMesh(QS, cutMeshOptions)
 % QS : QuapSlap class instance
 %   The object for which we generate the currentTime's cutMesh
 % cutMeshOptions : struct with fields
-%   nsegs4path (int, optional, default=5)
+%   nsegs4path (int, optional, default=2)
 %       How many segments of piecewise geodesics to draw to cut the
 %       axisymmetric surface so that the cut does not change winding
 %       number with respect to the previous timepoint's cut around the
@@ -25,7 +25,7 @@ function generateCurrentCutMesh(QS, cutMeshOptions)
 % NPMitchell 2020
 
 % Parameters for cutMesh creation
-nsegs4path = 5 ;
+nsegs4path = 2 ;
 maxJitter = 100 ;
 maxTwChange = 0.20 ;
 preview = false ;
@@ -236,7 +236,7 @@ try
     cutMesh = flattenAnnulus( cutMesh );
 catch
     disp('Bad boundary! Remeshing')
-
+    cutMesh = flattenAnnulus( cutMesh );
     % Reduce the mesh and check the results this way
     fv.faces = mesh.f ;
     fv.vertices = mesh.v ;
@@ -244,7 +244,7 @@ catch
     [~, adIDx2] = min(vecnorm(fv.vertices - mesh.v(adIDx, :), 2, 2)) ;
     [~, pdIDx2] = min(vecnorm(fv.vertices - mesh.v(pdIDx, :), 2, 2)) ;
     vn2 = per_vertex_normals(fv.vertices, fv.faces, 'Weighting', 'angle') ;
-    cutMesh = cylinderCutMesh(fv.faces, fv.vertices, vn2, adIDx2, pdIDx2, cutOptions );
+    cutMesh = cylinderCutMesh(fv.faces, fv.vertices, vn2, adIDx2, pdIDx2, cutMeshOptions );
     bdyIDx = freeBoundary( triangulation( cutMesh.f, cutMesh.v ) ) ;
     idx = bdyIDx(:, 1) ;
     

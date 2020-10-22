@@ -1,6 +1,16 @@
 function plotCutPath(QS, cutMesh, cutP)
 %
-% auxilliary function for Generate_Axisymmetric_Pullbacks_Orbifold.m
+% Plot the cut path of a cylinderCutMesh on the mesh in 3D and save image
+%
+% Parameters
+% ----------
+% QS: QuapSlap object
+% cutMesh : cutMesh object with fields 
+%   v : vertices
+%   f : face connectivity list
+% cutP : optional 3D path of the cut on the cylinderCutMesh
+%
+% NPMitchell 2019
 
 % unpack options
 if nargin < 2 || isempty(cutMesh)
@@ -29,7 +39,7 @@ disp('Plotting cut...')
 xyzrs = QS.xyz2APDV(cutMesh.v) ;
 fig = figure('Visible', 'Off')  ;
 fig.PaperUnits = 'centimeters';
-[~, ~, xyzlim_um] = QS.getXYZLims() ;
+[~, ~, ~, xyzlim_um] = QS.getXYZLims() ;
 xyzlim_um(:, 1) = xyzlim_um(:, 1) - QS.normalShift ;
 xyzlim_um(:, 1) = xyzlim_um(:, 1) + QS.normalShift ;
 

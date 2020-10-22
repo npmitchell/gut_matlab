@@ -14,8 +14,11 @@ function mesh = read_ply_mod(filename)
 %   Modified 2015 by Idse Heemskerk to return mesh with vertex normal 
 %   Modified 2019 by Noah Mitchell to allow for absence of normal
 
-[d,c] = plyread(filename);
-
+try
+    [d,c] = plyread(filename);
+catch
+    error(['Could not find mesh: ' filename])
+end
 vi = d.face.vertex_indices;
 nf = length(vi);
 face = zeros(nf,3);

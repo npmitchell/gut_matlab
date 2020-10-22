@@ -40,6 +40,8 @@ timePoints = QS.xp.fileMeta.timePoints ;
 meshFileName = QS.fullFileBase.mesh ;
 startendptH5FileName = QS.fileName.startendPt ;
 fn = QS.fileBase.name ;
+plotStyleMesh = 'surface' ;  % [surface or fast] whether to plot the mesh carefully as surface or as (fast) scatterplot
+saveImages = true ;
 
 % Required options transform dataspace [pixels] into lab space [um]
 resolution = QS.APDV.resolution ;
@@ -57,6 +59,8 @@ reorient_faces = true ;         % whether to ensure proper face orientation on e
 preview = false ;               % view intermediate results
 xwidth = 16 ;                   % width of figure in cm
 ywidth = 10 ;                   % height of figure in cm
+skipErrors = true ;             % skip timepoints that return errors
+epsilon = eps ;                 % small value to give as weight of outside region
 useSavedAPDVMeshes = false ;    % load APDV meshes instead of transforming the data space meshes on the fly
 meshAPDVFileName = QS.fullFileBase.alignedMesh ; 
 if isfield(cntrlineOptions, 'overwrite')
@@ -70,6 +74,9 @@ if isfield(cntrlineOptions, 'exponent')
 end
 if isfield(cntrlineOptions, 'res')
     res = cntrlineOptions.res ;
+end
+if isfield(cntrlineOptions, 'skipErrors')
+    skipErrors = cntrlineOptions.skipErrors ;
 end
 if isfield(cntrlineOptions, 'meshAPDVFileName')
     useSavedAPDVMeshes = true ;
@@ -90,6 +97,15 @@ if isfield(cntrlineOptions, 'preview')
 end
 if isfield(cntrlineOptions, 'xyzlim_um')
     xyzlim_um = cntrlineOptions.xyzlim_um ;
+end
+if isfield(cntrlineOptions, 'epsilon')
+    epsilon = cntrlineOptions.epsilon ;
+end
+if isfield(cntrlineOptions, 'plotStyleMesh')
+    plotStyleMesh = cntrlineOptions.plotStyleMesh ;
+end
+if isfield(cntrlineOptions, 'saveImages')
+    saveImages = cntrlineOptions.saveImages ;
 end
 
 % Figure options
@@ -213,7 +229,7 @@ for tt = timePoints
         % error('df')
         
         disp(['Identifying pts in mesh with inpolyhedron: ' name]) ;
-        inside = inpolyhedron(fv, xx, yy, zz) ;
+        insideM = inpolyhedron(fv, xx, yy, zz) ;
         disp('> Computed segmentation:')
         toc ; 
 
@@ -223,19 +239,19 @@ for tt = timePoints
             for qq = 1:cntrlineOptions.dilation
                 [xb,yb,zb] = ndgrid(-3:3);
                 se = strel(sqrt(xb.^2 + yb.^2 + zb.^2) <=3);
-                inside = imdilate(inside, se) ;
+                insideM = imdilate(insideM, se) ;
             end
         end
         
         % Check that segmentation is a single solid
-        props = regionprops3(inside, 'Volume') ;
+        props = regionprops3(insideM, 'Volume') ;
         ndilate = 0 ;
         while length(props.Volume) > 1
             disp('dilating inside volume by two voxels')
             [xb,yb,zb] = ndgrid(-4:4);
             se = strel(sqrt(xb.^2 + yb.^2 + zb.^2) <=4);
-            inside = imdilate(inside, se) ;
-            props = regionprops3(inside, 'Volume') ;
+            insideM = imdilate(insideM, se) ;
+            props = regionprops3(insideM, 'Volume') ;
             ndilate = ndilate + 1;
             if ndilate > 10
                 error('could not dilate array to connect components')
@@ -245,13 +261,13 @@ for tt = timePoints
         % use the distanceTransform from Yuriy Mishchenko
         disp(['Computing DT for ' name]) ;
         tic
-        outside = 1 - inside ;
+        outside = 1 - insideM ;
         Dbw = bwdistsc(outside) ;
         % DD = max(DD(:)) - DD ;
-        DD = (Dbw + eps) ./ (max(Dbw(:)) + eps) ;
+        DD = (Dbw + epsilon) ./ (max(Dbw(:)) + epsilon) ;
         % DD = 1 - DD ;
         DD = DD.^(exponent) ; 
-        DD(logical(outside)) = eps ;
+        DD(logical(outside)) = epsilon ;
         disp('> Computed DT:')
         toc ; 
 
@@ -270,7 +286,7 @@ for tt = timePoints
 
             % A better way to plot it
             clf
-            p = patch(isosurface(xx,yy,zz,inside,0.5));
+            p = patch(isosurface(xx,yy,zz,insideM,0.5));
             % isonormals(x,y,z,v,p)
             p.FaceColor = 'red';
             p.EdgeColor = 'none';
@@ -288,7 +304,7 @@ for tt = timePoints
         %          zp(1:ssample:end), 30, dp(1:ssample:end), 'filled') ;
 
         %% use Peyre's fast marcher
-        disp(['Computing centerline for ' name]);
+        disp(['Computing fast marching for DT of ' name]);
         
         tic
         % From example (DD is W, with low values being avoided)
@@ -297,6 +313,32 @@ for tt = timePoints
         startpt_transposed = [startpt(2), startpt(1), startpt(3)]' / res ;
         endpt_transposed = [endpt(2), endpt(1), endpt(3)]' / res ;
         [D2,S] = perform_fast_marching(DD, startpt_transposed, options);
+        
+        try
+            assert(length(find(D2(:) < Inf)) > 1)
+            assert(any(D2(D2(:)< 1e9)))
+        catch
+            % A better way to plot it
+            clf
+            p = patch(isosurface(insideM,0.5));
+            hold on;
+            scatter3(startpt(1)/res, startpt(2)/res, startpt(3)/res, 30, 'filled')
+            scatter3(endpt(1)/res, endpt(2)/res, endpt(3)/res, 30, 'filled')
+            % isonormals(x,y,z,v,p)
+            p.FaceColor = 'red';
+            p.EdgeColor = 'none';
+            p.FaceAlpha = 0.2 ;
+            daspect([1 1 1])
+            view(3); 
+            axis tight
+            camlight 
+            pause(1)
+            if ~skipErrors
+                error(['Could not build path'])
+            end
+        end
+        
+        % Note: S tells us if the pixel distance has been computed (<0)
         path = compute_geodesic(D2, endpt_transposed);
         % plot_fast_marching_3d(D2, S, path, startpt, endpt);
 
@@ -304,19 +346,20 @@ for tt = timePoints
         disp('> Found skel via geodesic fast marching')        
         toc
         if preview
-            % Preview D2
+            % Preview DD
             clf ;
-            for kk=1:10:size(D2,3)
-                imshow(squeeze(D2(kk,:,:)))
-                title(['D2 for plane z=' num2str(kk)])
-                pause(0.001)
+            for kk=1:10:size(DD,1)
+                imagesc(squeeze(DD(kk,:,:)))
+                title(['DT for plane z=' num2str(kk)])
+                pause(0.01)
             end
 
-            % Preview S
-            for kk=1:10:size(S,1)
-                imshow(squeeze(S(kk,:,:)))
-                title(['S for plane z=' num2str(kk)])
-                pause(0.001)
+            % Preview D2
+            for kk=1:10:size(D2,1)
+                imagesc(squeeze(D2(kk,:,:)))
+                title(['D2 for plane z=' num2str(kk)])
+                caxis([0,  max(D2(D2(:) < Inf), 1)])
+                pause(0.01)
             end
         end
 
@@ -362,18 +405,22 @@ for tt = timePoints
             result_changed = true ;
             resolution_matches = true ;
         else
-            disp('WARNING: PATH FAILED. SKIPPING THIS TIMEPOINT')
-            % Preview D2
-            clf ;
-            for kk=[1:2:size(D2,1), size(D2,1):-1:1] 
-                imagesc(squeeze(D2(kk,:,:)))
-                title(['D2 for plane z=' num2str(kk)])
-                pause(0.001)
-            end
+            if skipErrors
+                disp('WARNING: PATH FAILED. SKIPPING THIS TIMEPOINT')
+                % Preview D2
+                clf ;
+                for kk=[1:2:size(D2,1), size(D2,1):-1:1] 
+                    imagesc(squeeze(D2(kk,:,:)))
+                    title(['D2 for plane z=' num2str(kk)])
+                    pause(0.001)
+                end
 
-            result_exists = false ;
-            result_changed = false ;
-            resolution_matches = true ;
+                result_exists = false ;
+                result_changed = false ;
+                resolution_matches = true ;
+            else
+                error('PATH FAILED.')
+            end
         end
     else     
         if exist(outname, 'file')
@@ -395,8 +442,8 @@ for tt = timePoints
     fig1s = ~isempty(dir(sprintf(fig1anyres_fn, tt))) ;
     fig2s = ~isempty(dir(sprintf(fig2anyres_fn, tt))) ;
     fig3s = ~isempty(dir(sprintf(fig3anyres_fn, tt))) ;
-    fig_saved = fig1s || fig2s || fig3s ;
-    if result_exists && (result_changed || ~fig_saved || overwrite_ims)
+    fig_saved = fig1s && fig2s && fig3s ;
+    if result_exists && (result_changed || ~fig_saved || overwrite_ims) && saveImages
         %% Plot and save
         if resolution_matches
             disp(['Loading skelrs from disk: ' skeloutfn])
@@ -438,15 +485,21 @@ for tt = timePoints
 
         % Plot the result
         fig = figure('Visible', 'Off') ;
-        tmp = trisurf(tri, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
-            'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+        if strcmpi( plotStyleMesh, 'fast')
+            subidx = 1:round(length(xyzrs(:, 1))/2000):length(xyzrs(:, 1)) ;
+            
+            tmp = scatter3(xyzrs(subidx, 1), xyzrs(subidx,2), xyzrs(subidx, 3), ...
+                10, xyzrs(subidx, 3), 'filled', 'markerfacealpha', 0.3) ;
+        else
+            tmp = trisurf(tri, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
+                'edgecolor', 'none', 'FaceAlpha', 0.1) ;
+        end
         % [~,~,~] = apply_ambient_occlusion(tmp, 'SoftLighting', true) ; 
         hold on;
         % plot the skeleton
-        for i=1:length(skelrs)
-            plot3(skelrs(:,1), skelrs(:,2), skelrs(:,3), ...
-                '-','Color',[0,0,0], 'LineWidth', 3);
-        end
+        plot3(skelrs(:,1), skelrs(:,2), skelrs(:,3), ...
+            '-','Color',[0,0,0], 'LineWidth', 3);
+
         % annotate figure with APDV
         plot3(sptrs(1), sptrs(2), sptrs(3), 's', 'color', red)
         plot3(eptrs(1), eptrs(2), eptrs(3), '^', 'color', blue)

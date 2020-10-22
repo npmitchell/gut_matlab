@@ -53,7 +53,7 @@ cd(dataDir)
 
 %% Global options
 % Decide whether to change previously stored detection Opts, if they exist
-overwrite_masterSettings = true ;
+overwrite_masterSettings = false ;
 overwrite_mips = false ;
 overwrite_detOpts = false ;
 run_full_dataset_ms = false ;
@@ -527,8 +527,8 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(170:end)
-        % try
+    for tp = xp.fileMeta.timePoints(1:end)
+        try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
             % xp.rescaleStackToUnitAspect();
@@ -540,20 +540,20 @@ else
             detectOpts2.fileName = sprintf( fnCombined, xp.currentTime );
             % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
             %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4_octree12.mlx') ;
-            % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-            %      'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
             detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-                  'surface_rm_resample30k_reconstruct_LS3_ssfactor4.mlx') ;
+                 'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
+            % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+            %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4.mlx') ;
             xp.setDetectOptions( detectOpts2 );
             xp.detectSurface();
             % For next time, use the output mesh as an initial mesh
             detectOpts2.init_ls_fn = 'none' ;
-        % catch
-        %     disp('Could not create mesh -- skipping for now')
-        %     % On next timepoint, use the tp previous to current time
-        %     detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
-        %             num2str(tp - 1, '%06d' ) '.' detectOptions.dtype] ;
-        % end
+        catch
+            disp('Could not create mesh -- skipping for now')
+            % On next timepoint, use the tp previous to current time
+            detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
+                    num2str(tp - 1, '%06d' ) '.' detectOptions.dtype] ;
+        end
     end
 end
 
@@ -646,18 +646,35 @@ end
 % Skip if already done
 
 % Make an output directory for the quick-and-dirty inspection
-for tp = xp.fileMeta.timePoints(180:end)
+maxs = [0, 0, 0] ;
+mins = [0, 0, 0] ;
+for tp = xp.fileMeta.timePoints(1:end)
     % Load the mesh
-    meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;    
+    if mod(tp, 10) == 0
+        disp(['Determining min/max: t=', num2str(tp)])
+    end
+    meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;
     mesh = read_ply_mod(meshfn) ;
+    maxs = max(maxs, max(mesh.v)) ;
+    mins = min(mins, min(mesh.v)) ;
+end
+disp('Displaying meshes')
+for tp = xp.fileMeta.timePoints(1:end)
+    % Load the mesh
+    meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;     
+    mesh = read_ply_mod(meshfn) ; 
+    assert(length(mesh.v) > 0)
     % Plot the mesh in 3d. Color here by Y coordinate
     trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
         mesh.v(:, 3), 'edgecolor', 'none', 'Facealpha', 0.5)
     % saveas(gcf, fullfile(outputdir, sprintf('inspect_%04d.png', tp)))
     title(['t=' num2str(tp)])
     axis equal
+    xlim([mins(1), maxs(1)])
+    ylim([mins(2), maxs(2)])
+    zlim([mins(3), maxs(3)])
     view(2)
-    pause(0.1)
+    pause(0.5)
 end
                     
 
@@ -814,19 +831,17 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     dorsalChannel = 4 ;  % which channel of APD training is dorsal
 
     clearvars opts
-    optsfn = fullfile(projectDir, 'alignAPDV_Opts.mat') ;
+    optsfn = QS.fileName.apdv_options ;
     if exist(optsfn, 'file') && ~overwrite_alignAPDVOpts
         disp('Loading options from disk')
         load(optsfn, 'alignAPDVOpts', 'apdvOpts')
     else
         disp('No alignAPDV_Opts on disk or overwriting, defining')
         apdvOpts.smwindow = 30 ;
-        apdvOpts.dorsal_thres = dorsal_thres ;
         apdvOpts.buffer = buffer ;  
         apdvOpts.plot_buffer = plot_buffer ;
         apdvOpts.anteriorChannel = anteriorChannel ;
         apdvOpts.posteriorChannel = posteriorChannel ;
-        apdvOpts.dorsalChannel = dorsalChannel ;% filename pattern for the apdv training probabilities
         
         alignAPDVOpts.weight = weight ;
         alignAPDVOpts.normal_step = normal_step ;
@@ -835,6 +850,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         alignAPDVOpts.anteriorChannel = anteriorChannel ;
         alignAPDVOpts.posteriorChannel = posteriorChannel ;
         alignAPDVOpts.dorsalChannel = dorsalChannel ;
+        alignAPDVOpts.dorsal_thres = dorsal_thres ;
         
         % alignAPDVOpts.fn = fn ;  % filename base
 
@@ -848,7 +864,63 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     apdvOpts.preview = preview ;
     apdvOpts.preview_com = false ;
     
+    % %% Back-save APD coms from disk -- do if happy with prev APDV coords
+    % acomname = fullfile(QS.dir.mesh, 'acom_for_rot.txt') ;
+    % pcomname = fullfile(QS.dir.mesh, 'pcom_for_rot.txt') ;
+    % acom_sm = h5read(QS.fileName.apdv, '/acom_sm');
+    % pcom_sm = h5read(QS.fileName.apdv, '/pcom_sm');
+    % pcom = pcom_sm(1, :) ;
+    % disp('Defining start point and endpoint for first TP')
+    % % Check if acom is inside mesh. If so, use that as starting point.
+    % acom = acom_sm(1, :) ;
+    % meshfn = sprintf(QS.fullFileBase.mesh, QS.xp.fileMeta.timePoints(1)) ;
+    % disp(['Loading mesh ' meshfn])
+    % mesh = read_ply_mod(meshfn );
+    % vtx_sub = mesh.v / QS.ssfactor ;
+    % vn = mesh.vn ;
+    % fvsub = struct('faces', mesh.f, 'vertices', vtx_sub, 'normals', vn) ;
+    % ainside = inpolyhedron(fvsub, acom(1), acom(2), acom(3)) ;
+    % if ainside
+    %     disp('start point for centerline is inside mesh')
+    %     startpt = acom' ;
+    % else
+    %     % Point match for aind and pind
+    %     disp(['Point matching mesh ' meshfn])
+    %     adist2 = sum((vtx_sub - acom) .^ 2, 2);
+    %     %find the smallest distance and use that as an index 
+    %     aind = find(adist2 == min(adist2)) ;
+    % 
+    %     % move along the inward normal of the mesh from the matched vertex
+    %     vtx = [vtx_sub(aind, 1), vtx_sub(aind, 2), vtx_sub(aind, 3)]' ;
+    %     normal = fvsub.normals(aind, :) ;
+    %     startpt = vtx + normal;
+    %     if ~inpolyhedron(fvsub, startpt(1), startpt(2), startpt(3)) 
+    %         % this didn't work, check point in reverse direction
+    %         startpt = vtx - normal * alignAPDVOpts.normal_step ;
+    %         if ~inpolyhedron(fvsub, startpt(1), startpt(2), startpt(3))
+    %             % Can't seem to jitter into the mesh, so use vertex
+    %             disp("Can't seem to jitter into the mesh, so using vertex for startpt")
+    %             startpt = vtx ;
+    %         end
+    %     end
+    % end 
+    % % Note: Keep startpt in subsampled units
+    % startpt = [startpt(1), startpt(2), startpt(3)] ;
+    % name = sprintf(QS.fileBase.name, QS.xp.fileMeta.timePoints(1)) ;
+    % spt = h5read(fullfile(QS.dir.cntrline, 'startendpt.h5'), ['/' name '/spt']) ;
+    % if ~all(startpt * ssfactor == spt)
+    %     error('spt equals acom?')
+    % end
+    % dlmwrite(acomname, startpt) ;
+    % dlmwrite(pcomname, pcom) ;
+    
+    %% Compute APDV coordinate system
+    QS.computeAPDVCoords(alignAPDVOpts) ;
+    
     % Compute the APD COMs
+    apdvOpts.aProbFileName = QS.fullFileBase.apdProb ; % filename pattern for the apdv training probabilities
+    apdvOpts.pProbFileName = QS.fullFileBase.prob ;
+    apdvOpts.posteriorChannel = 3 ;
     [acom_sm, pcom_sm] = QS.computeAPDCOMs(apdvOpts) ;
     
     % Align the meshes APDV & plot them
@@ -942,7 +1014,7 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     Options.Rotation = QS.APDV.rot ;
     Options.Translation = QS.APDV.trans ;
     Options.Dilation = QS.APDV.resolution ;
-    Options.numLayers = [4, -4];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
+    Options.numLayers = [0, 10];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
     Options.layerSpacing = 1 ;
     
     % Save it
@@ -998,16 +1070,17 @@ clearvars Options
 % Note: these just need to be 'reasonable' centerlines for topological
 % checks on the orbifold cuts.
 exponent = 1.0 ;
-res = 3.0 ; 
+res = 6.0 ; 
 cntrlineOpts.overwrite = overwrite_centerlines ;     % overwrite previous results
 cntrlineOpts.overwrite_ims = overwrite_centerlineIms ;     % overwrite previous results
-cntrlineOpts.weight = 0.1;               % for speedup of centerline extraction. Larger is less precise
+cntrlineOpts.weight = 0.6 ;              % for speedup of centerline extraction. Larger is less precise
 cntrlineOpts.exponent = exponent ;       % how heavily to scale distance transform for speed through voxel
 cntrlineOpts.res = res ;                 % resolution of distance tranform grid in which to compute centerlines
 cntrlineOpts.preview = false ;           % preview intermediate results
 cntrlineOpts.reorient_faces = false ;    % not needed for our well-constructed meshes
 cntrlineOpts.dilation = 0 ;              % how many voxels to dilate the segmentation inside/outside before path computation
-
+cntrlineOpts.skipErrors = true ;         % if no path found, skip timepoint
+cntrlineOpts.epsilon = 5e-7 ;            % small value for weight in outside region
 % Note: this takes about 400s per timepoint for res=2.0
 %
 QS.extractCenterlineSeries(cntrlineOpts)
@@ -1026,8 +1099,28 @@ QS.generateCleanCntrlines(idOptions) ;
 %% Cylinder cut mesh
 % Skip if already done
 if overwrite_endcapOpts || ~exist(QS.fileName.endcapOptions, 'file')
-    endcapOpts = struct( 'adist_thres', 20, ...  % 20, distance threshold for cutting off anterior in pix
-                'pdist_thres', 18);     % 15-20, distance threshold for cutting off posterior in pix
+    
+    % THIS WORKS
+    % endcapOpts = struct( 'adist_thres', 35, ...  % 20, distance threshold for cutting off anterior in pix
+    %             'pdist_thres', 18, ...  % 15-20, distance threshold for cutting off posterior in pix
+    %             'aOffset', [-10, -1, -1], ...
+    %             'aOffsetRate', [-0.12, -0.08, 0], ...
+    %             'aDistRate', [5/120, 120], ... %; -10/60, 60], ...
+    %             'aCapMethod', 'ball', ...
+    %             'pCapMethod', 'ball') ;   
+    
+    % TRY OUT CONICAL THRESHOLD
+    % 55 will work if 52 is too small.
+    endcapOpts = struct( 'adist_thres',2.9, ...  % 20, distance threshold for cutting off anterior in pix
+        'adist_thres2', 65, ...
+        'pdist_thres', 16, ...  % 15-20, distance threshold for cutting off posterior in pix
+        'aOffset', [16, -1, -1], ...
+        'aOffset2', [-5, -1, -1], ...
+        'aOffsetRate', [0.02, -0.09, 0.00], ...
+        'aOffsetRate2', [0.0, 0.0, 0.00], ...
+        'aDistRate', [0.6/140, 140; -0.2/20, 20; -0.3/8, 8], ...
+        'aCapMethod', 'ballCone', ...
+        'pCapMethod', 'ball') ;
     QS.setEndcapOptions(endcapOpts) ;
     % Save the options to disk
     QS.saveEndcapOptions() ;
@@ -1064,7 +1157,7 @@ washout2d = 0.5 ;
 %% Iterate Through Time Points to Create Pullbacks ========================
 % Skip if already done
 % outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
-for tt = xp.fileMeta.timePoints(170:end)
+for tt = xp.fileMeta.timePoints(141:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
     
@@ -1093,21 +1186,68 @@ for tt = xp.fileMeta.timePoints(170:end)
         fprintf('Loading Cut Mesh from disk... ');
         QS.loadCurrentCutMesh()
         compute_pullback = ~isempty(QS.currentMesh.cutPath) ;
+        
+        cutfn = sprintf( fullfile(fullfile(QS.dir.cutMesh, 'images'), ...
+            [QS.fileBase.name, '_cut.png']), tt ) ;
+        if ~exist(cutfn, 'file')
+            QS.plotCutPath(QS.currentMesh.cutMesh, QS.currentMesh.cutPath) ;
+        end
+    end
+end
+for tt = xp.fileMeta.timePoints(1:end)
+    disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
+    tidx = xp.tIdx(tt);
+    
+    % Load the data for the current time point ------------------------
+    QS.setTime(tt) ;
+    
+    %----------------------------------------------------------------------
+    % Create the Cut Mesh
+    %----------------------------------------------------------------------
+    cutMeshfn = sprintf(QS.fullFileBase.cutMesh, tt) ;
+    cutPathfn = sprintf(QS.fullFileBase.cutPath, tt) ;
+    if ~exist(cutMeshfn, 'file') || ~exist(cutPathfn, 'file') || overwrite_cutMesh
+        if exist(cutMeshfn, 'file')
+            disp('Overwriting cutMesh...') ;
+        else
+            disp('cutMesh not found on disk. Generating cutMesh... ');
+        end
+        options = struct() ;
+        options.preview = false ;
+        QS.generateCurrentCutMesh(options)
+        disp('Saving cutP image')
+        % Plot the cutPath (cutP) in 3D
+        QS.plotCutPath(QS.currentMesh.cutMesh, QS.currentMesh.cutPath)
+        compute_pullback = true ;
+    else
+        fprintf('Loading Cut Mesh from disk... ');
+        QS.loadCurrentCutMesh()
+        compute_pullback = ~isempty(QS.currentMesh.cutPath) ;
+        
+        cutfn = sprintf( fullfile(fullfile(QS.dir.cutMesh, 'images'), ...
+            [QS.fileBase.name, '_cut.png']), tt ) ;
+        if ~exist(cutfn, 'file')
+            QS.plotCutPath(QS.currentMesh.cutMesh, QS.currentMesh.cutPath) ;
+        end
     end
     
     spcutMeshOptions.overwrite = overwrite_spcutMesh ;
     spcutMeshOptions.save_phi0patch = false ;
     spcutMeshOptions.iterative_phi0 = true ;
     spcutMeshOptions.smoothingMethod = 'none' ;
+    
     QS.plotting.preview = false ;
     QS.generateCurrentSPCutMesh([], spcutMeshOptions) ;
     
     % Compute the pullback if the cutMesh is ok
-    if compute_pullback
+    if compute_pullback 
         pbOptions.overwrite = false ;
         pbOptions.generate_uv = false ;
         pbOptions.generate_uphi = false ;
         pbOptions.generate_relaxed = true ;
+        pbOptions.numLayers = [1,10] ;
+        pbOptions.layerSpacing = 1 ;
+        pbOptions.falseColors = {[0,1,1],[1,0,0]} ;
         QS.generateCurrentPullbacks([], [], [], pbOptions) ;
     else
         disp('Skipping computation of pullback')
@@ -1128,6 +1268,53 @@ clearvars t cutP spcutMesh spvn3d ss pp uv tileCount slin plin plotfn
 clearvars IVloaded IV uphi sphi
 disp('Done with generating spcutMeshes and cutMeshes')
 
+%% Resample relaxed images onto imagegrid
+WW = 3000 ;
+HH = 1000 ;
+xv = linspace(0, 1, WW) ;
+yv = linspace(0, 1, HH) ;
+for tidx = 1:length(QS.xp.fileMeta.timePoints)
+    tt = QS.xp.fileMeta.timePoints(tidx) ;
+    QS.setTime(tt)
+    im = imread(sprintf(QS.fullFileBase.im_r, tt)) ;
+    for ch=1:size(im, 3)
+        im1 = imadjust(squeeze(im(:, :, ch)), [0.05, 0.98]) ;
+        % Interpolate onto a 3000 x 1000 image
+        im2 = zeros(HH, WW) ;
+        aR = WW / HH ;
+        [hh, ww] = size(im1) ;
+        [yy, xx] = ndgrid(linspace(0, 1, hh), linspace(0, 1, ww)) ;
+        FF = griddedInterpolant(yy, xx, double(im1)) ;
+        a2 = ww/hh ;
+            
+        % check if we should interpolate Y axis or X axis
+        if a2 < aR
+            % interp in width
+            buff = round(0.5 * (aR - a2) * HH) ;
+            xind = buff:(WW-buff) ;
+            x2 = linspace(0, 1, length(xind)) ;
+            im2(:,xind) = FF({yv,x2}) ;
+        else
+            % height is the smaller axis wrt aspect, so interp in height
+            buff = round(0.5 * (1/aR - 1/a2) * HH) ;
+            yind = buff:(HH-buff) ;
+            y2 = linspace(0, 1, length(yind)) ;
+            im2(yind,:) = FF({y2,xv}) ;            
+        end
+        outdir = fullfile(QS.dir.im_r, ['resampled_onto_canvas_ch' num2str(ch)]) ;
+        if ~exist(outdir, 'dir')
+            mkdir(outdir)
+        end
+        fn = fullfile(outdir, sprintf(QS.fileBase.im_r, tt)) ;
+        imwrite(uint8(im2), fn)
+        if mod(tidx, 10) == 0
+            imagesc(uint8(im2))
+            title(['t = ' num2str(tt)])
+            pause(0.001)
+        end
+    end
+end
+
 %% Preview results ========================================================
 check = false ;
 if check
@@ -1139,7 +1326,10 @@ end
 options = struct() ;
 options.overwrite = true ;
 options.preview = true ;
-options.first_tp_allowed = [-1, -1, 40] ;  % enforce that no folds before this tp
+options.first_tp_allowed = [42, 14, 64] ;  % enforce that no folds before this tp
+options.guess123 = [0.24, 0.4, 0.6] ;
+options.maxDistsFromGuess = 0.05 * [1,1,1] ;
+options.max_wander = 5 ;
 QS.identifyFolds(options)
 disp('done')
 

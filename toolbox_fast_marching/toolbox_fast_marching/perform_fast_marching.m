@@ -118,6 +118,7 @@ if d==2
         Q = [];
     end
 elseif d==3
+    % Note the conversion to zero indexing for C (mex file)
     [D,S,Q] = perform_front_propagation_3d(W,start_points-1,end_points-1,nb_iter_max, H, L, values);
 end
 Q = Q+1;

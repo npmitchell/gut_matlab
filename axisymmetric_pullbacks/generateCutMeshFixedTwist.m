@@ -67,7 +67,7 @@ max_nsegs4path = 10 ;
 centerlineIsErratic = false ;
 prevcntrline = [] ;
 jitter_growth_rate = 10 ;  %linear growth rate
-nsegs_growth_rate = 2 ; % linear growth rate
+nsegs_growth_rate = 1 ; % linear growth rate
 for i = 1:length(varargin)
     if isa(varargin{i},'double') 
         continue;
@@ -132,23 +132,59 @@ if centerlineIsErratic
         abs(Tw_wprevcline - prevTw) > max_Tw_change ;
 end
 
+% Initialize the indices of the previous cutPath to use for nearest curve
+inds2use = [1, length(previousP)] ;
+    
 while twist_changed
     disp(['Twist out of range. Forcing nearest curve: Tw=' num2str(Tw) ', Twprev=' num2str(prevTw)])
     % If this is the first timepoint we are considering
     % or if we have to iteratively refine the target 
     % curve, load previous cutP.
 
-    %%%%%%%%%%%%%%%%%%%
-    % subsample the previous path to get previousP_kk
+%     %%%%%%%%%%%%%%%%%%%
+%     % OPTION 1
+%     % subsample the previous path to get previousP_kk
+%     % Note: avoid oversampling by taking min, with
+%     % fudge factor to avoid perfect sampling (which
+%     % is too dense also).
+%     disp(['nsegs4path = ' num2str(min(max_nsegs4path, nsegs4path_kk))])
+%     pstep = round(length(previousP) / min(max_nsegs4path, nsegs4path_kk)) ;
+%     disp(['pstep = ' num2str(pstep)])
+%     disp(['jitter_amp = ', num2str(min(jitter_amp, max_jitter))])
+%     previousP_kk = previousP(1:pstep:end, :);
+%     jitter = min(jitter_amp, max_jitter) * (rand(size(previousP_kk)) - 0.5);
+%     previousP_kk = previousP_kk + jitter ;
+%     %%%%%%%%%%%%%%%%%%%%%
+    
+    %%%%%%%%%%%%%%%%%%%%%
+    % OPTION 2: Adjust points of maximum divergence
+    % Use previous path to find point of maximum difference from current.
+    % Use this to build previousP_kk
     % Note: avoid oversampling by taking min, with
     % fudge factor to avoid perfect sampling (which
     % is too dense also).
-    disp(['nsegs4path = ' num2str(nsegs4path_kk)])
-    pstep = round(length(previousP) / min(max_nsegs4path, nsegs4path_kk)) ;
-
-    disp(['pstep = ' num2str(pstep)])
+    disp(['nsegs4path = ' num2str(min(max_nsegs4path, nsegs4path_kk))])
+    % Translate number of segments to cut previous path into number of
+    % points along that path to identify. 
+    % By default, inds2find will be computed to be one. 
+    % This makes sure that each iteration, we add only one landmark each
+    % iteration, so that we don't identify a bunch of points clustered
+    % near one errant segment of the path.
+    inds2find = max(1, min(max_nsegs4path, nsegs4path_kk-1)) - (length(inds2use)-2) ;
+    % point-match previous curve with current
+    dists = zeros(size(previousP,1), 1) ;
+    thisP = mesh.v(cutP, :) ;
+    for i = 1:size(previousP,1)
+        dists(i) = min(sqrt((thisP(:,1) - previousP(i,1)).^2 +...
+            (thisP(:,2) - previousP(i,2)).^2 + ...
+            (thisP(:,3) - previousP(i,3)).^2));
+    end
+    % Find maximum deviation indices and use these to define the sampling
+    % of the previous path
+    [~, maxdevID] = maxk(dists, inds2find) ;    
+    inds2use = sort([inds2use, maxdevID']) ;
     disp(['jitter_amp = ', num2str(min(jitter_amp, max_jitter))])
-    previousP_kk = previousP(1:pstep:end, :);
+    previousP_kk = previousP(inds2use, :);
     jitter = min(jitter_amp, max_jitter) * (rand(size(previousP_kk)) - 0.5);
     previousP_kk = previousP_kk + jitter ;
     %%%%%%%%%%%%%%%%%%%%%
@@ -157,6 +193,26 @@ while twist_changed
     cutOptions.path = previousP_kk;
     disp(['Cutting mesh using method ' cutOptions.method])
     try
+        
+        figure(1); clf
+        set(gcf, 'visible', 'on')
+        trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), ...
+            cutMesh.v(:, 3), cutMesh.v(:, 3), ...
+            'EdgeColor', 'none', 'FaceAlpha', 0.1)
+        hold on;
+        plot3(cutMesh.v(cutP, 1), cutMesh.v(cutP, 2), cutMesh.v(cutP, 3), 'k-')
+        plot3(previousP_kk(:, 1), previousP_kk(:, 2), previousP_kk(:, 3), 'o')
+        plot3(centerline(:, 1), centerline(:, 2), centerline(:, 3), '-')
+        plot3(previousP(:, 1), previousP(:, 2), previousP(:, 3), 'b--')
+        if ~isempty(prevcntrline)
+            plot3(prevcntrline(:, 1), prevcntrline(:, 2), prevcntrline(:, 3), '--')
+        end
+
+        title(['update cutP sampling = ' num2str(length(previousP_kk))])
+        hold off 
+        axis equal
+        pause(1e-4)
+            
         cutMesh = cylinderCutMesh( mesh.f, mesh.v, mesh.vn, adIDx, pdIDx, cutOptions );  
         cutP = cutMesh.pathPairs(:,1) ;
         
@@ -178,20 +234,22 @@ while twist_changed
                 abs(Tw_wprevcline - prevTw) > max_Tw_change ;
         end
         
+        % If still no good, increase number of segments for guided path and
+        % increase jitter applied to path landmarks
         if twist_changed
             nsegs4path_kk = round(nsegs4path_kk + nsegs_growth_rate) ;
             jitter_amp = jitter_amp + jitter_growth_rate ;
             trykk = trykk + 1 ;
 
             % show progress
-            figure(1);
+            figure(1); clf
             set(gcf, 'visible', 'on')
             trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), ...
                 cutMesh.v(:, 3), cutMesh.v(:, 3), ...
-                'EdgeColor', 'none', 'FaceAlpha', 0.5)
+                'EdgeColor', 'none', 'FaceAlpha', 0.1)
             hold on;
             plot3(cutMesh.v(cutP, 1), cutMesh.v(cutP, 2), cutMesh.v(cutP, 3), 'k-')
-            plot3(previousP_kk(:, 1), previousP_kk(:, 2), previousP_kk(:, 3), 'o-')
+            plot3(previousP_kk(:, 1), previousP_kk(:, 2), previousP_kk(:, 3), 'o')
             plot3(centerline(:, 1), centerline(:, 2), centerline(:, 3), '-')
             plot3(previousP(:, 1), previousP(:, 2), previousP(:, 3), 'b--')
             if ~isempty(prevcntrline)
@@ -201,7 +259,7 @@ while twist_changed
             title(['sampling = ' num2str(length(previousP_kk))])
             hold off 
             axis equal
-            pause(1e-9)
+            pause(1e-4)
         end
     catch
         disp('Could not generate cutMesh, likely not a topological disk')

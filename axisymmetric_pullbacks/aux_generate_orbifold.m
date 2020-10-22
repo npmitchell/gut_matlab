@@ -147,12 +147,21 @@ disp(['Writing ' imfn])
 if length(size(patchIm)) < 3
     % Image is 2d, save using imwrite
     imwrite( patchIm, imfn, 'TIFF' ) ;
+elseif length(size(patchIm))==3 && size(patchIm,3)==3
+    % Image is RGB/FalseColor, save using imwrite
+    imwrite( patchIm, imfn, 'TIFF' ) ;
 elseif save_as_stack
     % image is 3d
     disp('Saving using saveastiff()')
     tiffoptions.overwrite = true ;
     dat = uint8(255 * patchIm) ;
     saveastiff( dat, imfn, tiffoptions) ;
+elseif length(size(patchIm)) ==4 && size(patchIm, 3) == 3
+    % Image is an RGB/FalseColor stack, take mip
+    disp('Saving RGB MIP image')
+    dat = max(patchIm, [], 4) ;
+    dat = uint8(255 * dat) ;
+    imwrite( dat, imfn, 'TIFF') ;
 else
     disp('Taking MIP and saving as image')
     dat = max(patchIm, [], 3) ;

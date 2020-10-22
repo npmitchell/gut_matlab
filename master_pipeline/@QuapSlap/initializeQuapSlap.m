@@ -75,6 +75,7 @@ QS.plotting.markers = {'o', 's', '^', 'v', '*', '>', '<'} ;
 % Directories of the QS object
 % Meshes and measurements before gridding into pullback coords
 QS.dir.data = xp.fileMeta.dataDir ;
+QS.fileName.apdv_options = fullfile(QS.dir.data, 'alignAPDV_Opts.mat') ;
 QS.dir.mesh = meshDir ;
 QS.dir.maskedData = fullfile(meshDir, 'masked_data') ;
 QS.dir.alignedMesh = fullfile(meshDir, 'aligned_meshes') ;
@@ -83,6 +84,10 @@ QS.dir.cylinderMesh = fullfile(meshDir, 'cylinder_meshes') ;
 QS.dir.cutMesh = fullfile(meshDir, 'cutMesh') ;
 QS.dir.cylinderMeshClean = fullfile(QS.dir.cylinderMesh, 'cleaned') ;
 QS.dir.texturePatchIm = fullfile(meshDir, 'images_texturepatch') ;
+QS.dir.mip = fullfile(meshDir, 'mips', 'dim%d_pages%04dto%04d') ;
+
+% Mips
+QS.fullFileBase.mip = fullfile(QS.dir.mip, 'mip_%06d.tif') ;
 
 % After gridding into (u,v) / (zeta,phi) pullback coords
 uvDir = fullfile(QS.dir.mesh, sprintf('gridCoords_nU%04d_nV%04d', QS.nU, QS.nV)) ;
@@ -179,7 +184,8 @@ QS.fileBase.mesh = ...
     [xp.detector.options.ofn_smoothply '%06d'] ;
 QS.fileBase.alignedMesh = ...
     [QS.fileBase.mesh '_APDV_um'] ;
-QS.fileBase.apdProb = [QS.fileBase.name '_Probabilities_apcenterline.h5'] ; ;
+QS.fileBase.apdProb = [QS.fileBase.name '_Probabilities_apcenterline.h5']  ;
+QS.fileBase.prob = [QS.fileBase.name '_Probabilities.h5'] ; 
 QS.fileBase.centerlineXYZ = ...
     [QS.fileBase.mesh '_centerline_exp1p0_res*.txt' ] ;
 QS.fileBase.centerlineAPDV = ...
@@ -212,6 +218,7 @@ QS.fileName.xyzlim_um_buff = ...
     fullfile(meshDir, ['xyzlim_APDV_um' shiftstr '.txt']) ;
 % fileNames for APDV and cylinderMesh
 QS.fullFileBase.apdProb = fullfile(QS.dir.data, QS.fileBase.apdProb) ;
+QS.fullFileBase.prob = fullfile(QS.dir.data, QS.fileBase.prob) ;
 QS.fileName.apdv = ...
     fullfile(clineDir, 'apdv_coms_from_training.h5') ;
 QS.fileName.dcom = fullfile(meshDir, 'dcom_for_rot.txt') ;

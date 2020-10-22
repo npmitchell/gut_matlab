@@ -248,6 +248,7 @@ end
 disp('done')
 
 %% With acoms and pcoms in hand, we compute dorsal and rot/trans ==========
+overwrite_startendpts = false ;
 for tidx = 1:length(timePoints)
     tic
     tt = timePoints(tidx) ;
@@ -269,6 +270,10 @@ for tidx = 1:length(timePoints)
     vtx_sub = mesh.v / ssfactor ;
     vn = mesh.vn ;
     fvsub = struct('faces', mesh.f, 'vertices', vtx_sub, 'normals', vn) ;
+    
+    %% Does the output aligned mesh exist?
+    alignedmeshfn = sprintf(alignedMeshBase, tt) ;
+    meshfn_exist = exist(alignedmeshfn, 'file') ;    
     
     % Check normals
     % close all
@@ -295,16 +300,25 @@ for tidx = 1:length(timePoints)
     % mesh.vertex.x = xs ;
     % mesh.vertex.y = ys ;
     % mesh.vertex.z = zs ;
-    try
-        name = sprintf(QS.fileBase.name, tt) ;
-        spt = h5read(outstartendptname, ['/' name '/spt']) ;
-        ept = h5read(outstartendptname, ['/' name '/ept']) ;
-        if any(spt) && any(ept)
-            spt_ept_exist = true ;
+    
+    %% Try loading the spt and ept, or recompute
+    % If aligned mesh doesn't exist, redo point-matching
+    if meshfn_exist
+        try
+            name = sprintf(QS.fileBase.name, tt) ;
+            spt = h5read(outstartendptname, ['/' name '/spt']) ;
+            ept = h5read(outstartendptname, ['/' name '/ept']) ;
+            if any(spt) && any(ept)
+                spt_ept_exist = true ;
+            end
+        catch
+            spt_ept_exist = false;
         end
-    catch
-        spt_ept_exist = false;
+    else
+        % Redo point-matching since aligned mesh isn't saved
+        spt_ept_exist = false ;
     end
+    
     if overwrite || ~spt_ept_exist 
         % Point match for aind and pind
         disp(['Point matching mesh ' meshfn])
@@ -390,105 +404,18 @@ for tidx = 1:length(timePoints)
         %% Rescale start point and end point to full resolution
         spt = [startpt(1), startpt(2), startpt(3)] * ssfactor;
         ept = [endpt(1), endpt(2), endpt(3)] * ssfactor;
+        overwrite_startendpts = true ;
         
         clearvars startpt endpt ainside pinside normal vtx
     else
         disp('loading spt and ept')
     end
     
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% Grab dorsal direction if this is the first timepoint
-    if tidx == 1
-        disp('Obtaining dorsal direction since this is first TP')
-        no_rot_on_disk = ~exist(rotname, 'file') ;
-        redo_rot_calc = no_rot_on_disk || overwrite ;
-        
-        if exist(rotname, 'file') 
-            disp('rot exists on file')
-        else
-            disp(['no rot txt file: ' rotname ])
-        end
-        
-        if overwrite && ~no_rot_on_disk
-            disp('Overwriting rot calculation using dorsal pt')
-        elseif redo_rot_calc
-            disp('Computing rot calculation using dorsal pt for the first time')
-        end
-
-        if redo_rot_calc
-            % load the probabilities for anterior posterior dorsal
-            % Load dcom if already on disk
-            disp(['Loading dorsal COM from disk: ' dcomname])
-            dcom = dlmread(dcomname) ;
-            
-            % compute rotation -- Note we choose to use startpt instead of
-            % acom here so that the dorsal point will lie in the y=0 plane.
-            % Explanation: we will subtract off startpt * ssfactor as the
-            % translation, so if this differs from acom in y dim, then
-            % dorsal point gets shifted in y.
-            origin = spt / ssfactor ; % [startpt(1), startpt(2), startpt(3)] ;
-            apaxis = pcom - origin ;
-            aphat = apaxis / norm(apaxis) ;
-            
-            % compute rotation matrix using this procedure: 
-            % https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
-            xhat = [1, 0, 0] ;
-            zhat = [0, 0, 1] ;
-            ssc = @(v) [0 -v(3) v(2); v(3) 0 -v(1); -v(2) v(1) 0] ;
-            RU = @(A,B) eye(3) + ssc(cross(A,B)) + ...
-                 ssc(cross(A,B))^2*(1-dot(A,B))/(norm(cross(A,B))^2) ;
-            % rotz aligns AP to xhat (x axis)
-            rotx = RU(aphat, xhat) ;
-
-            % Rotate dorsal to the z axis
-            % find component of dorsal vector from acom perpendicular to AP
-            dvec = rotx * (dcom - origin)' - rotx * (dot(dcom - origin, aphat) * aphat)' ;
-            dhat = dvec / norm(dvec) ;
-            rotz = RU(dhat, zhat) ;
-            rot = rotz * rotx  ;
-            
-            % % test arrow
-            % aphx = rotx * aphat' ;
-            % aphxz = rot * aphat' ;
-            % vecs = [aphat; aphx'; aphxz'] ;
-            % for qq = 1:length(vecs)
-            %     plot3([0, vecs(qq, 1)], [0, vecs(qq, 2)], [0, vecs(qq, 3)], '.-') 
-            %     hold on;
-            % end
-            % axis equal
-            % t2 = dcom - origin ;
-            % aphx = rotx * t2' ;
-            % aphxz = rot * t2' ;
-            % vecs = [t2; aphx'; aphxz'] ;
-            % for qq = 1:length(vecs)
-            %     plot3([0, vecs(qq, 1)], [0, vecs(qq, 2)], [0, vecs(qq, 3)], '.-') 
-            %     hold on;
-            % end
-            % legend({'original', 'rotx', 'rot', 'dorsal', 'rotxd', 'rotd'})
-            % axis equal
-            % error('here')
-            
-            % Save the rotation matrix
-            disp(['Saving rotation matrix to txt: ', rotname])
-            dlmwrite(rotname, rot)
-        else
-            disp('Loading rot from disk...')
-            rot = dlmread(rotname) ;
-            dcom = dlmread(dcomname) ;
-        end
-    end
-    
-    %% Compute the translation to put anterior to origin AFTER rot & scale
-    if tidx == 1
-        if overwrite || ~exist(transname, 'file')
-            % Save translation in units of mesh coordinates
-            trans = -(rot * spt')' ;
-            disp(['Saving translation vector (post rotation) to txt: ', transname])
-            dlmwrite(transname, trans)
-        else
-            trans = dlmread(transname, ',');
-        end
-    end
+    %% Grab rot, trans
+    disp('Loading rot from disk...')
+    rot = dlmread(rotname) ;
+    dcom = dlmread(dcomname) ;
+    trans = dlmread(transname, ',');
     
     %% Rotate and translate (and mirror) acom, pcom, dcom
     try 
@@ -511,6 +438,7 @@ for tidx = 1:length(timePoints)
         assert(all(abs(pcom_rs_new - pcom_rs) < 1e-6))
         assert(all(abs(dcom_rs_new - dcom_rs) < 1e-6))
     catch
+        disp('Rotated & Scaled APD COMS do not exist')
         apdcoms_rs_exist = false ;
     end
     
@@ -572,7 +500,7 @@ for tidx = 1:length(timePoints)
     end
     
     %% Check the rotation
-    if tidx == 1 && redo_rot_calc
+    if tidx == 1
         close all
         fig = figure('Visible', 'off') ;
         tmp = trisurf(mesh.f, xyzrs(:, 1), xyzrs(:,2), xyzrs(:, 3), ...
@@ -634,8 +562,7 @@ for tidx = 1:length(timePoints)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Save the rotated, translated, scaled to microns mesh ===============
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    alignedmeshfn = sprintf(alignedMeshBase, tt) ;
-    if overwrite || ~exist(alignedmeshfn, 'file')
+    if overwrite || ~meshfn_exist    
         disp('Saving the aligned mesh...')
         disp([' --> ' alignedmeshfn])
         plywrite_with_normals(alignedmeshfn, mesh.f, xyzrs, vn_rs)
@@ -650,7 +577,7 @@ for tidx = 1:length(timePoints)
     figs_do_not_exist = ~exist(fig1outname, 'file') || ...
         ~exist(fig2outname, 'file') || ~exist(fig3outname, 'file');
     
-    if overwrite_ims || figs_do_not_exist
+    if overwrite_ims || figs_do_not_exist || ~meshfn_exist
         disp('Saving rotated & translated figure (xy)...')    
         close all
         fig = figure('Visible', 'Off') ;
@@ -789,10 +716,10 @@ for tidx = 1:length(timePoints)
     %% Save the startpt/endpt, both original and rescaled to um ===========
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Save acom, pcom and their aligned counterparts as attributes in an
-    % hdf5 file
+    % hdf5 file -- these are mesh-dependent since point-matched to vertices
     name = sprintf(QS.fileBase.name, tt) ;
     
-    if overwrite || ~spt_ept_exist
+    if overwrite || ~spt_ept_exist || overwrite_startendpts
         disp('Saving the startpt/endpt...')
         try
             h5create(outstartendptname, ['/' name '/spt'], size(spt)) ;

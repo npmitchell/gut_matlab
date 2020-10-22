@@ -86,7 +86,7 @@ if nargin < 4
         Options.Rotation = rot ;
         Options.Translation = trans ;
         Options.Dilation = resolution ;
-        Options.numLayers = [1, -1];  % at layerSpacing 2, 2 marches ~0.5 um 
+        Options.numLayers = [1, 1];  % [2, 2] marches ~0.5 um in either dir
         Options.layerSpacing = 2 ;
         resave_metadat = true ;
     end
