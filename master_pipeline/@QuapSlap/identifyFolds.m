@@ -46,7 +46,11 @@ if nargin < 2
 end
 if isfield(options, 'guess123')
     guess123 = options.guess123 ;
-    if length(guess123) ~= 3 || all(diff(guess123) > 0)
+    if length(guess123) ~= 3 || ~all(diff(guess123) > 0)
+        disp(guess123)
+        disp(['length(guess123) = ', num2str(length(guess123))])
+        disp('diff(guess123) = ')
+        disp(diff(guess123))
         error('guess123 must be length 3 increasing float array')
     end
 else
@@ -56,6 +60,11 @@ if isfield(options, 'max_wander')
     max_wander = options.max_wander ;
 else
     max_wander = 20 ; 
+end
+if isfield(options, 'maxDistsFromGuess')
+    maxDistsFromGuess = options.maxDistsFromGuess ;
+else
+    maxDistsFromGuess = 0.1 * [1,1,1] ; 
 end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
@@ -92,9 +101,14 @@ if exist(foldfn, 'file') && ~overwrite
         'rssfold', 'rssfold_frac', 'rssmax', 'rmax')
     
 else
+    options.guess123 = guess123 ;
+    options.max_wander = max_wander ;
+    options.preview = false ;
+    options.method = 'avgpts' ;  % whether to use avgpts_ss or ringpath_ss
+    options.first_tp_allowed = first_tp_allowed ;
+    options.maxDistsFromGuess = maxDistsFromGuess ;
     [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
-        identifyLobes(timePoints, spcutMeshBase, guess123, ...
-        max_wander, preview, 'avgpts', first_tp_allowed) ;
+        identifyLobes(timePoints, spcutMeshBase, options) ;
     
     % Compute ringpath pathlength for results found using centerline
     disp('Converting folds to ringpath_ss locations...')

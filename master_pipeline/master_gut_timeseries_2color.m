@@ -1194,6 +1194,7 @@ for tt = xp.fileMeta.timePoints(141:end)
         end
     end
 end
+%%
 for tt = xp.fileMeta.timePoints(1:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
@@ -1242,7 +1243,7 @@ for tt = xp.fileMeta.timePoints(1:end)
     % Compute the pullback if the cutMesh is ok
     if compute_pullback 
         pbOptions.overwrite = false ;
-        pbOptions.generate_uv = false ;
+        pbOptions.generate_uv = true ;
         pbOptions.generate_uphi = false ;
         pbOptions.generate_relaxed = true ;
         pbOptions.numLayers = [1,10] ;
@@ -1326,10 +1327,11 @@ end
 options = struct() ;
 options.overwrite = true ;
 options.preview = true ;
-options.first_tp_allowed = [42, 14, 64] ;  % enforce that no folds before this tp
-options.guess123 = [0.24, 0.4, 0.6] ;
+options.first_tp_allowed = [42, 14, 63] ;  % enforce that no folds before this tp
+options.guess123 = [0.15, 0.4, 0.56] ;
 options.maxDistsFromGuess = 0.05 * [1,1,1] ;
-options.max_wander = 5 ;
+options.max_wander = 10 ;
+options.wander_units = 'pcAP' ;
 QS.identifyFolds(options)
 disp('done')
 

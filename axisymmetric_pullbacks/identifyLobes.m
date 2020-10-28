@@ -1,7 +1,6 @@
 function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
-    identifyLobes(timePoints, sphiBase, guess123, max_wander,...
-    visualize, method, first_tp_allowed)
-%idenitfyLobes(timePoints, sphiBase, guess1, guess2, guess3, visualize) Find folds in meshes 
+    identifyLobes(timePoints, sphiBase, options)
+%idenitfyLobes(timePoints, sphiBase, guess1, guess2, guess3, preview) Find folds in meshes 
 %   Load each spcutMesh, find the local minima in radius, and mark these as 
 %   fold locations. Track the location of those local minima over time, and
 %   mark fold locations before the appearance of a fold as the location
@@ -14,12 +13,18 @@ function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
 % timePoints : N x 1 float/int array
 %   The timestamps of each file to load (1 per minute is assumed)
 % sphiBase : string
-% guess123 : array of 3 floats, each between 0 and 1
+% guess123 : array of #folds floats, each between 0 and 1
 %   Guesses for fractional position along U of each fold
-% max_wander : float
+% maxDistsFromGuess : #folds x 1 numeric array
+%   how far from the initial guess to consider a detected minimum in radius 
+%   as a valid match, in units of total AP discretization length (ie in 
+%   units of #pts along AP axis in gridded parameterization)
+% max_wander : #folds x 1 numeric array
 %   maximum distance a fold location can wander in a given timepoint once 
 %   identified, in units of pathlength (ss)
-% visualize : bool
+% wander_units : str ('pcAP' or QS.spaceUnits ['$u$m', for ex])
+%   The units of wandering 
+% preview : bool
 % method : ('ringpath' or 'avgpts')
 %   which method to use to find local minima, 'avgpts' recommended
 % first_tp_allowed : int, default=-1
@@ -45,18 +50,47 @@ function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
 %
 % NPMitchell 2019
 
-% Default behavior: if threshold time is enforced, enforce for all
-% folds.
-if length(first_tp_allowed) == 1
-    first_tp_allowed = [first_tp_allowed, first_tp_allowed, first_tp_allowed] ;
+% Default options
+guess123 = [0.3, 0.5, 0.8] ;
+nfolds = length(guess123) ;
+max_wander = 20 ;
+preview = false ;
+method = 'avgpts' ;  % whether to use avgpts_ss or ringpath_ss
+first_tp_allowed = 0 ;
+maxDistsFromGuess = 0.1 * ones(nfolds, 1) ;  % maximum allowed distance from initial guesses to allow minima
+wander_units = 'pcAP' ;
+
+if isfield(options, 'guess123')
+    guess123 = options.guess123 ;
+end
+if isfield(options, 'max_wander')
+    max_wander = options.max_wander ;
+end
+if isfield(options, 'wander_units')
+    wander_units = options.wander_units ;
+end
+if isfield(options, 'preview')
+    preview = options.preview ;
+end
+if isfield(options, 'method')
+    method = options.method ;
+end
+if isfield(options, 'first_tp_allowed')
+    first_tp_allowed = options.first_tp_allowed ;
+end
+if isfield(options, 'maxDistsFromGuess')
+    maxDistsFromGuess = options.maxDistsFromGuess ;
 end
 
-first1 = true ;
-first2 = true ;
-first3 = true ;
+% Default behavior: if single threshold time is enforced, enforce for all
+% folds.
+if length(first_tp_allowed) == 1
+    first_tp_allowed = first_tp_allowed * ones(nfolds, 1) ;
+end
+
 % pathlength preallocations
-ssfold = zeros(length(timePoints) + 1, 3) ;
-ssfold_frac = zeros(length(timePoints) + 1, 3) ;
+ssfold = zeros(length(timePoints) + 1, nfolds) ;
+ssfold_frac = zeros(length(timePoints) + 1, nfolds) ;
 ssmax = zeros(length(timePoints), 1) ;
     
 % Convert method to a boolean
@@ -64,6 +98,8 @@ if strcmp(method, 'avgpts')
     method = true ;
 elseif strcmp(method, 'ringpath')
     method = false ;
+else
+    error('method for assigning ss must be avgpts or ringpath')
 end
 
 % Store maximum radius if desired as output
@@ -72,9 +108,8 @@ if nargout > 4
 end
 
 % Fold onset timepoint indices
-k1 = 0 ;
-k2 = 0 ;
-k3 = 0 ;
+firsts = true(nfolds, 1) ;
+onset_kks = Inf * ones(nfolds, 1) ;
 
 % Consider each timepoint
 for kk = 1:length(timePoints)
@@ -94,11 +129,13 @@ for kk = 1:length(timePoints)
     
     if kk == 1
         % Initialize the fold positions to be approximately .3, .5, .8
-        folds = ones(length(timePoints) + 1, 3) ;
-        folds = [guess123(1) * length(spcutMesh.phi0s), ...
-                        guess123(2) * length(spcutMesh.phi0s), ...
-                        guess123(3) * length(spcutMesh.phi0s)] .* folds;
+        folds = int16(ones(length(timePoints) + 1, nfolds)) ;
+        foldguess = guess123 * length(spcutMesh.phi0s) ;
+        for qq = 1:nfolds
+            folds(:, qq) = foldguess(qq) .* folds(:, qq) ;            
+        end
     end
+    maxDists = length(spcutMesh.phi0s) * maxDistsFromGuess ;
     
     % Find the minima in the radius. First make radius 1d
     rad = mean(spcutMesh.radii_from_mean_uniform_rs, 2) ;
@@ -122,33 +159,28 @@ for kk = 1:length(timePoints)
         % We instead say 0.3 is fold 1, 0.5 is fold 2, 0.8 is fold 3
         
         % Mark if this is the first appearance of a fold
-        if first1 && t > (first_tp_allowed(1) - 1)
-            if any(which_fold == 1)
-                first1 = false ;
-                k1 = kk ;
+        % Also make sure this is close enough to the guess to be allowed
+        % Note: folds(kk, :) are the guess fold locations
+        for qq = 1:length(firsts)
+            if firsts(qq) && t > (first_tp_allowed(qq) - 1) && ...
+                    any(which_fold == qq) && ...
+                    any(dd(which_fold == qq) < maxDists(qq))
+                firsts(qq) = false ;
+                onset_kks(qq) = kk ;
             end
         end
-        if first2 && t > (first_tp_allowed(2) - 1)
-            if any(which_fold == 2)
-                first2 = false ;
-                k2 = kk ;
-            end
-        end
-        if first3 && t > (first_tp_allowed(3) - 1)
-            if any(which_fold == 3)
-                first3 = false ;
-                k3 = kk ;
-            end
-        end
+        % if any(t > first_tp_allowed)
+        %     disp('pausing')
+        % end
         
         % Sort indices to folds
         if length(minidx) > 3
             disp('there are more minima than folds. Sorting...')
             % Find closest fold candidate for each fold (1,2,3)
-            for pp = 1:3
+            for pp = 1:size(folds, 2)
                 if length(find(which_fold == pp)) > 1
-                    disp(['more than one fold #' num2str(pp) ' found. Choosing closest....'])
-                    [~, closest_idx] = min(dd(which_fold == 1)) ;
+                    disp(['more than one fold #' num2str(pp) ' found. Choosing closest within range....'])
+                    [~, closest_idx] = min(dd(which_fold == pp)) ;
                     options = find(which_fold ==pp) ;
                     choice1 = options(closest_idx) ;
                     to_remove = setdiff(options, choice1) ;
@@ -159,59 +191,54 @@ for kk = 1:length(timePoints)
                     dd = dd(to_keep) ;
                 end
             end
-            % 
-            % % fold 2
-            % if length(find(which_fold == 2)) > 1
-            %     disp('more than one fold #2 found. Choosing....')
-            %     [~, which2] = min(dd(which_fold == 2)) ;
-            %     options = find(which_fold == 2) ;
-            %     choice2 = options(which2) ;
-            %     to_remove = setdiff(options, choice2) ;
-            %     to_keep = setdiff(1:length(minidx), to_remove) ;
-            %     % Remove the further matches
-            %     minidx = minidx(to_keep) ;
-            %     which_fold = which_fold(to_keep) ;
-            %     dd = dd(to_keep) ;
-            % end
-            % 
-            % % fold 3
-            % if length(find(which_fold == 3)) > 1
-            %     disp('more than one fold #3 found. Choosing....')
-            %     [~, which3] = min(dd(which_fold == 3)) ;
-            %     options = find(which_fold == 3) ;
-            %     choice3 = options(which3) ;
-            %     to_remove = setdiff(options, choice3) ;
-            %     to_keep = setdiff(1:length(minidx), to_remove) ;
-            %     % Remove the further matches
-            %     minidx = minidx(to_keep) ;
-            %     which_fold = which_fold(to_keep) ;
-            %     dd = dd(to_keep) ;
-            % end
         end
         folds_kk = folds(kk, :) ;
         folds_kk(which_fold) = minidx ;
         
         % Ensure that no folds have wandered farther than max_wander unless
         % this is the first appearance of that fold
-        firsts = [first1, first2, first3] ;
-        onset_kks = [k1, k2, k3] ;
-        for pp = 1:3
+        for pp = 1:length(firsts)
             if ~firsts(pp)
                 % If the fold has already appeared, consider its motion
                 if kk > onset_kks(pp)
                     % not first appearance, so check distance
-                    if abs(ss(folds_kk(pp)) - ssfold(kk, pp)) > max_wander
+                    if strcmpi(wander_units, 'pcap')
+                        wander_too_far = abs(folds_kk(pp) - fold(kk, pp))/length(ss) > 100 * max_wander ; 
+                    elseif strcmpi(wander_units, QS.spaceUnits)
+                        wander_too_far = abs(ss(folds_kk(pp)) - ssfold(kk, pp)) > max_wander ;
+                    else
+                        error(['Unknown unit for wander_units: should be pcAP (for %AP axis) or ' QS.spaceUnits])
+                    end
+                    if wander_too_far
                         % too far, mark as unchanged
+                        disp('outside wandering range')
+                        if ~any(firsts)
+                            disp('pausing here')
+                        end
                         folds_kk(pp) = folds(kk, pp) ;
                     end
                 end
             end
         end
         
-        % Append the updated fold positions
-        folds(kk + 1, :) = folds_kk ;
-        ssfold(kk + 1, :) = ss(folds_kk) ;
-        ssfold_frac(kk + 1, :) = ss(folds_kk) / maxss ; 
+        % Append the updated fold positions if valid
+        % First check if first fold position or not. 
+        for qq = 1:nfolds
+            if ~firsts(qq)
+                folds(kk + 1, qq) = folds_kk(qq) ;
+                ssfold(kk + 1, qq) = ss(folds_kk(qq)) ;
+                ssfold_frac(kk + 1, qq) = ss(folds_kk(qq)) / maxss ; 
+            end
+        end
+    end
+    
+    if true
+        clf
+        set(gcf, 'visible', 'on')
+        plot(rad)
+        hold on;
+        plot(folds(kk+1, :), rad(folds(kk+1, :)), 'o')
+        pause(0.001)
     end
     
     % Store maximum radius if desired as output
@@ -220,8 +247,8 @@ for kk = 1:length(timePoints)
     end
 
     % Plot the indices of the identified folds
-    if visualize
-        clf;
+    if preview
+        clf
         plot(folds(:, 1)); hold on;
         plot(folds(:, 2)); hold on;
         plot(folds(:, 3)); hold on;
@@ -236,15 +263,13 @@ ssfold = ssfold(2:end, :) ;
 ssfold_frac = ssfold_frac(2:end, :) ;
 
 % Identify location prior to appearance of each fold as first location
-folds(1:(k1-1), 1) = folds(k1, 1) ;
-folds(1:(k2-1), 2) = folds(k2, 2) ;
-folds(1:(k3-1), 3) = folds(k3, 3) ;
-ssfold_frac(1:(k1-1), 1) = ssfold_frac(k1, 1) ;
-ssfold_frac(1:(k2-1), 2) = ssfold_frac(k2, 2) ;
-ssfold_frac(1:(k3-1), 3) = ssfold_frac(k3, 3) ;
+for qq = 1:length(onset_kks)
+    folds(1:(onset_kks(qq)-1), qq) = folds(onset_kks(qq), 1) ;
+    ssfold_frac(1:(onset_kks(qq)-1), 1) = ssfold_frac(onset_kks(qq), 1) ;
+end
 
 % Go back and find the ss (pathlength) value for pre-fold indices
-for qq = 1:max([k1, k2, k3])
+for qq = 1:max(onset_kks)
     t = timePoints(qq) ;
     load(sprintf(sphiBase, t), 'spcutMesh') ;
     if method
@@ -254,24 +279,27 @@ for qq = 1:max([k1, k2, k3])
     end
     
     % Assign the correct ss value to each
-    if qq < k1 
-        assert(ss(folds(qq, 1)) > 0)
-        ssfold(qq, 1) = ss(folds(qq, 1)) ;
-        assert(ssfold(qq, 1) ~= 0)
+    for pp = 1:length(onset_kks)
+        if qq < onset_kks(pp)
+            assert(ss(folds(qq, 1)) > 0)
+            ssfold(qq, pp) = ss(folds(qq, pp)) ;
+            assert(ssfold(qq, pp) ~= 0)
+        end
     end
-    if qq < k2 
-        assert(ss(folds(qq, 2)) > 0)
-        ssfold(qq, 2) = ss(folds(qq, 2)) ;
-        assert(ssfold(qq, 2) ~= 0)
-    end
-    if qq < k3 
-        assert(ss(folds(qq, 3)) > 0)
-        ssfold(qq, 3) = ss(folds(qq, 3)) ;
-        assert(ssfold(qq, 3) ~= 0)
-    end
+    
+    % if qq < k2 
+    %     assert(ss(folds(qq, 2)) > 0)
+    %     ssfold(qq, 2) = ss(folds(qq, 2)) ;
+    %     assert(ssfold(qq, 2) ~= 0)
+    % end
+    % if qq < k3 
+    %     assert(ss(folds(qq, 3)) > 0)
+    %     ssfold(qq, 3) = ss(folds(qq, 3)) ;
+    %     assert(ssfold(qq, 3) ~= 0)
+    % end
 end
 
-fold_onset = timePoints([k1, k2, k3]) ;
+fold_onset = timePoints(onset_kks) ;
 
 end
 

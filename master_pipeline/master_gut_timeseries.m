@@ -336,7 +336,7 @@ else
     pre_nu = -4 ;
     pre_smoothing = 0 ;
     post_nu = 3 ;
-    post_smoothing = 2 ;
+    post_smoothing = 1 ;
     zdim = 2 ;
     init_ls_fn = 'msls_initguess.h5';
     % mlxprogram = fullfile(meshlabCodeDir, ...
@@ -495,31 +495,31 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(0:197)
-        % try
+    for tp = xp.fileMeta.timePoints
+        try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
             % xp.rescaleStackToUnitAspect();
 
             % make a copy of the detectOptions and change the fileName
             detectOpts2 = detectOptions ;
-            detectOpts2.post_smoothing = 1 ;
+            % detectOpts2.post_smoothing = 1 ;
             detectOpts2.timepoint = xp.currentTime ;
             detectOpts2.fileName = sprintf( fn, xp.currentTime );
             % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
             %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4_octree12.mlx') ;
             detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-                 'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
+                'laplace_surface_rm_resample25k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
             xp.setDetectOptions( detectOpts2 );
             xp.detectSurface();
             % For next time, use the output mesh as an initial mesh
             detectOpts2.init_ls_fn = 'none' ;
-        % catch
-        %     disp('Could not create mesh -- skipping for now')
+        catch
+            disp('Could not create mesh -- skipping for now')
         %     % On next timepoint, use the tp previous to current time
         %     detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
         %             num2str(tp - 1, '%06d' ) '.' detectOptions.dtype] ;
-        % end
+        end
     end
 end
 
@@ -542,6 +542,10 @@ opts.lambda_err = 0.01 ;
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
+
+%% Make some mips
+adjustIV = false ; 
+QS.makeMIPs(1, {400:490, 510:550, 570:630, 800:880}, [], adjustIV)
 
 %% Inspect a single mesh
 % Skip if already done
@@ -807,6 +811,9 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     apdvOpts.preview = preview ;
     apdvOpts.preview_com = false ;
     
+    %% Compute APDV coordinate system
+    QS.computeAPDVCoords(alignAPDVOpts) ;
+    
     % Compute the APD COMs
     [acom_sm, pcom_sm] = QS.computeAPDCOMs(apdvOpts) ;
     
@@ -901,7 +908,7 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     Options.Rotation = QS.APDV.rot ;
     Options.Translation = QS.APDV.trans ;
     Options.Dilation = QS.APDV.resolution ;
-    Options.numLayers = [2, -2];  % at layerSpacing 2, 2 marches ~0.5 um 
+    Options.numLayers = [1, -5];  % at layerSpacing 2, 2 marches ~0.5 um 
     Options.layerSpacing = 2 ;
     
     % Save it
@@ -945,8 +952,6 @@ clearvars Options
 % set(gcf, 'color', 'k')
 % export_fig(fullfile(meshDir, 'symmetry2.png'), '-nocrop', '-r400')
 
-
-
 %% EXTRACT CENTERLINES
 % Skip if already done
 % Note: these just need to be 'reasonable' centerlines for topological
@@ -981,7 +986,7 @@ QS.generateCleanCntrlines(idOptions) ;
 % Skip if already done
 if overwrite_endcapOpts || ~exist(QS.fileName.endcapOptions, 'file')
     endcapOpts = struct( 'adist_thres', 20, ...  % 20, distance threshold for cutting off anterior in pix
-                'pdist_thres', 18);     % 15-20, distance threshold for cutting off posterior in pix
+                'pdist_thres', 25);     % 15-20, distance threshold for cutting off posterior in pix
     QS.setEndcapOptions(endcapOpts) ;
     % Save the options to disk
     QS.saveEndcapOptions() ;
@@ -994,7 +999,7 @@ end
 clearvars methodOpts
 methodOpts.overwrite = overwrite_endcapOpts ;  % recompute sliced endcaps
 methodOpts.save_figs = true ;   % save images of cntrline, etc, along the way
-methodOpts.preview = false  ;     % display intermediate results
+methodOpts.preview = true  ;     % display intermediate results
 QS.sliceMeshEndcaps(endcapOpts, methodOpts) ;
 
 %% Clean Cylinder Meshes
