@@ -1,4 +1,7 @@
 function oimg = loadtiff(path)
+% NPM: This loads a 3D tiff quickly. If 4D, colors are interleaved.
+% For 4D tiff loading, see readTiff4D.m -- NPMitchell 2020
+%
 % Copyright (c) 2012, YoonOh Tak
 % All rights reserved.
 % 

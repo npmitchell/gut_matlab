@@ -4,6 +4,9 @@ function varargout=shadedErrorBar(x,y,errBar,varargin)
 %
 % function H=shadedErrorBar(x,y,errBar, ...)
 %
+% lineProps = {'-','color', colors(ch, :)} ;
+% h1=shadedErrorBar(t, means, stdev, 'lineProps', lineProps) ;
+%
 % Purpose 
 % Makes a 2-d line plot with a pretty shaded error bar made
 % using patch. Error bar color is chosen automatically.
@@ -32,7 +35,8 @@ function varargout=shadedErrorBar(x,y,errBar,varargin)
 %               will only be transparent if you set the renderer 
 %               to OpenGL, however this makes a raster image.
 % 'patchSaturation'- [0.2 by default] The saturation of the patch color.
-%
+% 'makeEdge' - [false by default] Toggle on/off the edge of the shaded
+%               region as a line
 %
 %
 % Outputs

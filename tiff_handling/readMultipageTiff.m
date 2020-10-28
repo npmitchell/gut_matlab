@@ -1,4 +1,6 @@
 function subimages = readMultipageTiff(filename)
+% NPM: I recommend using readTiff4D instead of this.
+%
 % Read a multipage tiff, assuming each file is the same size
     t = Tiff(filename, 'r');
     subimages(:,:,1) = t.read(); % Read the first image to get the array dimensions correct.

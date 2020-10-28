@@ -1,4 +1,8 @@
 function res = saveastiff(data, path, options)
+% This is one alternative to bfsave(im, name_out, 'dimensionOrder', dims)
+% In practice, bfsave seems sufficient, or else use writeTiff5D.m -- NPM
+%
+%
 % options.color
 %   : true or FALSE
 %   : If this is true, third dimension should be 3 and the data is saved as a color image.
