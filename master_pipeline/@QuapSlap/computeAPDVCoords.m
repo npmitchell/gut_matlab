@@ -8,6 +8,10 @@ anteriorMethod = 'InsideOrNearestVertex' ;  % default is to use COM if COM
                             % is inside the mesh polyhedron, otherwise 
                             % project onto nearest mes vertex
 normal_step = 1/QS.ssfactor ;
+axorder = QS.data.axisOrder ;
+ilastikOutputAxisOrder = QS.data.ilastikOutputAxisOrder ;
+thres = 0.5 ;
+ssfactor = QS.ssfactor ;
 
 %% Unpack opts
 if isfield(opts, 'aProbFileName')
@@ -27,6 +31,18 @@ else
 end
 if isfield(opts, 'normal_step')
     normal_step = opts.normal_step ;
+end
+if isfield(opts, 'thres')
+    thres = opts.thres ;
+end
+% Which timepoint to use to define dorsal and AP axis?
+if isfield(opts, 'tref')
+    trefIDx = find(QS.xp.fileMeta.timePoints == opts.tref) ;
+    tt = opts.tref ;
+else
+    % by default use first timepoint
+    trefIDx = 1 ;
+    tt = QS.xp.fileMeta.timePoints(trefIDx) ;
 end
 
 % Default options
@@ -68,7 +84,6 @@ end
 if redo_rot_calc || overwrite
 
     %% Dorsal COM for first timepoint
-    tt = QS.xp.fileMeta.timePoints(1) ;
     % load the probabilities for anterior posterior dorsal
     afn = sprintf(aProbFileName, tt);
     pfn = sprintf(pProbFileName, tt);
@@ -210,39 +225,37 @@ if redo_rot_calc || overwrite
         clearvars options
         % [~, acom] = match_training_to_vertex(adat, thres, vertices, options) ;
         % [~, pcom] = match_training_to_vertex(pdat, thres, vertices, options) ;
-        acoms(tidx, :) = acom ;
-        pcoms(tidx, :) = pcom ;
+        acoms(trefIDx, :) = acom ;
+        pcoms(trefIDx, :) = pcom ;
         if preview
             disp('acom = ')
-            acoms(tidx, :)
+            acoms(trefIDx, :)
             disp('pcom = ')
-            pcoms(tidx, :)
+            pcoms(trefIDx, :)
         end
 
         % PLOT APD points on mesh
-        if tidx == 1
-            % load current mesh & plot the dorsal dot
-            clf
-            for ii = 1:3
-                subplot(1, 3, ii)
-                mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, tt)) ;
-                trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
-                hold on;
-                plot3(acom(1) * QS.ssfactor, acom(2) * QS.ssfactor, acom(3) * QS.ssfactor, 'o')
-                plot3(pcom(1) * QS.ssfactor, pcom(2) * QS.ssfactor, pcom(3) * QS.ssfactor, 'o')
-                plot3(dcom(1) * QS.ssfactor, dcom(2) * QS.ssfactor, dcom(3) * QS.ssfactor, 'o')
-                axis equal
-                if ii == 1
-                    view(0, 90)
-                elseif ii == 2
-                    view(90, 0)
-                else
-                    view(0, 270)
-                end
+        % load current mesh & plot the dorsal dot
+        clf
+        for ii = 1:3
+            subplot(1, 3, ii)
+            mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, tt)) ;
+            trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
+            hold on;
+            plot3(acom(1) * QS.ssfactor, acom(2) * QS.ssfactor, acom(3) * QS.ssfactor, 'o')
+            plot3(pcom(1) * QS.ssfactor, pcom(2) * QS.ssfactor, pcom(3) * QS.ssfactor, 'o')
+            plot3(dcom(1) * QS.ssfactor, dcom(2) * QS.ssfactor, dcom(3) * QS.ssfactor, 'o')
+            axis equal
+            if ii == 1
+                view(0, 90)
+            elseif ii == 2
+                view(90, 0)
+            else
+                view(0, 270)
             end
-            sgtitle('APD COMs for APDV coordinates')
-            saveas(gcf, fullfile(QS.dir.mesh, 'apd_coms.png'))
-        end 
+        end
+        sgtitle('APD COMs for APDV coordinates')
+        saveas(gcf, fullfile(QS.dir.mesh, 'apd_coms.png'))
 
         %% Define "start point" as anterior COM projected onto mesh
         if strcmpi(anteriorMethod, 'insideornearestvertex')
@@ -326,7 +339,7 @@ if redo_rot_calc || overwrite
         RU = @(A,B) eye(3) + ssc(cross(A,B)) + ...
              ssc(cross(A,B))^2*(1-dot(A,B))/(norm(cross(A,B))^2) ;
         % rotz aligns AP to xhat (x axis)
-        rotx = RU(aphat, xhat) ;
+        rotx = RU(aphat(:), xhat(:)) ;
 
         % Rotate dorsal to the z axis
         % find component of dorsal vector from acom perpendicular to AP

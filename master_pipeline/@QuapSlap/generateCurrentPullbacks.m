@@ -50,7 +50,8 @@ generate_uphi    = false ;  % generate a (u, phi) coord system pullback
 generate_spsm    = false ;  % generate an (s, phi) coord system smoothed mesh pullback
 generate_rsm     = false ;  % generate a relaxed (s, phi) coord system smoothed mesh pullback
 % Other options
-save_as_stack    = false ;
+save_as_stack    = false ;  % save data as stack for each timepoint, not MIP
+channels = [] ;             % default is to image all channels (empty list)
 
 % Replace defaults
 if nargin > 4
@@ -82,6 +83,10 @@ if nargin > 4
     if isfield(pbOptions, 'generate_rsm')
         generate_rsm = pbOptions.generate_rsm ;
         pbOptions = rmfield(pbOptions, 'generate_rsm') ;
+    end
+    if isfield(pbOptions, 'channels')
+        channels = pbOptions.channels ;
+        pbOptions = rmfield(pbOptions, 'channels') ;
     end
 end
 
@@ -170,6 +175,11 @@ if do_pullbacks
     QS.getCurrentData()
     % grab raw stack data
     IV = QS.currentData.IV ;
+    
+    % select channels
+    if ~isempty(channels)
+        IV = IV(channels) ;
+    end
 end
 
 if (~exist(imfn_sp, 'file') || overwrite) && generate_sphi
