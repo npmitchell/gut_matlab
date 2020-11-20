@@ -10,6 +10,9 @@ function sliceMeshEndcaps(QS, opts, methodOpts)
 % ----------
 % opts : struct with optional fields
 % methodOpts : struct with optional fields
+%   tref : int (timestamp, not index)
+%       reference time stamp for dorsal definition, after and before which 
+%       we point match to find the "dorsal" boundary vertex on each endcap
 %
 % Prerequisites
 % -------------
@@ -36,6 +39,13 @@ function sliceMeshEndcaps(QS, opts, methodOpts)
 timePoints = QS.xp.fileMeta.timePoints ;
 
 %% Parameters
+tref = QS.xp.fileMeta.timePoints(1) ;     % which timepoint to use as reference, when
+                                          % dorsal points on the boundary
+                                          % are defined. Subsequent and
+                                          % previous timepoints have dorsal
+                                          % points point-matched in a way
+                                          % which traces back to the
+                                          % definition at tref
 adist_thres = 20 ;  % distance threshold for cutting off anterior in pix
 pdist_thres = 15 ;  % distance threshold for cutting off posterior in pix
 adist_thres2 = adist_thres ;  % Second threshold on anterior distance
@@ -109,6 +119,9 @@ end
 if isfield(opts, 'pDistRate')
     pDistRate = opts.pDistRate ;
 end
+if isfield(opts, 'tref')
+    tref = opts.tref ;
+end
 if isfield(methodOpts, 'overwrite')
     overwrite = methodOpts.overwrite ;
 end
@@ -148,15 +161,19 @@ end
 
 %% Load AP coms
 [acom_sm, pcom_sm] = QS.getAPCOMSm ;
+trefIDx = QS.xp.tIdx(tref) ;
 
 %% Iterate through each mesh
-todo = [1,4,91,143,144,177,178,length(timePoints)]; % first preview how slices will look
-todo2 = 1:20:length(timePoints) ;
-todo3 = 1:10:length(timePoints) ;
-todo4 = 1:length(timePoints) ;
+todo = trefIDx:50:length(timePoints); % first preview how slices will look
+todo2 = trefIDx:20:length(timePoints) ;
+todo3 = trefIDx:10:length(timePoints) ;
+% NOTE: begin with tref, advance to end, then return to tref and go
+% backwards
+todo4 = [trefIDx:length(timePoints), fliplr(1:(trefIDx-1)) ] ;
 todo = [todo, todo2, todo3, todo4] ;
 for ii=todo
     tt = timePoints(ii) ;
+    Dt = tt - tref ;
     disp(['tt = ' num2str(tt)])
     
     acom = acom_sm(ii, :) ;
@@ -199,15 +216,14 @@ for ii=todo
         %% Remove anterior endcap    
         % Measure distance to the posterior
         % Strategy: remove within distance of acom
-        aOff = aOffXYZ + aOffRateXYZ * (tt - timePoints(1)) ;
+        aOff = aOffXYZ + aOffRateXYZ * Dt ;
         acomOff = acom + aOff ;
-        acom2 = acom + aOff2XYZ + aOffRate2XYZ * (tt - timePoints(1)) ;
+        acom2 = acom + aOff2XYZ + aOffRate2XYZ * Dt ;
         if numel(aDistRate) > 6
             error('Code for more than three ramp rates here')    
         end
         
         if abs(aDistRate(1)) > 0 || numel(aDistRate) > 2
-            Dt = tt - timePoints(1) ;
             if numel(aDistRate) > 2
                 % second column is duration of ramp rate
                 if Dt > aDistRate(1, 2)
@@ -443,12 +459,12 @@ for ii=todo
                         axis equal
                         waitfor(gcf)
                         disp('BAD PCUT: NOT TOPOLOGICAL CYLINDER! Trying again with larger threshold')
-                        pdist_thres_ii = pdist_thres_ii * 1.1 ;
+                        pdist_thres_ii = pdist_thres_ii * 1.02 ;
                     end
                 end
             else
                 % repeat with larger threshold
-                pdist_thres_ii = pdist_thres_ii * 1.1 ;
+                pdist_thres_ii = pdist_thres_ii * 1.02 ;
                 if pdist_thres_ii > (max(vtx(:)) - min(vtx(:)))
                     error('Removing entire sample to attain correct topology. Address this.')
                 end
@@ -542,9 +558,11 @@ for ii=todo
     % Save the anterior and posterior boundary indices (after endcap cut)
     save(boundaryfn, 'ab', 'pb')
     
-    % choose anterior Dorsal as point with smallest phi
-    % (closest to zero or 2pi) if this is first TP. Otherwise, match prev.
-    if ii == 1
+    % choose anterior Dorsal as point with smallest phi for reference TP
+    % (closest to zero or 2pi) if this is ref TP. Otherwise, match "prev"
+    % Note that previous dorsal point could be that of the NEXT timepoint
+    % if tt < tref. 
+    if Dt == 0 
         % Choose dorsal point based on angle in yz plane. 
         % Since this is the first timepoint, taking angle with wrt x axis
         % is same as wrt AP axis given that AP axis is a straight line
@@ -568,7 +586,7 @@ for ii=todo
         [~, adb_tmp] = min(abs(a_phipi)) ;
         [~, pdb_tmp] = min(abs(p_phipi)) ;
         
-        % anterior/posterior dorsal boundary
+        % anterior/posterior dorsal pt on boundary ['antr dorsal boundary']
         adb = ab(adb_tmp) ;
         pdb = pb(pdb_tmp) ;
         
@@ -605,7 +623,12 @@ for ii=todo
             pause(5)
             close all 
         end
-    else
+        previous_avtx = vtx(adb, :) ;
+        previous_pvtx = vtx(pdb, :) ;
+        backward_avtx = vtx(adb, :) ;
+        backward_pvtx = vtx(pdb, :) ;
+    elseif Dt > 0 
+        % CURRENT TIME IS A TIMEPOINT AFTER TREF
         % transform to APDV coords in case topology is wrong (for
         % inspection in case of error)
         vrs = QS.xyz2APDV(vtx * ssfactor) ;
@@ -615,9 +638,24 @@ for ii=todo
         kp = dsearchn(vtx(pb, :), previous_pvtx) ;
         adb = ab(ka) ;
         pdb = pb(kp) ;
+        % UPDATE "PREVIOUS" to be CURRENT
+        previous_avtx = vtx(adb, :) ;
+        previous_pvtx = vtx(pdb, :) ;
+    elseif Dt < 0 
+        % CURRENT TIME IS A TIMEPOINT BEFORE TREF
+        % transform to APDV coords in case topology is wrong (for
+        % inspection in case of error)
+        vrs = QS.xyz2APDV(vtx * ssfactor) ;
+        
+        % Match previous timepoint
+        ka = dsearchn(vtx(ab, :), backward_avtx) ;
+        kp = dsearchn(vtx(pb, :), backward_pvtx) ;
+        adb = ab(ka) ;
+        pdb = pb(kp) ;        
+        % UPDATE "PREVIOUS" (which here is in future) to be CURRENT
+        backward_avtx = vtx(adb, :) ;
+        backward_pvtx = vtx(pdb, :) ;
     end
-    previous_avtx = vtx(adb, :) ;
-    previous_pvtx = vtx(pdb, :) ;
         
     %% Save the anterior dorsal and posterior dorsal vertex points
     try 

@@ -1,7 +1,8 @@
 function measurePathlineStrain(QS, options)
 % measurePathlineStrain(QS, options)
-%   Compute strain from integrated pathlines deforming mesh vertices.
-%   Measurements are taken with respect to fixed Lagrangian frame. 
+%   Integrate the metric strain rate along Lagrangian pathlines.
+%   Allow for median filtering along Lagrangian pathlines to avoid 
+%   spurious spikes in accumulated strain.
 %   Plot results in 2d and/or 3d for each timepoint.
 %   
 %
@@ -138,7 +139,7 @@ QS.loadPullbackPathlines(t0Pathline, 'vertexPathlines')
 vP = QS.pathlines.vertices ;
 
 % Output directory is inside pathline dir
-outdir = sprintf(QS.dir.pathlines.strain, t0) ;
+outdir = QS.dir.pathlines.fundForms ;
 if ~exist(outdir, 'dir')
     mkdir(outdir)
 end
@@ -160,57 +161,21 @@ end
 %% INTEGRATE STRAINRATE INTO STRAIN ON PATHLINES
 % Compute or load all timepoints
 load(sprintf(QS.fileName.pathlines.v3d, t0), 'v3dPathlines')
-load(sprintf(QS.fileName.pathlines.vXY, t0), 'vertexPathlines')
 vX3rs = v3dPathlines.vXrs ;
 vY3rs = v3dPathlines.vYrs ;
 vZ3rs = v3dPathlines.vZrs ;
 t0 = v3dPathlines.t0 ;
 tIdx0 = v3dPathlines.tIdx0 ;
 
-if ~all(isfinite(vX3rs(:)))
-    error('Some vertex 3D positions are infinite. Check interpolation')
-end
-
-% Define reference mesh
-refMeshFn = fullfile(sprintf(QS.dir.pathlines.data, t0Pathline), ...
-        sprintf('referenceMeshMaterialFrame_%04d.mat', t0Pathline)) ;
-if exist(refMeshFn, 'file') || overwrite
-    load(refMeshFn, 'refMesh')
-else
-    refMesh = struct() ; 
-    vX = vertexPathlines.vX(tIdx0, :) ; 
-    vY = vertexPathlines.vY(tIdx0, :) ;
-    vXY = [vX(:), vY(:)] ;
-    Lx = vertexPathlines.Lx ;
-    Ly = vertexPathlines.Ly ;
-    refMesh.f = defineFacesRectilinearGrid(vXY, QS.nU, QS.nV) ;
-    refMesh.u = QS.XY2uv([Lx(tIdx0), Ly(tIdx0)], vXY, 1, 1) ;
-    x0 = vX3rs(tIdx0, :) ;
-    y0 = vY3rs(tIdx0, :) ;
-    z0 = vZ3rs(tIdx0, :) ;
-    refMesh.v = [ x0(:), y0(:), z0(:) ] ; 
-    pathPairs = [ (1:nU)', (nV-1)*nU + (1:nU)' ] ;
-    refMesh.pathPairs = pathPairs ;
-    refMesh.nU = QS.nU ;
-    refMesh.nV = QS.nV ;
-    assert(numel(refMesh.u(:, 1)) == QS.nU * QS.nV)
-
-    % Save reference Mesh as lagrangian frame
-    save(refMeshFn, 'refMesh') ;
-end
-
 ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
-tidx2do = 1:40:ntps ;
-tidx2do = [tidx2do setdiff(1:ntps, tidx2do)] ;
-for tidx = tidx2do
+for tidx = 1:ntps
     % Identify current timepoint
     tp = QS.xp.fileMeta.timePoints(tidx) ;
     
     % Do the fund forms for the lagrangian frame already exist?
-    % ffn = sprintf(QS.fullFileBase.pathline.fundForms, t0, tp) ;
+    ffn = sprintf(QS.fullFileBase.pathline.fundForms, t0, tp) ;
     
-    ffn = sprintf(QS.fullFileBase.pathlines.strain, t0, tp) ;
-    if ~exist(ffn, 'file') || overwrite 
+    if ~exist(ffn, 'file')
         disp(['t = ' num2str(tp)])
         QS.setTime(tp) ;
 
@@ -221,49 +186,26 @@ for tidx = tidx2do
         zz = vZ3rs(tidx, :) ;
         v3d = [ xx(:), yy(:), zz(:) ] ;
         mesh = struct() ;
-        mesh.f = refMesh.f ;
         mesh.v = v3d ;
-        mesh.u = refMesh.u ;
-        mesh.pathPairs = refMesh.pathPairs ;
-        mesh.nU = QS.nU ;
-        mesh.nV = QS.nV ;
-        
-        [strain, tre, dev, theta, outputStruct] = ...
-            inducedStrainPeriodicMesh(mesh, refMesh, options) ;
-        
-        %   fundForms : struct with fields
-        %       gg : first fundamental form on each face for tiled mesh
-        %       bb : second fundamental form on each face for tiled mesh
-        %   bondDxDy : struct with fields
-        %       dx : length of dx in embedding space / length of dx in pullback space
-        %       dy : length of dy in embedding space / length of dy in pullback space
-        %       dxTiled : length of dx in embedding space / length of dx in
-        %           pullback space for tiled mesh
-        %       dyTiled : length of dy in embedding space / length of dy in
-        %           pullback space for tiled mesh
-        %   theta_pb : #tiledFaces x 1 float array
-        %       elongation angle, theta, in pullback space (differs from
-        %       theta by scaling of the eigenvectors by (dx, dy) returned in
-        %       bondDxDy
-        %   faceIDs : #faces x 1 int array
-        %       indices of tiled faces that return the faces of the
-        %       original input mesh, so that strain_orig = strain(faceIDs)
-        fundForms = outputStruct.fundForms ;
-        bondDxDy = outputStruct.bondDxDy ;
-        theta_pb = outputStruct.theta_pb ;
-        faceIDs = outputStruct.faceIDs ;
-        save(ffn, 'strain', 'tre', 'dev', 'theta', 'fundForms', 'bondDxDy', ...
-            'theta_pb', 'faceIDs') ;
+        mesh.u = lagrangianFrame ;
+        pathPairs = [ (1:nU)', (nV-1)*nU + (1:nU)' ] ;
+        mesh.pathPairs = pathPairs ;
+
+        %% Tile the mesh and the associated velocity vectors to triple cover
+        tileCount = [1, 1] ;
+        [ TF, TV2D, TV3D, ~ ] = tileAnnularCutMesh( mesh, tileCount ) ;
+        % The face list should now be 3x the original size
+        assert(size(TF, 1) == 3 * size(cutMesh.f, 1)) ;
+
+        %% Compute the fundamental forms
+        [gg, ~] = constructFundamentalForms(TF, TV3D, TV2D) ;
+        % Use tiled, open mesh (glued seam) to compute the second fundamental form
+        [~, bb] = constructFundamentalForms(TF, TV3D, TV2D) ;
+
+        fundForms.gg = gg ;
+        fundForms.bb = bb ;
     else
         disp(['FundForms for t = ' num2str(tp) ' already on disk'])
-    end
-
-    %% Plot strain for this timepoint
-    strainFn = fullfile(sprintf(QS.dir.pathlines.strain, ...
-            t0Pathline), sprintf(QS.fileBase.strain, tp)) ;
-    if ~exist(strainFn, 'file') || overwriteImages
-        options.overwrite = overwriteImages ;
-        QS.plotPathlineStrainTimePoint(tp, options)
     end
 end
 disp('done with integrated pathline strain calculations')
@@ -275,11 +217,6 @@ lKymoFn = fullfile(outdir, 'leftKymographLagrangianMetric.mat') ;
 rKymoFn = fullfile(outdir, 'rightKymographLagrangianMetric.mat') ;
 dKymoFn = fullfile(outdir, 'dorsalKymographLagrangianMetric.mat') ;
 vKymoFn = fullfile(outdir, 'ventralKymographLagrangianMetric.mat') ;
-
-% Create mesh averaging operators
-glueRefMesh = glueCylinderCutMeshSeam(refMesh) ;
-[~, F2V] = meshAveragingOperators(glueRefMesh.f, glueRefMesh.v) ;
-
 files_exist = exist(apKymoFn, 'file') && ...
     exist(lKymoFn, 'file') && exist(rKymoFn, 'file') && ...
     exist(dKymoFn, 'file') && exist(vKymoFn, 'file') ;
@@ -292,82 +229,38 @@ if ~files_exist || overwrite || true
         srfn = fullfile(outdir, sprintf('strain_%06d.mat', tp))   ;
 
         % Load timeseries measurements
-        load(srfn, 'tre', 'dev', 'theta', 'faceIDs') ;
-        tre = F2V * tre(faceIDs) ;
-        dev = F2V * dev(faceIDs) ;
-        theta = F2V * theta(faceIDs) ;
-        % Double first row as last
-        tre(length(tre)+1:length(tre)+nU) = tre(1:nU) ;
-        dev(length(dev)+1:length(dev)+nU) = dev(1:nU) ;
-        theta(length(theta)+1:length(theta)+nU) = theta(1:nU) ;
-        
-        %% OPTION 1: simply reshape, tracing each XY pathline pt to its t0
-        % % grid coordinate
-        tre = reshape(tre, [nU, nV]) ;
-        dev = reshape(dev, [nU, nV]) ;
-        theta = reshape(theta, [nU, nV]) ;
-        
-        %% Average strainRATE along pathline DV hoops
-        % Average along DV -- ignore last redudant row at nV
-        [dv_ap, th_ap] = ...
-            QS.dvAverageNematic(dev(:, 1:nV-1), theta(:, 1:nV-1)) ;
-        tr_ap = mean(tre(:, 1:nV-1), 2) ;
-        
-        % quarter bounds
-        q0 = round(nV * 0.125) ;
-        q1 = round(nV * 0.375) ;
-        q2 = round(nV * 0.625) ;
-        q3 = round(nV * 0.875) ;
-        left = q0:q1 ;
-        ventral = q1:q2 ;
-        right = q2:q3 ;
-        dorsal = [q3:nV, 1:q1] ;
-        
-        % left quarter
-        [dv_l, th_l] = ...
-            QS.dvAverageNematic(dev(:, left), theta(:, left)) ;
-        tr_l = mean(tre(:, left), 2) ;
-        
-        % right quarter
-        [dv_r, th_r] = ...
-            QS.dvAverageNematic(dev(:, right), theta(:, right)) ;
-        tr_r = mean(tre(:, right), 2) ;
-        
-        % dorsal quarter
-        [dv_d, th_d] = ...
-            QS.dvAverageNematic(dev(:, dorsal), theta(:, dorsal)) ;
-        tr_d = mean(tre(:, dorsal), 2) ;
-        
-        % ventral quarter
-        [dv_v, th_v] = ...
-            QS.dvAverageNematic(dev(:, ventral), theta(:, ventral)) ;
-        tr_v = mean(tre(:, ventral), 2) ;
-        
+        load(srfn, 'strain_tr_ap', 'strain_tr_l', 'strain_tr_r', ...
+            'strain_tr_d', 'strain_tr_v', ...
+            'strain_th_ap', 'strain_th_l', 'strain_th_r', ....
+            'strain_th_d', 'strain_th_v', ...
+            'strain_dv_ap', 'strain_dv_l', 'strain_dv_r', ...
+            'strain_dv_d', 'strain_dv_v') ;
+
         %% Store accumulated strain in matrices
         % dv averaged
-        str_apM(tidx, :) = tr_ap ;
-        sdv_apM(tidx, :) = dv_ap ;
-        sth_apM(tidx, :) = th_ap ;
+        str_apM(tidx, :) = strain_tr_ap ;
+        sdv_apM(tidx, :) = strain_dv_ap ;
+        sth_apM(tidx, :) = strain_th_ap ;
 
         % left quarter
-        str_lM(tidx, :) = tr_l ;
-        sdv_lM(tidx, :) = dv_l ;
-        sth_lM(tidx, :) = th_l ;
+        str_lM(tidx, :) = strain_tr_l ;
+        sdv_lM(tidx, :) = strain_dv_l ;
+        sth_lM(tidx, :) = strain_th_l ;
 
         % right quarter
-        str_rM(tidx, :) = tr_r ;
-        sdv_rM(tidx, :) = dv_r ;
-        sth_rM(tidx, :) = th_r ;
+        str_rM(tidx, :) = strain_tr_r ;
+        sdv_rM(tidx, :) = strain_dv_r ;
+        sth_rM(tidx, :) = strain_th_r ;
 
         % dorsal quarter
-        str_dM(tidx, :) = tr_d ;
-        sdv_dM(tidx, :) = dv_d ;
-        sth_dM(tidx, :) = th_d ;
+        str_dM(tidx, :) = strain_tr_d ;
+        sdv_dM(tidx, :) = strain_dv_d ;
+        sth_dM(tidx, :) = strain_th_d ;
 
         % ventral quarter
-        str_vM(tidx, :) = tr_v ;
-        sdv_vM(tidx, :) = dv_v ;
-        sth_vM(tidx, :) = th_v ;
+        str_vM(tidx, :) = strain_tr_v ;
+        sdv_vM(tidx, :) = strain_dv_v ;
+        sth_vM(tidx, :) = strain_th_v ;
     end
     
     %% Save kymographs

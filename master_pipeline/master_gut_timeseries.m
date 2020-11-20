@@ -33,7 +33,7 @@
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
-% cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
+cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
 % cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
@@ -43,7 +43,7 @@ clear; close all; clc;
 % cd /mnt/crunch/gut/48YGal4UasLifeActRuby/201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
-cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202007151930_1p4um_0p5msexp/Time3views_25x_60s/data/
+% cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202007151930_1p4um_0p5msexp/Time3views_25x_60s/data/
 
 dataDir = cd ;
 
@@ -76,7 +76,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 1 ;
     channelsUsed = 1 ;
-    timePoints = 0:300 ;
+    timePoints = 10:263 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
@@ -105,7 +105,8 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'fn', fn,...
         'fn_prestab', fn_prestab, ...
         'swapZT', swapZT, ...
-        'set_preilastikaxisorder', set_preilastikaxisorder); 
+        'set_preilastikaxisorder', set_preilastikaxisorder, ...
+        't0_for_phi0', 110); 
     disp('Saving masterSettings to ./masterSettings.mat')
     if exist('./masterSettings.mat', 'file')
         ui = input('This will overwrite the masterSettings. Proceed (Y/n)?', 's') ;
@@ -145,6 +146,7 @@ if loadMaster
     fn_prestab = masterSettings.fn_prestab ;
     set_preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
     swapZT = masterSettings.swapZT ;
+    t0_for_phi0 = masterSettings.t0_for_phi0 ;
 end
 dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
 dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
@@ -320,9 +322,9 @@ else
     ssfactor = 4;
     niter = 15 ;
     niter0 = 15 ;
-    ofn_ply = 'mesh_apical_ms_stab_' ; 
-    ofn_ls = 'msls_apical_stab_' ;
-    ofn_smoothply = 'mesh_apical_stab_' ;
+    ofn_ply = 'mesh_' ; % mesh_apical_ms_stab_' ; 
+    ofn_ls = 'msls_' ; % mesh_apical_stab_' ;
+    ofn_smoothply = 'mesh_apical_stab_' ; % mesh_apical_stab_' ;
     lambda1 = 1 ;
     lambda2 = 1 ;
     exit_thres = 0.0001 ;
@@ -495,7 +497,7 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints
+    for tp = xp.fileMeta.timePoints(206:210)
         try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
@@ -507,14 +509,18 @@ else
             detectOpts2.timepoint = xp.currentTime ;
             detectOpts2.fileName = sprintf( fn, xp.currentTime );
             % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-            %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4_octree12.mlx') ;
+            %      'surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4') ;
+            %  _octree12.mlx') ;
+            % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+            %     'laplace_surface_rm_resample25k_reconstruct_LS3_1p2pc_ssfactor4_vip8test.mlx') ;
             detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-                'laplace_surface_rm_resample25k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
+                 'laplace_surface_rm_resample25k_reconstruct_LS3_wu13_ssfactor4.mlx') ;
             xp.setDetectOptions( detectOpts2 );
             xp.detectSurface();
             % For next time, use the output mesh as an initial mesh
             detectOpts2.init_ls_fn = 'none' ;
         catch
+        %    error('here')
             disp('Could not create mesh -- skipping for now')
         %     % On next timepoint, use the tp previous to current time
         %     detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
@@ -685,6 +691,26 @@ clearvars lambda1 lambda2 ilastikaxisorder mlxprogram ms_scriptDir
 clearvars msls_exten msls_detOpts_fn niter niter0 nu 
 
 
+%% Fix ssfactor error
+% % Skip -- only do if needed
+% for tp = xp.fileMeta.timePoints
+%     meshfn = fullfile(sprintf(QS.fullFileBase.mesh, tp)) ;
+%        
+%     % Check that smoothply exists
+%     mesh = read_ply_mod(meshfn) ;
+%     mesh.v = mesh.v * ssfactor ;
+%     plywrite_with_normals(meshfn,mesh.f,mesh.v,mesh.vn)
+% end
+% %%
+% for tp = xp.fileMeta.timePoints
+%     mesh2fn = fullfile(QS.dir.mesh, sprintf('mesh_%06d.ply', tp)) ;
+%     mesh2 = read_ply_mod(mesh2fn) ;
+%     disp(['begin writing - ' num2str(tp)])
+%     plywrite(mesh2fn, mesh2.f, mesh2.v * ssfactor) ;
+%     disp('done writing')
+% end
+% disp('done')
+
 %% APDV ilastik training
 % Train on anterior (A), posterior (P), background (B), and 
 % dorsal anterior (D) location in different iLastik channels.
@@ -798,6 +824,8 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         alignAPDVOpts.anteriorChannel = anteriorChannel ;
         alignAPDVOpts.posteriorChannel = posteriorChannel ;
         alignAPDVOpts.dorsalChannel = dorsalChannel ;
+        alignAPDVOpts.dorsal_thres = 0.5 ;
+        alignAPDVOpts.tref = 110 ;
         
         % alignAPDVOpts.fn = fn ;  % filename base
 
@@ -812,6 +840,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     apdvOpts.preview_com = false ;
     
     %% Compute APDV coordinate system
+    alignAPDVOpts.overwrite = false ;
     QS.computeAPDVCoords(alignAPDVOpts) ;
     
     % Compute the APD COMs
@@ -876,7 +905,8 @@ clearvars normal_step
 % bits. 
 % Save output h5s trained on stabilized h5s from iLastik as 
 %   -->   <QS.fileBase.name>_Probabilities_mask3d.h5
-% and 
+% and, optionally, a probability cloud to exclude 
+% (applied post extraction of previous mask)
 %   -->   <QS.fileBase.name>_Probabilities_maskDorsal.h5
 QS.generateMaskedData()
 
@@ -918,15 +948,16 @@ else
 end
 
 % Use first timepoint's intensity limits throughout
-QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.95)
+QS.setDataLimits(QS.xp.fileMeta.timePoints(101), 1.0, 99.9)
+% QS.setDataLimits(QS.xp.fileMeta.timePoints(101), 1.0, 99.95)
 
 %% Plot on surface for all TP 
 options = metadat ;
 options.overwrite = false ;
-options.plot_dorsal = false ;
-options.plot_ventral = false ;
-options.plot_right = false ;
-options.plot_left = false ;
+options.plot_dorsal = true ;
+options.plot_ventral = true ;
+options.plot_right = true ;
+options.plot_left = true ;
 options.plot_perspective = true ;
 QS.plotSeriesOnSurfaceTexturePatch(options, Options)
 clearvars Options
@@ -957,7 +988,7 @@ clearvars Options
 % Note: these just need to be 'reasonable' centerlines for topological
 % checks on the orbifold cuts.
 exponent = 1.0 ;
-res = 3.0 ; 
+res = 2.0 ; 
 cntrlineOpts.overwrite = overwrite_centerlines ;     % overwrite previous results
 cntrlineOpts.overwrite_ims = overwrite_centerlineIms ;     % overwrite previous results
 cntrlineOpts.weight = 0.1;               % for speedup of centerline extraction. Larger is less precise
@@ -984,9 +1015,11 @@ QS.generateCleanCntrlines(idOptions) ;
 
 %% Cylinder cut mesh
 % Skip if already done
+overwrite_endcapOpts = true ;
 if overwrite_endcapOpts || ~exist(QS.fileName.endcapOptions, 'file')
     endcapOpts = struct( 'adist_thres', 20, ...  % 20, distance threshold for cutting off anterior in pix
-                'pdist_thres', 25);     % 15-20, distance threshold for cutting off posterior in pix
+                'pdist_thres', 20, ...  % 15-20, distance threshold for cutting off posterior in pix
+                'tref', 110) ;  % reference timepoint at which time dorsal-most endcap vertices are defined
     QS.setEndcapOptions(endcapOpts) ;
     % Save the options to disk
     QS.saveEndcapOptions() ;
@@ -998,8 +1031,8 @@ end
 
 clearvars methodOpts
 methodOpts.overwrite = overwrite_endcapOpts ;  % recompute sliced endcaps
-methodOpts.save_figs = true ;   % save images of cntrline, etc, along the way
-methodOpts.preview = true  ;     % display intermediate results
+methodOpts.save_figs = true ;   % save images of cutMeshes along the way
+methodOpts.preview = false  ;     % display intermediate results
 QS.sliceMeshEndcaps(endcapOpts, methodOpts) ;
 
 %% Clean Cylinder Meshes
@@ -1023,7 +1056,12 @@ washout2d = 0.5 ;
 %% Iterate Through Time Points to Create Pullbacks ========================
 % Skip if already done
 % outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
-for tt = xp.fileMeta.timePoints(170:end)
+overwrite_spcutMesh = false ;
+overwrite_cutMesh = false ;
+tp2do = [t0_for_phi0:max(xp.fileMeta.timePoints), ...
+    fliplr(min(xp.fileMeta.timePoints):(t0_for_phi0-1))] ;
+
+for tt = tp2do
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
     
@@ -1043,6 +1081,7 @@ for tt = xp.fileMeta.timePoints(170:end)
         end
         options = struct() ;
         options.preview = false ;
+        options.t0 = t0_for_phi0 ;
         QS.generateCurrentCutMesh(options)
         disp('Saving cutP image')
         % Plot the cutPath (cutP) in 3D
@@ -1054,6 +1093,8 @@ for tt = xp.fileMeta.timePoints(170:end)
         compute_pullback = ~isempty(QS.currentMesh.cutPath) ;
     end
     
+    spcutMeshOptions = struct() ;
+    spcutMeshOptions.t0_for_phi0 = t0_for_phi0 ;
     spcutMeshOptions.overwrite = overwrite_spcutMesh ;
     spcutMeshOptions.save_phi0patch = false ;
     spcutMeshOptions.iterative_phi0 = true ;
@@ -1062,11 +1103,12 @@ for tt = xp.fileMeta.timePoints(170:end)
     QS.generateCurrentSPCutMesh([], spcutMeshOptions) ;
     
     % Compute the pullback if the cutMesh is ok
-    if compute_pullback
+    if compute_pullback || ~exist(sprintf(QS.fullFileBase.im_sp, tt), 'file')
         pbOptions.overwrite = false ;
         pbOptions.generate_uv = false ;
+        pbOptions.generate_sphi = true ;
         pbOptions.generate_uphi = false ;
-        pbOptions.generate_relaxed = true ;
+        pbOptions.generate_relaxed = false ;
         QS.generateCurrentPullbacks([], [], [], pbOptions) ;
     else
         disp('Skipping computation of pullback')
@@ -1114,7 +1156,7 @@ disp('done')
 %% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
 % Skip if already done
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 QS.measureWrithe(options)
 disp('done')
 
@@ -1202,9 +1244,10 @@ for tt = QS.xp.fileMeta.timePoints(1:end)
     pbOptions.overwrite = false ;
     pbOptions.numLayers = [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
-    pbOptions.generate_rsm = true ;
-    pbOptions.generate_spsm = true ;
+    pbOptions.generate_rsm = false ;
+    pbOptions.generate_spsm = false ;
     pbOptions.generate_sphi = false ;
+    pbOptions.generate_uvprime = true ;
     QS.data.adjustlow = adjustlow ;
     QS.data.adjusthigh = adjusthigh ;
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
@@ -1219,6 +1262,72 @@ QS.doubleCoverPullbackImages(options)
 options.coordsys = 'rsm' ;
 QS.doubleCoverPullbackImages(options)
 disp('done')
+
+%% Create u'v' coordinate cutMeshes (conformal with minimally twisted boundaries)
+options = struct() ;
+options.overwrite = true ;
+options.save_ims = true ;
+options.preview = false ;
+QS.generateUVPrimeCutMeshes(options)
+
+%% TexturePatch image pullbacks 
+for tidx = 1:length(QS.xp.fileMeta.timePoints)
+    tp = QS.xp.fileMeta.timePoints(tidx) ;
+    QS.setTime(tp) ;
+    pbOptions.overwrite = false ;
+    pbOptions.generate_uv = false ;
+    pbOptions.generate_uphi = false ;
+    pbOptions.generate_relaxed = false ;
+    pbOptions.generate_uvprime = true ;
+    pbOptions.generate_ruvprime = true ;
+    pbOptions.numLayers = [7, 7] ;  % previously [5,5]
+    pbOptions.layerSpacing = 0.75 ;
+    QS.generateCurrentPullbacks([], [], [], pbOptions) ;
+end
+
+%% TILE/EXTEND (smoothed) UVPrime images in Y and resave =======================================
+% Skip if already done
+options = struct() ;
+options.overwrite = false ;
+options.coordsys = 'uvprime' ;
+QS.doubleCoverPullbackImages(options)
+disp('done')
+
+%% Perform PIV on Extended uvprime coordinates for quasiconformal measurement
+% Perform this in PullbackImages_XXstep_uvprime/piv/
+%
+% % Compute PIV in PIVLab
+% % ---------------------
+% % Open PIVLab
+% % Select all frames in meshDir/PullbackImages_010step_sphi/smoothed_extended/
+% % Select Sequencing style 1-2, 2-3, ... 
+% % Image Preprocessing (used to select all, but now:)
+% %  --> Enable CLAHE with 20 pix
+% %  --> DO NOT Enable highpass with 15 pix
+% %  --> DO NOT Enable Intensity capping
+% %  --> Wiener2 denoise filter with 3 pix
+% %  --> DO NOT Auto constrast stretch
+% % PIV settings: 
+% %  --> 128 (32 step), 64 (32 step), 32 (16 step), 16 (8 step)
+% %  --> Linear window deformation interpolator
+% %  --> 5x repeated correlation 
+% %  --> Disable auto-correlation
+% % Post-processing
+% %  --> Standard deviation filter: 7 stdev
+% %  --> Local median filter: thres=5, eps=0.1
+% %  --> Interpolate missing data
+% % Export 
+% %  --> File > Save > MAT file
+
+%% Pathlines in uv' coords
+options = struct() ;
+options.overwrite = true ;
+QS.measureUVPrimePathlines(options)
+%%
+options = struct() ;
+options.overwrite = true ;
+options.climit = 0.25 ;
+QS.measureBeltramiCoefficient(options)
 
 %% Measure Cell density
 % Skip if already done
@@ -1435,13 +1544,14 @@ options.plot_gdot_decomp = false ;
 options.climit = 0.1 ;
 QS.plotMetricKinematics(options)
 
-% Pullback pathlines connecting Lagrangian grids
+%% Pullback pathlines connecting Lagrangian grids
 options = struct() ;
 options.overwrite = false ;
 options.preview = false ;
 options.debug = false ; 
 QS.measurePullbackPathlines(options)
-% Query velocities along pathlines
+
+%% Query velocities along pathlines
 options = struct() ;
 options.overwrite = false ;
 options.preview = false ;
@@ -1468,7 +1578,6 @@ options.plot_lobe_kinematics = true ;
 options.climit = 0.10 ;
 QS.plotPathlineMetricKinematics(options)
 
-
 %% Measure twist (d v_phi / d zeta)
 options = struct() ;
 options.overwrite = false ;
@@ -1486,10 +1595,17 @@ options.preview = false ;
 QS.measureMetricStrainRate(options) 
 %% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = true ;measure
 options.overwriteImages = true ;
 options.preview = false ;
 QS.measureStrainRate(options) 
+
+%% Plot time-averaged strain rates in 3d on meshoptions = struct() ;
+% error('This does not look great -- tweak how the averaging is done to be Lagrangian?')
+options.overwrite = true ;
+options.preview = false ;
+QS.plotStrainRate3DFiltered(options) 
+
 %% Kymograph strain rates
 options = struct() ;
 options.overwrite = true ;
@@ -1497,23 +1613,49 @@ options.skipTimePoint = true ;
 options.clim_trace = 0.05 ;
 options.clim_deviatoric = 0.05 ;
 QS.plotStrainRate(options)
+
 %% Measure strain rate along pathlines
 options = struct() ;
 options.overwrite = false ;
 options.overwriteImages = true ;
 options.plot_dzdp = false ;
 QS.measurePathlineStrainRate(options)
-% Measure strain along pathlines
+% Integrate strain rates along pathlines (noisy)
+% options = struct() ;
+% options.overwrite = true ;
+% options.overwriteImages = true ;
+% options.plot_dzdp = false ;
+% options.median_filter_strainRates = false ;
+% options.climitInitial = 0.05 ;
+% options.climitRamp = 0.01 ;
+% options.climitRatio = 1 ;
+% QS.measurePathlineIntegratedStrain(options)
+
+
+
+%% (REPEAT FROM ABOVE) Pullback pathlines connecting Lagrangian grids
+% options = struct() ;
+% options.overwrite = false ;
+% options.preview = false ;
+% options.debug = false ; 
+% QS.measurePullbackPathlines(options)
+%% Measure strain along pathlines -- note this is from pathlines, not integrating rates
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.overwriteImages = true ;
 options.plot_dzdp = false ;
-options.median_filter_strainRates = false ;
 options.climitInitial = 0.05 ;
 options.climitRamp = 0.01 ;
 options.climitRatio = 1 ;
 QS.measurePathlineStrain(options)
-% Pathline strain rate plots
+
+%% Output gg and bb in fixed frame (t0 Lagrangian zeta phi frame) -- this is done in measurePathlineStrain()
+% options = struct() ;
+% options.overwrite = false ;
+% measurePathlineMetric(QS, options)
+
+
+%% Pathline strain rate plots
 options = struct() ;
 options.overwrite = true ;
 options.plot_kymographs = false ;

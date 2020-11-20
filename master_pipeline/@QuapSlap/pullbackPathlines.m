@@ -2,6 +2,8 @@ function [XX, YY] = pullbackPathlines(QS, x0, y0, t0, options)
 % pullbackPathlines(QS, x0, y0, t0, options)
 %   Create paths in pullback space (in pixels, XY) by following optical
 %   flow of PIV measured on QS.pivimCoords pullbacks.
+%   For non-standard PIV pathline propagation (such as uvprime coords),
+%   supply piv, Lx, and Ly in options.
 %
 % Parameters
 % ----------
@@ -67,13 +69,32 @@ ntps = length(timePoints)-1;
 %% First load raw PIV and store (uu, vv) values in a grid
 % Load raw PIV for (uu, vv) in pix/dt
 % Load the positions of the velocity vectors in pixels
-disp('Loading raw PIV results')
-QS.getPIV()
-Lxs = QS.piv.Lx ;
-Lys = QS.piv.Ly ;
-piv = QS.piv.raw ;
+
+if isfield(options, 'piv') 
+    disp('Using supplied PIV results')
+    piv = options.piv ;
+else
+    disp('Loading raw PIV results')
+    QS.getPIV()
+    piv = QS.piv.raw ;
+end
+if isfield(options, 'Lx')
+    disp('QS.pullbackPathlines(): using supplied Lx')
+    Lxs = options.Lx ;
+else
+    Lxs = QS.piv.Lx ;
+end
+if isfield(options, 'Ly')
+    disp('QS.pullbackPathlines(): using supplied Ly')
+    Lys = options.Ly ;
+else
+    Lys = QS.piv.Ly ;
+end
 disp('Building pathlines')
+
+%% Collate velocities into 4d array
 if debug
+    % Template example for debugging
     % Debug this function: make fake PIV
     x0 = piv.x{1} ;
     y0 = piv.y{1} ;
@@ -107,7 +128,7 @@ else
             assert(all(all(xpiv == piv.x{tidx}))) 
             assert(all(all(ypiv == piv.y{tidx}))) 
         end
-        
+
         % Only give nonzero velocity if the next timepoint is different
         % than this one. Note that if we have timePoints=[1 2 3 3], then
         % allowing the fourth entry of vPIV(4, :, :) to be nonzero does no
@@ -123,6 +144,8 @@ else
         end
     end
 end
+
+%% Propagate along velocities forward and backward
 
 % Could use streamline but there is an issue with moving out of the
 % frame. Instead use griddedInterpolant with padded edges, clip at each
@@ -152,6 +175,7 @@ else
     YY(idx0, :, :) = y0 ;
 end
 
+% Now we are done with input handling and timepoint t0.
 if any(diff(timePoints) == 0)
     disp('pausing here')
 end

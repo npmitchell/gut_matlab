@@ -1,6 +1,40 @@
 classdef QuapSlap < handle
     % Quasi-Axisymmetric Pipeline for Surface Lagrangian Pullbacks class
     %
+    % Coordinate Systems
+    % ------------------
+    % sphi : (proper length x rectified azimuthal coordinate)
+    %       quasi-axisymmetric system in which first coordinate is 
+    %       proper length along surface and second is a rectified azimuthal
+    %       coordinate. Rectification means that the surface is rotated as
+    %       v->phi(s), where each s coordinate is offset by a "rotation"
+    %       about the surface along a direction that is perpendicular to s
+    %       in pullback space. This rectification may be based on surface
+    %       positions in R^3 (geometric) or based on intensity motion in
+    %       pullback space (material/Lagrangian) inferred through 
+    %       phasecorrelation of tissue strips around discretized s values.
+    % uv :  (conformal map onto unit square)
+    %       Conformally mapping the cylinderCutMesh onto the unit square 
+    %       in the plane results in the instantaneous uv coordinate system. 
+    %       Corners of the unit square are taken directly from the cutMesh,
+    %       so are liable to include some overall twist.
+    % uvprime : (conformal map
+    %       [same as uvprime_sm, since uvprime is currently computed via
+    %       sphi_sm coordinates]
+    % 
+    % PIV measurements fall into two classes: 
+    %   - 'piv': principal surface-Lagrangian-frame PIV (sp_sme or up_sme)
+    %       --> note that the designation of coordinate system is not
+    %       explicitly specified in the filenames:
+    %       QS.dir.mesh/gridCoords_nU0100_nV0100/piv/piv3d, etc
+    %   - 'piv_uvp_sme': PIV in coordSys for quasiconformal measurements 
+    %       --> note that these are less Lagrangian than
+    %       sp_sme or up_sme, so they are treated as independent from the 
+    %       principal pipeline in which we measure velocities in a
+    %       surface-Lagrangian frame (ie sp_sme or up_sme).
+    %
+    % Properties
+    % ----------
     % xyzlim        : 3x2 float, mesh limits in full resolution pixels, in data space
 	% xyzlim_um     : 3x2 float, mesh limits in lab APDV frame in microns
     % resolution    : float, resolution of pixels in um
@@ -98,7 +132,8 @@ classdef QuapSlap < handle
             'cutMesh', [], ...
             'cutPath', [], ...
             'spcutMesh', [], ...
-            'spcutMeshSm', []) 
+            'spcutMeshSm', [], ...
+            'uvpcutMeshSm', []) 
         data = struct('adjustlow', 0, ...
             'adjusthigh', 0, ...
             'axisOrder', [1 2 3], ...
@@ -200,6 +235,7 @@ classdef QuapSlap < handle
             QS.currentMesh.cutMesh = [] ;
             QS.currentMesh.spcutMesh = [] ;
             QS.currentMesh.spcutMeshSm = [] ;
+            QS.currentMesh.uvpcutMeshSm = [] ;
             QS.currentData.IV = [] ;
             QS.currentData.adjustlow = 0 ;
             QS.currentData.adjusthigh = 0 ;
@@ -691,8 +727,8 @@ classdef QuapSlap < handle
             QS.endcapOptions = endcapOpts ;
         end        
         function loadEndcapOptions(QS)
-            QS.endcapOptions = ...
-                load(QS.fileName.endcapOptions, 'endcapOptions');
+            tmp = load(QS.fileName.endcapOptions, 'endcapOptions');
+            QS.endcapOptions = tmp.endcapOptions ;
         end        
         function saveEndcapOptions(QS)
             endcapOptions = QS.endcapOptions ;
@@ -764,6 +800,21 @@ classdef QuapSlap < handle
             tmp = load(spcutMeshfn, 'spcutMeshSm') ;
             QS.currentMesh.spcutMeshSm = tmp.spcutMeshSm ;
         end
+        
+        % uvpcutMeshSm (uvprime cutMesh)
+        function mesh = getCurrentUVPrimeCutMesh(QS)
+            if isempty(QS.currentMesh.uvpcutMesh)
+                QS.loadCurrentSPCutMeshSm() ;
+            end
+            mesh = QS.currentMesh.uvpcutMesh ;
+        end
+        function loadCurrentUVPrimeCutMesh(QS)
+            uvpcutMeshfn = sprintf(QS.fullFileBase.uvpcutMesh, QS.currentTime) ;
+            tmp = load(uvpcutMeshfn, 'uvpcutMesh') ;
+            QS.currentMesh.uvpcutMesh = tmp.uvpcutMesh ;
+        end
+        measureUVPrimePathlines(QS, options)
+        measureBeltramiCoefficient(QS, options)
                 
         % Pullbacks
         generateCurrentPullbacks(QS, cutMesh, spcutMesh, spcutMeshSm, pbOptions)
@@ -822,7 +873,12 @@ classdef QuapSlap < handle
                         imDir = QS.dir.im_up ;
                         imDir_e = QS.dir.im_upe ;
                         fn0 = QS.fileBase.im_up ;
-                        ofn = QS.fileBase.im_up_sme ;
+                        ofn = QS.fileBase.im_up_e ;
+                    elseif strcmp(coordsys, 'uvprime')
+                        imDir = QS.dir.im_uvprime ;
+                        imDir_e = QS.dir.im_uvprime_e ;
+                        fn0 = QS.fileBase.im_uvprime ;
+                        ofn = QS.fileBase.im_uvprime_e ;
                     end
                 else
                     % Default value of coordsys = 'sp' ;
@@ -981,6 +1037,9 @@ classdef QuapSlap < handle
         phi0_fit = fitPhiOffsetsViaTexture(QS, uspace_ds_umax, vspace,...
             phi0_init, phi0TextureOpts)
        
+        % uvprime cutMeshSm
+        generateUVPrimeCutMeshes(QS, options)
+        
         % spcutMeshSm coordinate system demo
         coordinateSystemDemo(QS)
         
@@ -1011,6 +1070,8 @@ classdef QuapSlap < handle
                 % for now assume all images are the same size
                 QS.piv.Lx = size(im0, 1) * ones(length(timePoints), 1) ;
                 QS.piv.Ly = size(im0, 2) * ones(length(timePoints), 1) ;
+            else
+                error(['Unrecognized imCoords: ' QS.piv.imCoords])
             end
         end
         measurePIV3d(QS, options)
@@ -1328,9 +1389,16 @@ classdef QuapSlap < handle
         measureMetricStrainRate(QS, options)
         measureStrainRate(QS, options)
         plotStrainRate(QS, options)
+        plotStrainRate3DFiltered(QS, options)
         measurePathlineStrainRate(QS, options)
+        % Also makes fund forms in regularlized (zeta, phi) t0 Lagrangian frame
         measurePathlineStrain(QS, options)
         plotPathlineStrainRate(QS, options)
+        plotPathlineStrain(QS, options)
+        
+        % 
+        measurePathlineIntegratedStrain(QS, options)
+        plotPathlineIntegratedStrain(QS, options)
         
         %% timepoint-specific coordinate transformations
         sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)

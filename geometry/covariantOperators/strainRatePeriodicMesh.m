@@ -96,7 +96,7 @@ end
 
 %% Tile the mesh and the associated velocity vectors to triple cover
 tileCount = [1, 1] ;
-[ TF, TV2D, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount ) ;
+[ TF, TV2D, TV3D, ~ ] = tileAnnularCutMesh( cutMesh, tileCount ) ;
 % The face list should now be 3x the original size
 assert(size(TF, 1) == 3 * size(cutMesh.f, 1)) ;
 % Triple the face velocities

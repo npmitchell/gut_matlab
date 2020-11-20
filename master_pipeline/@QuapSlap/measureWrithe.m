@@ -13,6 +13,8 @@ function measureWrithe(QS, options)
 %       display intermediate results
 %   Wr_style : str specifier, default='Levitt' ;
 %       which style of writhe calculation to plot
+%   black_figs : bool
+%       plot figures with black background rather than white
 %
 % Returns
 % -------
@@ -74,6 +76,11 @@ if isfield(options, 'filter_curve')
 else
     filter_curve = 7 ;
 end
+if isfield(options, 'black_figs')
+    black_figs = options.black_figs ;
+else
+    black_figs = false ;
+end
 
 %% First compute Writhe using the avgpts (DVhoop mean positions)
 disp('Computing/Loading writhe...')
@@ -98,7 +105,7 @@ if ~exist(tmpfn, 'file') || overwrite
         Wr, Wr_density, dWr, Length_t, writheImDir, area_volume_fn, ...
         fold_onset, Wr_style, xyzlim, clineDVhoopBase, ...
         cylinderMeshCleanBase, rot, trans, resolution, flipy, ...
-        omit_endpts, false, t0)
+        omit_endpts, false, t0, black_figs)
 end
 
 % Done with measuring writhe

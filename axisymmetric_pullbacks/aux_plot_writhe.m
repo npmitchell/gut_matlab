@@ -1,7 +1,7 @@
 function aux_plot_writhe(timepoints, clines_resampled, ...
     Wr, Wr_density, dWr, Length_t, wrfigdir, area_volume_fn, fold_onset, Wr_style, ...
     xyzlim, clineDVhoopBase, cylinderMeshCleanBase, rot, trans, resolution, ...
-    flipy, omit_endpts, plot_fold_times, t0)
+    flipy, omit_endpts, plot_fold_times, t0, black_figs)
 %AUX_PLOT_WRITHE(Wr, Wr_density, dWr, Length_t)
 % auxiliary function for plotting writhe over time along with geometric
 % properties of length, area, and volume
@@ -320,7 +320,6 @@ saveas(fig, [outfn '.png'])
 
 
 %% Save figures of writhe density
-black_figs = true ;
 fig = figure('Visible', 'Off') ;
 for ii=1:length(wr_densities)
     t = timepoints(ii) ;
@@ -371,7 +370,11 @@ for ii=1:length(wr_densities)
     else
         caxis([-.002, .002])
     end
-    cb = colorbar('eastOutside', 'color', 'w') ;
+    if black_figs
+        cb = colorbar('eastOutside', 'color', 'w') ;
+    else
+        cb = colorbar('eastOutside') ;
+    end
     set(cb, 'units', 'normalized', 'position', [.85, .3, 0.05, 0.4])
     set(get(cb, 'label'), 'string', 'Writhe density')
     
@@ -396,6 +399,8 @@ for ii=1:length(wr_densities)
     if black_figs
         set(gcf, 'color', 'k')
         set(gca, 'color', 'k', 'xcol', 'k', 'ycol', 'k', 'zcol', 'k')
+    else
+        set(gca, 'color', 'w')
     end
     outfn = fullfile(wrfigdir, ['writhe_densities_DVhoop_' Wr_style '_' timepointstr '.png']) ;
     disp(['Saving figure to ' outfn])

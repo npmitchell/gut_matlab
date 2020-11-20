@@ -20,9 +20,11 @@ function [tr, dev, theta, theta_pb] = traceDeviatorPullback(eq, gq, dx, dy)
 %   metric tensor, first fundamental form of surface
 % dx : float
 %   length in embedding space per unit length in the pullback space of zeta
+%   This is used to obtain the proper deviatoric angle.
 %   a --> a * dl_embedding / dl_pullback for this face under consideration.
 % dy : float
 %   length in embedding space per unit length in the pullback space of phi
+%   This is used to obtain the proper deviatoric angle.
 %   b --> b * dl_embedding / dl_pullback for this face under consideration.
 %
 %
@@ -68,7 +70,12 @@ pevec = evec_dev(:, end) ;
 % To rescale here, scale a and b by the length in embedding space per unit
 % length in the pullback space. a --> a * dl_embedding / dl_pullback for
 % this face under consideration.
-theta = mod(atan2(pevec(2) * dy, pevec(1) * dx), pi) ;
+try
+    theta = mod(atan2(pevec(2) * dy, pevec(1) * dx), pi) ;
+catch
+    disp('WARNING: imaginary result for theta. Taking real component')
+    theta = mod(atan2(real(pevec(2)) * dy, real(pevec(1)) * dx), pi) ;
+end
 
 if nargout > 3
     theta_pb = mod(atan2(pevec(2), pevec(1)), pi) ;

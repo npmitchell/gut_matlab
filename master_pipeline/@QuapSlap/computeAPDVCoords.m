@@ -74,7 +74,8 @@ pcomname = fullfile(QS.dir.mesh, 'pcom_for_rot.txt') ;
 
 % Check if rotation and translation exist on disk
 no_rot_on_disk = ~exist(rotname, 'file') ;
-redo_rot_calc = no_rot_on_disk || overwrite ;
+no_trans_on_disk = ~exist(transname, 'file') ;
+redo_rot_calc = no_rot_on_disk || no_trans_on_disk || overwrite ;
 if exist(rotname, 'file') 
     disp('rot exists on file')
 else
@@ -328,8 +329,8 @@ if redo_rot_calc || overwrite
         % translation, so if this differs from acom in y dim, then
         % dorsal point gets shifted in y.
         origin = startpt ; % [startpt(1), startpt(2), startpt(3)] ;
-        apaxis = pcom - origin ;
-        aphat = apaxis / norm(apaxis) ;
+        apaxis = pcom(:) - origin(:) ;
+        aphat = reshape(apaxis(:) / norm(apaxis), [1, 3]) ;
 
         % compute rotation matrix using this procedure: 
         % https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
@@ -343,6 +344,8 @@ if redo_rot_calc || overwrite
 
         % Rotate dorsal to the z axis
         % find component of dorsal vector from acom perpendicular to AP
+        dcom = reshape(dcom, [1, 3]) ;
+        origin = reshape(origin, [1, 3]) ;
         dvec = rotx * (dcom - origin)' - rotx * (dot(dcom - origin, aphat) * aphat)' ;
         dhat = dvec / norm(dvec) ;
         rotz = RU(dhat, zhat) ;
@@ -380,6 +383,7 @@ if redo_rot_calc || overwrite
     %% Compute the translation to put anterior to origin AFTER rot & scale
     if overwrite || ~exist(transname, 'file')
         % Save translation in units of mesh coordinates
+        spt = reshape(spt, [1, 3]) ;
         trans = -(rot * spt')' ;
         disp(['Saving translation vector (post rotation) to txt: ', transname])
         dlmwrite(transname, trans)
@@ -413,7 +417,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%
 fig = figure ;
 disp('Displaying mesh in figure ...')
-mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, QS.xp.fileMeta.timePoints(1))) ;
+mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, tt)) ;
 for ii = 1:3
     subplot(1, 3, ii)
     trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
@@ -437,3 +441,4 @@ axis equal
 if preview
     waitfor(fig)
 end
+close all

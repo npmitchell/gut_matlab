@@ -29,6 +29,11 @@ nsegs4path = 2 ;
 maxJitter = 100 ;
 maxTwChange = 0.20 ;
 preview = false ;
+try
+    t0 = QS.t0set() ;
+catch
+    t0 = QS.xp.fileMeta.timePoints(1) ;
+end
 nargin
 if nargin > 1
     if isfield(cutMeshOptions, 'nsegs4path')
@@ -42,6 +47,9 @@ if nargin > 1
     end
     if isfield(cutMeshOptions, 'preview')
         preview = cutMeshOptions.preview ;
+    end
+    if isfield(cutMeshOptions, 't0')
+        t0 = cutMeshOptions.t0 ;
     end
 end
 
@@ -70,7 +78,7 @@ pdIDx = h5read(QS.fileName.pBoundaryDorsalPtsClean,...
     ['/' sprintf('%06d', tt)]) ;
 
 % try geodesic if first timepoint
-if tt == QS.xp.fileMeta.timePoints(1)
+if tt == t0
     cutPath_ok = false ;
     dmyk = 0 ;
     bbWeight = 10 ;
@@ -132,18 +140,23 @@ if tt == QS.xp.fileMeta.timePoints(1)
         % quiver3(cc(:, 1), cc(:, 2), cc(:, 3), nn(:, 1), nn(:, 2), nn(:, 3), 1)
     end
 else
+    if tt > t0
+        prevTP = tt - 1 ;
+    elseif tt < t0 
+        prevTP = tt + 1 ;
+    end
     % If a previous Twist is not held in RAM, compute it
     % if ~exist('prevTw', 'var')
     % Load previous mesh and previous cutP
-    prevcylmeshfn = sprintf( cylinderMeshCleanBase, tt-1) ;
+    prevcylmeshfn = sprintf( cylinderMeshCleanBase, prevTP) ;
     disp(['Loading previous cylinderMeshClean: ' prevcylmeshfn])
     prevmesh = read_ply_mod( prevcylmeshfn ); 
     
-    disp(['Loading previous cutPath: ' sprintf(outcutfn, tt-1)])
-    prevcutP = dlmread(sprintf(outcutfn, tt-1), ',', 1, 0) ;
+    disp(['Loading previous cutPath: ' sprintf(outcutfn, prevTP)])
+    prevcutP = dlmread(sprintf(outcutfn, prevTP), ',', 1, 0) ;
     previousP = prevmesh.v(prevcutP, :) ;
     % Load previous centerline in raw units
-    prevcline = cleanCntrlines{QS.xp.tIdx(tt-1)} ; % use previous CORRECTED centerline (non-anomalous)
+    prevcline = cleanCntrlines{QS.xp.tIdx(prevTP)} ; % use previous CORRECTED centerline (non-anomalous)
     prevcline = prevcline(:, 2:4) ;
     % Compute Twist for this previous timepoint
     prevTw = twist(previousP, prevcline) ;
@@ -156,9 +169,9 @@ else
 
     % Which path to match this one to: choose previous timepoint
     % Load previous mesh and previous cutP
-    prevcylmeshfn = sprintf( cylinderMeshCleanBase, tt-1) ;
+    prevcylmeshfn = sprintf( cylinderMeshCleanBase, prevTP) ;
     prevmesh = read_ply_mod( prevcylmeshfn ); 
-    prevcutP = dlmread(sprintf(outcutfn, tt-1), ',', 1, 0) ;
+    prevcutP = dlmread(sprintf(outcutfn, prevTP), ',', 1, 0) ;
     previousP = prevmesh.v(prevcutP, :) ;
 
     % Current centerline: chop off ss to make Nx3

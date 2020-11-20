@@ -27,18 +27,19 @@ function generateCurrentSPCutMesh(QS, cutMesh, spcutMeshOptions)
 %
 % NPMitchell 2020
 
-% Unpack options
+%% Default options
+overwrite = false ;
+save_phi0patch = false ;
+iterative_phi0 = false ;
+smoothingMethod = 'none' ;
+
+%% Unpack options
 if nargin < 2 || isempty(cutMesh)
     if isempty(QS.currentMesh.cutMesh)
         QS.loadCurrentCutMesh()
     end
     cutMesh = QS.currentMesh.cutMesh ;
 end
-
-overwrite = false ;
-save_phi0patch = false ;
-iterative_phi0 = false ;
-smoothingMethod = 'none' ;
 if nargin > 2
     disp('Unpacking options')
     if isfield(spcutMeshOptions, 'overwrite')
@@ -52,6 +53,20 @@ if nargin > 2
     end
     if isfield(spcutMeshOptions, 'smoothingMethod')
         smoothingMethod = spcutMeshOptions.smoothingMethod ;
+    end
+    if isfield(spcutMeshOptions, 't0_for_phi0')
+        t0_for_phi0 = spcutMeshOptions.t0_for_phi0 ;
+        disp(['Set t0 from options:' num2str(t0_for_phi0)])
+    else
+        % The default timepoint at which we set phi0=0 is either the first feature
+        %   onset time or else the first timepoint
+        try
+            t0_for_phi0 = QS.t0set() ;
+            disp(['Setting t0 = ' num2str(t0_for_phi0)])
+        catch
+            disp('Setting t0 = first timepoint')
+            t0_for_phi0 = QS.xp.fileMeta.timePoints(1) ; 
+        end
     end
 end
 
@@ -291,20 +306,30 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     end
     
     %%
-    if tt == QS.xp.fileMeta.timePoints(1)
+    if tt == t0_for_phi0
         % Store for next timepoint
         phiv = (vspace .* ones(nU, nV))' ;
         phi0s = zeros(size(uspace_ds)) ;
         phi0_fit = phi0s ;
-    else
-        % Load previous sphi vertices in 3d 
+        compute_phi0 = false ;
+    elseif tt > t0_for_phi0
         tidx = QS.xp.tIdx(tt) ;
+        tp_for_comparison = QS.xp.fileMeta.timePoints(tidx-1) ;
+        compute_phi0 = true ;
+    elseif tt < t0_for_phi0 
+        tidx = QS.xp.tIdx(tt) ;
+        tp_for_comparison = QS.xp.fileMeta.timePoints(tidx+1) ;
+        compute_phi0 = true ;
+    end
+    
+    if compute_phi0
+        % Load previous sphi vertices in 3d 
         if strcmp(phi_method, '3dcurves') || strcmp(phi_method, 'combined') 
             disp('Computing phi(v) via 3dcurve matching (geometric method)')
             % Load the previous spcutMesh and call it prev3d_sphi
             % Also note the previous spcutMesh pullback image's fn
             tmp = load(sprintf(spcutMeshBase, ...
-                QS.xp.fileMeta.timePoints(tidx-1)), 'spcutMesh') ;
+                tp_for_comparison), 'spcutMesh') ;
             prevf = tmp.spcutMesh.f ;
             prev3d_sphi = reshape(tmp.spcutMesh.v, [nU, nV, 3]) ; 
             
@@ -336,8 +361,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
             
             %% Obtain previous pullback image
             % prev2d_uphi = reshape(tmp.spcutMesh.uphi, [nU, nV, 2]) ;
-            imfn_sp_prev = sprintf( QS.fullFileBase.im_sp, ...
-                QS.xp.fileMeta.timePoints(tidx-1) ) ;
+            imfn_sp_prev = sprintf( QS.fullFileBase.im_sp, tp_for_comparison) ;
 
             % fit the shifts in the y direction
             dmyk = 0 ;
@@ -376,15 +400,15 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                     patchImFn = sprintf( ...
                         fullfile(sphiDir, 'phi0_correction',...
                         [fileNameBase, '_prephi0_' num2str(dmyk) '.tif']), ...
-                        QS.xp.fileMeta.timePoints(tidx-1) )  ;
+                        tp_for_comparison)  ;
                     patchImFnRes = sprintf( ...
                         fullfile(sphiDir, 'phi0_correction',...
                         [fileNameBase, '_phi0residual_' num2str(dmyk) '.tif']), ...
-                        QS.xp.fileMeta.timePoints(tidx-1) )  ;
+                        tp_for_comparison)  ;
                     geomImFn = sprintf( ...
                         fullfile(sphiDir, 'phi0_correction', ...
                         ['3d' fileNameBase '_prephi0_' num2str(dmyk) '.tif']), ...
-                        QS.xp.fileMeta.timePoints(tidx-1) )  ;
+                        tp_for_comparison)  ;
 
                     % Load the intensity data for this timepoint
                     if isempty(QS.currentData.IV)
@@ -515,6 +539,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
             end
         elseif strcmp(phi_method, 'texture') 
             disp('Computing phi(v) via texture matching (physical method)')
+            error('adjust this method to use later timepoint if tt>t0_for_comparison')
             phi0_fit = QS.fitPhiOffsetsViaTexture(uspace_ds_umax, vspace) ;
         else
             error(["Could not recognize phi_method: ", ...
@@ -524,6 +549,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
         % If we use a combined method, use curves3d as initial guess for
         % texture method
         if strcmp(phi_method, 'combined') 
+            error('adjust this method to use later timepoint if tt>t0_for_comparison')
             disp('Refining phi(v) via texture matching (physical method)')
             phi0_fit = QS.fitPhiOffsetsViaTexture(uspace_ds_umax, vspace,...
                         phi0_fit) ;
@@ -627,11 +653,15 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     spcutMesh.avgpts_ss = avgpts_ss ; % from uniform sampling, also stored in centerline
 
     % Define optimal isoareal Affine dilation factor in s
-    % tmp = spcutMesh.sphi ;
-    % tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
-    % arsp = minimizeIsoarealAffineEnergy( spcutMesh.f, spcutMesh.v, tmp );
+    % USED TO SIMPLY TAKE ar FROM CUTMESH, NOW RECOMPUTE?
+    tmp = spcutMesh.sphi ;
+    tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
+    spcutMesh.ar = minimizeIsoarealAffineEnergy( spcutMesh.f, spcutMesh.v, tmp );
     % clearvars tmp
-    spcutMesh.ar = cutMesh.ar ;
+    % spcutMesh.ar = cutMesh.ar ;
+    disp(['old: ' num2str(cutMesh.ar)])
+    disp(['new: ' num2str(spcutMesh.ar)])
+    %error('check here')
 
     % todo: check that u coords have not shifted upon
     % redefinition of sphi0 -> sphi

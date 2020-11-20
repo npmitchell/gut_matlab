@@ -161,7 +161,7 @@ else
             im1 = imread(sprintf(QS.fullFileBase.im_sp_sme, timePoints(ii+1))) ;
             doubleCovered = true ;
         else
-            error('Unrecognized pivimCoords')
+            error(['Unrecognized pivimCoords: ' pivimCoords])
         end
         Xsz0 = size(im0, 2) ;
         Ysz0 = size(im0, 1) ;  

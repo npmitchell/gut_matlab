@@ -88,9 +88,18 @@ if isfield(options, 'cbarPosition')
 end
 
 % Set up the figure
-close all
-fig = figure('units', 'normalized', ...
-    'outerposition', [0 0 1 1], 'visible', 'off') ;
+if isfield(options, 'ax')
+    axes(options.ax) ;
+elseif isfield(options, 'axis')
+    axes(options.axis) ;
+elseif isfield(options, 'fig')
+    fig = options.fig ;
+    ax = gca ;
+else
+    close all
+    fig = figure('units', 'normalized', ...
+        'outerposition', [0 0 1 1], 'visible', 'off') ;
+end
 
 % Add the scalar field defined on faces
 if strcmp(style, 'phasemap')
@@ -171,7 +180,7 @@ if strcmp(style, 'phase')
     %%%%%%%%%%%%%%%%%%%
     colormap phasemap
     if isfield(options, 'ylim')
-        ylim(options.ylim)
+        ylim(options.ylim) 
     end
     caxis([0, 2*pi])
     set(gca, 'Position', axposition) ;

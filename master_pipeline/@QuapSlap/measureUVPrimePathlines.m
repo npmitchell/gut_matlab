@@ -20,10 +20,10 @@ function measurePullbackPathlines(QS, options)
 %
 % Saves to disk
 % -------------
-% sprintf(QS.fileName.pathlines.XY, t0) ;
-% sprintf(QS.fileName.pathlines.vXY, t0) ;
-% sprintf(QS.fileName.pathlines.fXY, t0) ;
-% sprintf(QS.fileName.pathlines.XYZ, t0) ;
+% sprintf(QS.fileName.pathlines_uvprime.XY, t0) ;
+% sprintf(QS.fileName.pathlines_uvprime.vXY, t0) ;
+% sprintf(QS.fileName.pathlines_uvprime.fXY, t0) ;
+% sprintf(QS.fileName.pathlines_uvprime.XYZ, t0) ;
 %
 % See also
 % --------
@@ -36,12 +36,13 @@ function measurePullbackPathlines(QS, options)
 overwrite = false ;
 preview = false ;
 debug = false ;
-pivimCoords = QS.piv.imCoords ;
 timePoints = QS.xp.fileMeta.timePoints ;
 samplingResolution = '1x' ;
 nY2plot = 30 ;
 scatterSz = 2 ;
 movieScatterSz = 2 ;
+t0 = QS.t0set() ;
+
 if nargin < 2
     options = struct() ;
 end
@@ -57,7 +58,6 @@ elseif isfield(options, 't0')
     disp(['Setting t0 for Pathlines to be: ' num2str(t0)])
 else
     disp('Using default t0 for pathlines')
-    t0 = QS.t0set() ;
 end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
@@ -71,11 +71,14 @@ end
 if isfield(options, 'nY2plot')
     nY2plot = options.nY2plot ;
 end
-if strcmp(pivimCoords(end), 'e')
+if isfield(options, 'doubleCovered')
+    doubleCovered = options.doubleCovered;
+else
     doubleCovered = true ;
+end
+if doubleCovered
     Yoffset = 0.25 ;
 else
-    doubleCovered = false ;
     Yoffset = 0.0 ;
 end
 
@@ -92,7 +95,7 @@ green = QS.plotting.colors(4, :) ;
 tIdx0 = QS.xp.tIdx(t0) ;
 
 %% Create directory for pathlines
-pathlineDir = QS.dir.pathlines ;
+pathlineDir = QS.dir.pathlines_uvprime ;
 pdir = sprintf(pathlineDir.data, t0) ;
 XYdir = sprintf(pathlineDir.XY, t0) ;
 XYZdir = sprintf(pathlineDir.XYZ, t0) ;
@@ -121,22 +124,46 @@ end
 
 QS.clearTime() ;
 
+%% CREATE REFERENCE MESH 
+refMeshFn = sprintf(QS.fileName.pathlines_uvprime.refMesh, t0) ;
+if ~exist(refMeshFn, 'file') || overwrite
+    refMesh = load(sprintf(QS.fullFileBase.uvpcutMesh, t0), 'uvpcutMesh') ;
+    refMesh = refMesh.uvpcutMesh.resampled ;
+    umax0 = max(refMesh.u(:, 1)) ;
+    vmax0 = max(refMesh.u(:, 2)) ;
+    % Get size Lx and Ly for XY space
+    im0 = imread(sprintf(QS.fullFileBase.im_uvprime, t0)) ;
+    % for now assume all images are the same size
+    disp('for now assuming all images are the same size')
+    Lx = size(im0, 1) * ones(length(timePoints), 1) ;
+    Ly = size(im0, 2) * ones(length(timePoints), 1) ;
+    m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], refMesh.u, doubleCovered, umax0, vmax0) ;
+    refMesh.XY = m0XY ;
+    save(refMeshFn, 'refMesh')
+end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% PIV evaluation coordinates in XY pixel space
+%% PIV evaluation coordinates in XY pixel space
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-plineXY = sprintf(QS.fileName.pathlines.XY, t0) ;
+plineXY = sprintf(QS.fileName.pathlines_uvprime.XY, t0) ;
 if ~exist(plineXY, 'file') || overwrite
     disp('Computing piv Pathlines for XY(t0)')
     % Load 'initial' positions for pathlines to intersect at t=t0
-    QS.getPIV() 
-    piv = QS.piv.raw ;
+    uvpPIVfn = fullfile(QS.dir.piv_uvprime, 'piv_results.mat') ;
+    piv = load(uvpPIVfn) ;
     x0 = piv.x{QS.xp.tIdx(t0)} ;
     y0 = piv.y{QS.xp.tIdx(t0)} ;
     
     % Create pathlines emanating from (x0,y0) at t=t0
+    options.piv = piv ;
+    im0 = imread(sprintf(QS.fullFileBase.im_uvprime, t0)) ;
+    % for now assume all images are the same size
+    disp('for now assuming all images are the same size')
+    Lx = size(im0, 1) * ones(length(timePoints), 1) ;
+    Ly = size(im0, 2) * ones(length(timePoints), 1) ;
+    options.Lx = Lx ;
+    options.Ly = Ly ;
     [XX, YY] = QS.pullbackPathlines(x0, y0, t0, options) ;
-    Lx = QS.piv.Lx ;
-    Ly = QS.piv.Ly ;
     
     % Save pathlines of PIV evaluation points XY
     pivPathlines = struct() ;
@@ -157,6 +184,8 @@ end
 % Save image of result
 plineFig = [plineXY(1:end-4) '.png'] ;
 if ~exist(plineFig, 'file') || overwrite
+    close all
+    set(gcf, 'visible', 'off')
     disp(['Saving PIV XY pathline image to disk: ' plineFig])
     if ~computed_XY 
         load(plineXY, 'pivPathlines')
@@ -203,11 +232,13 @@ if ~exist(plineFig, 'file') || overwrite
         'Interpreter', 'Latex')
     saveas(gcf, plineFig)
 else
-    disp(['PIV XY pathline image already on disk: ' plineFig])
+    disp(["PIV (u',v') pathline image already on disk: " plineFig])
 end
 
-% Make movie
-for tidx = 1:length(timePoints)    
+% Make movie -- PIV evaluation grid
+for tidx = 1:length(timePoints)   
+    
+    set(gcf, 'visible', 'off')
     if mod(tidx, 10) == 0
         disp(['t = ', num2str(timePoints(tidx))])
     end
@@ -228,8 +259,9 @@ for tidx = 1:length(timePoints)
         end
     
         clf ;
-        movieScatterSz = 3 ;
-        scatter(XX(tidx, :) / double(Lx(tidx)), ...
+        set(gcf, 'visible', 'off')
+        movieScatterSz = 1 ;
+        hsc = scatter(XX(tidx, :) / double(Lx(tidx)), ...
             (1 - (YY(tidx, :) / double(Ly(tidx))) - Yoffset) / (1 - 2*Yoffset), ...
             movieScatterSz, 'markerfacecolor', QS.plotting.colors(1, :), ...
             'markeredgecolor', 'none', 'MarkerFaceAlpha', 1.0) ;
@@ -248,24 +280,28 @@ for tidx = 1:length(timePoints)
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Mesh vertex coordinates in XY pixel space
+%% Mesh vertex coordinates in XY pixel space
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-plinevXY = sprintf(QS.fileName.pathlines.vXY, t0) ;
+plinevXY = sprintf(QS.fileName.pathlines_uvprime.vXY, t0) ;
 if ~exist(plinevXY, 'file') || overwrite 
     % Create pathlines emanating from vertex positions (vX,vY) at t=t0
     % Load pullback mesh vertex positions to get Lx and Ly (will be done
     % later in pullbackPathlines() if not now, so no extra cost to do it
     % now instead). 
-    QS.getPIV() 
-    Lx = QS.piv.Lx ;
-    Ly = QS.piv.Ly ;
+    % Load 'initial' positions for pathlines to intersect at t=t0
+    uvpPIVfn = fullfile(QS.dir.piv_uvprime, 'piv_results.mat') ;
+    piv = load(uvpPIVfn) ;
     
-    if strcmp(QS.piv.imCoords, 'sp_sme')
-        mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSm, t0), 'spcutMeshSm') ;
-    else
-        error('handle this coord sys here')
-    end
-    mesh0 = mesh0.spcutMeshSm ;
+    % Create pathlines emanating from (x0,y0) at t=t0
+    im0 = imread(sprintf(QS.fullFileBase.im_uvprime, t0)) ;
+    % for now assume all images are the same size
+    disp('for now assuming all images are the same size')
+    Lx = size(im0, 1) * ones(length(timePoints), 1) ;
+    Ly = size(im0, 2) * ones(length(timePoints), 1) ;
+    
+    disp('Loading uvprime mesh at t0 to obtain vertices for advection')
+    mesh0 = load(sprintf(QS.fullFileBase.uvpcutMesh, t0), 'uvpcutMesh') ;
+    mesh0 = mesh0.uvpcutMesh.resampled ;
     umax0 = max(mesh0.u(:, 1)) ;
     vmax0 = max(mesh0.u(:, 2)) ;
     m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], mesh0.u, doubleCovered, ...
@@ -274,14 +310,49 @@ if ~exist(plinevXY, 'file') || overwrite
     m0Y = m0XY(:, 2) ;
     
     % Create pathlines emanating from vertex positions (vX,vY) at t=t0
+    options.piv = piv ;
+    options.Lx = Lx ;
+    options.Ly = Ly ;
     [vX, vY] = QS.pullbackPathlines(m0X, m0Y, t0, options) ;
+    
+    vUV = QS.XY2uv([Lx(1), Ly(1)], [vX(:), vY(:)], doubleCovered, 1.0, 1.0) ;
+    
+    % Reshape into grid
     vX = reshape(vX, [length(timePoints), QS.nU, QS.nV]) ;
     vY = reshape(vY, [length(timePoints), QS.nU, QS.nV]) ;
+    vU = reshape(vUV(:, 1), [length(timePoints), QS.nU, QS.nV]) ;
+    vV = reshape(vUV(:, 2), [length(timePoints), QS.nU, QS.nV]) ;
+    
+    % maximum u' should be 1.0
+    assert(max(vU(:)) < 1.05)
+    
+    % UNIQUE TO UVPRIME: Also compute relaxed affine coordinates
+    % (conformal)
+    ars = zeros(length(QS.xp.fileMeta.timePoints), 1) ;
+    disp('Loading relaxation factors for affine stretch -> conformal maps')
+    for tidx = 1:length(QS.xp.fileMeta.timePoints) 
+        tp = QS.xp.fileMeta.timePoints(tidx) ;
+        uvpcutMeshFn = sprintf(QS.fullFileBase.uvpcutMesh, tp) ;
+        tmp = load(uvpcutMeshFn) ;
+        ars(tidx) = tmp.uvpcutMesh.raw.ar ;
+    end
+    vUa = ars .* vU ;
+    
+    ars_fn = fullfile(sprintf(QS.dir.pathlines_uvprime.data, t0), ...
+        'affineRelaxFactors.png') ;
+    plot(QS.xp.fileMeta.timePoints, ars)
+    xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex') ;
+    ylabel('affine factor, $a$', 'interpreter', 'latex')
+    saveas(gcf, ars_fn)
     
     % Save pathlines of mesh locations u in XY coords, vXY
     vertexPathlines = struct() ;
     vertexPathlines.vX = vX ;
     vertexPathlines.vY = vY ;
+    vertexPathlines.vU = vU ;
+    vertexPathlines.vV = vV ;
+    vertexPathlines.vU_affine = vUa ;
+    vertexPathlines.affineRelaxFactors = ars ;
     vertexPathlines.t0 = t0 ;
     vertexPathlines.tIdx0 = tIdx0 ;
     vertexPathlines.Lx = Lx ;
@@ -295,54 +366,71 @@ else
 end
 
 % Save image of result
-plineFig = [plinevXY(1:end-4) '.png'] ;
-if ~exist([plinevXY(1:end-4) '.png'], 'file') || overwrite
-    disp(['Saving mesh vertex XY pathline image to disk: ' plineFig])
+plineFig1 = [plinevXY(1:end-4) '.png'] ;
+plineFig2 = [plinevXY(1:end-4) '_relaxed.png'] ;
+if ~exist(plineFig1, 'file') || ~exist(plineFig2, 'file') || overwrite
+    disp(['Saving mesh vertex XY pathline image to disk: ' plineFig1])
     if ~computed_vXY 
-        load(QS.fileName.pathlines.vXY, 'vertexPathlines')
-        vX = vertexPathlines.vX ;
-        vY = vertexPathlines.vY ;
+        load(sprintf(QS.fileName.pathlines_uvprime.vXY, t0), 'vertexPathlines')
+        vU = vertexPathlines.vU ;
+        vUa = vertexPathlines.vU_affine ;
+        vV = vertexPathlines.vV ;
         t0 = vertexPathlines.t0 ;
-        tIdx0 = vertexPathlines.tIdx ;
+        tIdx0 = vertexPathlines.tIdx0 ;
         Lx = vertexPathlines.Lx ;
         Ly = vertexPathlines.Ly ;
     end
     
-    % Plot the pathlines -- NOTE that we flip YY coordinates (MATLAB)
-    qsubX = round(size(vX, 2) / nY2plot) ;
-    qsubY = round(size(vX, 3) / nY2plot * QS.a_fixed) ;
-    colors = parula(length(timePoints)) ;
-    clf
-    for qq = fliplr(1:length(timePoints))
-        xx = vX(qq, 1:qsubX:end, 1:qsubY:end) ;
-        yy = vY(qq, 1:qsubX:end, 1:qsubY:end) ;
-        scatter(xx(:) / double(Lx(qq)), ...
-            (1 - (yy(:) / double(Ly(qq))) - Yoffset) / (1 - 2*Yoffset), ...
-            scatterSz, ...
-            'markerfacecolor', colors(qq, :), ...
-            'markeredgecolor', 'none', 'MarkerFaceAlpha', 0.3) ;
-        hold on;
-        pause(0.1) ;
+    % Plot both (u'v') and (u'_relaxed, v')
+    for pp = 1:2
+        
+        % Plot the pathlines -- NOTE that we flip YY coordinates (MATLAB)
+        qsubX = round(size(vU, 2) / nY2plot) ;
+        qsubY = round(size(vU, 3) / nY2plot * QS.a_fixed) ;
+        colors = parula(length(timePoints)) ;
+        clf
+        for qq = fliplr(1:length(timePoints))
+            if pp == 1
+                xx = vU(qq, 1:qsubX:end, 1:qsubY:end) ;
+                yy = vV(qq, 1:qsubX:end, 1:qsubY:end) ;
+            else
+                xx = vUa(qq, 1:qsubX:end, 1:qsubY:end) ;
+                yy = vV(qq, 1:qsubX:end, 1:qsubY:end) ;
+            end
+            scatter(xx(:), yy(:), ...
+                scatterSz, ...
+                'markerfacecolor', colors(qq, :), ...
+                'markeredgecolor', 'none', 'MarkerFaceAlpha', 0.5) ;
+            hold on;
+            pause(0.1) ;
+        end
+        
+        if pp == 1
+            axis equal
+            ylim([0, 1])
+            xlim([0, 1])
+            daspect([1 QS.a_fixed 1])
+        end
+        title("$(u',v')$ pullback pathlines: mesh vertices", 'Interpreter', 'Latex')
+        ylabel("circumferential position, $v'$", ...
+            'Interpreter', 'Latex')
+        xlabel("axial position, $u'$", 'Interpreter', 'Latex')
+        cb = colorbar() ;
+        caxis([(timePoints(1) - t0) * QS.timeInterval, ...
+               (timePoints(end) - t0) * QS.timeInterval]) ;
+        ylabel(cb, ['time [' QS.timeUnits ']'], ...
+            'Interpreter', 'Latex')
+        if pp == 1
+            saveas(gcf, plineFig1)
+        else
+            saveas(gcf, plineFig2)
+        end
     end
-    axis equal
-    ylim([0, 1])
-    xlim([0, 1])
-    daspect([1 QS.a_fixed 1])
-    title('pullback pathlines: mesh vertices', 'Interpreter', 'Latex')
-    ylabel('circumferential position, $\phi / 2\pi$', ...
-        'Interpreter', 'Latex')
-    xlabel('ap position, $\zeta$', 'Interpreter', 'Latex')
-    cb = colorbar() ;
-    caxis([(timePoints(1) - t0) * QS.timeInterval, ...
-           (timePoints(end) - t0) * QS.timeInterval]) ;
-    ylabel(cb, ['time [' QS.timeUnits ']'], ...
-        'Interpreter', 'Latex')
-    saveas(gcf, plineFig)
 else
     disp(['Mesh vertex XY pathline image already on disk: ' plineFig])
 end
 
-% Make movie
+% Make movie -- vertex pathlines
 for tidx = 1:length(timePoints)    
     if mod(tidx, 10) == 0
         disp(['t = ', num2str(timePoints(tidx))])
@@ -353,32 +441,43 @@ for tidx = 1:length(timePoints)
     if ~exist(fn, 'file') || overwrite
         % Load pathlines if not already in RAM
         if ~computed_vXY 
-            load(plineXY, 'pivPathlines')
-            vX = pivPathlines.vX ;
-            vY = pivPathlines.vY ;
-            t0 = pivPathlines.t0 ;
-            tIdx0 = pivPathlines.tIdx0 ;
-            Lx = pivPathlines.Lx ;
-            Ly = pivPathlines.Ly ;
+            load(plinevXY, 'vertexPathlines')
+            vUa = vertexPathlines.vU_affine ;
+            vV = vertexPathlines.vV ;
+            t0 = vertexPathlines.t0 ;
+            tIdx0 = vertexPathlines.tIdx0 ;
+            ars = vertexPathlines.affineRelaxFactors ;
+            Lx = vertexPathlines.Lx ;
+            Ly = vertexPathlines.Ly ;
+            maxY = max(vV(:)) ;
+            minY = min(vV(:)) ;
             computed_vXY = true ;
+        elseif tidx == 1
+            maxY = max(vV(:)) ;
+            minY = min(vV(:)) ;            
         end
     
         clf ;
-        movieScatterSz = 3 ;
-        scatter(vX(tidx, :) / double(Lx(tidx)), ...
-            (1 - (vY(tidx, :) / double(Ly(tidx))) - Yoffset) / (1 - 2*Yoffset), ...
+        movieScatterSz = 1 ;
+        % scatter(vX(tidx, :) / double(Lx(tidx)), ...
+        %     (1 - (vY(tidx, :) / double(Ly(tidx))) - Yoffset) / (1 - 2*Yoffset), ...
+        %     movieScatterSz, 'markerfacecolor', QS.plotting.colors(1, :), ...
+        %     'markeredgecolor', 'none', 'MarkerFaceAlpha', 1.0) ;
+        scatter(vUa(tidx, :), vV(tidx, :), ...
             movieScatterSz, 'markerfacecolor', QS.plotting.colors(1, :), ...
             'markeredgecolor', 'none', 'MarkerFaceAlpha', 1.0) ;
         axis equal
-        ylim([0, 1])
-        xlim([0, 1])
-        daspect([1 QS.a_fixed 1])
+        ylim([max(-0.5, minY), min(1.5, maxY)])
+        xlim([0, max(ars)])
+        % axis equal
+        % daspect([1 QS.a_fixed 1])
         time_in_units = (timePoints(tidx) - t0)* QS.timeInterval ;
         tstr = ['$t = $' num2str(time_in_units) ' ' QS.timeUnits] ;
-        title(['pullback pathlines, ' tstr], 'Interpreter', 'Latex')
-        ylabel('circumferential position, $\phi / 2\pi$', ...
+        title(['$(u'',v'')$ pullback pathlines, ' tstr], 'Interpreter', 'Latex')
+        ylabel('circumferential position, $v''$', ...
             'Interpreter', 'Latex')
-        xlabel('ap position, $\zeta$', 'Interpreter', 'Latex')
+        yticks([0, 1])
+        xlabel("axial position, $u'$", 'Interpreter', 'Latex')
         saveas(gcf, fn)
     end
 end
@@ -386,22 +485,26 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Mesh face barycenters in XY pixel space
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-plineFXY = sprintf(QS.fileName.pathlines.fXY, t0) ;
+plineFXY = sprintf(QS.fileName.pathlines_uvprime.fXY, t0) ;
 if ~exist(plineFXY, 'file') || overwrite
     % Create pathlines emanating from barycenters (bcX,bcY) at t=t0
     % Load pullback mesh vertex positions to get Lx and Ly (will be done
     % later in pullbackPathlines() if not now, so no extra cost to do it
     % now instead).
-    QS.loadPIV() 
-    Lx = QS.piv.Lx ;
-    Ly = QS.piv.Ly ;
     
-    if strcmp(QS.piv.imCoords, 'sp_sme')
-        mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSm, t0), 'spcutMeshSm') ;
-    else
-        error('handle coord sys here')
-    end
-    mesh0 = mesh0.spcutMeshSm ;
+    % Load 'initial' positions for pathlines to intersect at t=t0
+    uvpPIVfn = fullfile(QS.dir.piv_uvprime, 'piv_results.mat') ;
+    piv = load(uvpPIVfn) ;
+    
+    % Create pathlines emanating from (x0,y0) at t=t0
+    im0 = imread(sprintf(QS.fullFileBase.im_uvprime, t0)) ;
+    % for now assume all images are the same size
+    disp('for now assuming all images are the same size')
+    Lx = size(im0, 1) * ones(length(timePoints), 1) ;
+    Ly = size(im0, 2) * ones(length(timePoints), 1) ;
+    
+    mesh0 = load(sprintf(QS.fullFileBase.uvpcutMesh, t0), 'uvpcutMesh') ;
+    mesh0 = mesh0.uvpcutMesh.resampled ;
     umax0 = max(mesh0.u(:, 1)) ;
     vmax0 = max(mesh0.u(:, 2)) ;
     m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], mesh0.u, doubleCovered, umax0, vmax0) ;
@@ -412,14 +515,46 @@ if ~exist(plineFXY, 'file') || overwrite
     f0Y = f0XY(:, 2) ;
     
     % Create pathlines emanating from barycenters (bcX,bcY) at t=t0
+    options.piv = piv ;
+    options.Lx = Lx ;
+    options.Ly = Ly ;
     [fX, fY] = QS.pullbackPathlines(f0X, f0Y, t0, options) ;
+        
+    fUV = QS.XY2uv([Lx(1), Ly(1)], [fX(:), fY(:)], doubleCovered, 1.0, 1.0) ;
+    
+    % Reshape into grid
+    fU = reshape(fUV(:, 1), [length(timePoints), size(f0XY, 1) ]) ;
+    fV = reshape(fUV(:, 2), [length(timePoints), size(f0XY, 1) ]) ;
+    
+    % UNIQUE TO UVPRIME: Also compute relaxed affine coordinates
+    % (conformal)
+    ars = zeros(length(QS.xp.fileMeta.timePoints), 1) ;
+    disp('Loading relaxation factors for affine stretch -> conformal maps')
+    for tidx = 1:length(QS.xp.fileMeta.timePoints) 
+        tp = QS.xp.fileMeta.timePoints(tidx) ;
+        uvpcutMeshFn = sprintf(QS.fullFileBase.uvpcutMesh, tp) ;
+        tmp = load(uvpcutMeshFn) ;
+        ars(tidx) = tmp.uvpcutMesh.raw.ar ;
+    end
+    fUa = ars .* fU ;
+    
+    ars_fn = fullfile(sprintf(QS.dir.pathlines_uvprime.data, t0), ...
+        'affineRelaxFactors_faces.png') ;
+    plot(QS.xp.fileMeta.timePoints, ars)
+    xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex') ;
+    ylabel('affine factor, $a$', 'interpreter', 'latex')
+    saveas(gcf, ars_fn)
     
     % Save pathlines of mesh face barycenters f in XY coords, fXY
     facePathlines = struct() ;
     facePathlines.fX = fX ;
     facePathlines.fY = fY ;
+    facePathlines.fU = fU ;
+    facePathlines.fV = fV ;
+    facePathlines.fU_affine = fUa ;
     facePathlines.t0 = t0 ;
     facePathlines.tIdx0 = tIdx0 ;
+    facePathlines.affineRelaxFactors = ars ;
     facePathlines.Lx = Lx ;
     facePathlines.Ly = Ly ;
     save(plineFXY, 'facePathlines')
@@ -433,7 +568,7 @@ end
 plineFig = [plineFXY(1:end-4) '.png'] ;
 if ~exist(plineFig, 'file') || overwrite
     if ~computed_fXY 
-        load(QS.fileName.pathlines.fXY, 'facePathlines')
+        load(QS.fileName.pathlines_uvprime.fXY, 'facePathlines')
         fX = facePathlines.fX ;
         fY = facePathlines.fY ;
         t0 = facePathlines.t0 ;
@@ -475,7 +610,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Push forward from pullback to embedding coordinates
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-plineXYZ = sprintf(QS.fileName.pathlines.XYZ, t0) ;
+plineXYZ = sprintf(QS.fileName.pathlines_uvprime.XYZ, t0) ;
 if ~exist(plineXYZ, 'file') || overwrite
     disp('Compute 3d pathlines in embedding space for PIV eval coords')
     % Build 3d pathlines in embedding space for all vertex locations
@@ -505,13 +640,14 @@ if ~exist(plineXYZ, 'file') || overwrite
         end
         
         % Load this timepoint's cutMesh
-        mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSm, tp), ...
-                             'spcutMeshSm') ;
-        mesh0 = mesh0.spcutMeshSm ;
+        mesh0 = load(sprintf(QS.fullFileBase.uvpcutMesh, tp), ...
+                             'uvpcutMesh') ;
+        % NOTE: use raw meshes not resampled
+        mesh0 = mesh0.uvpcutMesh.raw ;
         umax0 = max(mesh0.u(:, 1)) ;
         vmax0 = max(mesh0.u(:, 2)) ;
         tileCount = [2 2] ;
-        [tm0f, tm0v2d, tm0v3d, ~] = tileAnnularCutMesh(mesh0, tileCount);
+        [tm0f, tm0v2d, tm0v3d] = tileAnnularCutMesh(mesh0, tileCount);
         tm0XY = QS.uv2XY([Lx(tidx) Ly(tidx)], tm0v2d, ...
                          doubleCovered, umax0, vmax0) ;
         Xeval = XX(tidx, :, :) ;
@@ -538,13 +674,13 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Push forward vertex pathlines from pullback to embedding coordinates
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-plinev3d = sprintf(QS.fileName.pathlines.v3d, t0) ;
-if ~exist(plinev3d, 'file') || overwrite || true
-    disp('Compute 3d pathlines in embedding space for Lagrangian/advected spcutMesh vertex coords')
+plinev3d = sprintf(QS.fileName.pathlines_uvprime.v3d, t0) ;
+if ~exist(plinev3d, 'file') || overwrite
+    disp('Computing 3d pathlines in embedding space for Lagrangian/advected uvprimecutMesh vertex coords')
     % Build 3d pathlines in embedding space for all vertex locations
     % Load 2d pathlines in pullback space if not already in RAM
     if ~computed_vXY 
-        load(sprintf(QS.fileName.pathlines.vXY, t0), 'vertexPathlines')
+        load(sprintf(QS.fileName.pathlines_uvprime.vXY, t0), 'vertexPathlines')
         vX = vertexPathlines.vX ;
         vY = vertexPathlines.vY ;
         t0 = vertexPathlines.t0 ;
@@ -570,14 +706,14 @@ if ~exist(plinev3d, 'file') || overwrite || true
             disp(['t = ', num2str(tp)])
         end
         
-        % Load this timepoint's cutMesh
-        mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSm, tp), ...
-                             'spcutMeshSm') ;
-        mesh0 = mesh0.spcutMeshSm ;
+        % Load this timepoint's uvprime cutMesh
+        mesh0 = load(sprintf(QS.fullFileBase.uvpcutMesh, tp), ...
+                             'uvpcutMesh') ;
+        mesh0 = mesh0.uvpcutMesh.raw ;
         umax0 = max(mesh0.u(:, 1)) ;
         vmax0 = max(mesh0.u(:, 2)) ;
         tileCount = [2 2] ;
-        [tm0f, tm0v2d, tm0v3d, ~] = tileAnnularCutMesh(mesh0, tileCount);
+        [tm0f, tm0v2d, tm0v3d] = tileAnnularCutMesh(mesh0, tileCount);
         tm0XY = QS.uv2XY([Lx(tidx) Ly(tidx)], tm0v2d, ...
                          doubleCovered, umax0, vmax0) ;
                      
@@ -634,13 +770,13 @@ end
 %% Plot pathlines in 3d
 % Save image of result
 [~,~,~,xyzlims] = QS.getXYZLims() ;
-nTimePoints = 45 ;
+nTimePoints = 20 ;
 first = true ;
 slab = 20 ;
 black_figs = true ;
 
 if ~computed_v3d 
-    load(sprintf(QS.fileName.pathlines.v3d, t0), 'v3dPathlines')
+    load(sprintf(QS.fileName.pathlines_uvprime.v3d, t0), 'v3dPathlines')
     vX3rs = v3dPathlines.vXrs ;
     vY3rs = v3dPathlines.vYrs ;
     vZ3rs = v3dPathlines.vZrs ;
@@ -651,7 +787,6 @@ end
 
 % Get subsampling
 qsubX = round(size(vX3rs, 2) / nY2plot) - 1 ;
-qsub = 1 ;
 
 % Obtain indices for subsampling
 idmat = false([size(vX3rs, 2), size(vX3rs, 3)]) ;
@@ -754,7 +889,6 @@ for tidx = 1:length(QS.xp.fileMeta.timePoints)
         ylabel(cb, ['time [' QS.timeUnits ']'], 'Interpreter', 'Latex')
 
         % saveas(gcf, plineFig)
-        disp(['Saving ' plineFig])
         export_fig(plineFig, '-nocrop', '-r150')
         close all
     else

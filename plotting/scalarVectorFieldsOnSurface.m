@@ -58,6 +58,10 @@ function [fig, h1, h2, h3] = ...
 % h2 : handle for imagesc
 % h3 : handle for quiverplot
 %
+% Example usage
+% -------------
+% 
+%
 % NPMitchell 2020
 
 %% Default options
@@ -255,7 +259,7 @@ elseif strcmp(style, 'diverging')
     drawnow
     % Get the color data of the object that correponds to the colorbar
     cdata = c.Face.Texture.CData;
-    % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+    % Change the 4th channel (alpha channel) to vary
     cdata(end,:) = uint8(alphaVal * cdata(end,:));
     % Ensure that the display respects the alpha channel
     c.Face.Texture.ColorType = 'truecoloralpha';

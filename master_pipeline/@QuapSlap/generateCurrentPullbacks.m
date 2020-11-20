@@ -8,8 +8,21 @@ function generateCurrentPullbacks(QS, cutMesh, spcutMesh, ...
 % pbOptions : struct
 %   overwrite : bool (default=false)
 %       overwrite existing images on disk
-%   generate_uphi_coord : bool (default=false)
+%   generate_sphi : bool (default=false)
 %       create pullbacks in uphi coords
+%   generate_relaxed : bool (default=false)
+%       create pullbacks in uphi coords
+%   generate_uv : bool (default=false)
+%       create pullbacks in uphi coords
+%   generate_uphi : bool (default=false)
+%       create pullbacks in uphi coords
+%   generate_spsm : bool (default=false)
+%       create pullbacks in uphi coords
+%   generate_rsm : bool (default=false)
+%       create pullbacks in uphi coords
+%   generate_uvprime : bool (default=false)
+%       create pullbacks in as-conformal-as-possible with minimally twisted
+%       boundaries, in smoothed meshes
 %   PSize : int (default=5)
 %       how many interpolation points along each side of a patch
 %   EdgeColor : colorspec (default='none')
@@ -49,6 +62,8 @@ generate_uv      = false ;  % generate a (u,v) coord system pullback
 generate_uphi    = false ;  % generate a (u, phi) coord system pullback
 generate_spsm    = false ;  % generate an (s, phi) coord system smoothed mesh pullback
 generate_rsm     = false ;  % generate a relaxed (s, phi) coord system smoothed mesh pullback
+generate_uvprime = false ;  % generate a (u',v') coord sys pullback, where u',v' are found by conformal map with minimally twisted boundaries
+generate_ruvprime = false ;  % generate a (u',v') coord sys pullback, where u',v' are found by relaxed conformal map with minimally twisted boundaries
 % Other options
 save_as_stack    = false ;  % save data as stack for each timepoint, not MIP
 channels = [] ;             % default is to image all channels (empty list)
@@ -84,6 +99,14 @@ if nargin > 4
         generate_rsm = pbOptions.generate_rsm ;
         pbOptions = rmfield(pbOptions, 'generate_rsm') ;
     end
+    if isfield(pbOptions, 'generate_uvprime')
+        generate_uvprime = pbOptions.generate_uvprime ;
+        pbOptions = rmfield(pbOptions, 'generate_uvprime') ;
+    end
+    if isfield(pbOptions, 'generate_ruvprime')
+        generate_ruvprime = pbOptions.generate_ruvprime ;
+        pbOptions = rmfield(pbOptions, 'generate_ruvprime') ;
+    end
     if isfield(pbOptions, 'channels')
         channels = pbOptions.channels ;
         pbOptions = rmfield(pbOptions, 'channels') ;
@@ -112,6 +135,21 @@ if (nargin < 4 || isempty(spcutMeshSm)) && (generate_rsm || generate_spsm)
     spcutMeshSm = QS.currentMesh.spcutMeshSm ;
 end
 
+if generate_uvprime || generate_ruvprime
+    if isfield(pbOptions, 'uvpcutMesh') 
+        uvpcutMesh = pbOptions.uvpcutMesh ;
+    elseif isfield(pbOptions, 'uvpcutMeshSm') 
+        uvpcutMesh = pbOptions.uvpcutMeshSm ;
+    elseif isfield(pbOptions, 'uvprimecutMeshSm')
+        uvpcutMesh = pbOptions.uvprimecutMeshSm ;
+    else
+        if isempty(QS.currentMesh.uvpcutMeshSm)
+            QS.loadCurrentUVPrimeCutMeshSm()
+        end
+        uvpcutMesh = QS.currentMesh.uvpcutMeshSm ;
+    end
+end
+
 %% Unpack QS
 tt = QS.currentTime ;
 a_fixed = QS.a_fixed ;
@@ -136,14 +174,18 @@ imfn_sp = sprintf( QS.fullFileBase.im_sp, tt) ;
 imfn_up = sprintf( QS.fullFileBase.im_up, tt) ;
 imfn_spsm = sprintf( QS.fullFileBase.im_sp_sm, tt) ;
 imfn_rsm = sprintf( QS.fullFileBase.im_r_sm, tt) ;
+imfn_uvprime = sprintf( QS.fullFileBase.im_uvprime, tt) ;
+imfn_ruvprime = sprintf( QS.fullFileBase.im_r_uvprime, tt) ;
 do_pb1 = ~exist(imfn_uv, 'file') && generate_uv ;
 do_pb2 = ~exist(imfn_r, 'file') && generate_relaxed ;
 do_pb3 = ~exist(imfn_sp, 'file') && generate_sphi ;
 do_pb4 = ~exist(imfn_up, 'file') && generate_uphi ;
 do_pb5 = ~exist(imfn_spsm, 'file') && generate_spsm ;
 do_pb6 = ~exist(imfn_rsm, 'file') && generate_rsm ;
+do_pb7 = ~exist(imfn_uvprime, 'file') && generate_uvprime ;
+do_pb8 = ~exist(imfn_ruvprime, 'file') && generate_ruvprime ;
 
-do_pb = [do_pb1, do_pb2, do_pb3, do_pb4, do_pb5, do_pb6] ;
+do_pb = [do_pb1, do_pb2, do_pb3, do_pb4, do_pb5, do_pb6, do_pb7, do_pb8] ;
 do_pullbacks = (any(do_pb) || overwrite) ;
 
 if do_pullbacks
@@ -168,6 +210,12 @@ if do_pullbacks
         end
         if do_pb6
             disp(['Smooth relaxed (s,phi) PB will be generated: ', imfn_rsm])
+        end
+        if do_pb7
+            disp(['Smooth uvprime PB will be generated: ', imfn_uvprime])
+        end
+        if do_pb8
+            disp(['Smooth relaxed uvprime PB will be generated: ', imfn_ruvprime])
         end
     end     
     
@@ -258,6 +306,25 @@ if (~exist(imfn_rsm, 'file') || overwrite) && generate_rsm
         pbOptions, axisorder, save_as_stack)
 else
     disp('Skipping relaxed SPSm pullback image generation ')
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Save smoothed u'v' image
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+if (~exist(imfn_uvprime, 'file') || overwrite) && generate_uvprime
+    disp(['Generating image for smoothed uvprime coords: ' imfn_uvprime])
+    aux_generate_orbifold(uvpcutMesh.raw, a_fixed, IV, imfn_uvprime, ...
+        pbOptions, axisorder, save_as_stack)
+else
+    disp('Skipping UVPrimeSm pullback image generation ')
+end
+
+if (~exist(imfn_ruvprime, 'file') || overwrite) && generate_ruvprime
+    disp(['Generating image for relaxed, smoothed uvprime coords: ' imfn_ruvprime])
+    aux_generate_orbifold(uvpcutMesh.raw, uvpcutMesh.raw.ar, IV, imfn_ruvprime, ...
+        pbOptions, axisorder, save_as_stack)
+else
+    disp('Skipping relaxed UVPrimeSm pullback image generation ')
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -51,6 +51,8 @@ for t = QS.xp.fileMeta.timePoints
         % The dataset name base for the AD and PD points
         ADBase = ['/' QS.fileBase.mesh '/adorsal'];
         PDBase = ['/' QS.fileBase.mesh '/pdorsal'];
+        
+        % Point-match the AD and PD points to nearest clean-boundary pt
         [adIDx, pdIDx] = aux_adjust_dIDx(mesh, t, dpFile, ...
             ADBase, PDBase, cylinderMeshCleanBase, ...
             outadIDxfn, outpdIDxfn, QS.xp.fileMeta.timePoints) ;

@@ -165,10 +165,10 @@ QS.dir.strainRate.measurements = ...
 QS.fileBase.strainRate = 'strainRate_%06d.mat' ;
 QS.fullFileBase.strainRate = fullfile(QS.dir.strainRate.measurements, ...
     QS.fileBase.strainRate) ; 
-QS.fileBase.strain = 'strain_%06d.mat' ;
-QS.fullFileBase.strain = fullfile(QS.dir.strainRate.measurements, ...
-    QS.fileBase.strain) ; 
-% Strain rates along pathlines -- to be filled in with smoothing and t0
+%% Pathline-based strain measurement --> from pathline path
+% see pathline section
+
+%% Strain rates along pathlines -- to be filled in with smoothing and t0
 QS.dir.strainRate.pathline = struct() ;
 QS.dir.strainRate.pathline.root = ...
     fullfile(uvDir, 'strainRate', l_lmesh, 'pathline_%04dt0') ;
@@ -254,8 +254,8 @@ QS.fullFileBase.cylinderMeshClean = ...
     [QS.fileBase.mesh '_cylindercut_clean.ply']) ;            
 
 %% Define cutMesh directories
-% cutFolder = fullfile(meshDir, 'cutMesh') ;
-% cutMeshBase = fullfile(cutFolder, [QS.fileBase.name, '_cutMesh.mat']) ;
+% cutMesh = fullfile(meshDir, 'cutMesh') ;
+% cutMeshBase = fullfile(cutMesh, [QS.fileBase.name, '_cutMesh.mat']) ;
 imFolderBase = fullfile(uvDir, ['PullbackImages' shiftstr] ) ;
 sphiDir = fullfile(uvDir, ['sphi_cutMesh' shiftstr]) ;
 sphiSmDir = fullfile(sphiDir, 'smoothed') ;
@@ -272,6 +272,8 @@ imFolder_sp = [imFolderBase '_sphi'] ;
 imFolder_spe = fullfile(imFolder_sp, 'extended') ;
 imFolder_up = [imFolderBase '_uphi'] ;
 imFolder_upe = fullfile(imFolder_up, 'extended') ;
+imFolder_uvprime = [imFolderBase '_uvprime'] ;
+imFolder_uvprime_e = fullfile(imFolder_uvprime, 'extended') ;
 % time-averaged meshes
 imFolder_spsm = fullfile(imFolder_sp, 'smoothed') ;
 imFolder_spsme = fullfile(imFolder_sp, 'smoothed_extended') ;  % raw LUT, no histeq
@@ -290,11 +292,17 @@ KSmDir = fullfile(KHSmDir, 'gauss') ;
 HSmDir = fullfile(KHSmDir, 'mean') ;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Port into QS
-QS.dir.cutFolder = fullfile(meshDir, 'cutMesh') ;
+% (already above) QS.dir.cutMesh = fullfile(meshDir, 'cutMesh') ;
 QS.dir.spcutMesh = sphiDir ;
 QS.dir.spcutMeshSm = sphiSmDir ;
 QS.dir.spcutMeshSmRS = sphiSmRSDir ;
 QS.dir.spcutMeshSmRSC = sphiSmRSCDir ;
+
+%% UVprime coordinates (twist-adjusted conformal maps of sp-smoothed meshes)
+QS.dir.uvpcutMesh = fullfile(uvDir, ['uvprime_cutMesh' shiftstr]) ;
+QS.fileBase.uvpcutMesh = 'uvpcutMesh_%06d' ;
+QS.fullFileBase.uvpcutMesh = fullfile(QS.dir.uvpcutMesh, ...
+    [QS.fileBase.uvpcutMesh '.mat']) ;
 
 %% double resolution cutMeshes
 QS.dir.spcutMeshSm2x = sphiSmDir2x ;
@@ -312,6 +320,7 @@ QS.dir.im_uv = [imFolderBase '_uv'] ;
 QS.dir.im_uve = [imFolderBase '_uv_extended'] ;
 QS.dir.im_r = [imFolderBase '_sphi_relaxed'] ;
 QS.dir.im_re = fullfile(QS.dir.im_r, 'extended') ;
+QS.dir.im_r_uvprime = [imFolderBase '_uvprime_relaxed'] ;
 QS.dir.im_sp = imFolder_sp ;
 QS.dir.im_spe = imFolder_spe ;
 QS.dir.im_up = imFolder_up ;
@@ -319,6 +328,8 @@ QS.dir.im_upe = imFolder_upe ;
 QS.dir.im_sp_sm = imFolder_spsm ;
 QS.dir.im_sp_sme = imFolder_spsme ;
 QS.dir.im_sp_smeLUT = imFolder_spsmeLUT ;
+QS.dir.im_uvprime = imFolder_uvprime ;
+QS.dir.im_uvprime_e = imFolder_uvprime_e ;
 QS.dir.im_r_sm = imFolder_rsm ;
 QS.dir.im_r_sme = imFolder_rsme ;
 QS.dir.im_r_sme_stack = imFolder_rsme_stack ;
@@ -347,35 +358,41 @@ QS.fileName.writhe = fullfile(QS.dir.writhe, ...
 
 %%  spcutMesh and pullbacks
 QS.fullFileBase.spcutMesh = ...
-    fullfile(sphiDir, 'mesh_apical_stab_%06d_spcutMesh.mat') ;
-QS.fileBase.spcutMesh = 'mesh_apical_stab_%06d_spcutMesh' ;
+    fullfile(sphiDir, 'spcutMesh_%06d.mat') ;
+QS.fileBase.spcutMesh = 'spcutMesh_%06d' ;
 QS.fullFileBase.spcutMeshSm = ...
-    fullfile(sphiSmDir, '%06d_spcutMeshSm.mat') ;
-QS.fileBase.spcutMeshSm = '%06d_spcutMeshSm' ;
+    fullfile(sphiSmDir, 'spcutMeshSm_%06d.mat') ;
+QS.fileBase.spcutMeshSm = 'spcutMeshSm_%06d' ;
 QS.fullFileBase.spcutMeshSmRS = ...
-    fullfile(sphiSmRSDir, '%06d_spcutMeshSmRS.mat') ;
-QS.fileBase.spcutMeshSmRS = '%06d_spcutMeshSmRS' ;
+    fullfile(sphiSmRSDir, 'spcutMeshSmRS_%06d.mat') ;
+QS.fileBase.spcutMeshSmRS = 'spcutMeshSmRS_%06d' ;
 QS.fullFileBase.spcutMeshSmRSC = ...
-    fullfile(sphiSmRSCDir, '%06d_spcMSmRSC.mat') ;
+    fullfile(sphiSmRSCDir, 'spcMSmRSC_%06d.mat') ;
 QS.fullFileBase.spcutMeshSmRSCPLY = ...
-    fullfile(sphiSmRSCDir, '%06d_spcMSmRSC.ply') ;
-QS.fileBase.spcutMeshSmRSC = '%06d_spcMSmRSC' ;
+    fullfile(sphiSmRSCDir, 'spcMSmRSC_%06d.ply') ;
+QS.fileBase.spcutMeshSmRSC = 'spcMSmRSC_%06d' ;
 
 %% double resolution spcutMeshSm's
 QS.fullFileBase.spcutMeshSm2x = ...
-    fullfile(sphiSmDir2x, '%06d_spcutMeshSm2x.mat') ;
-QS.fileBase.spcutMeshSm2x = '%06d_spcutMeshSm2x' ;
+    fullfile(sphiSmDir2x, 'spcutMeshSm2x_%06d.mat') ;
+QS.fileBase.spcutMeshSm2x = 'spcutMeshSm2x_%06d' ;
 QS.fullFileBase.spcutMeshSmRS2x = ...
-    fullfile(sphiSmRSDir2x, '%06d_spcutMeshSmRS2x.mat') ;
-QS.fileBase.spcutMeshSmRS2x = '%06d_spcutMeshSmRS2x' ;
+    fullfile(sphiSmRSDir2x, 'spcutMeshSmRS2x_%06d.mat') ;
+QS.fileBase.spcutMeshSmRS2x = 'spcutMeshSmRS2x_%06d' ;
 QS.fullFileBase.spcutMeshSmRSC2x = ...
-    fullfile(sphiSmRSCDir2x, '%06d_spcMSmRSC2x.mat') ;
+    fullfile(sphiSmRSCDir2x, 'spcMSmRSC2x_%06d.mat') ;
 QS.fullFileBase.spcutMeshSmRSCPLY2x = ...
-    fullfile(sphiSmRSCDir2x, '%06d_spcMSmRSC2x.ply') ;
-QS.fileBase.spcutMeshSmRSC2x = '%06d_spcMSmRSC2x' ;
+    fullfile(sphiSmRSCDir2x, 'spcMSmRSC2x_%06d.ply') ;
+QS.fileBase.spcutMeshSmRSC2x = 'spcMSmRSC2x_%06d' ;
 
 QS.fileBase.im_uv = [QS.fileBase.name, '_pbuv.tif'] ;
 QS.fullFileBase.im_uv = fullfile(QS.dir.im_uv, QS.fileBase.im_uv) ;
+QS.fileBase.im_uvprime = [QS.fileBase.name, '_pbuvprime.tif'] ;
+QS.fullFileBase.im_uvprime = fullfile(QS.dir.im_uvprime, QS.fileBase.im_uvprime) ;
+QS.fileBase.im_uvprime_e = [QS.fileBase.name, '_pbuvpe.tif'] ;
+QS.fullFileBase.im_uvprime = fullfile(QS.dir.im_uvprime_e, QS.fileBase.im_uvprime_e) ;
+QS.fileBase.im_r_uvprime = [QS.fileBase.name, '_pbruvprime.tif'] ;
+QS.fullFileBase.im_r_uvprime = fullfile(QS.dir.im_r_uvprime, QS.fileBase.im_r_uvprime) ;
 QS.fileBase.im_r = [QS.fileBase.name, '_pbr.tif'] ;
 QS.fullFileBase.im_r = fullfile(QS.dir.im_r, QS.fileBase.im_r) ;
 QS.fileBase.im_re = [QS.fileBase.name, '_pbre.tif'] ;
@@ -410,7 +427,9 @@ QS.fullFileBase.cellID = fullfile(QS.dir.cellID, ...
      [QS.fileBase.cellID '.mat']) ;
 
 %% PIV
-QS.dir.piv = fullfile(uvDir, 'piv') ;
+% By default, we use sp_sme as the piv coordinate system, but could be
+% other.
+QS.dir.piv = fullfile(uvDir, 'piv') ;  
 QS.dir.piv3d = fullfile(QS.dir.piv, 'piv3d') ;
 QS.dir.pivt2d = fullfile(QS.dir.piv, 'vt2d') ;
 QS.dir.pivn2d = fullfile(QS.dir.piv, 'vn2d') ;
@@ -427,6 +446,8 @@ QS.dir.pathlines.vXY = fullfile(QS.dir.pathlines.data, 'images_vXY') ;
 QS.dir.pathlines.fXY = fullfile(QS.dir.pathlines.data, 'images_fXY') ;
 QS.dir.pathlines.v3d = fullfile(QS.dir.pathlines.data, 'images_v3d') ;
 QS.dir.pathlines.f3d = fullfile(QS.dir.pathlines.data, 'images_f3d') ;
+QS.dir.pathlines.strain_images = fullfile(QS.dir.pathlines.data, 'images_strain') ;
+QS.dir.pathlines.strain = fullfile(QS.dir.pathlines.data, 'strain') ;
 QS.fileName.pathlines = struct() ;
 pdir = QS.dir.pathlines.data ;
 QS.fileName.pathlines.featureIDs = fullfile(pdir, 'featureIDs.mat') ;
@@ -435,7 +456,47 @@ QS.fileName.pathlines.XYZ = fullfile(pdir, 'piv_pathlines_XYZ.mat') ;
 QS.fileName.pathlines.vXY = fullfile(pdir, 'piv_pathlines_vXY.mat') ;
 QS.fileName.pathlines.v3d = fullfile(pdir, 'piv_pathlines_v3d.mat') ;
 QS.fileName.pathlines.fXY = fullfile(pdir, 'piv_pathlines_fXY.mat') ;
-QS.fileName.pathlines.f3d = fullfile(pdir, 'piv_pathlines_f3d.mat') ;
+QS.fileName.pathlines.f3 = fullfile(pdir, 'piv_pathlines_f3d.mat') ;
+
+%% UVPrime pathlines
+% By default, we also include uvp_sme as a coordinate system for
+% quasiconformal measurements --> note that these are less Lagrangian than
+% sp_sme or up_sme, so they are treated as independent from the main
+% pipeline in which we measure velocities
+QS.dir.piv_uvprime = fullfile(uvDir, 'piv_uvprime_e') ; 
+
+QS.dir.pathlines_uvprime = struct() ;
+QS.dir.pathlines_uvprime.data = fullfile(QS.dir.piv_uvprime, 'pathlines', 't0_%04d') ; 
+pdir = QS.dir.pathlines_uvprime.data ;
+QS.dir.pathlines_uvprime.XY = fullfile(pdir, 'images_uvprime_XY') ;
+QS.dir.pathlines_uvprime.XYZ = fullfile(pdir, 'images_uvprime_XYZ') ;
+QS.dir.pathlines_uvprime.vXY = fullfile(pdir, 'images_uvprime_vXY') ;
+QS.dir.pathlines_uvprime.fXY = fullfile(pdir, 'images_uvprime_fXY') ;
+QS.dir.pathlines_uvprime.v3d = fullfile(pdir, 'images_uvprime_v3d') ;
+QS.dir.pathlines_uvprime.f3d = fullfile(pdir, 'images_uvprime_f3d') ;
+QS.dir.pathlines_uvprime.strain_images = fullfile(pdir, 'images_strain') ;
+QS.dir.pathlines_uvprime.strain = fullfile(pdir, 'strain') ;
+QS.dir.pathlines_uvprime.quasiconformal = fullfile(pdir, 'quasiconformal') ;
+QS.fileName.pathlines_uvprime = struct() ;
+QS.fileName.pathlines_uvprime.featureIDs = fullfile(pdir, 'featureIDs.mat') ;
+QS.fileName.pathlines_uvprime.XY = fullfile(pdir, 'piv_pathlines_uvprime_XY.mat') ;
+QS.fileName.pathlines_uvprime.XYZ = fullfile(pdir, 'piv_pathlines_uvprime_XYZ.mat') ;
+QS.fileName.pathlines_uvprime.vXY = fullfile(pdir, 'piv_pathlines_uvprime_vXY.mat') ;
+QS.fileName.pathlines_uvprime.v3d = fullfile(pdir, 'piv_pathlines_uvprime_v3d.mat') ;
+QS.fileName.pathlines_uvprime.fXY = fullfile(pdir, 'piv_pathlines_uvprime_fXY.mat') ;
+QS.fileName.pathlines_uvprime.f3 = fullfile(pdir, 'piv_pathlines_uvprime_f3d.mat') ;
+QS.fileName.pathlines_uvprime.refMesh = fullfile(pdir, 'refMesh.mat') ;
+QS.fileName.pathlines_uvprime.quasiconformal = ...
+    fullfile(QS.dir.pathlines_uvprime.quasiconformal, 'mu_v3dv2d.mat') ;
+
+%% Pathline-based strain measurement --> from pathline path
+QS.fileBase.strain = 'strain_%06d.mat' ;
+QS.fullFileBase.pathlines.strain = fullfile(QS.dir.pathlines.strain, ...
+    QS.fileBase.strain) ; 
+
+% pathline fundamental forms
+% fdir = QS.dir.pathlines.fundForms ;
+% QS.fileName.pathlines.fundForms = fullfile(fdir, 'fundForms.mat') ;
 % pathline velocities
 QS.fileName.pathlines.velocities = struct() ;
 QS.dir.pathlines.velocities = fullfile(pdir, 'velocities') ; 

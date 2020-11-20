@@ -72,7 +72,10 @@ pts(bad, :) = NaN  ;
 fieldfaces(bad) = NaN ;
 
 %%%
-% Now attempt to fix the bad indices by interpolating
+% Could attempt to fix the bad indices by interpolating
+% Decided not to do this -- If behavior like this is desired, then focus 
+% on mapping bad pts into the domain of validity in other code before 
+% calling this function.
 % if ~isempty(bad)
 %     Xai = scatteredInterpolant(v2d(:, 1), v2d(:, 2), vxa, 'linear', 'nearest') ;
 %     Yai = scatteredInterpolant(v2d(:, 1), v2d(:, 2), vya, 'linear', 'nearest') ;
