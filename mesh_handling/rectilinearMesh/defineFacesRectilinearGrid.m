@@ -35,6 +35,14 @@ function [faces, faceIDgrid] = defineFacesRectilinearGrid(uv, nU, nV)
 % faceIDgrid : #faces x 1 int array
 %   indexes faces as a rectilinear grid
 %
+% Example usage
+% -------------
+% [xx, yy] = meshgrid(1:500, 1:500) ;
+% xx = xx'; yy = yy';
+% uv =[xx(:), yy(:)]
+% faces = defineFacesRectilinearGrid([xx(:), yy(:)], 500, 500)
+% hold on; trisurf(faces, xx(:), yy(:), 0*x, (x-250).^2 + (y-250).^2, ...
+%    'edgecolor', 'none', 'Facealpha', 0.2)
 % NPMitchell 2020
 
 % check that uv has increasing u, then increasing v
@@ -49,9 +57,8 @@ if ~isempty(uv)
         try 
             assert(uv(1, 1) == uv(2, 1))
             assert(uv(1, 2) ~= uv(2, 2))
-            error('Input coordinates appear transposed from proper grid')
         catch
-            error('Input coordinates are not arranged in proper grid')
+            error('Input coordinates appear transposed from proper grid')
         end
     end
 end

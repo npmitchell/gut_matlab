@@ -143,10 +143,10 @@ if generate_uvprime || generate_ruvprime
     elseif isfield(pbOptions, 'uvprimecutMeshSm')
         uvpcutMesh = pbOptions.uvprimecutMeshSm ;
     else
-        if isempty(QS.currentMesh.uvpcutMeshSm)
-            QS.loadCurrentUVPrimeCutMeshSm()
+        if isempty(QS.currentMesh.uvpcutMesh)
+            QS.loadCurrentUVPrimeCutMesh()
         end
-        uvpcutMesh = QS.currentMesh.uvpcutMeshSm ;
+        uvpcutMesh = QS.currentMesh.uvpcutMesh ;
     end
 end
 
@@ -321,7 +321,7 @@ end
 
 if (~exist(imfn_ruvprime, 'file') || overwrite) && generate_ruvprime
     disp(['Generating image for relaxed, smoothed uvprime coords: ' imfn_ruvprime])
-    aux_generate_orbifold(uvpcutMesh.raw, uvpcutMesh.raw.ar, IV, imfn_ruvprime, ...
+    aux_generate_orbifold(uvpcutMesh.raw, uvpcutMesh.raw.ar_mu, IV, imfn_ruvprime, ...
         pbOptions, axisorder, save_as_stack)
 else
     disp('Skipping relaxed UVPrimeSm pullback image generation ')

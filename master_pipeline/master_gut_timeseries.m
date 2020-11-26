@@ -147,6 +147,8 @@ if loadMaster
     set_preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
     swapZT = masterSettings.swapZT ;
     t0_for_phi0 = masterSettings.t0_for_phi0 ;
+    nU = masterSettings.nU ;
+    nV = masterSettings.nV ;
 end
 dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
 dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
@@ -535,8 +537,8 @@ opts.flipy = flipy ;
 opts.timeInterval = timeInterval ;
 opts.timeUnits = timeUnits ;
 opts.spaceUnits = spaceUnits ;
-opts.nV = 100 ;
-opts.nU = 100 ;
+opts.nV = nU ;
+opts.nU = nV ;
 opts.normalShift = 10 ;
 opts.a_fixed = 2.0 ;
 opts.adjustlow = 1.00 ;         % floor for intensity adjustment
@@ -551,7 +553,10 @@ disp('done')
 
 %% Make some mips
 adjustIV = false ; 
-QS.makeMIPs(1, {400:490, 510:550, 570:630, 800:880}, [], adjustIV)
+% QS.makeMIPs(1, {400:490, 510:550, 570:630, 800:880}, [], adjustIV)
+stacks = {400:490, 510:550, 570:630, 800:880} ;
+QS.makeMIPs(1, stacks, [], adjustIV)
+
 
 %% Inspect a single mesh
 % Skip if already done
@@ -615,6 +620,15 @@ if any(inds)
     plot(mesh.v(inds, 2), mesh.v(inds, 3), 'co')
 end
                 
+%% Make sure all meshes exist
+for tp = xp.fileMeta.timePoints
+    % Load the mesh
+    meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;    
+    if ~exist(meshfn, 'file')
+        error(['mesh does not exist: ' meshfn ])
+    end
+end
+
 %% Inspect all meshes in 3D
 % Skip if already done
 
@@ -816,6 +830,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         apdvOpts.anteriorChannel = anteriorChannel ;
         apdvOpts.posteriorChannel = posteriorChannel ;
         apdvOpts.dorsalChannel = dorsalChannel ;% filename pattern for the apdv training probabilities
+        apdvOpts.tpref = t0_for_phi0 ;
         
         alignAPDVOpts.weight = weight ;
         alignAPDVOpts.normal_step = normal_step ;
@@ -825,7 +840,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         alignAPDVOpts.posteriorChannel = posteriorChannel ;
         alignAPDVOpts.dorsalChannel = dorsalChannel ;
         alignAPDVOpts.dorsal_thres = 0.5 ;
-        alignAPDVOpts.tref = 110 ;
+        alignAPDVOpts.tref = t0_for_phi0 ;
         
         % alignAPDVOpts.fn = fn ;  % filename base
 
@@ -1140,9 +1155,15 @@ end
 options = struct() ;
 options.overwrite = true ;
 options.preview = true ;
-options.first_tp_allowed = [-1, -1, 40] ;  % enforce that no folds before this tp
+options.first_tp_allowed = [-1, -1, -1] ;  % enforce that no folds before this tp
+options.guess123 = [.29 .55 .80] ;
+options.max_wander = 5 ;
 QS.identifyFolds(options)
 disp('done')
+
+%% Circularlity of constrictions -- todo?
+% options = struct() ;
+% QS.measureFoldRadiiVariance(options)
 
 %% COMPUTE MESH SURFACE AREA AND VOLUME ===================================
 % Skip if already done
@@ -1194,18 +1215,18 @@ options = struct() ;
 options.overwrite = false ;
 QS.smoothDynamicSPhiMeshes(options) ;
 
-%% Plot the time-smoothed meshes
+% Plot the time-smoothed meshes
 % Skip if already done
 options.overwrite = false ;
 QS.plotSPCutMeshSmRS(options) ;
 
-%% Images for publication/presentation on method & coordinate system
+% Images for publication/presentation on method & coordinate system
 % Skip if already done
 % Create coordinate system charts visualization using smoothed meshes
 
 % QS.coordSystemDemo()
 
-%% COMPUTE MEAN AND GAUSSIAN CURVATURES OF SMOOTHED MESHES
+% COMPUTE MEAN AND GAUSSIAN CURVATURES OF SMOOTHED MESHES
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
@@ -1244,16 +1265,16 @@ for tt = QS.xp.fileMeta.timePoints(1:end)
     pbOptions.overwrite = false ;
     pbOptions.numLayers = [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
-    pbOptions.generate_rsm = false ;
-    pbOptions.generate_spsm = false ;
+    pbOptions.generate_rsm = true ;
+    pbOptions.generate_spsm = true ;
     pbOptions.generate_sphi = false ;
-    pbOptions.generate_uvprime = true ;
+    pbOptions.generate_uvprime = false ;
     QS.data.adjustlow = adjustlow ;
     QS.data.adjusthigh = adjusthigh ;
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
 end
 
-%% TILE/EXTEND SMOOTHED IMAGES IN Y AND RESAVE =======================================
+% TILE/EXTEND SMOOTHED IMAGES IN Y AND RESAVE =======================================
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
@@ -1265,7 +1286,7 @@ disp('done')
 
 %% Create u'v' coordinate cutMeshes (conformal with minimally twisted boundaries)
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.save_ims = true ;
 options.preview = false ;
 QS.generateUVPrimeCutMeshes(options)
@@ -1278,14 +1299,15 @@ for tidx = 1:length(QS.xp.fileMeta.timePoints)
     pbOptions.generate_uv = false ;
     pbOptions.generate_uphi = false ;
     pbOptions.generate_relaxed = false ;
+    pbOptions.generate_rsm = true ;
     pbOptions.generate_uvprime = true ;
-    pbOptions.generate_ruvprime = true ;
+    pbOptions.generate_ruvprime = false ;
     pbOptions.numLayers = [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
 end
 
-%% TILE/EXTEND (smoothed) UVPrime images in Y and resave =======================================
+% TILE/EXTEND (smoothed) UVPrime images in Y and resave =======================================
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
@@ -1302,7 +1324,7 @@ disp('done')
 % % Select all frames in meshDir/PullbackImages_010step_sphi/smoothed_extended/
 % % Select Sequencing style 1-2, 2-3, ... 
 % % Image Preprocessing (used to select all, but now:)
-% %  --> Enable CLAHE with 20 pix
+% %  --> CHOOSE EITHER WAY: Enable CLAHE with >=20 pix
 % %  --> DO NOT Enable highpass with 15 pix
 % %  --> DO NOT Enable Intensity capping
 % %  --> Wiener2 denoise filter with 3 pix
@@ -1321,13 +1343,18 @@ disp('done')
 
 %% Pathlines in uv' coords
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 QS.measureUVPrimePathlines(options)
-%%
+%
 options = struct() ;
-options.overwrite = true ;
-options.climit = 0.25 ;
+options.overwrite = false ;
+options.climit = 1 ;
 QS.measureBeltramiCoefficient(options)
+
+%% Compare to linearized description
+options = struct() ;
+options.overwrite = false ;
+QS.compareBeltramiToLinearizedConstriction(options) ;
 
 %% Measure Cell density
 % Skip if already done
@@ -1349,7 +1376,7 @@ QS.plotCellDensityKymograph(options)
 disp('Create pullback stack using S,Phi coords with time-averaged Meshes');
 % Load options
 overwrite = false ;
-optionfn = fullfile(QS.dir.im_sp_sme2, 'spcutMeshSmStackOptions.mat') ;
+optionfn = fullfile(QS.dir.im_r_sme_stack, 'spcutMeshSmStackOptions.mat') ;
 if ~exist(optionfn, 'file') || overwrite
     spcutMeshSmStackOptions.layer_spacing = 0.5 / QS.APDV.resolution ; % pixel resolution roughly matches xy
     spcutMeshSmStackOptions.n_outward = 20 ;
@@ -1412,7 +1439,7 @@ tmp = load(fullfile(QS.dir.piv, 'piv_results.mat')) ;
 %% Measure velocities =============================================
 disp('Making map from pixel to xyz to compute velocities in 3d for smoothed meshes...')
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.preview = false ;
 options.show_v3d_on_data = false ;
 options.save_ims = true ;
@@ -1522,7 +1549,7 @@ options.overwrite = false ;
 options.samplingResolution = '1x' ;
 options.averagingStyle = 'Lagrangian' ;
 QS.helmholtzHodge(options) ;
-%% Compressibility & kinematics for Lagrangian
+% Compressibility & kinematics for Lagrangian
 options = struct() ;
 options.overwrite = false ;
 options.samplingResolution = '1x'; 
@@ -1544,7 +1571,7 @@ options.plot_gdot_decomp = false ;
 options.climit = 0.1 ;
 QS.plotMetricKinematics(options)
 
-%% Pullback pathlines connecting Lagrangian grids
+% Pullback pathlines connecting Lagrangian grids
 options = struct() ;
 options.overwrite = false ;
 options.preview = false ;

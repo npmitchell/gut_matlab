@@ -47,7 +47,7 @@ else
     nV = QS.nV ;
     [rot, trans] = QS.getRotTrans() ;
     resolution = QS.APDV.resolution ;
-    [~, ~, xyzlim] = QS.getXYZLims() ;
+    [~, ~, ~, xyzlim] = QS.getXYZLims() ;
     
     % Define colors for plotting
     colors = QS.plotting.colors ;

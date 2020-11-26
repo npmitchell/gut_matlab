@@ -1,4 +1,4 @@
-function [h1] = scalarFieldOnSurface(faces, vertices, sf, options)
+function [h1, cb] = scalarFieldOnSurface(faces, vertices, sf, options)
 %SCALARVECTORFIELDSONIMAGE(faces, vertices, sf, options)
 %   Plot a scalar field (sf) as heatmap on a 3d mesh surface
 %
@@ -31,6 +31,7 @@ function [h1] = scalarFieldOnSurface(faces, vertices, sf, options)
 % Returns
 % -------
 % h1 : handle for trisurf object
+% cb : handle for colorbar object
 %
 % NPMitchell 2020
 
@@ -50,7 +51,8 @@ figHeight = 10 ; % cm
 axposition = [0 0.11 0.85 0.8] ;
 axisOff = true ;
 if strcmp(style, 'diverging')
-    cbar_position = [.9 .333 .02 .333] ;
+    cbar_position = [0.8327, 0.1095, 0.0374, 0.8167] ; 
+    % formerly:  [.9 .333 .02 .333] ;
 elseif strcmp(style, 'phasemap')
     cbar_position = [.9 .3 .02 .3] ;
 end
@@ -105,13 +107,16 @@ end
 if strcmp(style, 'phasemap')
     cmap = phasemap ;
     colors = mapValueToColor(sf, [0, 2*pi], cmap) ;
-elseif strcmp(style, 'diverging')
+elseif strcmp(style, 'diverging')    
     cmap = bwr ;
     if sscale > 0
         colors = mapValueToColor(sf, [-sscale, sscale], cmap) ;
     else
         colors = mapValueToColor(sf, [min(sf(:)), max(sf(:))], cmap) ;
     end
+elseif strcmp(style, 'positive')
+    cmap = parula ;
+    colors = mapValueToColor(sf, [0, sscale], cmap) ;
 end
 
 % % check it
@@ -201,24 +206,41 @@ if strcmp(style, 'phase')
     yticks([])
     cax.YAxis(1).Color = 'k';
     cax.YAxis(2).Color = 'k';
-elseif strcmp(style, 'diverging')
-    disp('setting scalar field to diverging style')
-    colormap bwr
-    if isfield(options, 'ylim')
-        ylim(options.ylim)
-    end
-    set(gca, 'Position', axposition) ;
-    if axisOff
-        axis off
-    end
-    
-    % Set color axis limits
-    if sscale > 0
-        caxis([-sscale, sscale])
+elseif strcmp(style, 'diverging') || strcmp(style, 'positive')
+    if strcmp(style, 'diverging')
+        disp('setting scalar field to diverging style')
+        colormap bwr
+        if isfield(options, 'ylim')
+            ylim(options.ylim)
+        end
+        set(gca, 'Position', axposition) ;
+        if axisOff
+            axis off
+        end
+
+        % Set color axis limits
+        if sscale > 0
+            caxis([-sscale, sscale])
+        end
+    elseif strcmp(style, 'positive')
+        disp('setting scalar field to positive style')
+        colormap parula
+        if isfield(options, 'ylim')
+            ylim(options.ylim)
+        end
+        set(gca, 'Position', axposition) ;
+        if axisOff
+            axis off
+        end
+
+        % Set color axis limits
+        if sscale > 0
+            caxis([0, sscale])
+        end
     end
     
     % Add colorbar
-    c = colorbar('Position', cbar_position) ;
+    cb = colorbar('Position', cbar_position) ;
     
     % ylabel(cax, labelstr, 'color', 'k', ...
     %     'Interpreter', interpreter)
@@ -228,16 +250,15 @@ elseif strcmp(style, 'diverging')
     % necessary on some versions
     drawnow
     % Get the color data of the object that correponds to the colorbar
-    cdata = c.Face.Texture.CData;
+    cdata = cb.Face.Texture.CData;
     % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
     cdata(end,:) = uint8(alphaVal * cdata(end,:));
     % Ensure that the display respects the alpha channel
-    c.Face.Texture.ColorType = 'truecoloralpha';
+    cb.Face.Texture.ColorType = 'truecoloralpha';
     % Update the color data with the new transparency information
-    c.Face.Texture.CData = cdata;
-    c.Label.Interpreter = interpreter ;
-    c.Label.String = labelstr ;
-
+    cb.Face.Texture.CData = cdata;
+    cb.Label.Interpreter = interpreter ;
+    cb.Label.String = labelstr ;
 else
     error('have not coded for this style yet')
 end

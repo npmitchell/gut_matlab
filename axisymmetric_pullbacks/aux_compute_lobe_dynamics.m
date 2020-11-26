@@ -134,9 +134,13 @@ for kk = 1:length(timePoints)
             rear_id = nU ;
             front_id = f3 ;
         end
+        rear_id = double(rear_id) ;
+        front_id = double(front_id) ;
+        urm = double(urm) ;
 
         % Find all indices on the rear hoop and front hoop
-        rear = (rear_id - front_id + 1) + (0:(nV-1)) * (rear_id - front_id + 1) ;
+        rear = (rear_id - front_id + 1) + ...
+            (0:(nV-1)) * (rear_id - front_id + 1) ;
         front = 1 + (0:(nV-1)) * (rear_id - front_id + 1) ;
         % Create brick of indices, each column identical (x location)
         rmvtx = (urm' .* ones(length(urm), nV))' ;
@@ -207,6 +211,7 @@ for kk = 1:length(timePoints)
         xlim(xyzlim(1, :))
         ylim(xyzlim(2, :))
         zlim(xyzlim(3, :))
+        disp(['Saving figure: ' lobeimfn])
         saveas(fig, lobeimfn)
         close all
     end

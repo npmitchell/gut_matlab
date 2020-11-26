@@ -1,4 +1,18 @@
 function generateUVPrimeCutMeshes(QS, options)
+% Generate pullbacks in the (u',v') coordinate system
+%
+% Parameters
+% ----------
+% QS : 
+% options : struct with fields
+%
+%
+% Returns
+% -------
+% none
+%
+% NPMitchell 2020
+
 
 %% Unpack QS
 timePoints = QS.xp.fileMeta.timePoints ;
@@ -71,27 +85,58 @@ for tidx = 1:length(timePoints)
         spcutMeshSm = QS.currentMesh.spcutMeshSm ;
         
         % Conformally map to disk
+        tileCount = [1 1] ;
+        
         rawMesh = flattenAnnulus(spcutMeshSm) ;   
         % Relax Affine transformation along x
         rawMesh.ar = minimizeIsoarealAffineEnergy( rawMesh.f, rawMesh.v, rawMesh.u );
         
-        % Compute Beltrami coefficient (quasiconformal)
-        affine_factor = rawMesh.ar ;
-        
-        for affine_factor = linspace(rawMesh.ar-0.1, rawMesh.ar+0.1, 10)
-            v2d_raw = rawMesh.u ;
-            v2d_raw(:, 1) = affine_factor * v2d_raw(:, 1) ;
-            rawMesh.mu = bc_metric(rawMesh.f, v2d_raw, rawMesh.v, 3) ;
-            disp([num2str(mean(real(rawMesh.mu))) '+/-' std(real(rawMesh.mu))])
+        if QS.flipy
+            rawMesh.u = [ rawMesh.u(:,1), 1.0 - rawMesh.u(:,2) ];
         end
-         uvpcutMesh.raw = rawMesh ;
+        
+        % Compute Beltrami coefficient (quasiconformal)
+        % affine_factor = rawMesh.ar ;
+        rawMesh.mu = bc_metric(rawMesh.f, rawMesh.u, rawMesh.v, 3) ;
+        rawMesh.ar_mu = (1 + mean(real(rawMesh.mu))) / (1 - mean(real(rawMesh.mu))) ;
+        uvpcutMesh.raw = rawMesh ;
+        
+        % Check that aspect ratio ar relaxes mu
+        vtxtmp = rawMesh.u ;
+        vtxtmp(:, 1) = vtxtmp(:, 1) * rawMesh.ar_mu ;
+        tmp = mean(real(bc_metric(rawMesh.f, vtxtmp, rawMesh.v, 3))) ;
+        disp(['Residual quasiconformal component: ' num2str(tmp)])
+        
+        %% Check that ar minimizes mu -- IT DOES NOT!
+        % dmyk = 1 ;
+        % ars = linspace(rawMesh.ar-0.1, rawMesh.ar+0.5, 10) ;
+        % meanmu = 0*ars ;
+        % stdmu = 0*ars ;
+        % for affine_factor = ars
+        %     v2d_raw = rawMesh.u ;
+        %     v2d_raw(:, 1) = affine_factor * v2d_raw(:, 1) ;
+        %     mus = bc_metric(rawMesh.f, v2d_raw, rawMesh.v, 3) ;
+        %     disp([num2str(mean(real(mus))) '+/-' num2str(std(real(mus)))])
+        %     meanmu(dmyk) = mean(abs(mus)) ;
+        %     stdmu(dmyk) = std(abs(mus)) ;
+        %     dmyk = dmyk + 1 ;
+        % end
+        % clf
+        % h1 = errorbar(ars, meanmu, stdmu); 
+        % hold on;
+        % h2 = errorbar(rawMesh.ar, mean(real(rawMesh.mu)), std(real(rawMesh.mu)), 'o')
+        % xlabel('possible affine factors')
+        % ylabel('$\langle \mu \rangle \pm \sigma_\mu$ across mesh', ...
+        %     'interpreter', 'latex')
+        % legend('test values', 'relaxed value')
+        
         
         % Check against previously saved
         % tmp = load(sprintf(QS.fullFileBase.uvpcutMesh, tp)) ;
         % all(all(tmp.uvpcutMesh.raw.u == rawMesh.u))
         % all(all(tmp.uvpcutMesh.raw.v == rawMesh.v))
 
-        % Make avgpts in pixel space (not RS), from rawMesh
+        %% Make avgpts in pixel space (not RS), from rawMesh
         fprintf('Resampling uvgrid3d curves in pix...\n')
         nU = rawMesh.nU ;
         nV = rawMesh.nV ;
@@ -121,7 +166,10 @@ for tidx = 1:length(timePoints)
         % First tile the raw mesh along v'
         tileCount = [1,1] ;
         [ TF, TV2D, TV3D ] = tileAnnularCutMesh( uvpcutMesh.raw, tileCount );
-
+        tmp = uvpcutMesh.raw.radius_um(:) ;
+        assert(length(tmp) == nU*nV)
+        tiled_radius_um = [tmp(1:nU*(nV-1)); tmp; tmp(nU+1:end)] ;
+        
         onesUV = ones(nU, nV) ;
         uspace = linspace(0, 1, nU) ;
         vspace = linspace(0, 1, nV) ;
@@ -137,76 +185,21 @@ for tidx = 1:length(timePoints)
         resMesh.v = uvgrid3d ;
         resMesh.ar = rawMesh.ar ;
         resMesh.pathPairs = rawMesh.pathPairs ;
-        v2d_res = resMesh.u ;
-        v2d_res(:, 1) = rawMesh.ar * v2d_res(:, 1) ;
-        resMesh.mu = bc_metric(resMesh.f, v2d_res, resMesh.v, 3) ;
+        resMesh.mu = bc_metric(resMesh.f, resMesh.u, resMesh.v, 3) ;
         uvpcutMesh.resampled = resMesh ;
         assert(all(~any(isnan(resMesh.v))))
         assert(all(~any(isnan(resMesh.u))))
 
         % Interpolate radius onto resampled grid
         ugrid = reshape(uv(:, 1), [nU, nV]) ;
-        radInterp = scatteredInterpolant(rawMesh.u(:, 1), rawMesh.u(:, 2),...
-            uvpcutMesh.raw.radius_um(:), 'linear', 'nearest') ;
+        radInterp = scatteredInterpolant(TV2D(:, 1), TV2D(:, 2),...
+            tiled_radius_um(:), 'linear', 'nearest') ;
         resRadius_um = radInterp(resMesh.u(:, 1), resMesh.u(:, 2)) ;
         resRadius_um = reshape(resRadius_um, [nU, nV]) ;
         uvpcutMesh.resampled.radius_pix = resRadius_um ;
         
-        % Check orientation
-        if save_ims
-            set(gcf, 'visible', 'off')
-            imagesc(uspace, vspace, resRadius_um') ;
-            axis equal
-            axis tight
-            xlabel('$u$', 'interpreter', 'latex')
-            ylabel('$v$', 'interpreter', 'latex')
-            cb = colorbar() ;
-            ylabel(cb, ['radius [' QS.spaceUnits ']'], 'interpreter', 'latex') 
-            imfn = [sprintf(QS.fileBase.uvpcutMesh, tp) '.png'] ;
-            saveas(gcf, fullfile(imdir, imfn))
-            close all
-            
-            % Save quasiconformal mesh -- raw
-            set(gcf, 'visible', 'off')
-            subplot(1, 2, 1)
-            options.labels = {'$\Re \mu$', '$\Im \mu$'} ;
-            [ax1, ax2, cb1, cb2, mesh1, mesh2] = ...
-                twoScalarFieldsOnSurface({rawMesh.f, ...
-                [v2d_raw(:, 1), v2d_raw(:, 2), 0*v2d_raw(:, 1)]}, ...
-                real(rawMesh.mu), imag(rawMesh.mu), options) ;
-            sgtitle(['$\mu($embedding, pullback$)$, $t = $', ...
-                sprintf('%03d', tp-t0), ' ', QS.timeUnits], ...
-                'interpreter', 'latex') ;
-            set(gcf,'CurrentAxes', ax1)
-            view(2)
-            axis off
-            set(gcf,'CurrentAxes', ax2)
-            view(2)
-            axis off
-            imfn_raw = ['mu_raw_' sprintf(QS.fileBase.uvpcutMesh, tp) '.png'] ;
-            disp(['Saving ' imfn_raw ': ' fullfile(imdir, imfn_raw)])
-            saveas(gcf, fullfile(imdir, imfn_raw))
-            
-            set(gcf, 'visible', 'off')
-            subplot(1, 2, 1)
-            options.labels = {'$\Re \mu$', '$\Im \mu$'} ;
-            [ax1, ax2, cb1, cb2, mesh1, mesh2] = ...
-                twoScalarFieldsOnSurface({resMesh.f, ...
-                [v2d_res(:, 1), v2d_res(:, 2), 0*v2d_res(:, 1)]}, ...
-                real(resMesh.mu(tidx, :)), imag(resMesh.mu(tidx, :)), options) ;
-            sgtitle(['resampled mesh: $\mu($embedding, pullback$)$, $t = $', ...
-                sprintf('%03d', tp-t0), ' ', QS.timeUnits], ...
-                'interpreter', 'latex') ;
-            set(gcf,'CurrentAxes', ax1)
-            view(2)
-            set(gcf,'CurrentAxes', ax2)
-            view(2)
-            imfn_res = ['mu_res_' sprintf(QS.fileBase.uvpcutMesh, tp) '.png'] ;
-            saveas(gcf, fullfile(imdir, imfn_res))
-        end
-        
         if preview
-            clf
+            close all
             scatter(rawMesh.u(:, 1), rawMesh.u(:, 2), 10, radius_um(:)) 
             hold on;
             scatter(resMesh.u(:, 1), resMesh.u(:, 2), 10, resRadius_um(:))
@@ -218,6 +211,127 @@ for tidx = 1:length(timePoints)
         %% Save the result
         disp(['Saving uvpcutMesh t=' num2str(tp) ': ' fn])
         save(fn, 'uvpcutMesh')
+    else
+        computed = false ;
+    end
+
+    %% Check orientation
+    imfn = [sprintf(QS.fileBase.uvpcutMesh, tp) '.png'] ;
+    imfn_full = fullfile(imdir, imfn) ;
+    imfn_raw = ['mu_raw_' sprintf(QS.fileBase.uvpcutMesh, tp) '.png'] ;
+    imfn_rawFull = fullfile(imdir, imfn_raw) ;
+    imfn_raw3d = ['mu_raw3d_' sprintf(QS.fileBase.uvpcutMesh, tp) '.png'] ;
+    imfn_raw3dFull = fullfile(imdir, imfn_raw3d) ;
+    imfn_res = ['mu_res_' sprintf(QS.fileBase.uvpcutMesh, tp) '.png'] ;
+    imfn_resFull = fullfile(imdir, imfn_res) ;
+    not_on_disk = ~exist(imfn_full, 'file') || ...
+        ~exist(imfn_rawFull, 'file') || ...
+        ~exist(imfn_raw3dFull, 'file') || ...
+        ~exist(imfn_resFull, 'file') ;
+    
+    if save_ims && not_on_disk
+        if ~computed
+            load(fn, 'uvpcutMesh')
+            rawMesh = uvpcutMesh.raw ;
+            resMesh = uvpcutMesh.resampled ;
+            uspace = linspace(0, 1, rawMesh.nU) ;
+            vspace = linspace(0, 1, rawMesh.nV) ;
+            resRadius_um = uvpcutMesh.resampled.radius_pix ;
+        end
+        
+        close all
+        if ~exist(imfn_full, 'file')
+            set(gcf, 'visible', 'off')
+            imagesc(uspace, vspace, resRadius_um') ;
+            title('Conformal $(u'',v'')$ cutMesh', 'interpreter', 'latex')
+            axis equal
+            axis tight
+            xlabel('$u$', 'interpreter', 'latex')
+            ylabel('$v$', 'interpreter', 'latex')
+            h = gca() ;
+            set(h,'Xcolor','none')
+            h.XAxis.Label.Color=[0 0 0];
+            h.XAxis.Label.Visible='on';
+            set(h,'Ycolor','none')
+            h.YAxis.Label.Color=[0 0 0];
+            h.YAxis.Label.Visible='on';
+            cb = colorbar() ;
+            ylabel(cb, ['radius [' QS.spaceUnits ']'], 'interpreter', 'latex') 
+            saveas(gcf, imfn_full)
+            close all
+        end
+
+        % Save quasiconformal mesh -- raw2d
+        if ~exist(imfn_rawFull, 'file')
+            set(gcf, 'visible', 'off')
+            subplot(1, 2, 1)
+            options.labels = {'$\Re \mu$', '$\Im \mu$'} ;
+            [ax1, ax2, cb1, cb2, mesh1, mesh2] = ...
+                twoScalarFieldsOnSurface({rawMesh.f, ...
+                [rawMesh.u(:, 1), rawMesh.u(:, 2), 0*rawMesh.u(:, 1)]}, ...
+                real(rawMesh.mu) - mean(real(rawMesh.mu)), ...
+                imag(rawMesh.mu), options) ;
+            sgtitle(['$\mu($embedding, pullback$)$, $t = $', ...
+                sprintf('%03d', tp-t0), ' ', QS.timeUnits], ...
+                'interpreter', 'latex') ;
+            set(gcf,'CurrentAxes', ax1)
+            view(2)
+            axis off
+            set(gcf,'CurrentAxes', ax2)
+            view(2)
+            axis off
+            disp(['Saving ' imfn_raw ': ' fullfile(imdir, imfn_raw)])
+            saveas(gcf, imfn_rawFull)
+            close all
+        end
+
+        % Save quasiconformal mesh -- raw3d
+        if ~exist(imfn_raw3dFull, 'file')
+            v3draw = QS.xyz2APDV(rawMesh.v) ;
+            set(gcf, 'visible', 'off')
+            subplot(1, 2, 1)
+            options.labels = {'$\Re \mu$', '$\Im \mu$'} ;
+            [ax1, ax2, cb1, cb2, mesh1, mesh2] = ...
+                twoScalarFieldsOnSurface({rawMesh.f, ...
+                v3draw}, ...
+                real(rawMesh.mu) - mean(real(rawMesh.mu)), ...
+                imag(rawMesh.mu), options) ;
+            sgtitle(['$\mu($embedding, pullback$)$, $t = $', ...
+                sprintf('%03d', tp-t0), ' ', QS.timeUnits], ...
+                'interpreter', 'latex') ;
+            set(gcf,'CurrentAxes', ax1)
+            axis equal
+            axis off
+            set(gcf,'CurrentAxes', ax2)
+            axis equal
+            axis off
+            disp(['Saving ' imfn_raw3d ': ' fullfile(imdir, imfn_raw3d)])
+            saveas(gcf, imfn_raw3dFull)
+            close all
+        end
+
+        % Save quasiconformal mesh -- resampled
+        if ~exist(imfn_resFull, 'file')
+            set(gcf, 'visible', 'off')
+            subplot(1, 2, 1)
+            options.labels = {'$\Re \mu$', '$\Im \mu$'} ;
+            [ax1, ax2, cb1, cb2, mesh1, mesh2] = ...
+                twoScalarFieldsOnSurface({resMesh.f, ...
+                [resMesh.u(:, 1), resMesh.u(:, 2), 0*resMesh.u(:, 1)]}, ...
+                real(resMesh.mu) - mean(real(resMesh.mu)), ...
+                imag(resMesh.mu), options) ;
+            sgtitle(['resampled mesh: $\mu($embedding, pullback$)$, $t = $', ...
+                sprintf('%03d', tp-t0), ' ', QS.timeUnits], ...
+                'interpreter', 'latex') ;
+            set(gcf,'CurrentAxes', ax1)
+            view(2)
+            axis off
+            set(gcf,'CurrentAxes', ax2)
+            view(2)
+            axis off
+            saveas(gcf, imfn_resFull)
+            close all
+        end
     end
 end
     
