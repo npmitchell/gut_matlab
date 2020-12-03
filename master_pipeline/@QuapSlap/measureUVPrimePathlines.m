@@ -17,6 +17,9 @@ function measureUVPrimePathlines(QS, options)
 %       overwrite previous results
 %   preview : bool
 %       view intermediate results
+%   smoothing_sigma : float 
+%       Gaussian kernel standard deviation if >0 for smoothing in-plane
+%       displacements from piv readout
 %
 % Saves to disk
 % -------------
@@ -42,6 +45,7 @@ nY2plot = 30 ;
 scatterSz = 2 ;
 movieScatterSz = 2 ;
 t0 = QS.t0set() ;
+smoothing_sigma = 2 ;  % Smoothing parameter for piv
 
 if nargin < 2
     options = struct() ;
@@ -58,6 +62,9 @@ elseif isfield(options, 't0')
     disp(['Setting t0 for Pathlines to be: ' num2str(t0)])
 else
     disp('Using default t0 for pathlines')
+end
+if isfield(options, 'smoothing_sigma')
+    smoothing_sigma = options.smoothing_sigma ;
 end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
@@ -168,8 +175,20 @@ if ~exist(plineXY, 'file') || overwrite
     y0 = piv.y{QS.xp.tIdx(t0)} ;
     
     % Create pathlines emanating from (x0,y0) at t=t0
+    % Additionally smooth the piv output by sigma
+    if smoothing_sigma > 0
+        disp(['Smoothing piv output with sigma=' num2str(smoothing_sigma)])
+        for tidx = 1:length(QS.xp.fileMeta.timePoints)-1
+            velx = piv.u_filtered{tidx} ;
+            vely = piv.v_filtered{tidx} ;
+            piv.u_filtered{tidx} = imgaussfilt(velx, smoothing_sigma) ;
+            piv.v_filtered{tidx} = imgaussfilt(vely, smoothing_sigma) ;
+        end
+        disp('done smoothing')
+    end
+    
     options.piv = piv ;
-    im0 = imread(sprintf(QS.fullFileBase.im_uvprime, t0)) ;
+    im0 = imread(sprintf(QS.fullFileBase.im_uvprime_e, t0)) ;
     % for now assume all images are the same size
     disp('for now assuming all images are the same size')
     Lx = size(im0, 1) * ones(length(timePoints), 1) ;

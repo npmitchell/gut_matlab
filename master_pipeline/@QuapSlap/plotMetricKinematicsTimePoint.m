@@ -22,6 +22,8 @@ doubleResolution = options.doubleResolution ;
 lambda = options.lambda ;
 lambda_err = options.lambda_err ;
 lambda_mesh = options.lambda_mesh ;
+nmodes = options.nmodes ;
+zwidth = options.zwidth ;
 H2vn2d = options.H2vn2d ;
 divv2d = options.divv2d ;
 gdot2d = options.gdot2d ;
@@ -60,8 +62,8 @@ xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 mKDir = fullfile(QS.dir.metricKinematics.root, ...
-    strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
-    lambda, lambda_mesh, lambda_err), '.', 'p'));
+    strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f_modes%02dw%02d'], ...
+    lambda, lambda_mesh, lambda_err, nmodes, zwidth), '.', 'p'));
 dimDirs = {fullfile(mKDir, 'images_2d'), ...
            fullfile(mKDir, 'images_3d')} ;
 % Make sure the directories exist

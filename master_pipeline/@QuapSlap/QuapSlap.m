@@ -177,7 +177,9 @@ classdef QuapSlap < handle
         smoothing = struct(...
             'lambda', 0.01, ...             % diffusion const for field smoothing on mesh
             'lambda_mesh', 0.002, ...       % diffusion const for vertex smoothing of mesh itself
-            'lambda_err', 0.01) ;           % diffusion const for fields inferred from already-smoothed fields on mesh
+            'lambda_err', 0.01, ...         % diffusion const for fields inferred from already-smoothed fields on mesh
+            'nmodes', 0, ...                % number of low freq modes to keep per DV hoop
+            'zwidth', 0) ;                  % half-width of tripulse filter applied along zeta/z/s/u direction in pullback space, in units of du/dz/ds/dzeta
         pathlines = struct('t0', [], ...    % timestamp (not an index) at which pathlines form regular grid in space
             'piv', [], ...                  % Lagrangian pathlines from piv coords
             'vertices', [], ...             % Lagrangian pathlines from mesh vertices
