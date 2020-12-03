@@ -41,6 +41,8 @@ plot_factors = true ;
 lambda = QS.smoothing.lambda ; 
 lambda_mesh = QS.smoothing.lambda_mesh ;
 lambda_err = QS.smoothing.lambda_err ;
+nmodes = QS.smoothing.nmodes ;
+zwidth = QS.smoothing.zwidth ;
 climit = 0.2 ;
 climit_veln = climit * 10 ;
 climit_H = climit * 2 ;
@@ -72,6 +74,12 @@ if isfield(options, 'lambda_mesh')
 end
 if isfield(options, 'lambda_err')
     lambda_err = options.lambda_err ;
+end
+if isfield(options, 'nmodes')
+    nmodes = options.nmodes ;
+end
+if isfield(options, 'zwidth')
+    zwidth = options.zwidth ;
 end
 if isfield(options, 'climit')
     climit = options.climit ;
@@ -110,13 +118,14 @@ buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 if strcmp(averagingStyle, 'simple')
     mKDir = fullfile(QS.dir.metricKinematicsSimple, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
-        lambda, lambda_mesh, lambda_err), '.', 'p'));
+        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f_modes%02dw%02d'], ...
+        lambda, lambda_mesh, lambda_err, nmodes, zwidth), '.', 'p'));
 else
     mKDir = fullfile(QS.dir.metricKinematics.root, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
-        lambda, lambda_mesh, lambda_err), '.', 'p'));
+        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f_modes%02dw%02d'], ...
+        lambda, lambda_mesh, lambda_err, nmodes, zwidth), '.', 'p'));
 end
+
 folds = load(QS.fileName.fold) ;
 fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 
@@ -320,8 +329,7 @@ for tp = tp2do
         % figure ; 
         % plot(mesh.v(:, 2) - m2.v(:, 2), vv(:, 2), '.')
         % clearvars tmp
-
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         % Actual normal velocity -- currently using ORIGINAL mesh normals
         veln3d = sum(cat(2, vxs, vys, vzs) .* mesh.vn, 2) ;
@@ -364,6 +372,11 @@ for tp = tp2do
         veln = reshape(veln2d, [nU,nV]) ;
         H2vn = reshape(H2vn2d, [nU, nV]) ;
         radius = reshape(radi2d, [nU, nV]) ;
+        
+        % Bandpass filter modes
+        if nmodes > 0
+            modeFilter2D(yy, nmodes, false)
+        end
         
         % Average along DV -- ignore last redudant row at nV
         HH_ap = mean(HH(:, 1:nV-1), 2) ;
@@ -475,6 +488,8 @@ for tp = tp2do
     pOptions.lambda = lambda ;
     pOptions.lambda_err = lambda_err ;
     pOptions.lambda_mesh = lambda_mesh ;
+    pOptions.nmodes = nmodes ;
+    pOptions.zwidth = zwidth ;
     pOptions.H2vn2d = H2vn2d ;
     pOptions.divv2d = divv2d ;
     pOptions.gdot2d = gdot2d ;

@@ -182,6 +182,7 @@ end
 
 % Propagate forward first: tIdx(t0)+2 onward
 for qq = (max(idx0)+1):length(timePoints)
+    disp(['tidx = ' num2str(qq)])
     % 1. Interpolate velocities at time qq-1
     uu = squeeze(vPIV(qq-1, :, :, 1)) ;
     vv = squeeze(vPIV(qq-1, :, :, 2)) ;
@@ -190,8 +191,8 @@ for qq = (max(idx0)+1):length(timePoints)
     vi = griddedInterpolant(xpiv', ypiv', vv', 'linear', 'nearest') ; 
 
     % 2. Evaluate at XY(qq-1) non-transposed coords
-    xx = XX(qq-1, :, :) ;
-    yy = YY(qq-1, :, :) ;
+    xx = squeeze(XX(qq-1, :, :)) ;
+    yy = squeeze(YY(qq-1, :, :)) ;
     % assert(all(abs(xx(:)) > 0))
     dx = reshape(ui(xx(:), yy(:)), size(xx)) ;
     dy = reshape(vi(xx(:), yy(:)), size(yy)) ;
@@ -239,6 +240,7 @@ end
 if min(idx0) > 1 
     backward_times = fliplr( 1:(min(idx0)-1) ) ;
     for qq = backward_times 
+        disp(['tidx = ' num2str(qq)])
         % 1. Interpolate velocities of time qq at their advected 
         %    locations in qq+1.
         %
@@ -269,8 +271,8 @@ if min(idx0) > 1
         vi = scatteredInterpolant(xa, ya, vv(:), 'natural', 'nearest') ;
 
         % 2. Evaluate at XY(qq+1) non-transposed coords 
-        xx = XX(qq+1, :, :) ;
-        yy = YY(qq+1, :, :) ;
+        xx = squeeze(XX(qq+1, :, :)) ;
+        yy = squeeze(YY(qq+1, :, :)) ;
 
         % 3. Pull XY back
         dx = reshape(ui(xx(:), yy(:)), size(xx)) ;

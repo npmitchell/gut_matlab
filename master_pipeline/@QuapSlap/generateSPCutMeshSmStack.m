@@ -26,6 +26,7 @@ layer_spacing = 1 ;
 smoothIter = 0 ;
 preSmoothIter = 0 ;
 overwrite = false ;
+imSize = 500 ;
 if isfield(spcutMeshSmStackOptions, 'overwrite')
     overwrite = spcutMeshSmStackOptions.overwrite ;
 end
@@ -43,6 +44,9 @@ if isfield(spcutMeshSmStackOptions, 'smoothIter')
 end
 if isfield(spcutMeshSmStackOptions, 'preSmoothIter')
     preSmoothIter = spcutMeshSmStackOptions.preSmoothIter ;
+end
+if isfield(spcutMeshSmStackOptions, 'imSize')
+    imSize = spcutMeshSmStackOptions.imSize;
 end
 
 % Unpack QS
@@ -77,6 +81,7 @@ for qq = 1:length(QS.xp.fileMeta.timePoints)
         Options.smoothIter = smoothIter ;
         Options.preSmoothIter = preSmoothIter ;
         Options.yLim = [-0.5, 1.5] ;
+        Options.imSize = imSize ;
         
         % Note that we pass a_fixed * 0.5 since the image is extended by a
         % factor of two

@@ -93,6 +93,18 @@ QS.fullFileBase.mip = fullfile(QS.dir.mip, 'mip_%06d.tif') ;
 uvDir = fullfile(QS.dir.mesh, sprintf('gridCoords_nU%04d_nV%04d', QS.nU, QS.nV)) ;
 QS.dir.uvCoord = uvDir ;
 
+%% Thickness
+QS.dir.thickness = fullfile(QS.dir.uvCoord, 'thickness', ...
+    '%s', 'stack_%02d_%02d_%0.2fum') ; 
+% --> coordSys, n_outward, n_inward, stepSize (layerSpacing * QS.APDV.resolution)
+QS.fullFileBase.thickness = struct() ;
+QS.fullFileBase.thickness.ims2d = fullfile(QS.dir.thickness, 'images2d', ...
+    [QS.fileBase.name '_thickness_2d.png']) ;
+QS.fullFileBase.thickness.ims3d = fullfile(QS.dir.thickness, 'images3d', ...
+    [QS.fileBase.name '_thickness_3d.png']) ;
+QS.fullFileBase.thickness.data = fullfile(QS.dir.thickness, ...
+    [QS.fileBase.name '_thickness.mat']) ;
+
 % define string for smoothing params
 if isfield(opts, 'lambda')
     QS.smoothing.lambda = opts.lambda ;
@@ -103,9 +115,12 @@ end
 if isfield(opts, 'lambda_err')
     QS.smoothing.lambda_err = opts.lambda_err ;
 end
-l_lmesh_lerr =  strrep(sprintf('lambda%0.03f_lmesh%0.3f_lerr%0.3f', ...
+if isfield(opts, 'nmodes')
+    QS.smoothing.nmodes = opts.nmodes ;
+end
+l_lmesh_lerr =  strrep(sprintf('lambda%0.03f_lmesh%0.3f_lerr%0.3f_modes%02dw%02d', ...
     QS.smoothing.lambda, QS.smoothing.lambda_mesh, ...
-    QS.smoothing.lambda_err), '.', 'p') ;
+    QS.smoothing.lambda_err, QS.smoothing.nmodes, QS.smoothing.zwidth), '.', 'p') ;
 l_lmesh = strrep(sprintf('lambda%0.03f_lmesh%0.3f', ...
     QS.smoothing.lambda, QS.smoothing.lambda_mesh), '.', 'p') ;
 

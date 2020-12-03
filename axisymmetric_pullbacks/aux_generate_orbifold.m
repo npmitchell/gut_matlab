@@ -109,14 +109,20 @@ end
 if ~isfield(Options, 'EdgeColor')
     Options.EdgeColor = 'none';
 end
-if ~isfield(Options, 'imSize')
-    disp("WARNING: Options.imSize is overwritten by parameter 'a'")
+if isfield(Options, 'imSize')
+    if length(Options.imSize) > 1
+        disp("WARNING: Options.imSize is overwritten by parameter 'a'")
+    else
+        imsz = Options.imSize ;
+    end
+else
+    imsz = 1000 ;
 end
 if ~isfield(Options, 'yLim')
     Options.yLim = [0 1];
 end
 
-Options.imSize = ceil( 1000 .* [ 1 a ] ) ;
+Options.imSize = ceil( imsz .* [ 1 a ] ) ;
 
 % profile on
 % Create texture image

@@ -33,10 +33,10 @@
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
-cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
+% cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
 % .=========.
 % |  VIP10  |
 % .=========.
@@ -106,7 +106,9 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'fn_prestab', fn_prestab, ...
         'swapZT', swapZT, ...
         'set_preilastikaxisorder', set_preilastikaxisorder, ...
-        't0_for_phi0', 110); 
+        't0_for_phi0', 110, ... % 40 for mef2 single channel, 110 for CAAX excellent
+        'nU', 100, ...  % 150 for mef2 data with posterior midgut loop
+        'nV', 100); 
     disp('Saving masterSettings to ./masterSettings.mat')
     if exist('./masterSettings.mat', 'file')
         ui = input('This will overwrite the masterSettings. Proceed (Y/n)?', 's') ;
@@ -1343,7 +1345,7 @@ disp('done')
 
 %% Pathlines in uv' coords
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 QS.measureUVPrimePathlines(options)
 %
 options = struct() ;
@@ -1351,7 +1353,7 @@ options.overwrite = false ;
 options.climit = 1 ;
 QS.measureBeltramiCoefficient(options)
 
-%% Compare to linearized description
+% Compare to linearized description
 options = struct() ;
 options.overwrite = false ;
 QS.compareBeltramiToLinearizedConstriction(options) ;
@@ -1375,7 +1377,7 @@ QS.plotCellDensityKymograph(options)
 % Skip if already done
 disp('Create pullback stack using S,Phi coords with time-averaged Meshes');
 % Load options
-overwrite = false ;
+overwrite = true ;
 optionfn = fullfile(QS.dir.im_r_sme_stack, 'spcutMeshSmStackOptions.mat') ;
 if ~exist(optionfn, 'file') || overwrite
     spcutMeshSmStackOptions.layer_spacing = 0.5 / QS.APDV.resolution ; % pixel resolution roughly matches xy
@@ -1383,6 +1385,7 @@ if ~exist(optionfn, 'file') || overwrite
     spcutMeshSmStackOptions.n_inward = 40 ;
     spcutMeshSmStackOptions.smoothIter = 0 ;
     spcutMeshSmStackOptions.preSmoothIter = 35 ;
+    spcutMeshSmStackOptions.imSize = 500 ;
     % Save options
     save(optionfn, 'spcutMeshSmStackOptions')
 else
@@ -1392,10 +1395,12 @@ spcutMeshSmStackOptions.overwrite = overwrite ;
 QS.generateSPCutMeshSmStack(spcutMeshSmStackOptions)
 
 %% TRAIN IN ILASTIK ON MIDGUT TISSUE TO GET THICKNESS
-% Read thickness training output
+% Read thickness training output, train with first channel fg, second bg,
+% third optional folded-over tissue. Name output <filename>_thickness.h5
 
 %% MEASURE THICKNESS ======================================================
-% Measure thickness from images of imFolder_spsm_e2 (extendedLUT_smoothed)
+% Measure thickness from images of imFolder_sp_r_sme_stack (extendedLUT_smoothed)
+thicknessOptions = struct() ;
 QS.measureThickness(thicknessOptions)
 
 %% DUMP OR LOAD HERE [break]
@@ -1549,13 +1554,34 @@ options.overwrite = false ;
 options.samplingResolution = '1x' ;
 options.averagingStyle = 'Lagrangian' ;
 QS.helmholtzHodge(options) ;
-% Compressibility & kinematics for Lagrangian
+%% Compressibility & kinematics for Lagrangian
 options = struct() ;
 options.overwrite = false ;
 options.samplingResolution = '1x'; 
+options.nModes = 0 ;  %% bandwidth filtering
 QS.measureMetricKinematics(options)
-% Metric Kinematics Kymographs & Correlations
+
+%% Metric Kinematics Kymographs & Correlations -- RAW
 options = struct() ;
+options.nModes = 0 ;  %% no bandwidth filtering
+options.overwrite = false ;
+options.overwrite_timePoints = false ;
+options.plot_Hgdot = false ;
+options.plot_flows = false ;
+options.plot_factors = false ;
+options.plot_kymographs = true ;
+options.plot_kymographs_cumsum = true ;
+options.plot_kymographs_cumprod = true ;
+options.plot_correlations = true ;
+options.plot_raw_correlations = false ;
+options.plot_gdot_correlations = false ;
+options.plot_gdot_decomp = false ;
+options.climit = 0.1 ;
+QS.plotMetricKinematics(options)
+
+%% Metric Kinematics Kymographs & Correlations -- Bandwidth Filtered
+options = struct() ;
+options.nModes = 5 ; %% bandwidth filtering to 5 lowest circumferential modes
 options.overwrite = false ;
 options.overwrite_timePoints = false ;
 options.plot_Hgdot = false ;
@@ -1571,7 +1597,7 @@ options.plot_gdot_decomp = false ;
 options.climit = 0.1 ;
 QS.plotMetricKinematics(options)
 
-% Pullback pathlines connecting Lagrangian grids
+%% Pullback pathlines connecting Lagrangian grids
 options = struct() ;
 options.overwrite = false ;
 options.preview = false ;
@@ -1595,7 +1621,7 @@ options.overwrite = false ;
 QS.measurePathlineMetricKinematics(options)
 % Plot Pathline Kinematics
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.plot_kymographs = false ;
 options.plot_kymographs_cumsum = false ;
 options.plot_kymographs_cumprod = false ;
