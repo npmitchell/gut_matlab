@@ -93,19 +93,7 @@ QS.fullFileBase.mip = fullfile(QS.dir.mip, 'mip_%06d.tif') ;
 uvDir = fullfile(QS.dir.mesh, sprintf('gridCoords_nU%04d_nV%04d', QS.nU, QS.nV)) ;
 QS.dir.uvCoord = uvDir ;
 
-%% Thickness
-QS.dir.thickness = fullfile(QS.dir.uvCoord, 'thickness', ...
-    '%s', 'stack_%02d_%02d_%0.2fum') ; 
-% --> coordSys, n_outward, n_inward, stepSize (layerSpacing * QS.APDV.resolution)
-QS.fullFileBase.thickness = struct() ;
-QS.fullFileBase.thickness.ims2d = fullfile(QS.dir.thickness, 'images2d', ...
-    [QS.fileBase.name '_thickness_2d.png']) ;
-QS.fullFileBase.thickness.ims3d = fullfile(QS.dir.thickness, 'images3d', ...
-    [QS.fileBase.name '_thickness_3d.png']) ;
-QS.fullFileBase.thickness.data = fullfile(QS.dir.thickness, ...
-    [QS.fileBase.name '_thickness.mat']) ;
-
-% define string for smoothing params
+%% define string for smoothing params
 if isfield(opts, 'lambda')
     QS.smoothing.lambda = opts.lambda ;
 end
@@ -440,6 +428,18 @@ QS.fullFileBase.cellProbabilities = ...
 QS.fileBase.cellID = [QS.fileBase.name, '_pbrsme_cells'] ;
 QS.fullFileBase.cellID = fullfile(QS.dir.cellID, ...
      [QS.fileBase.cellID '.mat']) ;
+ 
+%% Thickness
+QS.dir.thickness = fullfile(QS.dir.uvCoord, 'thickness', ...
+    '%s', 'stack_%02d_%02d_%0.2fum') ; 
+% --> coordSys, n_outward, n_inward, stepSize (layerSpacing * QS.APDV.resolution)
+QS.fullFileBase.thickness = struct() ;
+QS.fullFileBase.thickness.ims2d = fullfile(QS.dir.thickness, 'images2d', ...
+    [QS.fileBase.name '_thickness_2d.png']) ;
+QS.fullFileBase.thickness.ims3d = fullfile(QS.dir.thickness, 'images3d', ...
+    [QS.fileBase.name '_thickness_3d.png']) ;
+QS.fullFileBase.thickness.data = fullfile(QS.dir.thickness, ...
+    [QS.fileBase.name '_thickness.mat']) ;
 
 %% PIV
 % By default, we use sp_sme as the piv coordinate system, but could be
