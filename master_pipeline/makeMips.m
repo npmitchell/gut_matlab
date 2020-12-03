@@ -17,6 +17,10 @@ function makeMips(timePoints, dir16bit, fileName, mipDir, Options)
 % Outputs
 % -------
 %
+% Example usage
+% -------------
+% makeMips(0:150, './', 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif', './mips/')
+% 
 % NPMitchell 2019, based on original script by SJS
 %
 % NOTE:
@@ -31,6 +35,9 @@ function makeMips(timePoints, dir16bit, fileName, mipDir, Options)
 overwrite_mips = true ;
 use_scale = false ; 
 channels = [1] ;
+if nargin < 5
+    Options = struct() ;
+end
 if isfield(Options, 'overwrite_mips')
     overwrite_mips = Options.overwrite_mips ;
 end

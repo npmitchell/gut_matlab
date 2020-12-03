@@ -133,7 +133,7 @@ classdef QuapSlap < handle
             'cutPath', [], ...
             'spcutMesh', [], ...
             'spcutMeshSm', [], ...
-            'uvpcutMeshSm', []) 
+            'uvpcutMesh', []) 
         data = struct('adjustlow', 0, ...
             'adjusthigh', 0, ...
             'axisOrder', [1 2 3], ...
@@ -179,6 +179,14 @@ classdef QuapSlap < handle
             'lambda_mesh', 0.002, ...       % diffusion const for vertex smoothing of mesh itself
             'lambda_err', 0.01) ;           % diffusion const for fields inferred from already-smoothed fields on mesh
         pathlines = struct('t0', [], ...    % timestamp (not an index) at which pathlines form regular grid in space
+            'piv', [], ...                  % Lagrangian pathlines from piv coords
+            'vertices', [], ...             % Lagrangian pathlines from mesh vertices
+            'faces', [], ...                % Lagrangian pathlines from mesh face barycenters
+            'featureIDs', struct(...        % struct with features in pathline coords
+                'vertices', [], ...         % longitudinal position of features from pathlines threaded through pullback mesh vertices at t=t0Pathline
+                'piv', [], ...              % longitudinal position of features from pathlines threaded through PIV evaluation coordinates at t=t0Pathline
+                'faces', []));              % longitudinal position of features from pathlines threaded through pullback mesh face barycenters at t=t0Pathline
+        pathlines_uvprime = struct('t0', [], ...    % timestamp (not an index) at which pathlines form regular grid in space
             'piv', [], ...                  % Lagrangian pathlines from piv coords
             'vertices', [], ...             % Lagrangian pathlines from mesh vertices
             'faces', [], ...                % Lagrangian pathlines from mesh face barycenters
@@ -235,7 +243,7 @@ classdef QuapSlap < handle
             QS.currentMesh.cutMesh = [] ;
             QS.currentMesh.spcutMesh = [] ;
             QS.currentMesh.spcutMeshSm = [] ;
-            QS.currentMesh.uvpcutMeshSm = [] ;
+            QS.currentMesh.uvpcutMesh = [] ;
             QS.currentData.IV = [] ;
             QS.currentData.adjustlow = 0 ;
             QS.currentData.adjusthigh = 0 ;
@@ -801,7 +809,7 @@ classdef QuapSlap < handle
             QS.currentMesh.spcutMeshSm = tmp.spcutMeshSm ;
         end
         
-        % uvpcutMeshSm (uvprime cutMesh)
+        % t0_for_phi0 (uvprime cutMesh)
         function mesh = getCurrentUVPrimeCutMesh(QS)
             if isempty(QS.currentMesh.uvpcutMesh)
                 QS.loadCurrentSPCutMeshSm() ;
@@ -815,7 +823,98 @@ classdef QuapSlap < handle
         end
         measureUVPrimePathlines(QS, options)
         measureBeltramiCoefficient(QS, options)
+        
+        % Radial indentation for pathlines
+        function indentation = measurePathlineIndentation(QS, options)
+            overwrite = false ;
+            t0p = QS.t0set() ;
+            if isfield(options, 'overwrite')
+                overwrite = options.overwrite ;
+            end
+            if isfield(options, 't0Pathline')
+                t0p = options.t0Pathline ;
+            end
+            indentFn = sprintf(QS.fileName.pathlines_uvprime.indentation, t0p) ;
+            if ~exist(indentFn, 'file') || overwrite
+                radFn = sprintf(QS.fileName.pathlines_uvprime.radius, t0p) ;
+                if ~exist(radFn, 'file')
+                    QS.measureUVPrimePathlines(options) ;
+                end
                 
+                load(radFn, 'vRadiusPathlines')
+                rad = vRadiusPathlines.radii ;
+                nU = size(rad, 2) ;
+                indentation = 0 * rad ;
+                rad0 = rad(vRadiusPathlines.tIdx0, :, :) ;
+                for tidx = 1:length(QS.xp.fileMeta.timePoints)
+                    indentation(tidx, :, :) = -(rad(tidx, :, :) - rad0) ./ rad0 ;
+                end
+                save(indentFn, 'indentation')
+                
+                % Plot the indentation as a kymograph
+                close all
+                figfn = fullfile(sprintf(QS.dir.pathlines_uvprime.data, ...
+                    t0p), 'indentation_kymograph.png') ;
+                set(gcf, 'visible', 'off')
+                indentAP = mean(indentation, 3) ;
+                uspace = linspace(0, 1, nU) ;
+                imagesc(uspace, QS.xp.fileMeta.timePoints, indentAP)
+                xlabel('ap position, $u''/L$', 'interpreter', 'latex')
+                ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+                caxis([-max(abs(indentAP(:))), max(abs(indentAP(:)))])
+                colormap blueblackred
+                cb = colorbar() ;
+                ylabel(cb, 'indentation $\delta r/r_0$', 'interpreter', 'latex')
+                saveas(gcf, figfn)
+                
+                % Plot in 3d
+                % load reference mesh and pathline vertices in 3d
+                load(sprintf(QS.fileName.pathlines_uvprime.refMesh, t0p), ...
+                    'refMesh') ;
+                load(sprintf(QS.fileName.pathlines_uvprime.v3d, t0p), 'v3dPathlines') ;
+                indentDir = sprintf(QS.dir.pathlines_uvprime.indentation, t0p) ;
+                if ~exist(indentDir, 'dir')
+                    mkdir(indentDir) 
+                end
+                [~,~,~,xyzlim] = QS.getXYZLims() ;
+                for tidx = 1:size(rad, 1)
+                    tp = QS.xp.fileMeta.timePoints(tidx) ;
+                    fn = fullfile(indentDir, 'indentation_%06d.png') ;
+                    if ~exist(fn, 'file') || overwrite
+                        close all 
+                        fig = figure('visible', 'off') ;
+                        opts = struct() ;
+                        opts.fig = fig ;
+                        opts.ax = gca ;
+                        xx = v3dPathlines.vXrs(tidx, :) ;
+                        yy = v3dPathlines.vYrs(tidx, :) ;
+                        zz = v3dPathlines.vZrs(tidx, :) ;
+                        v3d = [ xx(:), yy(:), zz(:) ] ;
+                        indent = indentation(tidx,:,:) ;
+                        opts.sscale = 0.5 ;
+                        opts.axisOff = false ;
+                        opts.label = 'constriction, $\delta r/r_0$' ;
+                        opts.ax_position = [0.1141, 0.1100, 0.6803, 0.8150] ;
+                        scalarFieldOnSurface(refMesh.f, v3d, indent(:), opts) ;
+                        view(0, 0)
+                        axis equal
+                        axis off
+                        xlim(xyzlim(1, :))
+                        ylim(xyzlim(2, :))
+                        zlim(xyzlim(3, :))
+                        sgtitle(['constriction, $t=$', sprintf('%03d', tp), ...
+                            ' ', QS.timeUnits ], 'interpreter', 'latex')
+                        saveas(gcf, sprintf(fn, tp)) ;
+                        close all
+                    end
+                end
+                
+            else
+                load(indentFn, 'indentation')
+            end
+        end
+        
+        
         % Pullbacks
         generateCurrentPullbacks(QS, cutMesh, spcutMesh, spcutMeshSm, pbOptions)
         function doubleCoverPullbackImages(QS, options)
@@ -929,6 +1028,7 @@ classdef QuapSlap < handle
         
         % folds & lobes
         identifyFolds(QS, options)
+        measureFoldRadiiVariance(QS, options)
         [lengths, areas, volumes] = measureLobeDynamics(QS, options)
         plotLobes(QS, options) 
         function plotConstrictionDynamics(QS, overwrite)
@@ -954,7 +1054,7 @@ classdef QuapSlap < handle
                 QS.xp.fileMeta.timePoints, QS.fullFileBase.spcutMesh, ...
                 QS.fullFileBase.alignedMesh, ...
                 QS.normalShift, QS.APDV.rot, QS.APDV.trans, QS.APDV.resolution, ...
-                QS.plotting.colors, QS.plotting.xyzlim_um, QS.flipy)
+                QS.plotting.colors, QS.plotting.xyzlim_um_buff, QS.flipy)
         end
         
         % Smooth meshes in time
@@ -1205,6 +1305,32 @@ classdef QuapSlap < handle
             else
                 error('Code for this pathlineType here')
             end
+        end
+        
+        function featureIDs = getUVPrimePathlineFeatureIDs(QS, pathlineType, options)
+            % featureIDs = getUVPrimePathlineFeatureIDs(QS, pathlineType, options)
+            %   recall, load, or interactively identify feature locations 
+            %   as positions in zeta, the longitudinal pullback coordinate 
+            %
+            if nargin < 2
+                pathlineType = 'vertices' ;
+            end
+            if nargin < 3
+                options = struct() ;
+            end
+            if strcmpi(pathlineType, 'vertices')
+                if isempty(QS.pathlines_uvprime.featureIDs.vertices)
+                    options.field2 = 'radius' ;
+                    featureIDs = ...
+                        QS.measureUVPrimePathlineFeatureIDs( ...
+                        pathlineType, options) ;
+                    QS.pathlines.featureIDs.vertices = featureIDs ;
+                else
+                    featureIDs = QS.pathlines_uvprime.featureIDs.vertices ;
+                end
+            else
+                error('Code for this pathlineType here')
+            end            
         end
         
         %% Velocities -- loading Raw / noAveraging
@@ -1648,6 +1774,22 @@ classdef QuapSlap < handle
             tform = affine3d(rotM) ;
             invtform = invert(tform) ;
             invRot = invtform.T(1:3,1:3) ;
+        end
+        
+        function [dorsal, ventral, left, right] = quarterIndicesDV(nV)
+            %[dorsal, ventral, left, right] = quarterIndicesDV(nV)
+            % indices for each quarter of a DV section in grid coordinates
+            if nargin < 1
+                nV = QS.nV ;
+            end            
+            q0 = round(nV * 0.125) ;
+            q1 = round(nV * 0.375) ;
+            q2 = round(nV * 0.625) ;
+            q3 = round(nV * 0.875) ;
+            left = q0:q1 ;
+            ventral = q1:q2 ;
+            right = q2:q3 ;
+            dorsal = [q3:nV, 1:q1] ;
         end
     end
     

@@ -27,7 +27,7 @@ function generateCurrentCutMesh(QS, cutMeshOptions)
 % Parameters for cutMesh creation
 nsegs4path = 2 ;
 maxJitter = 100 ;
-maxTwChange = 0.20 ;
+maxTwChange = 0.40 ;
 preview = false ;
 try
     t0 = QS.t0set() ;
@@ -178,6 +178,11 @@ else
     cntrline = cleanCntrlines{QS.xp.tIdx(tt)} ;
     cntrline = cntrline(:, 2:4) ;
     
+    % Check topology 
+    eulerChar = eulerCharacteristic(mesh) ;
+    assert(eulerChar == 0)
+    
+    % Cut the mesh
     [cutMesh, adIDx, pdIDx, cutP, ~] = ...
         generateCutMeshFixedTwist(mesh, adIDx, pdIDx, ...
         cntrline,...  % supply the current corrected centerline

@@ -91,7 +91,7 @@ load(sprintf(QS.fileName.pathlines.fXY, t0), 'facePathlines')
 ntps = length(timePoints)-1;
 
 %% Now load Lagrangian vels (along streamlines) & plot them
-disp('Saving the time-smoothed velocities to disk')
+disp('Saving images of time-smoothed velocities to disk')
 fvsmM   = sprintf(QS.fileName.pathlines.velocities.v3dsm, t0) ;
 fvfsmM  = sprintf(QS.fileName.pathlines.velocities.vfsm, t0) ;
 fvnsmM  = sprintf(QS.fileName.pathlines.velocities.vnsm, t0) ;

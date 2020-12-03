@@ -193,7 +193,6 @@ while twist_changed
     cutOptions.path = previousP_kk;
     disp(['Cutting mesh using method ' cutOptions.method])
     try
-        
         figure(1); clf
         set(gcf, 'visible', 'on')
         trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), ...
@@ -263,6 +262,9 @@ while twist_changed
         end
     catch
         disp('Could not generate cutMesh, likely not a topological disk')
+        
+        eulerChar = eulerCharacteristic(cutMesh) ;
+        disp(['Euler characteristic = ', num2str(eulerChar)])
         pause(0.0001)
         close all
         nsegs4path_kk = round(nsegs4path_kk + nsegs_growth_rate) ;

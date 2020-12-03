@@ -1,7 +1,8 @@
-function featureIDs = measurePathlineFeatureIDs(QS, pathlineType, options)
-%measurePathlineFeatureIDs(QS, options)
+function featureIDs = measureUVPrimePathlineFeatureIDs(QS, pathlineType, options)
+%measureUVPrimePathlineFeatureIDs(QS, options)
 % Interactively identify one longitudinal (zeta) position per feature for 
-% Lagrangian pathlines using field measurements along Lagrangian pathlines. 
+% Lagrangian pathlines using field measurements along Lagrangian pathlines
+% of the coordinate system (u',v') [conformally mapped to plane]
 %
 % One can use, for example, radius of the pathlines on the mesh from the 
 % centerline, or the normal velocity, or dz -- the ratio of projected 
@@ -12,6 +13,10 @@ function featureIDs = measurePathlineFeatureIDs(QS, pathlineType, options)
 % positions along the longitudinal dimension.
 %
 % todo: generalize beyond vP pathline array
+%
+% See also
+% --------
+% measurePathlineFeatureIDs.m
 % 
 % Parameters
 % ----------
@@ -74,18 +79,13 @@ if isfield(options, 'field2')
     field2 = options.field2 ;
 end
 
-
 %% Identify pathline coodinates using desired scalar fields for inspection
 if strcmpi(pathlineType, 'vertices')
-    %% Obtain mat filenames for loading fields
-    loadDir = QS.dir.metricKinematics.pathline.measurements ;
-    apKymoMetricKinFn = fullfile(loadDir, 'apKymographMetricKinematics.mat') ;
-
     %% To grab fold location in Lagrangian coords robustly, find minima of 
     % radii from ap average as kymograph and grab folds and lobes indexed in 
     % Lagrangian coords
     % fIDfn is the feature ID filename for these Lagrangian data
-    fIDfn = sprintf(QS.fileName.pathlines.featureIDs, t0Pathline) ;
+    fIDfn = sprintf(QS.fileName.pathlines_uvprime.featureIDs, t0Pathline) ;
     if exist(fIDfn, 'file') && ~overwrite
         load(fIDfn, 'featureIDs')
     else
@@ -93,40 +93,43 @@ if strcmpi(pathlineType, 'vertices')
 
         % Load scalar field data to choose featureIDs (ex, folds)
         if strcmpi(field1, 'radius') || strcmpi(field2, 'radius')
-            apKymoFn = fullfile( ...
-                sprintf(QS.dir.metricKinematics.pathline.measurements, ...
-                t0Pathline), ...
-                sprintf(QS.fileBase.metricKinematics.pathline.kymographs.ap, ...
-                t0Pathline)) ;
+            apKymoFn = ...
+                sprintf(QS.fileName.pathlines_uvprime.kymographs.radius, ...
+                t0Pathline) ;
             try
                 tmp = load(apKymoFn, 'radius_apM') ;
                 if strcmpi(field1, 'radius') 
                     sf1 = tmp.radius_apM ;
-                else
+                end
+                if strcmpi(field2, 'radius')
                     sf2 = tmp.radius_apM ;
                 end    
             catch
-                error('Run QS.plotPathlineMetricKinematics() before QS.plotPathlineStrainRate()')
+                error('Run QS.measureUVPrimePathlines() before QS.measureUVPrimePathlineFeatureIDs()')
             end
         end
         if strcmpi(field1, 'divv') || strcmpi(field2, 'divv')
+            error('handle using divergence field in uvprime coordSys here')
             try
                 tmp = load(apKymoFn, 'divv_apM') ;
                 if strcmpi(field1, 'divv') 
                     sf1 = tmp.divv_apM ;
-                else
+                end
+                if strcmpi(field2, 'divv')
                     sf2 = tmp.divv_apM ;
                 end
             catch
-                error('Run QS.plotPathlineMetricKinematics() before QS.plotPathlineStrainRate()')
+                error('Run QS.measureUVPrimePathlines() before QS.measureUVPrimePathlineFeatureIDs()')
             end
         end
         if strcmpi(field1, 'veln') || strcmpi(field2, 'veln')
+            error('handle using divergence field in uvprime coordSys here')
             try
                 tmp = load(apKymoFn, 'veln_apM') ;
                 if strcmpi(field1, 'veln') 
                     sf1 = tmp.veln_apM ;
-                else
+                end
+                if strcmpi(field2, 'veln')
                     sf2 = tmp.veln_apM ;
                 end
             catch
@@ -135,10 +138,20 @@ if strcmpi(pathlineType, 'vertices')
         end
 
         %% Interactively adjust feature locations
+        close all
+        subplot(1, 2, 1)
+        imagesc(sf1)
+        title(field1)
+        subplot(1, 2, 2)
+        imagesc(sf2)
+        title(field2)
+        sgtitle('Scalar fields for detecting UVPrime Lagrangian featureIDs')
+        
         nfeatureIDs = input('How many featureIDs (ex folds) to identify in Lagrangian data? [Default=3]') ;
         if isempty(nfeatureIDs)
             nfeatureIDs = 3 ;
         end
+        close all
 
         % Make a guess as to the features using minima of field1
         tps = QS.xp.fileMeta.timePoints - QS.t0 ;
@@ -197,7 +210,7 @@ if strcmpi(pathlineType, 'vertices')
         for qq = 1:nfeatureIDs
             plot(featureIDs(qq)/nU * ones(size(tps)), tps) ;
         end
-        title(['Guess for featureIDs on ' field2])
+        title('Guess for featureIDs on normal velocity')
         disp(['Guessed automatic featureIDs to be: [' num2str(featureIDs) ']'])
 
         % Update the guess
@@ -250,11 +263,12 @@ if strcmpi(pathlineType, 'vertices')
             end
         end
         %% Save featureIDs (valleys of div(v))
+        disp(['Saving featureIDs for UVPrime pathline coordinates: ' fIDfn])
         save(fIDfn, 'featureIDs')
     end
     
     % Store in QS
-    QS.pathlines.featureIDs.vertices = featureIDs ;
+    QS.pathlines_uvprime.featureIDs.vertices = featureIDs ;
 else
     error('Code for this pathlineType here')
 end

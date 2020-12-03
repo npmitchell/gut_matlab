@@ -253,7 +253,7 @@ if overlay_quiver
                 ff, seedIDx, fpvsOpts) ;
         elseif strcmp(subsamplingMethod, 'random')
             disp('Subsampling via random sampling')
-            sampleIDx = round(random(nPts) * length(xx(:))) ;
+            sampleIDx = round(rand(nPts,1) * length(xx(:))) ;
         elseif strcmp(subsamplingMethod, 'custom')
             try
                 sampleIDx = options.sampleIDx ;

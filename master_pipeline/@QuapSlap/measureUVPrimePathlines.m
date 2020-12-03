@@ -1,4 +1,4 @@
-function measurePullbackPathlines(QS, options)
+function measureUVPrimePathlines(QS, options)
 %measurePullbackPathlines(QS, options)
 %   Measure pathlines of optical flow in pullback space. 
 %   These pathlines can then be used to query velocities or other
@@ -139,8 +139,21 @@ if ~exist(refMeshFn, 'file') || overwrite
     Ly = size(im0, 2) * ones(length(timePoints), 1) ;
     m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], refMesh.u, doubleCovered, umax0, vmax0) ;
     refMesh.XY = m0XY ;
+    try
+        refMesh.mu
+    catch
+        refMesh.mu = bc_metric(refMesh.f, refMesh.u, refMesh.v, 3) ;
+    end
     save(refMeshFn, 'refMesh')
+else
+    load(refMeshFn, 'refMesh')
+    try
+        refMesh.mu ;
+    catch
+        refMesh.mu = bc_metric(refMesh.f, refMesh.u, refMesh.v, 3) ;
+    end
 end
+mu0 = mean(real(refMesh.mu)) ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% PIV evaluation coordinates in XY pixel space
@@ -181,7 +194,7 @@ else
     computed_XY = false ;
 end
 
-% Save image of result
+%% Save image of result
 plineFig = [plineXY(1:end-4) '.png'] ;
 if ~exist(plineFig, 'file') || overwrite
     close all
@@ -235,9 +248,8 @@ else
     disp(["PIV (u',v') pathline image already on disk: " plineFig])
 end
 
-% Make movie -- PIV evaluation grid
-for tidx = 1:length(timePoints)   
-    
+%% Make movie -- PIV evaluation grid
+for tidx = 1:length(timePoints)
     set(gcf, 'visible', 'off')
     if mod(tidx, 10) == 0
         disp(['t = ', num2str(timePoints(tidx))])
@@ -855,7 +867,6 @@ for tidx = 1:length(QS.xp.fileMeta.timePoints)
         xlim(xyzlims(1, :))
         ylim(xyzlims(2, :))
         zlim(xyzlims(3, :))
-        daspect([1 QS.a_fixed 1])
         % title('pathlines: mesh vertices', 'Interpreter', 'Latex')
         xlabel(['ap position [' QS.spaceUnits ']'], 'Interpreter', 'Latex')
         ylabel(['lateral position [' QS.spaceUnits ']'], 'Interpreter', 'Latex')
@@ -895,6 +906,225 @@ for tidx = 1:length(QS.xp.fileMeta.timePoints)
         disp(['Mesh advected vertex XYZ pathline image already on disk: ' plineFig])
     end
 end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Push forward vertex pathlines from pullback to embedding coordinates
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+pliner3d = sprintf(QS.fileName.pathlines_uvprime.radius, t0) ;
+if ~exist(pliner3d, 'file') || overwrite
+    disp('Computing radii along pathlines in embedding space for Lagrangian/advected uvprimecutMesh vertex coords')
+    % Build 3d pathlines in embedding space for all vertex locations
+    % Load 2d pathlines in pullback space if not already in RAM
+    if ~computed_vXY 
+        load(sprintf(QS.fileName.pathlines_uvprime.vXY, t0), 'vertexPathlines')
+        vX = vertexPathlines.vX ;
+        vY = vertexPathlines.vY ;
+        t0 = vertexPathlines.t0 ;
+        tIdx0 = vertexPathlines.tIdx0 ;
+        Lx = vertexPathlines.Lx ;
+        Ly = vertexPathlines.Ly ;
+        computed_vXY = true ;
+    end
+    
+    % Preallocate v3d = (XX, YY, ZZ)
+    vRad = zeros(size(vX)) ;
+    
+    % For each timepoint, push advected vertices forward into embedding space
+    for tidx = 1:length(timePoints)
+        tp = timePoints(tidx) ;
+        if mod(tidx, 10) == 0
+            disp(['t = ', num2str(tp)])
+        end
+        
+        % Load this timepoint's uvprime cutMesh
+        mesh0 = load(sprintf(QS.fullFileBase.uvpcutMesh, tp), ...
+                             'uvpcutMesh') ;
+        mesh0 = mesh0.uvpcutMesh.raw ;
+        rad0 = mesh0.radius_um(:) ;
+        umax0 = max(mesh0.u(:, 1)) ;
+        vmax0 = max(mesh0.u(:, 2)) ;
+        nU = mesh0.nU ;
+        nV = mesh0.nV ;
+        tileCount = [1 1] ;
+        [tm0f, tm0v2d, tm0v3d] = tileAnnularCutMesh(mesh0, tileCount);
+        rad0Tiled = [rad0(1:nU*(nV-1)); rad0; rad0(nU+1:end)] ;
+        tm0XY = QS.uv2XY([Lx(tidx) Ly(tidx)], tm0v2d, ...
+                         doubleCovered, umax0, vmax0) ;
+                     
+        % Evaluate at advected Lagrangian-frame vertex positions
+        Xeval = vX(tidx, :, :) ;
+        Yeval = vY(tidx, :, :) ;
+        
+        % Adjust the XY positions so that none are out of bounds
+        epsilon = 1e-7 ;
+        minXallowed = 1 + epsilon ;
+        Xeval = Xeval(:) ;
+        Yeval = Yeval(:) ;
+        Xeval(Xeval(:, 1) < minXallowed) = minXallowed ;
+        Xeval(Xeval(:, 1) > Lx(tidx) - epsilon) = Lx(tidx) - epsilon ;
+        
+        radi = scatteredInterpolant(tm0XY(:, 1), tm0XY(:, 2), rad0Tiled,...
+            'linear', 'nearest') ;
+        radv = radi(Xeval(:), Yeval(:)) ;
+        assert(all(isfinite(radv(:)))) 
+        
+        % Check that points are inside
+        % plot(tm0XY(:, 1), tm0XY(:, 2), '-')
+        % hold on ;
+        % plot(Xeval(:), Yeval(:), '.')
+                
+        % Store in grid 
+        vRad(tidx, :, :) = reshape(radv, [size(vRad, 2), size(vRad, 3)]) ;
+    end
+    
+    % Save pathlines of PIV evaluation coords in embedding coords, XYZ
+    vRadiusPathlines = struct() ;
+    vRadiusPathlines.radii = vRad ;
+    vRadiusPathlines.t0 = t0 ;
+    vRadiusPathlines.tIdx0 = tIdx0 ;
+    disp(['Saving pathline radii to ', pliner3d])
+    save(pliner3d, 'vRadiusPathlines')
+    computed_rad = true ;
+else
+    computed_rad = false ;
+end
+
+if ~exist(sprintf(pathlineDir.radius, t0), 'dir')
+    mkdir(sprintf(pathlineDir.radius, t0))
+end
+
+%% Compute radius kymograph along AP
+kymoDir = sprintf(QS.dir.pathlines_uvprime.kymographs, t0) ;
+if ~exist(kymoDir, 'dir')
+    mkdir(kymoDir) 
+end
+plinerAP = sprintf(QS.fileName.pathlines_uvprime.kymographs.radius, t0) ;
+if ~exist(plinerAP, 'file') || overwrite 
+    if ~computed_rad
+        load(pliner3d, 'vRadiusPathlines')
+        computed_rad = true ;
+    end
+    timePoints = QS.xp.fileMeta.timePoints;
+    nU = size(vRadiusPathlines.radii, 2) ;
+    nV = size(vRadiusPathlines.radii, 3) ;
+    radius_apM = zeros(length(timePoints), nU) ;
+    radius_dM = zeros(length(timePoints), nU) ;
+    radius_vM = zeros(length(timePoints), nU) ;
+    radius_lM = zeros(length(timePoints), nU) ;
+    radius_rM = zeros(length(timePoints), nU) ;
+    for tidx = 1:length(timePoints)
+        radi = squeeze(vRadiusPathlines.radii(tidx, :, :)) ;
+        [dorsal, ventral, left, right] = QS.quarterIndicesDV(nV) ;
+        radius_apM(tidx, :) = mean(radi(:, 1:nV-1), 2) ;
+        radius_dM(tidx, :) = mean(radi(:, dorsal), 2) ;
+        radius_vM(tidx, :) = mean(radi(:, ventral), 2) ;
+        radius_lM(tidx, :) = mean(radi(:, left), 2) ;
+        radius_rM(tidx, :) = mean(radi(:, right), 2) ;
+    end
+    
+    save(plinerAP, 'radius_apM', 'radius_dM', 'radius_vM', ...
+        'radius_lM', 'radius_rM')
+    
+    % Plot each kymo
+    kymos = {radius_apM, radius_dM, radius_vM, radius_lM, radius_rM} ;
+    titles = {'$(u'',v'')$ pathline radii', ...
+        '$(u'',v'')$ pathline radii, dorsal side', ...
+        '$(u'',v'')$ pathline radii, ventral side', ...
+        '$(u'',v'')$ pathline radii, left side', ...
+        '$(u'',v'')$ pathline radii, right side'} ;
+    fns = {[plinerAP(1:end-4) '_ap.png'], ...
+        [plinerAP(1:end-4) '_d.png'], ...
+        [plinerAP(1:end-4) '_v.png'], ...
+        [plinerAP(1:end-4) '_l.png'], ...
+        [plinerAP(1:end-4) '_r.png']} ;
+    uspace = linspace(0, 1, nU) ;
+    for qq = 1:length(kymos)
+        if strcmpi(QS.timeUnits, 'min')
+            imagesc(uspace, (timePoints - vRadiusPathlines.t0)/60, kymos{qq})
+        else
+            imagesc(uspace, timePoints - vRadiusPathlines.t0, radius_apM)
+        end
+        xlabel('ap position, $u$', 'interpreter', 'latex')
+        if strcmpi(QS.timeUnits, 'min')
+            ylabel('time, [hr]', 'interpreter', 'latex')
+        else
+            ylabel(['time, [' QS.timeUnits ']'], 'interpreter', 'latex')
+        end
+        title(titles{qq}, 'interpreter', 'latex')
+        cb = colorbar() ;
+        ylabel(cb, ['radius, [' QS.spaceUnits ']'], 'interpreter', 'latex')
+        saveas(gcf, fns{qq})
+    end
+end
+
+
+% Plot radius in 3d
+for tidx = 1:length(QS.xp.fileMeta.timePoints)
+    tp = QS.xp.fileMeta.timePoints(tidx) ;
+    
+    plineRadFig = fullfile(sprintf(pathlineDir.radius, t0), ...
+        [sprintf(QS.fileBase.name, tp) '.png']) ;
+    
+    if ~exist(plineRadFig, 'file') || overwrite
+        if ~computed_rad
+            load(pliner3d, 'vRadiusPathlines')
+            computed_rad = true ;
+        end
+        
+        % Plot the pathlines -- NOTE that we flip YY coordinates (MATLAB)
+        close all
+        set(gcf, 'visible', 'off')
+        clf
+        
+        xx = vX3rs(tidx, :) ;
+        yy = vY3rs(tidx, :) ;
+        zz = vZ3rs(tidx, :) ;
+        opts = struct() ;
+        opts.axisOff = true ;
+        opts.style = 'positive' ;
+        opts.axPosition = [0.1 0.11 0.85 0.8] ;
+        opts.fig = gcf ;
+        opts.sscale = max(vRadiusPathlines.radii(:)) ;
+        [~, cb] = scalarFieldOnSurface(refMesh.f, [xx(:), yy(:), zz(:)], ...
+            vRadiusPathlines.radii(tidx, :), opts) ;
+        xlim(xyzlims(1, :))
+        ylim(xyzlims(2, :))
+        zlim(xyzlims(3, :))
+        view(0, 0) 
+        xlabel(['ap position [' QS.spaceUnits ']'], 'Interpreter', 'Latex')
+        ylabel(['lateral position [' QS.spaceUnits ']'], 'Interpreter', 'Latex')
+        zlabel(['dv position [' QS.spaceUnits ']'], 'Interpreter', 'Latex')
+        
+        % axis off
+        
+        if black_figs
+            set(gcf, 'color', 'k')
+            set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w', 'zcol', 'w')
+        else
+            set(gca, 'color', 'w')
+        end
+
+        if black_figs
+            set(cb, 'color', 'w') ;
+        end
+        
+        % Adjust size of colorbar
+        cbheight = cb.Position(4) ;
+        cb.Position(1) = cb.Position(1) - 0.02 ;
+        cb.Position(4) = cb.Position(4) ;
+        cb.Position(2) = cb.Position(2) + 0.15 * cbheight ;
+        ax = gca ;
+        ax.Position(1) = ax.Position(1) - 0.05 ; 
+        ylabel(cb, ['radius [' QS.spaceUnits ']' ], 'Interpreter', 'Latex')
+
+        saveas(gcf, plineRadFig)
+        close all
+    else
+        disp(['Mesh radii pathline image already on disk: ' plineFig])
+    end
+end
+
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

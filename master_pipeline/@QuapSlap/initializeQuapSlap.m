@@ -390,7 +390,7 @@ QS.fullFileBase.im_uv = fullfile(QS.dir.im_uv, QS.fileBase.im_uv) ;
 QS.fileBase.im_uvprime = [QS.fileBase.name, '_pbuvprime.tif'] ;
 QS.fullFileBase.im_uvprime = fullfile(QS.dir.im_uvprime, QS.fileBase.im_uvprime) ;
 QS.fileBase.im_uvprime_e = [QS.fileBase.name, '_pbuvpe.tif'] ;
-QS.fullFileBase.im_uvprime = fullfile(QS.dir.im_uvprime_e, QS.fileBase.im_uvprime_e) ;
+QS.fullFileBase.im_uvprime_e = fullfile(QS.dir.im_uvprime_e, QS.fileBase.im_uvprime_e) ;
 QS.fileBase.im_r_uvprime = [QS.fileBase.name, '_pbruvprime.tif'] ;
 QS.fullFileBase.im_r_uvprime = fullfile(QS.dir.im_r_uvprime, QS.fileBase.im_r_uvprime) ;
 QS.fileBase.im_r = [QS.fileBase.name, '_pbr.tif'] ;
@@ -477,6 +477,9 @@ QS.dir.pathlines_uvprime.f3d = fullfile(pdir, 'images_uvprime_f3d') ;
 QS.dir.pathlines_uvprime.strain_images = fullfile(pdir, 'images_strain') ;
 QS.dir.pathlines_uvprime.strain = fullfile(pdir, 'strain') ;
 QS.dir.pathlines_uvprime.quasiconformal = fullfile(pdir, 'quasiconformal') ;
+QS.dir.pathlines_uvprime.radius = fullfile(pdir, 'images_radii_vertices') ;
+QS.dir.pathlines_uvprime.indentation = fullfile(pdir, 'images_indentation') ;
+QS.dir.pathlines_uvprime.kymographs = fullfile(pdir, 'kymographs') ;
 QS.fileName.pathlines_uvprime = struct() ;
 QS.fileName.pathlines_uvprime.featureIDs = fullfile(pdir, 'featureIDs.mat') ;
 QS.fileName.pathlines_uvprime.XY = fullfile(pdir, 'piv_pathlines_uvprime_XY.mat') ;
@@ -488,6 +491,16 @@ QS.fileName.pathlines_uvprime.f3 = fullfile(pdir, 'piv_pathlines_uvprime_f3d.mat
 QS.fileName.pathlines_uvprime.refMesh = fullfile(pdir, 'refMesh.mat') ;
 QS.fileName.pathlines_uvprime.quasiconformal = ...
     fullfile(QS.dir.pathlines_uvprime.quasiconformal, 'mu_v3dv2d.mat') ;
+QS.fileName.pathlines_uvprime.radius = fullfile(pdir, 'pathline_radii_uvprime.mat') ;
+QS.fileName.pathlines_uvprime.indentation = fullfile(pdir, 'pathline_uvprime_indentation.mat') ;
+QS.fileName.pathlines_uvprime.kymographs = struct() ;
+QS.fileName.pathlines_uvprime.kymographs.radius = ...
+    fullfile(QS.dir.pathlines_uvprime.kymographs, 'radiusKymographs_uvprime.mat') ;
+QS.fileName.pathlines_uvprime.kymographs.indentation = ...
+    fullfile(QS.dir.pathlines_uvprime.kymographs, 'indentationKymographs_uvprime.mat') ;
+QS.fileName.pathlines_uvprime.kymographs.mu = ...
+    fullfile(QS.dir.pathlines_uvprime.kymographs, 'muKymographs_uvprime.mat') ;
+
 
 %% Pathline-based strain measurement --> from pathline path
 QS.fileBase.strain = 'strain_%06d.mat' ;
@@ -498,8 +511,9 @@ QS.fullFileBase.pathlines.strain = fullfile(QS.dir.pathlines.strain, ...
 % fdir = QS.dir.pathlines.fundForms ;
 % QS.fileName.pathlines.fundForms = fullfile(fdir, 'fundForms.mat') ;
 % pathline velocities
-QS.fileName.pathlines.velocities = struct() ;
-QS.dir.pathlines.velocities = fullfile(pdir, 'velocities') ; 
+QS.fileName.pathlines.velocities = struct() ; 
+pdir = QS.dir.pathlines.data ;
+QS.dir.pathlines.velocities = fullfile(pdir, 'velocities') ;
 pvdir = QS.dir.pathlines.velocities ;
 QS.fileName.pathlines.velocities.v3d = fullfile(pvdir, 'vM.mat')  ;
 QS.fileName.pathlines.velocities.vn  = fullfile(pvdir, 'vnM.mat') ;

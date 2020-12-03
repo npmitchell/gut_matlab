@@ -1,35 +1,59 @@
-function aux_plot_constriction_DVhoops(folds, fold_onset, outDir, dvexten, ...
-    save_ims, overwrite_lobeims, tp, timePoints, spcutMeshBase, ...
-    alignedMeshBase, normal_shift, rot, trans, resolution, colors, ...
-    xyzlim, flipy)
-%AUX_PLOT_AVGPTCLINE_LOBES auxiliary function for plotting the motion of
-%the constrictions between lobes and the centerlines over time
-% 
+function measureFoldRadiiVariance(QS, options)
+%foldRadiiVariance(QS, OPTIONS)
+%   Identify azimuthal variance in radius around AP feature locations/folds
+%
 % Parameters
 % ----------
-% tp : N x 1 int array
-%   xp.fileMeta.timePoints - min(fold_onset)
-% timePoints : N x 1 int array
-%   the timepoints in the experiment (xp.fileMeta.timePoints)
-% 
+% QS : QuapSlap class instance
+%   Current QuapSlap object
+% options : struct with fields
+%   overwrite : bool, default=false
+%       overwrite results on disk
+%   preivew : bool, default=QS.plotting.preview
+%       display intermediate results
+%
 % Returns
 % -------
+% Saves radii and vairances to disk. 
+%   Data is saved here:
+%       fullfile(lobeDir, ['fold_locations_sphi' dvexten '_avgpts.mat'])
 %
-% NPMitchell 2020 
+% NPMitchell 2020
 
-c1 = colors(1, :) ;
-c2 = colors(2, :) ;
-c3 = colors(3, :) ;
-shift_mag = (normal_shift * resolution) + 1 ; 
-xlims = xyzlim(1, :) + [-shift_mag, shift_mag] ;
-ylims = xyzlim(2, :) + [-shift_mag, shift_mag] ;
-zlims = xyzlim(3, :) + [-shift_mag, shift_mag] ;
+%% Unpack QS
+lobeDir = QS.dir.lobe ;
+nU = QS.nU ;
+nV = QS.nV ;
+uvexten = QS.uvexten ;  % string like sprintf('_nU%04d_nV%04d', nU, nV) ;
+timePoints = QS.xp.fileMeta.timePoints ;
+preview = QS.plotting.preview ;
+spcutMeshBase = QS.fullFileBase.spcutMesh ;
 
-fold_ant_figfn = fullfile(outDir, 'constriction_anterior_%06d.png') ;
-fold_lat_figfn = fullfile(outDir, 'constriction_lat_%06d.png') ;
-fns = dir(strrep(fold_ant_figfn, '%06d', '*')) ;
-if save_ims && (~(length(fns)==length(timePoints)) || overwrite_lobeims)
-    disp('Creating constriction dynamics plots...')
+%% Unpack options
+if nargin < 2
+    options = struct() ;
+end
+if isfield(options, 'overwrite')
+    overwrite = options.overwrite ;
+else
+    overwrite = false ;
+end
+% overwrite QS preview option if present in local options
+if isfield(options, 'preview')
+    preview = options.preview ;
+end
+
+%% First compute using the avgpts (DVhoop means)
+disp('Identifying lobes...')
+
+foldfn = fullfile(lobeDir, ['fold_locations_sphi' uvexten '_avgpts.mat']) ;
+if exist(foldfn, 'file') && ~overwrite
+    disp('Loading lobes')
+    % Save the fold locations as a mat file
+    load(foldfn, 'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset', ...
+        'rssfold', 'rssfold_frac', 'rssmax', 'rmax')    
+    
+    error('here')
     
     disp('Loading hoops for each fold...')
     for kk = 1:length(timePoints)
@@ -58,15 +82,9 @@ if save_ims && (~(length(fns)==length(timePoints)) || overwrite_lobeims)
         f3pt = avgpts(f3, :) ;
 
         % rotate vertices 
-        vrs = ((rot * spcutMesh.v')' + trans) * resolution ;
-        if flipy 
-            vrs(:, 2) = - vrs(:, 2) ; 
-        end
+        vrs = QS.xyz2APDV(spcutMesh.v) ;
         
         % plot DVhoop
-        f1 = double(f1) ;
-        f2 = double(f2) ;
-        f3 = double(f3) ;
         hoop1 = vrs(f1+nU*(0:(nV-1)), :) ;
         hoop2 = vrs(f2+nU*(0:(nV-1)), :) ;
         hoop3 = vrs(f3+nU*(0:(nV-1)), :) ;
@@ -123,8 +141,6 @@ if save_ims && (~(length(fns)==length(timePoints)) || overwrite_lobeims)
         saveas(fig, ofn) ;
         close all
     end
-else
-    disp(['Skipping constriction hoop dynamics plots since they exist (' fold_ant_figfn ')...'])
 end
 
 

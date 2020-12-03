@@ -45,9 +45,7 @@ function [folds, ssfold, ssfold_frac, ssmax, rmax, fold_onset] = ...
 %   positional pathlength along centerline of folds
 % rmax : #timepoints x 1 float
 %   maximum radius of any part of the surface at each timepoint
-%         
-%
-%
+% 
 % NPMitchell 2019
 
 % Default options
@@ -55,10 +53,11 @@ guess123 = [0.3, 0.5, 0.8] ;
 nfolds = length(guess123) ;
 max_wander = 20 ;
 preview = false ;
+verbose = true ;
 method = 'avgpts' ;  % whether to use avgpts_ss or ringpath_ss
 first_tp_allowed = 0 ;
 maxDistsFromGuess = 0.1 * ones(nfolds, 1) ;  % maximum allowed distance from initial guesses to allow minima
-wander_units = 'pcAP' ;
+wander_units = 'pcAP' ;  % 'pcAP' for percent of ap length, or 'spaceUnits' ;
 
 if isfield(options, 'guess123')
     guess123 = options.guess123 ;
@@ -71,6 +70,9 @@ if isfield(options, 'wander_units')
 end
 if isfield(options, 'preview')
     preview = options.preview ;
+end
+if isfield(options, 'verbose')
+    preview = options.verbose ;
 end
 if isfield(options, 'method')
     method = options.method ;
@@ -198,13 +200,20 @@ for kk = 1:length(timePoints)
         % Ensure that no folds have wandered farther than max_wander unless
         % this is the first appearance of that fold
         for pp = 1:length(firsts)
+            % If the fold has already appeared, consider its motion, and 
+            % check if in bounds
+            
             if ~firsts(pp)
-                % If the fold has already appeared, consider its motion
+                % fold has appeared previously, check that this timepoint
+                % is after the onset of fold formation 
                 if kk > onset_kks(pp)
                     % not first appearance, so check distance
                     if strcmpi(wander_units, 'pcap')
-                        wander_too_far = abs(folds_kk(pp) - fold(kk, pp))/length(ss) > 100 * max_wander ; 
-                    elseif strcmpi(wander_units, QS.spaceUnits)
+                        if t == timePoints(end)
+                            pause(2)
+                        end
+                        wander_too_far = abs(double(folds_kk(pp) - folds(kk, pp))) > max_wander ; 
+                    elseif strcmpi(wander_units, 'spaceunits')
                         wander_too_far = abs(ss(folds_kk(pp)) - ssfold(kk, pp)) > max_wander ;
                     else
                         error(['Unknown unit for wander_units: should be pcAP (for %AP axis) or ' QS.spaceUnits])
@@ -220,15 +229,19 @@ for kk = 1:length(timePoints)
                 end
             end
         end
-        
-        % Append the updated fold positions if valid
-        % First check if first fold position or not. 
-        for qq = 1:nfolds
-            if ~firsts(qq)
-                folds(kk + 1, qq) = folds_kk(qq) ;
-                ssfold(kk + 1, qq) = ss(folds_kk(qq)) ;
-                ssfold_frac(kk + 1, qq) = ss(folds_kk(qq)) / maxss ; 
-            end
+                
+        if verbose
+            disp(['folds = ', num2str(folds(kk + 1, :))])
+        end
+    end
+
+    % Append the updated fold positions if valid
+    % First check if first fold position or not. 
+    for qq = 1:nfolds
+        if ~firsts(qq)
+            folds(kk + 1, qq) = folds_kk(qq) ;
+            ssfold(kk + 1, qq) = ss(folds_kk(qq)) ;
+            ssfold_frac(kk + 1, qq) = ss(folds_kk(qq)) / maxss ; 
         end
     end
     
@@ -238,6 +251,9 @@ for kk = 1:length(timePoints)
         plot(rad)
         hold on;
         plot(folds(kk+1, :), rad(folds(kk+1, :)), 'o')
+        xlabel('s/L')
+        ylabel('radius')
+        title(['fold id, t=', num2str(t)])
         pause(0.001)
     end
     
@@ -264,8 +280,8 @@ ssfold_frac = ssfold_frac(2:end, :) ;
 
 % Identify location prior to appearance of each fold as first location
 for qq = 1:length(onset_kks)
-    folds(1:(onset_kks(qq)-1), qq) = folds(onset_kks(qq), 1) ;
-    ssfold_frac(1:(onset_kks(qq)-1), 1) = ssfold_frac(onset_kks(qq), 1) ;
+    folds(1:(onset_kks(qq)-1), qq) = folds(onset_kks(qq), qq) ;
+    ssfold_frac(1:(onset_kks(qq)-1), qq) = ssfold_frac(onset_kks(qq), qq) ;
 end
 
 % Go back and find the ss (pathlength) value for pre-fold indices
