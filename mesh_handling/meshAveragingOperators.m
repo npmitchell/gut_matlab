@@ -1,6 +1,7 @@
 function [V2F, F2V] = meshAveragingOperators(F, V)
-%MESHAVERAGINOPERATORS Construct sparse operators that can convert
-%quantities from faces to vertices and vice versa
+%MESHAVERAGINOPERATORS(F,V) 
+% Construct sparse operators that can convert quantities from faces to 
+% vertices and vice versa
 %
 %   INPUT PARAMETERS:
 %
@@ -16,9 +17,18 @@ function [V2F, F2V] = meshAveragingOperators(F, V)
 %                   quantities onto faces using normalized angle weights
 %
 %
-%   by Dillon Cislo 06/23/2020
+%   by Dillon Cislo 06/23/2020. Inconsequential edits NPMitchell 12-2020
 
 % Input processing --------------------------------------------------------
+% Allow for single mesh input
+if nargin < 2
+    if isa(F, 'struct')
+        V = F.v ;
+        F = F.f ;
+    end
+end
+
+% Validate inputs
 validateattributes(V, {'numeric'}, {'2d', 'finite', 'real'});
 validateattributes(F, {'numeric'}, ...
     {'2d', 'ncols', 3, 'finite', 'integer', 'positive', '<=', size(V,1)});

@@ -2,12 +2,17 @@ function [v3dsmM, nsmM] = smoothDynamicSPhiMeshes(QS, options)
 %SMOOTHDYNAMICSPHIMESHES(QS, options)
 %   Using (s,phi) pullback cutmeshes, smooth coord system in time via
 %   simple triangular pulse averaging of positions in embedding space
+%   while preserving the pullback mesh. 
+%   Note that the computed geodesic distance along the mesh is preserved in
+%   the pullback mesh extent spcutMeshSm.u(:, 1) varies from (0, GeoLength)
 %
 % Parameters
 % ----------
 % QS : QuapSlap class instance
 %   Current QuapSlap object
 % options : struct with fields
+%   width : int, default=4
+%       half-width of tripulse smoothing filter on output meshes
 %   overwrite : bool, default=false
 %       overwrite results on disk
 %   preivew : bool, default=QS.plotting.preview
@@ -29,18 +34,25 @@ flipy = QS.flipy ;
 
 
 %% Unpack options
+% Default options
+width = 4 ;
+overwrite = false ;
+
 if nargin < 2
     options = struct() ;
 end
+if isfield(options, 'width')
+    width = options.width ;
+end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
-else
-    overwrite = false ;
 end
+
 
 %% Prep filter
 disp('Building tripulse filter equivalent to tripuls(-0.5:0.1:0.5)')
-tripulse = 0:0.2:1 ;
+% made the width variable 2020-12-09, used to be 0:0.2:1, so 9 tp included
+tripulse = linspace(0, 1, width) ;
 tripulse = [tripulse, fliplr(tripulse(1:end-1))] ;
 tripulse = tripulse ./ sum(tripulse(:)) ;
 tripulse = reshape(tripulse, [length(tripulse), 1]) ;

@@ -117,27 +117,12 @@ if loadMaster
     
     
     % Fill in
-    try
-        timeInterval = masterSettings.timeInterval ;  % physical interval between timepoints
-    catch
-        masterSettings.timeInterval = 1;
-        save('./masterSettings.mat', 'masterSettings')
-        loadMaster = false ;        
-    end
-    try
-        timeUnits = masterSettings.timeUnits ; % physical unit of time between timepoints
-    catch    
-        masterSettings.timeUnits = 'min' ;
-        save('./masterSettings.mat', 'masterSettings')
-        loadMaster = false ;        
-    end
-    try
-        spaceUnits = masterSettings.spaceUnits ;  % microns as $\mu$m
-    catch    
-        masterSettings.spaceUnits = '$\mu$m' ;
-        save('./masterSettings.mat', 'masterSettings')
-        loadMaster = false ;        
-    end
+    swapZT = masterSettings.swapZT ;
+    t0_for_phi0 = masterSettings.t0_for_phi0 ;
+    nU = masterSettings.nU ;
+    nV = masterSettings.nV ;
+
+
     scale = masterSettings.scale ;      % scale for conversion to 16 bit
     file32Base = masterSettings.file32Base ; 
     fn = masterSettings.fn ;

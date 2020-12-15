@@ -99,24 +99,24 @@ classdef QuapSlap < handle
         t0                      % reference time in the experiment
         normalShift
         features = struct('folds', [], ...  % #timepoints x #folds int, indices of nU sampling of folds
-            'fold_onset', [], ...           % #folds x 1 float, timestamps (not indices) of fold onset
-            'ssmax', [], ...                % #timepoints x 1 float, maximum length of the centerline at each timepoint
-            'ssfold', [], ...               % #timepoints x #folds float, positional pathlength along centerline of folds
-            'rssmax', [], ...               % #timepoints x 1 float, maximum proper length of the surface over time
-            'rssfold', []) ;                % #timepoints x #folds float, positional proper length along surface of folds
-        a_fixed                 % aspect ratio for fixed geometry pullback meshes
-        phiMethod = '3dcurves'  % method for determining Phi map in pullback mesh creation, with 
-                                % the full map from embedding to pullback being [M'=(Phi)o()o()]. 
-                                % This string specifier must be '3dcurves' (geometric phi stabilization) 
-                                % or 'texture' (optical flow phi stabilization)
+            'fold_onset', [], ...       % #folds x 1 float, timestamps (not indices) of fold onset
+            'ssmax', [], ...            % #timepoints x 1 float, maximum length of the centerline at each timepoint
+            'ssfold', [], ...           % #timepoints x #folds float, positional pathlength along centerline of folds
+            'rssmax', [], ...           % #timepoints x 1 float, maximum proper length of the surface over time
+            'rssfold', []) ;            % #timepoints x #folds float, positional proper length along surface of folds
+        a_fixed                         % aspect ratio for fixed geometry pullback meshes
+        phiMethod = '3dcurves'          % method for determining Phi map in pullback mesh creation, with 
+                                        % the full map from embedding to pullback being [M'=(Phi)o()o()]. 
+                                        % This string specifier must be '3dcurves' (geometric phi stabilization) 
+                                        % or 'texture' (optical flow phi stabilization)
         endcapOptions
         plotting = struct('preview', false, ... % display intermediate results
-            'save_ims', true, ...               % save images
-            'xyzlim_um_buff', [], ...           % xyzlimits in um in RS coord sys with buffer
-            'xyzlim_raw', [], ...               % xyzlimits in pixels
-            'xyzlim_pix', [], ...               % xyzlimits in pixels RS
-            'xyzlim_um', [], ...                % xyzlimits in um in RS coord sys
-            'colors', [])                       % color cycle for QS
+            'save_ims', true, ...       % save images
+            'xyzlim_um_buff', [], ...   % xyzlimits in um in RS coord sys with buffer
+            'xyzlim_raw', [], ...       % xyzlimits in pixels
+            'xyzlim_pix', [], ...       % xyzlimits in pixels RS
+            'xyzlim_um', [], ...        % xyzlimits in um in RS coord sys
+            'colors', [])               % color cycle for QS
         apdvCOM = struct('acom', [], ...
             'pcom', [], ... 
             'acom_sm', [], ...
@@ -140,46 +140,52 @@ classdef QuapSlap < handle
             'ilastikOutputAxisOrder', 'cxyz') % options for scaling and transposing image intensity data
         currentData = struct('IV', [], ...
             'adjustlow', 0, ...
-            'adjusthigh', 0 )    % image intensity data in 3d and scaling
+            'adjusthigh', 0 )           % image intensity data in 3d and scaling
         currentVelocity = struct('piv3d', struct(), ...
             'piv3d2x', struct()) ;     
         piv = struct( ...
-            'imCoords', 'sp_sme', ... % image coord system for measuring PIV / optical flow) ;
-            'Lx', [], ...
-            'Ly', [], ...
-            'raw', struct()) ;  
-        velocityAverage = struct('v3d', [], ... 
+            'imCoords', 'sp_sme', ...   % image coord system for measuring PIV / optical flow) ;
+            'Lx', [], ...               % width of image, in pixels (x coordinate)
+            'Ly', [], ...               % height of image, in pixels (y coordinate)
+            'raw', struct(), ...        % raw PIV results from disk/PIVLab
+            'smoothed', struct(), ...   % smoothed PIV results after gaussian blur
+            'smoothing_sigma', 1 ) ;    % sigma of gaussian smoothing on PIV, in units of PIV sampling grid pixels
+        velocityAverage = struct(...
+            'v3d', [], ...              % 3D velocities in embedding space [pix/dt]
+            'v2d', [], ...              % 2D tangential velocities in pullback
+            'v2dum', [], ...            % 2D tangential velocity scaled by speed in true embedding space
+            'vn', [], ...               % normal velocity in spaceUnits per timeInterval timeUnits
+            'vf', [], ...               % velocity vielf on face barycenters after Lagrangian avg
+            'vv', []) ;                 % velocity field on vertices after Lagrangian avg
+        velocityAverage2x = struct(...
+            'v3d', [], ...
             'v2d', [], ...
             'v2dum', [], ...
             'vn', [], ...
             'vf', [], ...       
-            'vv', []) ;          % velocity field after Lagrangian avg
-        velocityAverage2x = struct('v3d', [], ...
+            'vv', []) ;                 % velocity field after Lagrangian avg after triangle subdivision
+        velocitySimpleAverage = struct(... % assuming small in-plane motions, averaged veloticites in time at stationary (u,v) coordinates
+            'v3d', [], ...              
             'v2d', [], ...
             'v2dum', [], ...
             'vn', [], ...
             'vf', [], ...       
-            'vv', []) ;          % velocity field after Lagrangian avg
-        velocitySimpleAverage = struct('v3d', [], ...
+            'vv', []) ;                 % velocity field after in-place (uv) avg assuming
+        velocitySimpleAverage2x = struct(... % assuming small in-plane motions, averaged veloticites in time at stationary (u,v) coordinates
+            'v3d', [], ...
             'v2d', [], ...
             'v2dum', [], ...
             'vn', [], ...
             'vf', [], ...       
-            'vv', []) ;          % velocity field after in-place (uv) avg
-        velocitySimpleAverage2x = struct('v3d', [], ...
-            'v2d', [], ...
-            'v2dum', [], ...
-            'vn', [], ...
-            'vf', [], ...       
-            'vv', []) ;          % velocity field after in-place (uv) avg
-        cleanCntrlines
-        pivPullback = 'sp_sme' ; % coordinate system used for velocimetry
+            'vv', []) ;                 % velocity field after in-place (uv) avg
+        cleanCntrlines          % centerlines in embedding space after temporal averaging
+        pivPullback = 'sp_sme'; % coordinate system used for velocimetry
         smoothing = struct(...
             'lambda', 0.01, ...             % diffusion const for field smoothing on mesh
             'lambda_mesh', 0.002, ...       % diffusion const for vertex smoothing of mesh itself
             'lambda_err', 0.01, ...         % diffusion const for fields inferred from already-smoothed fields on mesh
-            'nmodes', 0, ...                % number of low freq modes to keep per DV hoop
-            'zwidth', 0) ;                  % half-width of tripulse filter applied along zeta/z/s/u direction in pullback space, in units of du/dz/ds/dzeta
+            'nmodes', 5, ...                % number of low freq modes to keep per DV hoop
+            'zwidth', 2) ;                  % half-width of tripulse filter applied along zeta/z/s/u direction in pullback space, in units of du/dz/ds/dzeta
         pathlines = struct('t0', [], ...    % timestamp (not an index) at which pathlines form regular grid in space
             'piv', [], ...                  % Lagrangian pathlines from piv coords
             'vertices', [], ...             % Lagrangian pathlines from mesh vertices
@@ -840,6 +846,7 @@ classdef QuapSlap < handle
             if ~exist(indentFn, 'file') || overwrite
                 radFn = sprintf(QS.fileName.pathlines_uvprime.radius, t0p) ;
                 if ~exist(radFn, 'file')
+                    disp(['pathline radii not on disk: ' radFn])
                     QS.measureUVPrimePathlines(options) ;
                 end
                 
@@ -1157,6 +1164,23 @@ classdef QuapSlap < handle
                     QS.loadPIV() 
                 end
             end
+            
+            if isempty(fieldnames(QS.piv.smoothed)) 
+                % Additionally smooth the piv output by sigma
+                if QS.piv.smoothing_sigma > 0
+                    piv = QS.piv.raw ;
+                    disp(['Smoothing piv output with sigma=' num2str(QS.piv.smoothing_sigma)])
+                    for tidx = 1:length(QS.xp.fileMeta.timePoints)-1
+                        velx = piv.u_filtered{tidx} ;
+                        vely = piv.v_filtered{tidx} ;
+                        piv.u_filtered{tidx} = imgaussfilt(velx, QS.piv.smoothing_sigma) ;
+                        piv.v_filtered{tidx} = imgaussfilt(vely, QS.piv.smoothing_sigma) ;
+                    end
+                    disp('done smoothing')
+                    QS.piv.smoothed = piv ;
+                end
+            end
+            
         end
         function loadPIV(QS, options)
             % Load PIV results from disk and store in QS.piv
@@ -1180,6 +1204,9 @@ classdef QuapSlap < handle
         measurePIV3dDoubleResolution(QS, options)
         % Note: To timeAverage Velocities at Double resolution, pass
         % options.doubleResolution == true
+        
+        %% Metric
+        plotMetric(QS, options) 
         
         %% Pathlines
         measurePullbackPathlines(QS, options)

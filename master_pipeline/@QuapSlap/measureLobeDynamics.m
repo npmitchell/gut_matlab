@@ -19,6 +19,9 @@ function [length_lobes, area_lobes, volume_lobes] = measureLobeDynamics(QS, opti
 %
 % NPMitchell 2020
 
+%% Default options
+t0 = QS.t0set() ;
+
 %% Unpack options
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
@@ -57,8 +60,25 @@ else
     
     [length_lobes, area_lobes, volume_lobes] = ...
         aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, ...
-                timePoints, spcutMeshBase, nV, nU, rot, trans, ...
-                resolution, xyzlim, colors, save_ims, overwrite) ;
+                timePoints, t0, QS.timeInterval, QS.timeUnits, spcutMeshBase, nV, nU, rot, trans, ...
+                resolution, QS.flipy, ...
+                xyzlim, colors, save_ims, overwrite) ;
+            
+            
+    % % For debugging -----------------------------------------------------
+    % tp = 200 ;
+    % load(sprintf(spcutMeshBase, tp), 'spcutMesh') ;
+    % % Load the centerline too
+    % % fn = sprintf(clineDVhoopBase, tp) ;
+    % % load(fn, 'avgpts')
+    % avgpts = spcutMesh.avgpts ;
+    % mcline = spcutMesh.mcline ;
+    % xyz = QS.xyz2APDV(spcutMesh.v) ;
+    % figure; plot3(avgpts(:, 1), avgpts(:, 2), avgpts(:, 3))
+    % hold on;
+    % plot3(spcutMesh.mcline(:, 1), spcutMesh.mcline(:, 2), spcutMesh.mcline(:, 3))
+    % trisurf(triangulation(spcutMesh.f, xyz), 'edgecolor', 'none', 'faceAlpha', 0.1)
+    % %--------------------------------------------------------------------
     
     % Save surface area and volume dynamics for each lobe
     save(lobe_dynamics_fn, 'length_lobes', 'area_lobes', 'volume_lobes')

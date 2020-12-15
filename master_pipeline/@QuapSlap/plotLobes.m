@@ -15,6 +15,9 @@ function plotLobes(QS, options)
 %
 % NPMitchell 2020
 
+%% Default options
+nlobes = 4 ;
+
 %% Unpack 
 foldfn = QS.fileName.fold ;
 lobeDir = QS.dir.lobe ;
@@ -25,6 +28,9 @@ if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 else
     overwrite = true ;
+end
+if isfield(options, 'nlobes')
+    overwrite = options.nlobes ;
 end
 
 %% Now plot the lobe dynamics
@@ -47,7 +53,7 @@ if ~fig1exist || ~fig2exist || overwrite
     disp('Plotting lobe dynamics...')
     aux_plot_lobe_dynamics(length_lobes, area_lobes, volume_lobes, ...
             timePoints, fold_onset, colors, lobedyn_figfn, ...
-            lobedyn_figfn_scaled, t0)
+            lobedyn_figfn_scaled, t0, nlobes)
 else
     disp('Skipping lobe dynamics plot since it exists...')
 end

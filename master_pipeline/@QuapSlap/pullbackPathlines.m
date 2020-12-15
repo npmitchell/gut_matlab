@@ -4,6 +4,9 @@ function [XX, YY] = pullbackPathlines(QS, x0, y0, t0, options)
 %   flow of PIV measured on QS.pivimCoords pullbacks.
 %   For non-standard PIV pathline propagation (such as uvprime coords),
 %   supply piv, Lx, and Ly in options.
+%   Note: I've chosen to use spatial smoothing via Gaussian blur rather
+%   than temporal smoothing of velocities (as is done in metric kinematics)
+%   for this code.
 %
 % Parameters
 % ----------
@@ -76,7 +79,11 @@ if isfield(options, 'piv')
 else
     disp('Loading raw PIV results')
     QS.getPIV()
-    piv = QS.piv.raw ;
+    if QS.piv.smoothing_sigma > 0
+        piv = QS.piv.smoothed ;
+    else
+        piv = QS.piv.raw ;
+    end
 end
 if isfield(options, 'Lx')
     disp('QS.pullbackPathlines(): using supplied Lx')

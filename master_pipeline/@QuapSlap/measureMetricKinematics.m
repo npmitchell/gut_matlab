@@ -139,7 +139,8 @@ if strcmp(averagingStyle, 'Lagrangian')
         tmp = load(vvsmMfn) ;
         vertex_vels = tmp.vvsmM ;
     else
-        vvsmMfn = fullfile(QS.dir.pivAvg, 'vvM_avg.mat')  ; 
+        vvsmMfn = QS.fileName.pivAvg.vv ;
+        % Note that this is fullfile(QS.dir.pivAvg, 'vvM_avg.mat')  
         tmp = load(vvsmMfn) ;
         vertex_vels = tmp.vvsmM ;   
     end
@@ -375,16 +376,47 @@ for tp = tp2do
         
         % Bandpass filter modes
         if nmodes > 0
-            modeFilter2D(yy, nmodes, false)
+            filterOptions.nmodes = nmodes ;
+            filterOptions.zwidth = zwidth ;
+            HH_filt = modeFilterQuasi1D(HH(:, 1:nV-1), filterOptions) ;   
+            gdot_filt = modeFilterQuasi1D(gdot(:, 1:nV-1), filterOptions) ; 
+            divv_filt = modeFilterQuasi1D(divv(:, 1:nV-1), filterOptions) ;   
+            veln_filt = modeFilterQuasi1D(veln(:, 1:nV-1), filterOptions) ;   
+            H2vn_filt = modeFilterQuasi1D(H2vn(:, 1:nV-1), filterOptions) ;   
+            radius_filt = modeFilterQuasi1D(radius(:, 1:nV-1), filterOptions) ;  
+            
+            % 3d version does not have periodic row
+            H3d_filt = HH_filt ;
+            gdot3d_filt = gdot_filt ;
+            divv3d_filt = divv_filt ;
+            veln3d_filt = veln_filt ;
+            H2vn3d_filt = H2vn_filt ;
+            radi3d_filt = radius_filt ;
+            
+            % Append periodic row
+            HH_filt(:, nV) = HH_filt(:, 1) ;
+            gdot_filt(:, nV) = gdot_filt(:, 1) ;
+            divv_filt(:, nV) = divv_filt(:, 1) ;
+            veln_filt(:, nV) = veln_filt(:, 1) ;
+            H2vn_filt(:, nV) = H2vn_filt(:, 1) ;
+            radius_filt(:, nV) = radius_filt(:, 1) ;
+            
+            % 2d version has periodic row
+            H2d_filt = HH_filt ;
+            gdot2d_filt = gdot_filt ;
+            divv2d_filt = divv_filt ;
+            veln2d_filt = veln_filt ;
+            H2vn2d_filt = H2vn_filt ;
+            radi2d_filt = radius_filt ;
         end
         
         % Average along DV -- ignore last redudant row at nV
-        HH_ap = mean(HH(:, 1:nV-1), 2) ;
-        gdot_ap = mean(gdot(:, 1:nV-1), 2) ;
-        divv_ap = mean(divv(:, 1:nV-1), 2) ;
-        veln_ap = mean(veln(:, 1:nV-1), 2) ;
-        H2vn_ap = mean(H2vn(:, 1:nV-1), 2) ;
-        radius_ap = mean(radius(:, 1:nV-1), 2) ;
+        HH_ap = mean(HH_filt(:, 1:nV-1), 2) ;
+        gdot_ap = mean(gdot_filt(:, 1:nV-1), 2) ;
+        divv_ap = mean(divv_filt(:, 1:nV-1), 2) ;
+        veln_ap = mean(veln_filt(:, 1:nV-1), 2) ;
+        H2vn_ap = mean(H2vn_filt(:, 1:nV-1), 2) ;
+        radius_ap = mean(radius_filt(:, 1:nV-1), 2) ;
         
         % quarter bounds
         q0 = round(nV * 0.125) ;
@@ -397,69 +429,69 @@ for tp = tp2do
         dorsal = [q3:nV, 1:q1] ;
         
         % left quarter
-        HH_l = mean(HH(:, left), 2) ;
-        gdot_l = mean(gdot(:, left), 2) ;
-        divv_l = mean(divv(:, left), 2) ;
-        veln_l = mean(veln(:, left), 2) ;
-        H2vn_l = mean(H2vn(:, left), 2) ;
-        radius_l = mean(radius(:, left), 2) ;
+        HH_l = mean(HH_filt(:, left), 2) ;
+        gdot_l = mean(gdot_filt(:, left), 2) ;
+        divv_l = mean(divv_filt(:, left), 2) ;
+        veln_l = mean(veln_filt(:, left), 2) ;
+        H2vn_l = mean(H2vn_filt(:, left), 2) ;
+        radius_l = mean(radius_filt(:, left), 2) ;
         
         % right quarter
-        HH_r = mean(HH(:, right), 2) ;
-        gdot_r = mean(gdot(:, right), 2) ;
-        divv_r = mean(divv(:, right), 2) ;
-        veln_r = mean(veln(:, right), 2) ;
-        H2vn_r = mean(H2vn(:, right), 2) ;
-        radius_r = mean(radius(:, right), 2) ;
+        HH_r = mean(HH_filt(:, right), 2) ;
+        gdot_r = mean(gdot_filt(:, right), 2) ;
+        divv_r = mean(divv_filt(:, right), 2) ;
+        veln_r = mean(veln_filt(:, right), 2) ;
+        H2vn_r = mean(H2vn_filt(:, right), 2) ;
+        radius_r = mean(radius_filt(:, right), 2) ;
         
         % dorsal quarter
-        HH_d = mean(HH(:, dorsal), 2) ;
-        gdot_d = mean(gdot(:, dorsal), 2) ;
-        divv_d = mean(divv(:, dorsal), 2) ;
-        veln_d = mean(veln(:, dorsal), 2) ;
-        H2vn_d = mean(H2vn(:, dorsal), 2) ;
-        radius_d = mean(radius(:, dorsal), 2) ;
+        HH_d = mean(HH_filt(:, dorsal), 2) ;
+        gdot_d = mean(gdot_filt(:, dorsal), 2) ;
+        divv_d = mean(divv_filt(:, dorsal), 2) ;
+        veln_d = mean(veln_filt(:, dorsal), 2) ;
+        H2vn_d = mean(H2vn_filt(:, dorsal), 2) ;
+        radius_d = mean(radius_filt(:, dorsal), 2) ;
         
         % ventral quarter
-        HH_v = mean(HH(:, ventral), 2) ;
-        gdot_v = mean(gdot(:, ventral), 2) ;
-        divv_v = mean(divv(:, ventral), 2) ;
-        veln_v = mean(veln(:, ventral), 2) ;
-        H2vn_v = mean(H2vn(:, ventral), 2) ;
-        radius_v = mean(radius(:, ventral), 2) ;
+        HH_v = mean(HH_filt(:, ventral), 2) ;
+        gdot_v = mean(gdot_filt(:, ventral), 2) ;
+        divv_v = mean(divv_filt(:, ventral), 2) ;
+        veln_v = mean(veln_filt(:, ventral), 2) ;
+        H2vn_v = mean(H2vn_filt(:, ventral), 2) ;
+        radius_v = mean(radius_filt(:, ventral), 2) ;
         
         %% Save timeseries measurements
-        save(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
-        save(efn, 'gdot', 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
-        save(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
-        save(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
-        save(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v')
-        save(rfn, 'radius', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v')
+        save(Hfn, 'HH', 'HH_filt', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
+        save(efn, 'gdot', 'gdot_filt', 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
+        save(dfn, 'divv', 'divv_filt', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
+        save(nfn, 'veln', 'veln_filt', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
+        save(H2vnfn, 'H2vn', 'H2vn_filt', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v')
+        save(rfn, 'radius', 'radius_filt', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v')
         
         save_lambdas = true ;
         toc
         
     else
         % Load timeseries measurements
-        load(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
-        load(efn, 'gdot', 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
-        load(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
-        load(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
-        load(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
-        load(rfn, 'radius', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v') 
+        load(Hfn, 'HH_filt', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
+        load(efn, 'gdot_filt', 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
+        load(dfn, 'divv_filt', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
+        load(nfn, 'veln_filt', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
+        load(H2vnfn, 'H2vn_filt', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
+        load(rfn, 'radius_filt', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v') 
         
-        H2d = HH ;
-        H3d = HH(:, 1:nV-1) ;
-        gdot2d = gdot ;
-        gdot3d = gdot(:, 1:nV-1);
-        divv2d = divv ;
-        divv3d = divv(:, 1:nV-1) ;
-        veln2d = veln ;
-        veln3d = veln(:, 1:nV-1) ;
-        H2vn2d = H2vn ;
-        H2vn3d = H2vn(:, 1:nV-1) ;
-        radi2d = radius ;
-        radi3d = radius(:, 1:nV-1) ;
+        H2d_filt = HH_filt ;
+        H3d_filt = HH_filt(:, 1:nV-1) ;
+        gdot2d_filt = gdot_filt ;
+        gdot3d_filt = gdot_filt(:, 1:nV-1);
+        divv2d_filt = divv_filt ;
+        divv3d_filt = divv_filt(:, 1:nV-1) ;
+        veln2d_filt = veln_filt ;
+        veln3d_filt = veln_filt(:, 1:nV-1) ;
+        H2vn2d_filt = H2vn_filt ;
+        H2vn3d_filt = H2vn_filt(:, 1:nV-1) ;
+        radi2d_filt = radius_filt ;
+        radi3d_filt = radius_filt(:, 1:nV-1) ;
         
         % Ensure that mesh and cutMesh are not assumed to be some other
         % timepoint's meshes
@@ -490,18 +522,18 @@ for tp = tp2do
     pOptions.lambda_mesh = lambda_mesh ;
     pOptions.nmodes = nmodes ;
     pOptions.zwidth = zwidth ;
-    pOptions.H2vn2d = H2vn2d ;
-    pOptions.divv2d = divv2d ;
-    pOptions.gdot2d = gdot2d ;
-    pOptions.veln2d = veln2d ;
-    pOptions.radi2d = radi2d ;
-    pOptions.H2d = H2d ;
-    pOptions.H2vn3d = H2vn3d ;
-    pOptions.divv3d = divv3d ;
-    pOptions.gdot3d = gdot3d ;
-    pOptions.veln3d = veln3d ;
-    pOptions.radi3d = radi3d ;
-    pOptions.H3d = H3d ;
+    pOptions.H2vn2d = H2vn2d_filt ;
+    pOptions.divv2d = divv2d_filt ;
+    pOptions.gdot2d = gdot2d_filt ;
+    pOptions.veln2d = veln2d_filt ;
+    pOptions.radi2d = radi2d_filt ;
+    pOptions.H2d = H2d_filt ;
+    pOptions.H2vn3d = H2vn3d_filt ;
+    pOptions.divv3d = divv3d_filt ;
+    pOptions.gdot3d = gdot3d_filt ;
+    pOptions.veln3d = veln3d_filt ;
+    pOptions.radi3d = radi3d_filt ;
+    pOptions.H3d = H3d_filt ;
     pOptions.cutMesh = cutMesh ;
     pOptions.mesh = mesh ;
     pOptions.climit = climit ;

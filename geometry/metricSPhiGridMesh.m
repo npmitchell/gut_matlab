@@ -22,6 +22,11 @@ function gg = metricSPhiGridMesh(mesh, varargin)
 %   the metric tensor for each face, as 3-column array, with cols
 %   g_ss, g_sphi, g_phiphi. Assumes g_sphi = g_phis
 %
+% See also
+% --------
+% constructFundamentalForms.m --> gives both first and second FundForm
+% QS.measurePathlineStrain()
+% 
 % NPMitchell 2020
 
 % Store mesh vertices and faces

@@ -1,6 +1,24 @@
 function generateCurrentSPCutMesh(QS, cutMesh, spcutMeshOptions)
 % generateCurrentSPCutMesh(QS, cutMesh, spcutMeshOptions)
 %
+% Note that the only output in APDV (spaceUnits) coordinates are
+%   mss, mcline, avgpts, avgpts_ss
+%
+%     spcutMesh.sphi 
+%     spcutMesh.v 
+%     spcutMesh.vn  
+%     spcutMesh.ringpath_ss 
+%     spcutMesh.radii_from_mean_uniform_rs  % from uniform DV sampling
+%     spcutMesh.radii_from_avgpts 
+%     spcutMesh.mss         % from uniform DV sampling, also stored in centerline
+%     spcutMesh.mcline      % from uniform DV sampling, also stored in centerline
+%     spcutMesh.avgpts      % from uniform DV sampling, also stored in centerline
+%     spcutMesh.avgpts_ss   % pathlength from uniform sampling, also
+%           stored in centerline, in QS.spaceUnits
+%     spcutMesh.ar          % affine scaling in X that minimizes isoareal energy
+%     spcutMesh.phi0s       % 
+%     spcutMesh.phi0_fit    %
+%
 % Parameters
 % ----------
 % QS : QuapSlap class instance
@@ -127,9 +145,19 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     %----------------------------------------------------------------------
     tileCount = [1 1];  % how many above, how many below
     cutMeshrs = cutMesh;
+    
+    % DEBUG 12-03-2020
     % Rotate and translate TV3D
-    cutMeshrs.v = ((rot * cutMesh.v')' + trans) * resolution ;
+    cutMeshrs.v = QS.xyz2APDV(cutMesh.v) ;
+    % USED TO DO THIS but does not flip in y
+    % cutMeshrs.v = ((rot * cutMesh.v')' + trans) * resolution ;
+    
+    % DEBUG 12-03-2020 -- added flipping vn here
     cutMeshrs.vn = (rot * cutMesh.vn')' ;
+    if QS.flipy
+        cutMeshrs.vn(:, 2) = - cutMeshrs.vn(:, 2) ;
+    end
+    
     [ ~, ~, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount );
     [ TF, TV2D, TV3Drs ] = tileAnnularCutMesh( cutMeshrs, tileCount );
 
@@ -199,7 +227,7 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     fprintf(['Compute s(u) and radius(u) for "uniform"--> ', ...
             'evenly sample each DV hoop (0,1) so ds_3D=const \n']);
     % Note: c3d_dsv has equal spacing in both ds and dphi, units of um in
-    % rotated & scaled (RS) coordinates
+    % rotated & scaled (RS) coordinates --> is it flipped in Y?
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Resample at evenly spaced dphi in embedding space (rs, in um)
     fprintf('Resampling curves...\n')
@@ -570,6 +598,9 @@ if ~exist(spcutMeshfn, 'file') || overwrite
     % Recompute radii_from_mean_uniform_rs as radii_from_avgpts 
     % NOTE: all radius calculations done in microns, not pixels
     sphi3d_rs = ((rot * uvgrid3d')' + trans) * resolution ;
+    if QS.flipy
+        sphi3d_rs(:, 2) = - sphi3d_rs(:, 2) ;
+    end
     radii_from_avgpts = zeros(size(sphi3d_rs, 1), size(sphi3d_rs, 2)) ;
     for jj = 1:nU
         % Consider this hoop

@@ -1,6 +1,6 @@
 function [axs, cbs, meshHandles] = ...
     nFieldsOnSurface(meshes, fields, options)
-%nFieldsOnSurface(meshes, fields, options)
+%[axs, cbs, meshHandles] = nFieldsOnSurface(meshes, fields, options)
 %
 % Inputs
 % ------
@@ -22,7 +22,21 @@ function [axs, cbs, meshHandles] = ...
 %       titles for each subplot
 %   makeCbar : nfields x 1 bool array
 %       whether to make colorbar for each axis
-% 
+%   xyzlims : 3x2 numeric or (nfields)x1 cell array of 3x2 numeric arrays
+%       the xyz limits for all panels as [xmin,xmax;ymin,ymax;zmin,zmax]
+%   xlim : length 2 numeric array or length nfields cell array of length 2
+%       numeric arrays
+%       xlim values if xyzlims not provided
+%   ylim : length 2 numeric array or length nfields cell array of length 2
+%       numeric arrays
+%       ylim values if xyzlims not provided
+%   zlim : length 2 numeric array or length nfields cell array of length 2
+%       numeric arrays
+%       zlim values if xyzlims not provided
+%   view : length nfields cell array of length 2 arrays
+%       viewing angle for each panel
+%   
+%   
 % Returns
 % -------
 % [axs, cbs, meshHandles] : handles for figure objects
@@ -69,7 +83,76 @@ if isfield(options, 'clims')
     clims = options.clims ;
 end
 
-% Define
+% Define xyzlims
+if isfield(options, 'xlim')
+    if isa(options.xlim, 'cell')
+        try
+            assert(numel(options.xlim) == nfields)
+        catch
+            error('number of elements in options.xlim ~= nfields')
+        end
+        xlimits = options.xlim ;
+    else
+        xlimit = options.xlim ;
+    end
+end
+if isfield(options, 'ylim')
+    if isa(options.ylim, 'cell')
+        try
+            assert(numel(options.ylim) == nfields)
+        catch
+            error('number of elements in options.ylim ~= nfields')
+        end
+        ylimits = options.ylim ;
+    else
+        ylimit = options.ylim ;
+    end
+end
+if isfield(options, 'zlim')
+    if isa(options.zlim, 'cell')
+        try
+            assert(numel(options.zlim) == nfields)
+        catch
+            error('number of elements in options.zlim ~= nfields')
+        end
+        zlimits = options.zlim ;
+    else
+        zlimit = options.zlim ;
+    end
+end
+if isfield(options, 'xyzlims')
+    if isa(options.xyzlims, 'cell')
+        try
+            assert(numel(options.xyzlim) == nfields)
+        catch
+            error('number of elements in options.xyzlim ~= nfields')
+        end
+        xlimits = {options.xyzlims{1}(1, :)} ;
+        ylimits = {options.xyzlims{1}(2, :)} ;
+        zlimits = {options.xyzlims{1}(3, :)} ;
+        for qq = 2:nfields
+            xlimits = cat(1, xlimits, options.xyzlims{qq}(1, :)) ;
+            ylimits = cat(1, ylimits, options.xyzlims{qq}(2, :)) ;
+            zlimits = cat(1, zlimits, options.xyzlims{qq}(3, :)) ;
+        end
+    else
+        xlimit = options.xyzlims(1, :) ;
+        ylimit = options.xyzlims(2, :) ;
+        zlimit = options.xyzlims(3, :) ;
+    end
+end
+
+% Unpack view/views
+if isfield(options, 'view')
+    views = options.view ;
+end
+
+% axis off?
+if isfield(options, 'axisOff')
+    axisOff = options.axisOff ;
+end
+
+% Define edgecolor
 edgecolor = 'none' ;
 if isfield(options, 'edgecolor')
     edgecolor = options.edgecolor ;
@@ -98,6 +181,19 @@ else
     makeCbar = ones(nfields, 1) ;
 end
 
+if isfield(options, 'masterCbar')
+    masterCbar = options.masterCbar ;
+    if masterCbar
+        if isfield(options, 'masterCbarPosition')
+            masterCbarPosition = options.masterCbarPosition ;
+        else
+            masterCbarPosition = [0.39, 0.05, 0.22, 0.0341];
+        end
+    end
+else
+    masterCbar = false ;
+end
+
 %% Panel 
 for qq = 1:nfields
     % Unpack meshes if there are multiple
@@ -119,11 +215,11 @@ for qq = 1:nfields
         if isa(mesh, 'struct')
             meshHandles{qq} = trisurf(mesh.f, mesh.v(:, 1), ...
                 mesh.v(:, 2), mesh.v(:, 3), ...
-                'FaceVertexCData', fields{qq}, 'edgecolor', edgecolor) ;
+                'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
         elseif isa(mesh, 'cell')    
             meshHandles{qq} = trisurf(mesh{1}, mesh{2}(:, 1), ...
                 mesh{2}(:, 2), mesh{2}(:, 3), ...
-                'FaceVertexCData', fields{qq}, 'edgecolor', edgecolor) ;
+                'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
         end
         axis equal
         
@@ -150,7 +246,7 @@ for qq = 1:nfields
         end
         
         if ~isempty(labels)
-            title(labels{3}, 'Interpreter', 'Latex')   
+            title(labels{qq}, 'Interpreter', 'Latex')   
         end
         if isfield('cmaps', 'var')
             colormap(cmaps{qq})
@@ -241,6 +337,53 @@ for qq = 1:nfields
         end
         colormap(gca, gray) 
     end
+    
+    % Set view from "views"
+    if exist('views', 'var')
+        if isa(views, 'cell')
+            if ~isempty(views{qq})
+                view(views{qq}(1), views{qq}(2))
+            end
+        elseif numel(views) == 2
+            view(views(1), views(2))
+        else
+            error('Number of elements in options.view is not 2 or nfields')
+        end
+    end
+    
+    % Are axes off?
+    if axisOff
+        axis off
+    end
+    
+    % Set xyzlims
+    if exist('xlimits', 'var')
+        xlim(xlimits{qq}) ;
+    elseif exist('xlimit', 'var')
+        xlim(xlimit) ;
+    end
+    if exist('ylimits', 'var')
+        ylim(ylimits{qq}) ;
+    elseif exist('ylimit', 'var')
+        ylim(ylimit) ;
+    end
+    if exist('zlimits', 'var')
+        zlim(zlimits{qq}) ;
+    elseif exist('zlimit', 'var')
+        zlim(zlimit) ;
+    end
+end
+
+% Master colorbar
+if masterCbar
+    axpos = get(gca, 'position') ;
+    if exist('cbs', 'var')
+        cbs{length(cbs)+1} = colorbar('location', 'southOutside') ;
+    else
+        cbs{1} = colorbar('location', 'southOutside') ;
+    end
+    set(gca, 'position', axpos) ;
+    set(cbs{length(cbs)}, 'position', masterCbarPosition) ;
 end
 
 end

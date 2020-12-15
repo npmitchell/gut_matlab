@@ -1,6 +1,6 @@
 function aux_plot_lobe_dynamics(length_lobes, area_lobes, volume_lobes, ...
     timePoints, fold_onset, colors, lobe_dynamics_figfn, ...
-    lobedyn_figfn_scaled, t0, varargin)
+    lobedyn_figfn_scaled, t0, nlobes)
 %AUX_PLOT_LOBE_DYNAMICS(length_lobes, area_lobes, volume_lobes, ...
 %    timePoints, fold_onset, colors, lobe_dynamics_figfn)
 % Auxiliary function for plotting the geometric dynamics of each lobe. 
@@ -18,19 +18,17 @@ function aux_plot_lobe_dynamics(length_lobes, area_lobes, volume_lobes, ...
 %   the timepoints in minutes at which folds appear in the sample
 % colors : 
 % lobe_dynamics_figfn : 
-% varargin
+% t0 : int 
+%   timepoint to set to zero time
+% flipy : bool
+%   data is reflected wrt lab frame
+% nlobes : int
 %
 % Returns
 % -------
 % <none>
 %
 % NPMitchell 2020 
-
-if ~isempty(varargin)
-    nlobes = varargin ;
-else
-    nlobes = 3 ;
-end
 
 close all;
 fig = figure('visible', 'off');

@@ -1,9 +1,11 @@
 function [length_lobes, area_lobes, volume_lobes] = ...
     aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, timePoints, ...
-    spcutMeshBase, nV, nU, rot, trans, resolution, xyzlim, colors, save_ims, overwrite_lobeims)
+    t0, timeInterval, timeUnits, spcutMeshBase, nV, nU, rot, trans, resolution, flipy, xyzlim, colors, save_ims, overwrite_lobeims)
 %AUX_COMPUTE_LOBE_DYNAMICS auxiliary function for Generate_Axisymmetric_Pullbacks_Orbifold.m
 %   Compute the lobe dynamics for all timepoints
 % 
+%   todo: generalize to #lobes = other than 4
+%
 % Parameters
 % ----------
 % folds : 
@@ -92,6 +94,11 @@ for kk = 1:length(timePoints)
 
     % Define rotated, translated mesh
     vrs = ((rot * spcutMesh.v')' + trans) * resolution ;
+    % use QS to allow flipy
+    if flipy
+        vrs(:, 2) = -vrs(:, 2) ;
+    end
+    
     for lobe = 1:4
         % Note that the vertices are ordered in AP strips, with
         % nU elements for each value of nV. 
@@ -204,7 +211,7 @@ for kk = 1:length(timePoints)
     % Save plot of lobes, each a different color
     if redo_lobeims
         axis equal
-        title(['Lobes, t = ' sprintf('%03d', t)])
+        title(['Lobes, t = ' sprintf('%03d', (t-t0)*timeInterval) ' ' timeUnits])
         xlabel('x [\mum]')
         ylabel('y [\mum]')
         zlabel('z [\mum]')

@@ -7,7 +7,8 @@ function measureUVPrimePathlines(QS, options)
 %   For another example, to build a Lagrangian-frame measure of divergence 
 %   of tangential velocity, div(v_t), we can query div(v_t) at the coords
 %   of the PullbackPathlines (via interpolation of div(v_t) defined on
-%   pullback mesh vertices).
+%   pullback mesh vertices). For now assumes all pullbacks are the same
+%   size -- for ex, 2000 x 2000 pixels.
 %
 % Parameters
 % ----------
@@ -37,6 +38,7 @@ function measureUVPrimePathlines(QS, options)
 
 %% Default options
 overwrite = false ;
+overwriteImages = false ;
 preview = false ;
 debug = false ;
 timePoints = QS.xp.fileMeta.timePoints ;
@@ -68,6 +70,9 @@ if isfield(options, 'smoothing_sigma')
 end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
+end
+if isfield(options, 'overwriteImages')
+    overwriteImages = options.overwriteImages ;
 end
 if isfield(options, 'preview')
     preview = options.preview ;
@@ -133,24 +138,36 @@ QS.clearTime() ;
 
 %% CREATE REFERENCE MESH 
 refMeshFn = sprintf(QS.fileName.pathlines_uvprime.refMesh, t0) ;
-if ~exist(refMeshFn, 'file') || overwrite
+if ~exist(refMeshFn, 'file') || overwrite 
     refMesh = load(sprintf(QS.fullFileBase.uvpcutMesh, t0), 'uvpcutMesh') ;
     refMesh = refMesh.uvpcutMesh.resampled ;
     umax0 = max(refMesh.u(:, 1)) ;
     vmax0 = max(refMesh.u(:, 2)) ;
     % Get size Lx and Ly for XY space
-    im0 = imread(sprintf(QS.fullFileBase.im_uvprime, t0)) ;
+    im0 = imread(sprintf(QS.fullFileBase.im_uvprime_e, t0)) ;
     % for now assume all images are the same size
     disp('for now assuming all images are the same size')
     Lx = size(im0, 1) * ones(length(timePoints), 1) ;
     Ly = size(im0, 2) * ones(length(timePoints), 1) ;
     m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], refMesh.u, doubleCovered, umax0, vmax0) ;
     refMesh.XY = m0XY ;
+    refMesh.vrs = QS.xyz2APDV(refMesh.v) ;
     try
-        refMesh.mu
+        refMesh.mu ;
     catch
         refMesh.mu = bc_metric(refMesh.f, refMesh.u, refMesh.v, 3) ;
     end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Compute dzeta -- material frame distance between DV hoops
+    % (dzeta along the surface from each hoop to the next)
+    % The distance from one hoop to another is the
+    % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
+    refMesh.dzeta = reshape(vecnorm(...
+        diff(reshape(refMesh.vrs, [refMesh.nU, refMesh.nV, 3])), 2, 3), ...
+        [refMesh.nU-1, refMesh.nV]) ;
+    refMesh.dzeta_mean = nanmean(refMesh.dzeta, 2) ;
+    
     save(refMeshFn, 'refMesh')
 else
     load(refMeshFn, 'refMesh')
@@ -213,9 +230,9 @@ else
     computed_XY = false ;
 end
 
-%% Save image of result
+%% Save image of result -- single image
 plineFig = [plineXY(1:end-4) '.png'] ;
-if ~exist(plineFig, 'file') || overwrite
+if ~exist(plineFig, 'file') || overwrite || overwriteImages
     close all
     set(gcf, 'visible', 'off')
     disp(['Saving PIV XY pathline image to disk: ' plineFig])
@@ -276,7 +293,7 @@ for tidx = 1:length(timePoints)
     fn = fullfile(sprintf(pathlineDir.XY, t0), ...
         [sprintf(QS.fileBase.name, timePoints(tidx)) '.png']) ;
     
-    if ~exist(fn, 'file') || overwrite
+    if ~exist(fn, 'file') || overwrite || overwriteImages
         % Load pathlines if not already in RAM
         if ~computed_XY 
             load(plineXY, 'pivPathlines')
@@ -314,7 +331,7 @@ end
 %% Mesh vertex coordinates in XY pixel space
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 plinevXY = sprintf(QS.fileName.pathlines_uvprime.vXY, t0) ;
-if ~exist(plinevXY, 'file') || overwrite 
+if ~exist(plinevXY, 'file') || overwrite || overwriteImages 
     % Create pathlines emanating from vertex positions (vX,vY) at t=t0
     % Load pullback mesh vertex positions to get Lx and Ly (will be done
     % later in pullbackPathlines() if not now, so no extra cost to do it
@@ -323,8 +340,20 @@ if ~exist(plinevXY, 'file') || overwrite
     uvpPIVfn = fullfile(QS.dir.piv_uvprime, 'piv_results.mat') ;
     piv = load(uvpPIVfn) ;
     
+    % Additionally smooth the piv output by sigma
+    if smoothing_sigma > 0
+        disp(['Smoothing piv output with sigma=' num2str(smoothing_sigma)])
+        for tidx = 1:length(QS.xp.fileMeta.timePoints)-1
+            velx = piv.u_filtered{tidx} ;
+            vely = piv.v_filtered{tidx} ;
+            piv.u_filtered{tidx} = imgaussfilt(velx, smoothing_sigma) ;
+            piv.v_filtered{tidx} = imgaussfilt(vely, smoothing_sigma) ;
+        end
+        disp('done smoothing')
+    end
+    
     % Create pathlines emanating from (x0,y0) at t=t0
-    im0 = imread(sprintf(QS.fullFileBase.im_uvprime, t0)) ;
+    im0 = imread(sprintf(QS.fullFileBase.im_uvprime_e, t0)) ;
     % for now assume all images are the same size
     disp('for now assuming all images are the same size')
     Lx = size(im0, 1) * ones(length(timePoints), 1) ;
@@ -399,7 +428,8 @@ end
 % Save image of result
 plineFig1 = [plinevXY(1:end-4) '.png'] ;
 plineFig2 = [plinevXY(1:end-4) '_relaxed.png'] ;
-if ~exist(plineFig1, 'file') || ~exist(plineFig2, 'file') || overwrite
+if ~exist(plineFig1, 'file') || ~exist(plineFig2, 'file') || overwrite || ...
+        overwriteImages
     disp(['Saving mesh vertex XY pathline image to disk: ' plineFig1])
     if ~computed_vXY 
         load(sprintf(QS.fileName.pathlines_uvprime.vXY, t0), 'vertexPathlines')
@@ -469,7 +499,7 @@ for tidx = 1:length(timePoints)
     fn = fullfile(sprintf(pathlineDir.vXY, t0), ...
         [sprintf(QS.fileBase.name, timePoints(tidx)) '.png']) ;
     
-    if ~exist(fn, 'file') || overwrite
+    if ~exist(fn, 'file') || overwrite || overwriteImages
         % Load pathlines if not already in RAM
         if ~computed_vXY 
             load(plinevXY, 'vertexPathlines')
@@ -527,8 +557,20 @@ if ~exist(plineFXY, 'file') || overwrite
     uvpPIVfn = fullfile(QS.dir.piv_uvprime, 'piv_results.mat') ;
     piv = load(uvpPIVfn) ;
     
+    % Additionally smooth the piv output by sigma
+    if smoothing_sigma > 0
+        disp(['Smoothing piv output with sigma=' num2str(smoothing_sigma)])
+        for tidx = 1:length(QS.xp.fileMeta.timePoints)-1
+            velx = piv.u_filtered{tidx} ;
+            vely = piv.v_filtered{tidx} ;
+            piv.u_filtered{tidx} = imgaussfilt(velx, smoothing_sigma) ;
+            piv.v_filtered{tidx} = imgaussfilt(vely, smoothing_sigma) ;
+        end
+        disp('done smoothing')
+    end
+    
     % Create pathlines emanating from (x0,y0) at t=t0
-    im0 = imread(sprintf(QS.fullFileBase.im_uvprime, t0)) ;
+    im0 = imread(sprintf(QS.fullFileBase.im_uvprime_e, t0)) ;
     % for now assume all images are the same size
     disp('for now assuming all images are the same size')
     Lx = size(im0, 1) * ones(length(timePoints), 1) ;
@@ -597,7 +639,7 @@ end
 
 % Save image of result
 plineFig = [plineFXY(1:end-4) '.png'] ;
-if ~exist(plineFig, 'file') || overwrite
+if ~exist(plineFig, 'file') || overwrite || overwriteImages
     if ~computed_fXY 
         load(QS.fileName.pathlines_uvprime.fXY, 'facePathlines')
         fX = facePathlines.fX ;
@@ -706,7 +748,7 @@ end
 %% Push forward vertex pathlines from pullback to embedding coordinates
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 plinev3d = sprintf(QS.fileName.pathlines_uvprime.v3d, t0) ;
-if ~exist(plinev3d, 'file') || overwrite
+if ~exist(plinev3d, 'file') || overwrite || overwriteImages
     disp('Computing 3d pathlines in embedding space for Lagrangian/advected uvprimecutMesh vertex coords')
     % Build 3d pathlines in embedding space for all vertex locations
     % Load 2d pathlines in pullback space if not already in RAM
@@ -931,7 +973,7 @@ end
 %% Push forward vertex pathlines from pullback to embedding coordinates
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 pliner3d = sprintf(QS.fileName.pathlines_uvprime.radius, t0) ;
-if ~exist(pliner3d, 'file') || overwrite
+if ~exist(pliner3d, 'file') || overwrite || overwriteImages
     disp('Computing radii along pathlines in embedding space for Lagrangian/advected uvprimecutMesh vertex coords')
     % Build 3d pathlines in embedding space for all vertex locations
     % Load 2d pathlines in pullback space if not already in RAM
@@ -1019,7 +1061,7 @@ if ~exist(kymoDir, 'dir')
     mkdir(kymoDir) 
 end
 plinerAP = sprintf(QS.fileName.pathlines_uvprime.kymographs.radius, t0) ;
-if ~exist(plinerAP, 'file') || overwrite 
+if ~exist(plinerAP, 'file') || overwrite || overwriteImages
     if ~computed_rad
         load(pliner3d, 'vRadiusPathlines')
         computed_rad = true ;

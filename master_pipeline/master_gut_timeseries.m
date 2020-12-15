@@ -539,8 +539,8 @@ opts.flipy = flipy ;
 opts.timeInterval = timeInterval ;
 opts.timeUnits = timeUnits ;
 opts.spaceUnits = spaceUnits ;
-opts.nV = nU ;
-opts.nU = nV ;
+opts.nU = nU ;
+opts.nV = nV ;
 opts.normalShift = 10 ;
 opts.a_fixed = 2.0 ;
 opts.adjustlow = 1.00 ;         % floor for intensity adjustment
@@ -1146,6 +1146,18 @@ clearvars t cutP spcutMesh spvn3d ss pp uv tileCount slin plin plotfn
 clearvars IVloaded IV uphi sphi
 disp('Done with generating spcutMeshes and cutMeshes')
 
+%% FLIP Y for spcutMesh mcline
+% DO ONLY ONCE IF NEEDED (no longer needed for datasets processed after
+% 12-03-2020
+% for tidx = 1:length(QS.xp.fileMeta.timePoints)
+%     tp = QS.xp.fileMeta.timePoints(tidx) ;
+%     load(sprintf(QS.fullFileBase.spcutMesh, tp), 'spcutMesh') ;
+%     spcutMesh.mcline(:, 2) = - spcutMesh.mcline(:, 2) ;
+%     spcutMesh.avgpts(:, 2) = - spcutMesh.avgpts(:, 2) ;
+%     save(sprintf(QS.fullFileBase.spcutMesh, tp), 'spcutMesh') ;
+% end
+
+
 %% Preview results ========================================================
 check = false ;
 if check
@@ -1157,7 +1169,7 @@ end
 options = struct() ;
 options.overwrite = true ;
 options.preview = true ;
-options.first_tp_allowed = [-1, -1, -1] ;  % enforce that no folds before this tp
+options.first_tp_allowed = [-1, 120, -1] ;  % enforce that no folds before this tp
 options.guess123 = [.29 .55 .80] ;
 options.max_wander = 5 ;
 QS.identifyFolds(options)
@@ -1172,32 +1184,32 @@ disp('done')
 % Note: doing this after fold identification so that t0 is defined for
 % plotting purposes
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 QS.measureSurfaceAreaVolume(options)
 disp('done')
 
-%% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
+% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
 % Skip if already done
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 QS.measureWrithe(options)
 disp('done')
 
 %% Compute surface area and volume for each compartment ===================
 % Skip if already done
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 QS.measureLobeDynamics(options) ;
 
-% plot length, area, and volume for each lobe ============================
+%% plot length, area, and volume for each lobe ============================
 % Skip if already done
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 QS.plotLobes(options)
 
 % Plot motion of avgpts & DVhoops at folds in yz plane over time =========
 % Skip if already done
-overwrite_lobeims = false ;
+overwrite_lobeims = true ;
 QS.plotConstrictionDynamics(overwrite_lobeims) ;
 disp('done')
 
@@ -1286,6 +1298,10 @@ options.coordsys = 'rsm' ;
 QS.doubleCoverPullbackImages(options)
 disp('done')
 
+%% Compute whether pullback is isothermal -> metric images
+options = struct() ;
+QS.plotMetric(options) ;
+
 %% Create u'v' coordinate cutMeshes (conformal with minimally twisted boundaries)
 options = struct() ;
 options.overwrite = false ;
@@ -1345,17 +1361,29 @@ disp('done')
 
 %% Pathlines in uv' coords
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
+options.overwriteImages = false ;
 QS.measureUVPrimePathlines(options)
-%
+
+%%
 options = struct() ;
 options.overwrite = false ;
+options.overwriteImages = false ;
 options.climit = 1 ;
+options.coordSys = 'uvprime' ;
 QS.measureBeltramiCoefficient(options)
 
-% Compare to linearized description
+%% Compare to nonlinear isothermal description
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
+options.overwriteImages = false ;
+options.coordSys = 'uvprime' ;
+QS.compareBeltramiToConstriction(options) ;
+
+%% Compare to linearized description
+options = struct() ;
+options.overwrite = true ;
+options.overwriteImages = false ;
 QS.compareBeltramiToLinearizedConstriction(options) ;
 
 %% Measure Cell density
@@ -1558,7 +1586,7 @@ QS.helmholtzHodge(options) ;
 options = struct() ;
 options.overwrite = false ;
 options.samplingResolution = '1x'; 
-options.nModes = 0 ;  %% bandwidth filtering
+% options.nmodes = 5 ;  %% bandwidth filtering
 QS.measureMetricKinematics(options)
 
 %% Metric Kinematics Kymographs & Correlations -- RAW
@@ -1599,7 +1627,7 @@ QS.plotMetricKinematics(options)
 
 %% Pullback pathlines connecting Lagrangian grids
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.preview = false ;
 options.debug = false ; 
 QS.measurePullbackPathlines(options)

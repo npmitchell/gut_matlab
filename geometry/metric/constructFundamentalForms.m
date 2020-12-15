@@ -16,6 +16,10 @@ function [g, b] = constructFundamentalForms(F, V, x)
 %       - b:    #Fx1 cell array. Entries are a 2x2 matrix representing the
 %               second fundamental form on each face
 %
+% See also
+% metricSPhiGridMesh.m
+% QS.measurePathlineStrain()
+%
 %   by Dillon Cislo 07/09/2020
 
 %--------------------------------------------------------------------------

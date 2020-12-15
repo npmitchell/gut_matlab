@@ -241,6 +241,7 @@ if plot_flows && redo_prediction
         % Save the plot
         fn = fns{dim-1} ;
         disp(['saving ', fn])
+        set(gcf, 'Color', 'white')
         export_fig(fn, '-png', '-nocrop', '-r200') 
     end
 end
@@ -327,6 +328,7 @@ if plot_Hgdot && (~exist(fn, 'file') || overwrite)
         end
     end
     disp(['saving ', fn])
+    set(gcf, 'Color', 'white')
     export_fig(fn, '-png', '-nocrop', '-r200')    
 
 end
@@ -407,5 +409,6 @@ if plot_factors && (~exist(fn, 'file') || overwrite)
 
     % Save figure
     disp(['saving ', fn])
+    set(gcf, 'Color', 'white')
     export_fig(fn, '-png', '-nocrop', '-r200')    
 end

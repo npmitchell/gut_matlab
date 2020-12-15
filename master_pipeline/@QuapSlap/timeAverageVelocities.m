@@ -20,18 +20,18 @@ function timeAverageVelocities(QS, options)
 % Saves to disk
 % -------------
 % vsmM : (#timePoints-1) x (nX*nY) x 3 float array
-%   3d velocities at PIV evaluation coordinates in um/dt rs
+%   3d velocities at PIV evaluation coordinates in spaceUnits/dt rs
 % vfsmM : (#timePoints-1) x (2*nU*(nV-1)) x 3 float array
 %   3d velocities at face barycenters in um/dt rs
 % vnsmM : (#timePoints-1) x (nX*nY) float array
-%   normal velocity at PIV evaluation coordinates in um/dt rs
+%   normal velocity at PIV evaluation coordinates in spaceUnits/dt rs
 % vvsmM : (#timePoints-1) x (nU*nV) x 3 float array
-%   3d velocities at (1x resolution) mesh vertices in um/min rs
+%   3d velocities at (1x resolution) mesh vertices in spaceUnits/dt rs
 % v2dsmM : (#timePoints-1) x (nX*nY) x 2 float array
-%   2d velocities at PIV evaluation coordinates in pixels/ min
+%   2d velocities at PIV evaluation coordinates in pixels/dt
 % v2dsmMum : (#timePoints-1) x (nX*nY) x 2 float array
-%   2d velocities at PIV evaluation coordinates in scaled pix/min, but 
-%   proportional to um/min (scaled by dilation of map)
+%   2d velocities at PIV evaluation coordinates in scaled pix/dt, but 
+%   proportional to spaceUnits/dt (scaled by dilation of map)
 %
 % NPMitchell 2020
 

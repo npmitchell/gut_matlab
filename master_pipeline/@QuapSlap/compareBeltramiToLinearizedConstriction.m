@@ -16,11 +16,12 @@ if isempty(QS.t0)
 else
     t0Pathlines = QS.t0 ;
 end
+t0 = QS.t0 ;
 overwrite = false ;
 if nargin < 2 
     options = struct() ;
 end
-climit = 1 ;
+climit = 0.6 ;
 
 %% Unpack options
 if isfield(options, 'overwrite')
@@ -58,24 +59,33 @@ end
 
 indent_computed = false ;
 loaded_mu = false ;
-try
-    % Load indentation kymograph
-    indentAPfn = sprintf(...
-        QS.fileName.pathlines_uvprime.kymographs.indentation, t0Pathlines) ;
-    disp(['Loading indent kymos from file: ' indentAPfn])
-    load(indentAPfn, 'indent_apM', 'indent_dM', 'indent_vM', ...
-        'indent_lM', 'indent_rM') ;
-    
-    % Save mu Beltrami coefficient kymograph
-    muAPfn = sprintf(...
-        QS.fileName.pathlines_uvprime.kymographs.mu, t0Pathlines) ;
-    disp(['Loading mu kymos from file: ' muAPfn])
-    load(muAPfn, 'mu_apM', 'mu_dM', 'mu_vM', 'mu_lM', 'mu_rM') ;
-    
-    % Compute diff from each kymo 
-    diff_apM = real(mu_apM) - indent_apM * 0.5 ;
-    
-catch
+
+recompute = true ;
+if ~overwrite
+    try
+        % Load indentation kymograph
+        indentAPfn = sprintf(...
+            QS.fileName.pathlines_uvprime.kymographs.indentation, t0Pathlines) ;
+        disp(['Attempting to load indent kymos from file: ' indentAPfn])
+        load(indentAPfn, 'indent_apM', 'indent_dM', 'indent_vM', ...
+            'indent_lM', 'indent_rM') ;
+        disp('loaded')
+
+        % Save mu Beltrami coefficient kymograph
+        muAPfn = sprintf(...
+            QS.fileName.pathlines_uvprime.kymographs.mu, t0Pathlines) ;
+        disp(['Loading mu kymos from file: ' muAPfn])
+        load(muAPfn, 'mu_apM', 'mu_dM', 'mu_vM', 'mu_lM', 'mu_rM') ;
+
+        % Compute diff from each kymo 
+        diff_apM = real(mu_apM) - indent_apM * 0.5 ;
+        recompute = false ;
+    catch 
+        disp('Could not load from disk, computing...')
+    end
+end
+
+if recompute
     timePoints = QS.xp.fileMeta.timePoints ;
     mu_apM = zeros(length(timePoints), QS.nU) ;
     mu_dM = zeros(length(timePoints), QS.nU) ;
@@ -104,11 +114,11 @@ catch
         % Load quasiconformal results for this material frame (t0Pathlines)
         if ~loaded_mu
             fn = sprintf(QS.fileName.pathlines_uvprime.quasiconformal, t0Pathlines) ;
-            load(fn, 'mu_material')
+            load(fn, 'mu_material_filtered')
             loaded_mu = true ;
         end
-        mu = mu_material(tidx, :) ;
-
+        muVtx = mu_material_filtered(tidx, :) ;
+        
         % Load radial indentation in Lagrangian frame
         opts.coordSys = 'uvprime' ;
         opts.overwrite = false ;
@@ -125,17 +135,17 @@ catch
         zz = v3z(tidx, :, :) ; 
         v3d = [xx(:), yy(:), zz(:)] ;
 
-        refMesh2glue = refMesh ;
-        refMesh2glue.v = v3d ;
-        glueMesh = glueCylinderCutMeshSeam(refMesh2glue) ;
-
-        [V2F, F2V] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
-        % difference = real(mu(:)) - V2F * indent(:) * 0.5 ;
-        muVtx = F2V*mu(:) ;
+        % refMesh2glue = refMesh ;
+        % refMesh2glue.v = v3d ;
+        % glueMesh = glueCylinderCutMeshSeam(refMesh2glue) ;
+        % 
+        % [V2F, F2V] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
+        % % difference = real(mu(:)) - V2F * indent(:) * 0.5 ;
+        % muVtx = F2V*mu(:) ;
         nU = refMesh.nU ;
         nV = refMesh.nV ;
-        muVtx(nU*(nV-1) + 1:nU*nV) = muVtx(1:nU) ;
-        difference = real(muVtx) - indent(:) * 0.5 ;
+        % muVtx(nU*(nV-1) + 1:nU*nV) = muVtx(1:nU) ;
+        difference = real(muVtx(:)) - indent(:) * 0.5 ;
 
 
         %% MAKE FIGURE
@@ -143,11 +153,11 @@ catch
         if ~exist(outfn, 'file') || overwrite
             mesh3 = {refMesh.f, v3d} ;
             meshes = {mesh3, mesh3, mesh3, mesh2, mesh2, mesh2} ;
-            fields = {real(mu(:)), indent(:), difference, ...
-                real(mu(:)), indent(:), difference} ;
+            fields = {real(muVtx(:)), indent(:), difference, ...
+                real(muVtx(:)), indent(:), difference} ;
             options = struct() ;
             options.makeCbar = [false, false, false, true, true, true] ;
-            options.clim = 0.2 ;
+            options.clim = climit ;
             close all
             [axs, cbs, meshHandles] = ...
                 nFieldsOnSurface(meshes, fields, options) ;
@@ -166,9 +176,12 @@ catch
                 view(2)
                 axis off
             end
-            sgtitle(['quasiconformal constriction, $t=$' sprintf('%06d', tp)])
+            sgtitle(['quasiconformal constriction, $t=$', ...
+                sprintf('%03d', (tp-t0)*QS.timeInterval), ' ', QS.timeUnits], ...
+                'interpreter', 'latex')
 
             % Save outfn
+            disp(['saving ' outfn])
             saveas(gcf, outfn)
         end
 
@@ -311,9 +324,11 @@ for width = widths
             end
         end
         
+        % TODO: TAKE NMODES OF THE VARIATION, PLOT SCATTERPLOT OF FOLDS        
+        
         if qq == 1
             legend({'$\mu$', '$\rho$'}, 'location', 'eastOutside', 'interpreter', 'latex')
-            axpos = get(ax, 'position') ;
+            axpos = get(gca, 'position') ;
         else
             newpos = get(ax, 'position') ;
             set(gca, 'position', [newpos(1) newpos(2) axpos(3) axpos(4)]) ;

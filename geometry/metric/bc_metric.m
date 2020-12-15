@@ -7,11 +7,15 @@ function mu = bc_metric(face, vertex, map, dimension)
 % face : #faces x 3 int array
 %   face connectivity list
 % vertex :
-% 
+%   th
 % map : #vertices x dimension float array
 %   the mapped coordinates
 % dimension : int, 2 or 3
 %   target dimension of map: 2 or 3
+%
+% Example usage
+% -------------
+% mu = bc_metric(mesh.f, uv_pullback, mesh.v3d, 3) ;
 %
 face = face';
 vertex = vertex';

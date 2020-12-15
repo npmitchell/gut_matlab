@@ -26,6 +26,8 @@ function [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(mesh, opti
 %       face bond IDs, face bonds from topologicalStructureTools()
 %   bulkEdgeIDx : #bonds x 1 int
 %       label of whether in bulk (0) or on edge (1)
+%   preview : bool
+%       show intermediate results
 %
 % Returns
 % -------

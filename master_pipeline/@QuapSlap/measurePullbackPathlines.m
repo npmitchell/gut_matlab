@@ -109,6 +109,7 @@ for qq = 1:length(dirs2make)
     end
 end
 
+
 %% Perform/Load pathline calculations
 
 % Check if the time smoothed velocities exist already
@@ -121,6 +122,113 @@ end
 
 QS.clearTime() ;
 
+%% CREATE REFERENCE MESH 
+refMeshFn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
+if ~exist(refMeshFn, 'file') || overwrite 
+    if strcmp(QS.piv.imCoords, 'sp_sme')
+        refMesh = load(sprintf(QS.fullFileBase.spcutMeshSm, t0), 'spcutMeshSm') ;
+        refMesh = refMesh.spcutMeshSm ;
+    else
+        error('handle this imCoords here')
+    end
+    umax0 = max(refMesh.u(:, 1)) ;
+    vmax0 = max(refMesh.u(:, 2)) ;
+    % Get size Lx and Ly for XY space
+    im0 = imread(sprintf(QS.fullFileBase.im_sp_sme, t0)) ;
+    % for now assume all images are the same size
+    disp('for now assuming all images are the same size')
+    Lx = size(im0, 1) * ones(length(timePoints), 1) ;
+    Ly = size(im0, 2) * ones(length(timePoints), 1) ;
+    m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], refMesh.u, doubleCovered, umax0, vmax0) ;
+    refMesh.XY = m0XY ;
+    uv = refMesh.u ;
+    uv(:, 1) = refMesh.u(:, 1) / max(refMesh.u(:, 1)) ;
+    refMesh.readme = 'mu is computed after rescaling refMesh.u(:, 1) to range from 0 to 1' ;
+    refMesh.mu = bc_metric(refMesh.f, uv, refMesh.v, 3) ;
+    
+    try 
+        refMesh.vrs;
+    catch
+        refMesh.vrs = QS.xyz2APDV(refMesh.v) ;
+    end
+    save(refMeshFn, 'refMesh')
+else
+    load(refMeshFn, 'refMesh')
+    try
+        refMesh.mu ;
+    catch
+        refMesh.mu = bc_metric(refMesh.f, refMesh.u, refMesh.v, 3) ;
+    end
+end
+
+%% Save metric images of refMesh
+xx = refMesh.u ;
+aspectShear = (1 - mean(real(refMesh.mu))) / (1 + mean(real(refMesh.mu))) ;
+xx(:, 1) = refMesh.u(:, 1) / max(refMesh.u(:, 1)) * aspectShear ; 
+[gcell, bcell] = constructFundamentalForms(refMesh.f, refMesh.vrs, xx) ;
+gg = zeros(length(gcell), 4) ;
+bb = zeros(length(gcell), 4) ;
+for qq = 1:length(gcell)
+    gg(qq, 1) = gcell{qq}(1, 1) ;
+    gg(qq, 2) = gcell{qq}(1, 2) ;
+    gg(qq, 3) = gcell{qq}(2, 1) ;
+    gg(qq, 4) = gcell{qq}(2, 2) ;
+    bb(qq, 1) = bcell{qq}(1, 1) ;
+    bb(qq, 2) = bcell{qq}(1, 2) ;
+    bb(qq, 3) = bcell{qq}(2, 1) ;
+    bb(qq, 4) = bcell{qq}(2, 2) ;
+end
+strClims = {'climVariable', 'climUniform'} ;
+for pp = 1:2
+    opts = struct() ;
+    if pp == 1
+        opts.clims = {max(abs(gg(:, 1))) * [-1, 1], ...
+            max(abs(gg(:, 2))) * [-1, 1], ...
+            max(abs(gg(:, 3))) * [-1, 1], ...
+            max(abs(gg(:, 4))) * [-1, 1]} ;
+    else
+        opts.clim = max(abs(gg(:))) * [-1, 1] ;
+    end
+    labels = {'$\mathbf{g}_{\zeta\zeta}$', ...
+        '$\mathbf{g}_{\zeta\phi}$', ...
+        '$\mathbf{g}_{\phi\zeta}$', ...
+        '$\mathbf{g}_{\phi\phi}$'} ;
+    m2view = refMesh ;
+    m2view.v = refMesh.vrs ;
+    opts.labels = labels ;
+    opts.views = [0, 0] ;
+    opts.axisOff = true ;
+    [axs, cbs, meshHandles] = ...
+        nFieldsOnSurface({m2view, m2view, m2view, m2view}, ...
+        {gg(:, 1), gg(:, 2), gg(:, 3), gg(:, 4)}, opts) ;
+    fn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
+    fn = [fn(1:end-4) '_g_fundForm' strClims{pp} '.png'] ;
+    saveas(gcf, fn)
+    % plot bb
+    opts = struct() ;
+    if pp == 1
+        opts.clims = {max(abs(bb(:, 1))) * [-1, 1], ...
+            max(abs(bb(:, 2))) * [-1, 1], ...
+            max(abs(bb(:, 3))) * [-1, 1], ...
+            max(abs(bb(:, 4))) * [-1, 1]} ;
+    else
+        opts.clim = max(abs(bb(:))) * [-1, 1] ;
+    end
+    labels = {'$\mathbf{b}_{\zeta\zeta}$', ...
+        '$\mathbf{b}_{\zeta\phi}$', ...
+        '$\mathbf{b}_{\phi\zeta}$', ...
+        '$\mathbf{b}_{\phi\phi}$'} ;
+    opts.labels = labels ;
+    opts.views = [0, 0] ;
+    opts.axisOff = true ;
+    [axs, cbs, meshHandles] = ...
+        nFieldsOnSurface({m2view, m2view, m2view, m2view}, ...
+        {bb(:, 1), bb(:, 2), bb(:, 3), bb(:, 4)}, opts) ;
+    fn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
+    fn = [fn(1:end-4) '_b_fundForm' strClims{pp} '.png'] ;
+    saveas(gcf, fn)
+end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PIV evaluation coordinates in XY pixel space
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -129,7 +237,9 @@ if ~exist(plineXY, 'file') || overwrite
     disp('Computing piv Pathlines for XY(t0)')
     % Load 'initial' positions for pathlines to intersect at t=t0
     QS.getPIV() 
-    piv = QS.piv.raw ;
+    
+    % NOTE smoothed PIV results will be used if QS.piv.smoothing_sigma > 0
+    piv = QS.piv.smoothed ;
     x0 = piv.x{QS.xp.tIdx(t0)} ;
     y0 = piv.y{QS.xp.tIdx(t0)} ;
     
@@ -146,7 +256,9 @@ if ~exist(plineXY, 'file') || overwrite
     pivPathlines.Ly = Ly ;
     pivPathlines.t0 = t0 ;
     pivPathlines.tIdx0 =  tIdx0 ;
-    save(plineXY, 'pivPathlines')
+    
+    smoothing_sigma = QS.piv.smoothing_sigma ;
+    save(plineXY, 'pivPathlines', 'smoothing_sigma')
     
     computed_XY = true ;
 else
@@ -286,7 +398,9 @@ if ~exist(plinevXY, 'file') || overwrite
     vertexPathlines.tIdx0 = tIdx0 ;
     vertexPathlines.Lx = Lx ;
     vertexPathlines.Ly = Ly ;
-    save(plinevXY, 'vertexPathlines')
+    
+    smoothing_sigma = QS.piv.smoothing_sigma ;
+    save(plinevXY, 'vertexPathlines', 'smoothing_sigma')
     
     computed_vXY = true ;
 else
@@ -481,7 +595,7 @@ if ~exist(plineXYZ, 'file') || overwrite
     % Build 3d pathlines in embedding space for all vertex locations
     % Load 2d pathlines in pullback space if not already in RAM
     if ~computed_XY 
-        load(plineXY, 'pivPathlines')
+        load(plineXY, 'pivPathlines', 'smoothing_sigma')
         XX = pivPathlines.XX ;
         YY = pivPathlines.YY ;
         t0 = pivPathlines.t0 ;
@@ -489,6 +603,11 @@ if ~exist(plineXYZ, 'file') || overwrite
         Lx = pivPathlines.Lx ;
         Ly = pivPathlines.Ly ;
         computed_XY = true ;
+        try
+            assert(smoothing_sigma == QS.piv.smoothing_sigma)
+        catch
+            error('Smoothing_sigma of QS.piv does not match that stored on file in pivPathlines')
+        end
     end
     
     % Preallocate v3d = (XX, YY, ZZ)
@@ -532,7 +651,8 @@ if ~exist(plineXYZ, 'file') || overwrite
     piv3dPathlines.ZZ = Z3 ;
     piv3dPathlines.t0 = t0 ;
     piv3dPathlines.tIdx0 = tIdx0 ;
-    save(plineXYZ, 'piv3dPathlines')
+    
+    save(plineXYZ, 'piv3dPathlines', 'smoothing_sigma')
 end                             
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -544,7 +664,7 @@ if ~exist(plinev3d, 'file') || overwrite || true
     % Build 3d pathlines in embedding space for all vertex locations
     % Load 2d pathlines in pullback space if not already in RAM
     if ~computed_vXY 
-        load(sprintf(QS.fileName.pathlines.vXY, t0), 'vertexPathlines')
+        load(sprintf(QS.fileName.pathlines.vXY, t0), 'vertexPathlines', 'smoothing_sigma')
         vX = vertexPathlines.vX ;
         vY = vertexPathlines.vY ;
         t0 = vertexPathlines.t0 ;
@@ -625,7 +745,7 @@ if ~exist(plinev3d, 'file') || overwrite || true
     v3dPathlines.vZrs = vZ3rs ;
     v3dPathlines.t0 = t0 ;
     v3dPathlines.tIdx0 = tIdx0 ;
-    save(plinev3d, 'v3dPathlines')
+    save(plinev3d, 'v3dPathlines', 'smoothing_sigma')
     computed_v3d = true ;
 else
     computed_v3d = false ;

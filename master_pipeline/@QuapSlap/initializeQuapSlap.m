@@ -93,6 +93,34 @@ QS.fullFileBase.mip = fullfile(QS.dir.mip, 'mip_%06d.tif') ;
 uvDir = fullfile(QS.dir.mesh, sprintf('gridCoords_nU%04d_nV%04d', QS.nU, QS.nV)) ;
 QS.dir.uvCoord = uvDir ;
 
+
+%% fileBases
+QS.fileBase.name = xp.fileMeta.filenameFormat(1:end-4) ;
+QS.fileBase.mesh = ...
+    [xp.detector.options.ofn_smoothply '%06d'] ;
+QS.fileBase.alignedMesh = ...
+    [QS.fileBase.mesh '_APDV_um'] ;
+QS.fileBase.apdProb = [QS.fileBase.name '_Probabilities_apcenterline.h5']  ;
+QS.fileBase.prob = [QS.fileBase.name '_Probabilities.h5'] ; 
+QS.fileBase.centerlineXYZ = ...
+    [QS.fileBase.mesh '_centerline_exp1p0_res*.txt' ] ;
+QS.fileBase.centerlineAPDV = ...
+    [QS.fileBase.mesh '_centerline_scaled_exp1p0_res*.txt' ] ;
+QS.fileBase.cylinderMesh = ...
+    [QS.fileBase.mesh '_cylindercut.ply'] ;
+QS.fileBase.apBoundary = 'ap_boundary_indices_%06d.mat';
+QS.fileBase.cylinderKeep = 'cylinderMesh_keep_indx_%06d.mat' ;
+QS.fileName.apBoundaryDorsalPts = 'ap_boundary_dorsalpts.h5' ;
+
+%% Metric
+QS.dir.metric = struct() ;
+QS.dir.metric.data = fullfile(QS.dir.uvCoord, 'metric', '%s') ;
+QS.fullFileBase.metric = fullfile(QS.dir.metric.data, [QS.fileBase.name '.mat']) ;
+QS.dir.metric.g_images2d = fullfile(QS.dir.metric.data, 'g_images2d') ;
+QS.dir.metric.b_images2d = fullfile(QS.dir.metric.data, 'b_images2d') ;
+QS.dir.metric.g_images3d = fullfile(QS.dir.metric.data, 'g_images3d') ;
+QS.dir.metric.b_images3d = fullfile(QS.dir.metric.data, 'b_images3d') ;
+
 %% define string for smoothing params
 if isfield(opts, 'lambda')
     QS.smoothing.lambda = opts.lambda ;
@@ -181,23 +209,6 @@ QS.dir.strainRate.pathline.measurements = ...
 % shorten variable names for brevity
 clineDir = QS.dir.cntrline ;
 
-% fileBases
-QS.fileBase.name = xp.fileMeta.filenameFormat(1:end-4) ;
-QS.fileBase.mesh = ...
-    [xp.detector.options.ofn_smoothply '%06d'] ;
-QS.fileBase.alignedMesh = ...
-    [QS.fileBase.mesh '_APDV_um'] ;
-QS.fileBase.apdProb = [QS.fileBase.name '_Probabilities_apcenterline.h5']  ;
-QS.fileBase.prob = [QS.fileBase.name '_Probabilities.h5'] ; 
-QS.fileBase.centerlineXYZ = ...
-    [QS.fileBase.mesh '_centerline_exp1p0_res*.txt' ] ;
-QS.fileBase.centerlineAPDV = ...
-    [QS.fileBase.mesh '_centerline_scaled_exp1p0_res*.txt' ] ;
-QS.fileBase.cylinderMesh = ...
-    [QS.fileBase.mesh '_cylindercut.ply'] ;
-QS.fileBase.apBoundary = 'ap_boundary_indices_%06d.mat';
-QS.fileBase.cylinderKeep = 'cylinderMesh_keep_indx_%06d.mat' ;
-QS.fileName.apBoundaryDorsalPts = 'ap_boundary_dorsalpts.h5' ;
 
 %% Clean Cylinder Mesh
 QS.fileName.aBoundaryDorsalPtsClean = ...
@@ -472,6 +483,7 @@ QS.fileName.pathlines.vXY = fullfile(pdir, 'piv_pathlines_vXY.mat') ;
 QS.fileName.pathlines.v3d = fullfile(pdir, 'piv_pathlines_v3d.mat') ;
 QS.fileName.pathlines.fXY = fullfile(pdir, 'piv_pathlines_fXY.mat') ;
 QS.fileName.pathlines.f3 = fullfile(pdir, 'piv_pathlines_f3d.mat') ;
+QS.fileName.pathlines.refMesh = fullfile(pdir, 'refMesh.mat') ;
 
 %% UVPrime pathlines
 % By default, we also include uvp_sme as a coordinate system for
