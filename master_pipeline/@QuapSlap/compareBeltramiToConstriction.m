@@ -11,6 +11,7 @@ function compareBeltramiToConstriction(QS, options)
 % NPMitchell 2020
 
 %% Default options
+coordSys = 'ricci' % could be 'uvprime' or 'ricci'
 if isempty(QS.t0)
     t0Pathlines = QS.t0set() ;
 else
@@ -27,6 +28,12 @@ climit = 0.6 ;
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
+if isfield(options, 'overwriteImages')
+    overwriteImages = options.overwriteImages ;
+end
+if isfield(options, 'coordSys')
+    coordSys = options.coordSys ;
+end
 if isfield(options, 't0Pathlines')
     t0Pathlines = options.t0Pathlines ;
 else
@@ -37,18 +44,38 @@ if isfield(options, 'climit')
 end
 
 % Load pathline velocities in UVPrime coordinates
-v3d = load(sprintf(QS.fileName.pathlines_uvprime.v3d, t0Pathlines));
+if strcmpi(coordSys, 'ricci')
+    v3d = load(sprintf(QS.fileName.pathlines.v3d, t0Pathlines));
+    load(sprintf(QS.fileName.pathlines.refMesh, t0Pathlines), 'refMesh') ;
+elseif strcmpi(coordSys, 'uvprime')
+    v3d = load(sprintf(QS.fileName.pathlines_uvprime.v3d, t0Pathlines));
+    load(sprintf(QS.fileName.pathlines_uvprime.refMesh, t0Pathlines), 'refMesh') ;
+end
 v3x = v3d.v3dPathlines.vXrs ;
 v3y = v3d.v3dPathlines.vYrs ;
 v3z = v3d.v3dPathlines.vZrs ;
 
 % Load refMesh
-load(sprintf(QS.fileName.pathlines_uvprime.refMesh, t0Pathlines), 'refMesh') ;
-u2d = [refMesh.u(:, 1), refMesh.u(:, 2), 0*refMesh.u(:, 2)] ;
+u2d = [refMesh.u(:, 1)/max(refMesh.u(:, 1)), refMesh.u(:, 2), 0*refMesh.u(:, 2)] ;
 mesh2 = struct();
 mesh2.f = refMesh.f ;
 mesh2.v = u2d ;
 refMesh2plot = mesh2 ;
+
+%     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%     % Compute dzeta -- material frame distance between DV hoops
+%     % (dzeta along the surface from each hoop to the next)
+%     % The distance from one hoop to another is the
+%     % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
+%     refMesh.dzeta = reshape(vecnorm(...
+%         diff(reshape(refMesh.vrs, [refMesh.nU, refMesh.nV, 3])), 2, 3), ...
+%         [refMesh.nU-1, refMesh.nV]) ;
+%     refMesh.dzeta_mean = nanmean(refMesh.dzeta, 2) ;
+%         
+%     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%     % save refMesh
+%     save(sprintf(QS.fileName.pathlines.refMesh, t0Pathlines), 'refMesh')
+    
 umax_ss = sum(refMesh.dzeta_mean) ;
 
 % Get xyzlim
@@ -70,98 +97,72 @@ end
 if recompute        
     % Compute full expression for mu and plot in 3d and 2d 
     % Load radii for vertices of pathline meshes at all timepoints
-    radfn = sprintf(QS.fileName.pathlines_uvprime.radius, t0Pathlines) ;
+
+    if strcmpi(coordSys, 'ricci')
+        radfn = sprintf(QS.fileName.pathlines.radius, t0Pathlines) ;
+        v3dfn = sprintf(QS.fileName.pathlines.v3d, t0Pathlines) ;
+        reffn = sprintf(QS.fileName.pathlines.refMesh, t0Pathlines) ;
+        mu_all = load(sprintf(QS.fileName.pathlines.quasiconformal, t0Pathlines)) ;
+    elseif strcmpi(coordSys, 'uvprime')
+        radfn = sprintf(QS.fileName.pathlines_uvprime.radius, t0Pathlines) ;
+        v3dfn = sprintf(QS.fileName.pathlines_uvprime.v3d, t0Pathlines) ;
+        reffn = sprintf(QS.fileName.pathlines_uvprime.refMesh, t0Pathlines) ;
+        fntmp = fullfile(sprintf(...
+            QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines), ...
+            'mu_mesh.png') ;
+        mu_all = load(sprintf(QS.fileName.pathlines_uvprime.quasiconformal, t0Pathlines)) ;
+    end
+    
     load(radfn, 'vRadiusPathlines') ;
     % Load vertices in 3d for pathline meshes at all timepoints
-    v3dfn = sprintf(QS.fileName.pathlines_uvprime.v3d, t0Pathlines) ;
     load(v3dfn, 'v3dPathlines') ;
     % Load refMesh
-    reffn = sprintf(QS.fileName.pathlines_uvprime.refMesh, t0Pathlines) ;
     load(reffn, 'refMesh') ;
-    refAspect = (1 + mean(real(refMesh.mu))) / (1 - mean(real(refMesh.mu))) ; 
-    % refMesh = rmfield(refMesh, 'mu') ;
-    % refMesh = rmfield(refMesh, 'radius_pix') ;
-    mesh2.v(:, 1) = mesh2.v(:, 1) * refAspect ;
-    mesh2.v(:, 2) = 2 * pi * mesh2.v(:, 2) ;
-    % Idea: scale u axis (now in microns) by an amount to make the map
-    % conformal at t0. Scale the embedding by the same amount.
-    m4scale = refMesh ;
-    m4scale.u(:, 1) = m4scale.u(:, 1) * umax_ss ;
-    m4scale.u(:, 2) = m4scale.u(:, 2) * 2 * pi ;
-    mu_scale = bc_metric(m4scale.f, m4scale.u, m4scale.vrs, 3) ;
-    mu0 = mean(real(mu_scale)) ;
-    aspect = (1 + mu0) / (1 - mu0) ; 
-    meshScaled = refMesh ;
-    meshScaled.u = [aspect * m4scale.u(:, 1), m4scale.u(:, 2)] ;
-    meshScaled.v = aspect * m4scale.vrs ;
-    mu_after_scale = bc_metric(meshScaled.f, meshScaled.u, meshScaled.v, 3) ;
+    mu = bc_metric(refMesh.f, refMesh.u_ricci, refMesh.v, 3) ;
     
     % Check original mu
     close all
-    trisurf(triangulation(m4scale.f, ...
-        [m4scale.u(:, 1), m4scale.u(:, 2), 0*m4scale.u(:,1)]), ...
-        'FaceVertexCData', real(mu_scale), 'edgecolor', 'none') ;
-    view(2)
-    xlabel('$u$', 'interpreter', 'latex') ;
-    ylabel('$v$', 'interpreter', 'latex') ;
-    axis equal; caxis(max(abs(real(mu_scale))) * [-1, 1])
-    colormap bwr; colorbar
-    title(['$\mu$ for pre-scaled mesh, scale=' num2str(aspect)], ...
-        'Interpreter', 'latex')
+    m2plot = triangulation(refMesh.f, ...
+        [refMesh.u(:, 1)/max(refMesh.u(:, 1)), ...
+        refMesh.u(:, 2), 0*refMesh.u(:,1)]) ;
+    opts.view = [0, 90] ;
+    opts.labels = {'$\Re\mu$', '$\Im \mu$'} ;
+    [axs, cbs, meshHandles] =  ...
+        nFieldsOnSurface(m2plot, {real(mu), imag(mu)}, opts) ;
+    for qq = 1:2
+        set(gcf,'CurrentAxes',axs{qq})
+        xlabel('$u$', 'interpreter', 'latex') ;
+        ylabel('$v$', 'interpreter', 'latex') ;
+        axis equal; caxis(max(abs(real(mu))) * [-1, 1])
+        colormap blueblackred
+        grid off; axis tight ;
+    end
+    sgtitle(['$\mu$ for reference mesh'], 'Interpreter', 'latex')
     fntmp = fullfile(sprintf(...
-        QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines), ...
-        'mu_prescaledMesh.png') ;
-    grid off; axis tight ;
+        QS.dir.pathlines.quasiconformal, t0Pathlines), 'mu_t0.png') ;
     saveas(gcf, fntmp)
-    
-    % Check rescaled mesh mu
-    close all
-    trisurf(triangulation(meshScaled.f, ...
-        [meshScaled.u(:, 1), meshScaled.u(:, 2), 0*meshScaled.u(:,1)]), ...
-        'FaceVertexCData', real(mu_after_scale), 'edgecolor', 'none') ;
-    view(2)
-    xlabel('$u$', 'interpreter', 'latex') ;
-    ylabel('$v$', 'interpreter', 'latex') ;
-    axis equal; caxis(max(abs(real(mu_after_scale))) * [-1, 1])
-    colormap bwr; colorbar
-    title(['$\mu$ for rescaled mesh, scale=' num2str(aspect)], ...
-        'Interpreter', 'latex')
-    fntmp = fullfile(sprintf(...
-        QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines), ...
-        'mu_rescaledMesh.png') ;
-    grid off; axis tight ;
-    saveas(gcf, fntmp)
-    
-    % Check original mu
-    trisurf(triangulation(meshScaled.f, ...
-        [refMesh.u(:, 1), refMesh.u(:, 2), 0*refMesh.u(:,1)]), ...
-        'FaceVertexCData', real(refMesh.mu), 'edgecolor', 'none') ;
-    view(2)
-    xlabel('$u$', 'interpreter', 'latex') ;
-    ylabel('$v$', 'interpreter', 'latex') ;
-    axis equal; caxis(max(abs(real(refMesh.mu))) * [-1, 1])
-    colormap bwr; colorbar
-    title(['$\mu$ for reference mesh, scale=' num2str(aspect)], ...
-        'Interpreter', 'latex')
-    fntmp = fullfile(sprintf(...
-        QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines), ...
-        'mu_refMesh.png') ;
-    grid off; axis tight ;
-    saveas(gcf, fntmp)
-    
+        
     % Load true mu Beltrami coefficient for comparison
-    mu_all = load(sprintf(QS.fileName.pathlines_uvprime.quasiconformal, t0Pathlines)) ;
     mu_all = mu_all.mu_material_filtered ;
     nU = refMesh.nU ;
     nV = refMesh.nV ;
     
     % Create output directories
-    predDir3d = fullfile(sprintf(...
-        QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines), ...
-        'images_pred3d') ;
-    predDir2d = fullfile(sprintf(...
-        QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines), ...
-        'images_pred2d') ;
+    if strcmpi(coordSys, 'ricci')
+        predDir3d = fullfile(sprintf(...
+            QS.dir.pathlines.quasiconformal, t0Pathlines), ...
+            'images_pred3d') ;
+        predDir2d = fullfile(sprintf(...
+            QS.dir.pathlines.quasiconformal, t0Pathlines), ...
+            'images_pred2d') ;
+    else
+        predDir3d = fullfile(sprintf(...
+            QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines), ...
+            'images_pred3d') ;
+        predDir2d = fullfile(sprintf(...
+            QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines), ...
+            'images_pred2d') ;
+    end
     if ~exist(predDir3d, 'dir')
         mkdir(predDir3d)
     end
@@ -199,8 +200,8 @@ if recompute
         radv = reshape(vRadiusPathlines.radii(tidx, :, :), [nU*nV, 1]) ;
         radv = radv ./ radv0 ;
         
-        dec = DiscreteExteriorCalculus(meshScaled.f, ...
-            [meshScaled.u(:, 1) ./ radv0_uv, meshScaled.u(:, 2), 0*meshScaled.u(:, 1)]) ;
+        dec = DiscreteExteriorCalculus(refMesh.f, ...
+            [refMesh.u_ricci(:, 1), refMesh.u_ricci(:, 2), 0*refMesh.u_ricci(:, 1)]) ;
         dxdy = dec.gradient(radv(:)) ;
         dx = dxdy(:, 1) ;
         dy = dxdy(:, 2) ;
@@ -353,8 +354,13 @@ timePoints = QS.xp.fileMeta.timePoints ;
 
 
 %% Plot kymograph of difference
-fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
-    t0Pathlines), 'prediction_kymograph.png') ;
+if strcmpi(coordSys, 'ricci')
+    fn = fullfile(sprintf(QS.dir.pathlines.quasiconformal, ...
+        t0Pathlines), 'prediction_kymograph.png') ;
+else
+    fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
+        t0Pathlines), 'prediction_kymograph.png') ;
+end
 if ~exist(fn, 'file')
     close all
     fields = {real(mu_apM), indent_apM * 0.5, real(mu_apM) - indent_apM * 0.5} ;
@@ -389,7 +395,11 @@ end
 %% Obtain location of folds / features
 featureOpts = struct() ;
 featureOpts.field2 = 'radius' ;
-featureIDs = QS.getUVPrimePathlineFeatureIDs('vertices', featureOpts) ;
+if strcmpi(coordSys, 'ricci')
+    featureIDs = QS.getPullbackPathlineFeatureIDs('vertices', featureOpts) ;
+else
+    featureIDs = QS.getUVPrimePathlineFeatureIDs('vertices', featureOpts) ;
+end
 QS.getFeatures()
 fold_onset = QS.features.fold_onset ;
 widths = [0.01, 0.02, 0.05] ;
@@ -398,8 +408,15 @@ widths = [0.01, 0.02, 0.05] ;
 close all
 for width = widths
     close all
-    fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
-        t0Pathlines), ['linear_approx_folds_width' num2str(round(width * nU)) '.png']) ;
+
+    if strcmpi(coordSys, 'ricci')
+        fn = fullfile(sprintf(QS.dir.pathlines.quasiconformal, ...
+            t0Pathlines), ['linear_approx_folds_width' num2str(round(width * nU)) '.png']) ;
+    else
+        fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
+            t0Pathlines), ['linear_approx_folds_width' num2str(round(width * nU)) '.png']) ;    
+    end
+
     nfolds = length(fold_onset) ;
 
     % Adjust time to hours if in minutes

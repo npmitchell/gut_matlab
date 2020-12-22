@@ -133,6 +133,9 @@ classdef QuapSlap < handle
             'cutPath', [], ...
             'spcutMesh', [], ...
             'spcutMeshSm', [], ...
+            'spcutMeshSmRS', [], ...
+            'spcutMeshSmRSC', [], ...
+            'ricciMesh', [], ...
             'uvpcutMesh', []) 
         data = struct('adjustlow', 0, ...
             'adjusthigh', 0, ...
@@ -800,21 +803,64 @@ classdef QuapSlap < handle
         
         % spcutMesh
         generateCurrentSPCutMesh(QS, cutMesh, overwrite)
-        function loadCurrentSPCutMesh(QS)
+        function spcutMesh = loadCurrentSPCutMesh(QS)
+            if isempty(QS.currentTime)
+                error('First set currentTime')
+            end
             spcutMeshfn = sprintf(QS.fullFileBase.spcutMesh, QS.currentTime) ;
             tmp = load(spcutMeshfn, 'spcutMesh') ;
             QS.currentMesh.spcutMesh = tmp.spcutMesh ;
+            if nargout > 0
+                spcutMesh = QS.currentMesh.spcutMesh ;
+            end
         end
-        function mesh = getCurrentSPCutMeshSm(QS)
-            if isempty(QS.currentMesh.spcutMesh)
+        function spcutMeshSm = getCurrentSPCutMeshSm(QS)
+            if isempty(QS.currentTime)
+                error('First set currentTime')
+            end
+            if isempty(QS.currentMesh.spcutMeshSm)
                 QS.loadCurrentSPCutMeshSm() ;
             end
-            mesh = QS.currentMesh.spcutMeshSm ;
+            if nargout > 0
+                spcutMeshSm = QS.currentMesh.spcutMeshSm ;
+            end
         end
         function loadCurrentSPCutMeshSm(QS)
             spcutMeshfn = sprintf(QS.fullFileBase.spcutMeshSm, QS.currentTime) ;
             tmp = load(spcutMeshfn, 'spcutMeshSm') ;
             QS.currentMesh.spcutMeshSm = tmp.spcutMeshSm ;
+        end
+        function spcutMeshSmRS = getCurrentSPCutMeshSmRS(QS)
+            if isempty(QS.currentTime)
+                error('First set currentTime')
+            end
+            if isempty(QS.currentMesh.spcutMeshSmRS)
+                QS.loadCurrentSPCutMeshSmRS() ;
+            end
+            if nargout > 0
+                spcutMeshSmRS = QS.currentMesh.spcutMeshSmRS ;
+            end
+        end
+        function loadCurrentSPCutMeshSmRS(QS)
+            spcutMeshfn = sprintf(QS.fullFileBase.spcutMeshSmRS, QS.currentTime) ;
+            tmp = load(spcutMeshfn, 'spcutMeshSmRS') ;
+            QS.currentMesh.spcutMeshSmRS = tmp.spcutMeshSmRS ;
+        end
+        function spcutMeshSmRSC = getCurrentSPCutMeshSmRSC(QS)
+            if isempty(QS.currentTime)
+                error('First set currentTime')
+            end
+            if isempty(QS.currentMesh.spcutMeshSmRSC)
+                QS.loadCurrentSPCutMeshSmRSC() ;
+            end
+            if nargout > 0
+                spcutMeshSmRSC = QS.currentMesh.spcutMeshSmRSC ;
+            end
+        end
+        function loadCurrentSPCutMeshSmRSC(QS)
+            spcutMeshfn = sprintf(QS.fullFileBase.spcutMeshSmRSC, QS.currentTime) ;
+            tmp = load(spcutMeshfn, 'spcutMeshSmRSC') ;
+            QS.currentMesh.spcutMeshSmRSC = tmp.spcutMeshSmRSC ;
         end
         
         % t0_for_phi0 (uvprime cutMesh)
@@ -830,10 +876,122 @@ classdef QuapSlap < handle
             QS.currentMesh.uvpcutMesh = tmp.uvpcutMesh ;
         end
         measureUVPrimePathlines(QS, options)
+        % Note: measureBeltramiCoefficient() allows uvprime
+        % coordSys.
+        
+        % Ricci flow for (r=log(rho), phi) coordinate system
+        function mesh = getCurrentRicciMesh(QS)
+            if isempty(QS.currentMesh.ricciMesh)
+                QS.loadCurrentRicciMesh() ;
+            end
+            mesh = QS.currentMesh.ricciMesh ;
+        end
+        function loadCurrentRicciMesh(QS, maxIter)
+            if nargin < 2
+                maxIter = 100 ;
+            end
+            ricciMeshfn = sprintf(QS.fullFileBase.ricciMesh, maxIter, QS.currentTime) ;
+            tmp = load(uvpcutMeshfn, 'ricciMesh') ;
+            QS.currentMesh.uvpcutMesh = tmp.uvpcutMesh ;
+        end
+        measureRPhiPathlines(QS, options)
+        % Note: measureBeltramiCoefficient() allows rphi coordSys
         measureBeltramiCoefficient(QS, options)
         
         % Radial indentation for pathlines
         function indentation = measurePathlineIndentation(QS, options)
+            overwrite = false ;
+            t0p = QS.t0set() ;
+            if isfield(options, 'overwrite')
+                overwrite = options.overwrite ;
+            end
+            if isfield(options, 't0Pathline')
+                t0p = options.t0Pathline ;
+            end
+            indentFn = sprintf(QS.fileName.pathlines.indentation, t0p) ;
+            if ~exist(indentFn, 'file') || overwrite 
+                radFn = sprintf(QS.fileName.pathlines.radius, t0p) ;
+                if ~exist(radFn, 'file')
+                    disp(['pathline radii not on disk: ' radFn])
+                    QS.measurePullbackPathlines(options) ;
+                end
+                
+                load(radFn, 'vRadiusPathlines')
+                rad = vRadiusPathlines.radii ;
+                nU = size(rad, 2) ;
+                indentation = 0 * rad ;
+                rad0 = rad(vRadiusPathlines.tIdx0, :, :) ;
+                for tidx = 1:length(QS.xp.fileMeta.timePoints)
+                    indentation(tidx, :, :) = -(rad(tidx, :, :) - rad0) ./ rad0 ;
+                end
+                save(indentFn, 'indentation')
+                
+                % Plot the indentation as a kymograph
+                close all
+                figfn = fullfile(sprintf(QS.dir.pathlines.data, ...
+                    t0p), 'indentation_kymograph.png') ;
+                set(gcf, 'visible', 'off')
+                indentAP = mean(indentation, 3) ;
+                uspace = linspace(0, 1, nU) ;
+                imagesc(uspace, QS.xp.fileMeta.timePoints, indentAP)
+                xlabel('ap position, $u''/L$', 'interpreter', 'latex')
+                ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+                caxis([-max(abs(indentAP(:))), max(abs(indentAP(:)))])
+                colormap blueblackred
+                cb = colorbar() ;
+                ylabel(cb, 'indentation $\delta r/r_0$', 'interpreter', 'latex')
+                saveas(gcf, figfn)
+                
+                % Plot in 3d
+                % load reference mesh and pathline vertices in 3d
+                load(sprintf(QS.fileName.pathlines.refMesh, t0p), ...
+                    'refMesh') ;
+                load(sprintf(QS.fileName.pathlines.v3d, t0p), 'v3dPathlines') ;
+                indentDir = sprintf(QS.dir.pathlines.indentation, t0p) ;
+                if ~exist(indentDir, 'dir')
+                    mkdir(indentDir) 
+                end
+                [~,~,~,xyzlim] = QS.getXYZLims() ;
+                for tidx = 1:size(rad, 1)
+                    tp = QS.xp.fileMeta.timePoints(tidx) ;
+                    fn = fullfile(indentDir, 'indentation_%06d.png') ;
+                    if ~exist(fn, 'file') || overwrite
+                        close all 
+                        fig = figure('visible', 'off') ;
+                        opts = struct() ;
+                        opts.fig = fig ;
+                        opts.ax = gca ;
+                        xx = v3dPathlines.vXrs(tidx, :) ;
+                        yy = v3dPathlines.vYrs(tidx, :) ;
+                        zz = v3dPathlines.vZrs(tidx, :) ;
+                        v3d = [ xx(:), yy(:), zz(:) ] ;
+                        indent = indentation(tidx,:,:) ;
+                        opts.sscale = 0.5 ;
+                        opts.axisOff = false ;
+                        opts.label = 'constriction, $\delta r/r_0$' ;
+                        opts.ax_position = [0.1141, 0.1100, 0.6803, 0.8150] ;
+                        scalarFieldOnSurface(refMesh.f, v3d, indent(:), opts) ;
+                        view(0, 0)
+                        axis equal
+                        axis off
+                        xlim(xyzlim(1, :))
+                        ylim(xyzlim(2, :))
+                        zlim(xyzlim(3, :))
+                        sgtitle(['constriction, $t=$', ...
+                            sprintf('%03d', (tp-t0p)*QS.timeInterval), ...
+                            ' ', QS.timeUnits ], 'interpreter', 'latex')
+                        saveas(gcf, sprintf(fn, tp)) ;
+                        close all
+                    end
+                end
+                
+            else
+                load(indentFn, 'indentation')
+            end
+        end
+        
+        % Radial indentation for UVprime pathlines
+        function indentation = measureUVPrimePathlineIndentation(QS, options)
             overwrite = false ;
             t0p = QS.t0set() ;
             if isfield(options, 'overwrite')
@@ -1148,6 +1306,9 @@ classdef QuapSlap < handle
        
         % uvprime cutMeshSm
         generateUVPrimeCutMeshes(QS, options)
+        
+        % ricci Mesh (truly conformal mapped mesh)
+        [ricciMesh, ricciMu] = generateRicciMeshTimePoint(QS, tp, options) 
         
         % spcutMeshSm coordinate system demo
         coordinateSystemDemo(QS)

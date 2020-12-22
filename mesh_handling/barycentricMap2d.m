@@ -1,9 +1,9 @@
 function [pts, fieldfaces, tr0] = ...
-    interpolate2Dpts_3Dmesh(faces, v2d, v3d, uv)
-%INTERPOLATE2DPTS_3DMESH Map points in 2D to 3D using mesh faces  
-%   Map points in 2D space living in 2D representation of a mesh to 3D
-%   space living on the 3D representation of the same mesh, using
-%   barycentric coordinates. 
+    barycentricMap2d(faces, v2d, vmap, uv)
+%BARYCENTRICMAP2D Map points in 2D to another mesh space using mesh faces  
+%   Map points in 2D space living in 2D representation of a mesh to another
+%   space living on the other (possibly 3D) representation of the same 
+%   mesh, using barycentric coordinates. 
 %
 % Parameters
 % ----------
@@ -11,8 +11,8 @@ function [pts, fieldfaces, tr0] = ...
 %   The mesh connectivity list, indexing into the vertex array(s)
 % v2d : P x 2 float array
 %   The mesh vertex locations in 2d
-% v3d : P x 3 float array
-%   The mesh vertex locations in 3d
+% vmap : P x 2 or 3 float array
+%   The mesh vertex locations in 2d or 3d
 % uv : N x 2 float array
 %   The points to map to 3D using barycentric coordinates
 %
@@ -29,15 +29,19 @@ function [pts, fieldfaces, tr0] = ...
 %
 % See also
 % --------
-% barycentericMap2d(faces, v2d, vmap, uv) -- essentially the same
-% function but allows 2d to 2d
-%
+% interpolate2Dpts_3Dmesh(faces, v2d, v3d, uv) -- essentially the same
+% function
+%  
 % NPMitchell 2019
+
+if nargin < 4
+    ignore_NaNs = false ;
+end
 
 tr0 = triangulation(faces, v2d) ;
 [fieldfaces, baryc0] = pointLocation(tr0, uv) ; 
 
-% Handle case where there are NaNs
+% Handle case where there are NaNs -- note later we return these to NaN
 bad = find(isnan(fieldfaces)) ;
 baryc0(isnan(fieldfaces), :) = 0 ; 
 fieldfaces(isnan(fieldfaces)) = 1 ;  
@@ -45,14 +49,10 @@ fieldfaces(isnan(fieldfaces)) = 1 ;
 % Interpolate the position in 3D given relative position within 2D
 % triangle.
 % x123(i) is the x coords of the elements of triangle t_contain(i)
-vxa = v3d(:, 1) ;
-vya = v3d(:, 2) ;
-vza = v3d(:, 3) ;
-
-if size(vxa, 1) ~= size(v2d, 1)
-    disp(['size of v3d supplied = ' num2str(size(v3d))])
+if size(vmap, 1) ~= size(v2d, 1)
+    disp(['size of vmap supplied = ' num2str(size(vmap))])
     disp(['size of v2d supplied = ' num2str(size(v2d))])
-    error('Length of v3d and v2d must match (same #pts)')
+    error('Length of vmap and v2d must match (same #pts)')
 end
 
 % Map to the faces
@@ -68,9 +68,22 @@ tria = tr0.ConnectivityList(fieldfaces, :) ;
 % Multiply the vertex positions by relative weights.
 % Note that baryc gives weights of the three vertices of triangle
 % t_contain(i) for pointLocation x0(i), y0(i)
-pts = [sum(baryc0 .* vxa(tria), 2), ...
-    sum(baryc0 .* vya(tria), 2), ...
-    sum(baryc0 .* vza(tria), 2) ] ;
+vxa = vmap(:, 1) ;
+vya = vmap(:, 2) ;
+if size(vmap, 2) == 3
+    vza = vmap(:, 3) ;
+end
+
+if size(vmap, 2) == 2
+    pts = [sum(baryc0 .* vxa(tria), 2), ...
+        sum(baryc0 .* vya(tria), 2)] ;
+elseif size(vmap, 2) == 3
+    pts = [sum(baryc0 .* vxa(tria), 2), ...
+        sum(baryc0 .* vya(tria), 2), ...
+        sum(baryc0 .* vza(tria), 2) ] ;
+else
+    error('handle this dimension of vmap here')
+end
 
 % Handle case where there are NaNs
 pts(bad, :) = NaN  ;

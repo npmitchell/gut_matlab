@@ -106,7 +106,18 @@ if strcmpi(pathlineType, 'vertices')
                     sf2 = tmp.radius_apM ;
                 end    
             catch
-                error('Run QS.plotPathlineMetricKinematics() before QS.plotPathlineStrainRate()')
+                try
+                    apKymoFn = sprintf(QS.fileName.pathlines.kymographs.radius, t0Pathline) ;
+                    tmp = load(apKymoFn, 'radius_apM') ;
+                    if strcmpi(field1, 'radius') 
+                        sf1 = tmp.radius_apM ;
+                    else
+                        sf2 = tmp.radius_apM ;
+                    end   
+                catch
+                    error('Run QS.plotPathlineMetricKinematics() before QS.plotPathlineStrainRate()')
+                end
+                
             end
         end
         if strcmpi(field1, 'divv') || strcmpi(field2, 'divv')
@@ -132,6 +143,11 @@ if strcmpi(pathlineType, 'vertices')
             catch
                 error('Run QS.plotPathlineMetricKinematics() before QS.plotPathlineStrainRate()')
             end
+        end
+        
+        % Allow for duplicate scalar fields to be plotted
+        if strcmpi(field1, field2) 
+            sf2 = sf1 ;
         end
 
         %% Interactively adjust feature locations

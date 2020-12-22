@@ -1,7 +1,9 @@
 function [curvout] = resampleCurvReplaceNaNs(curv, N, closed)
 %resampleCurvReplaceNaNs Resample equally a D-dim curve at N points
-%   The endpoints are each part of the sampling, so if this is a closed
-%   curve, remove the final endpoint (or startpoint) for an equal sampling.
+% 
+%   Note: The endpoints are both part of the sampling, so if this is a 
+%   closed curve, remove the final endpoint (or startpoint) for an equal 
+%   sampling.
 %   Note: convention is that a closed curve will have equal starting and
 %   ending points (so the position appears twice).
 %

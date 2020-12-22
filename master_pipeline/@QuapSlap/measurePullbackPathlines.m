@@ -17,6 +17,8 @@ function measurePullbackPathlines(QS, options)
 %       overwrite previous results
 %   preview : bool
 %       view intermediate results
+%   maxIter : int (default=100)
+%       #Ricci steps for refMesh.u_ricci and beltrami calculation
 %
 % Saves to disk
 % -------------
@@ -34,6 +36,7 @@ function measurePullbackPathlines(QS, options)
 
 %% Default options
 overwrite = false ;
+overwriteImages = false ;
 preview = false ;
 debug = false ;
 pivimCoords = QS.piv.imCoords ;
@@ -42,6 +45,7 @@ samplingResolution = '1x' ;
 nY2plot = 30 ;
 scatterSz = 2 ;
 movieScatterSz = 2 ;
+maxIter = 200 ;
 if nargin < 2
     options = struct() ;
 end
@@ -78,6 +82,9 @@ else
     doubleCovered = false ;
     Yoffset = 0.0 ;
 end
+if isfield(options, 'maxIter')
+    maxIter = options.maxIter ;
+end
 
 %% Unpack QS
 % [rot, ~] = QS.getRotTrans() ;
@@ -109,9 +116,7 @@ for qq = 1:length(dirs2make)
     end
 end
 
-
 %% Perform/Load pathline calculations
-
 % Check if the time smoothed velocities exist already
 % 2d velocities (pulled back), scaled by dilation of metric are v2dum 
 % 2D velocities (pulled back) are v2d
@@ -123,8 +128,9 @@ end
 QS.clearTime() ;
 
 %% CREATE REFERENCE MESH 
+% Use Ricci flow for beltrami quasiconformal coefficient mu, etc
 refMeshFn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
-if ~exist(refMeshFn, 'file') || overwrite 
+if ~exist(refMeshFn, 'file') || overwrite || true 
     if strcmp(QS.piv.imCoords, 'sp_sme')
         refMesh = load(sprintf(QS.fullFileBase.spcutMeshSm, t0), 'spcutMeshSm') ;
         refMesh = refMesh.spcutMeshSm ;
@@ -141,23 +147,56 @@ if ~exist(refMeshFn, 'file') || overwrite
     Ly = size(im0, 2) * ones(length(timePoints), 1) ;
     m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], refMesh.u, doubleCovered, umax0, vmax0) ;
     refMesh.XY = m0XY ;
-    uv = refMesh.u ;
-    uv(:, 1) = refMesh.u(:, 1) / max(refMesh.u(:, 1)) ;
-    refMesh.readme = 'mu is computed after rescaling refMesh.u(:, 1) to range from 0 to 1' ;
-    refMesh.mu = bc_metric(refMesh.f, uv, refMesh.v, 3) ;
     
     try 
         refMesh.vrs;
     catch
         refMesh.vrs = QS.xyz2APDV(refMesh.v) ;
     end
+    
+    % Dump ricci result for this reference timepoint into refMesh
+    ricciMeshFn = sprintf(QS.fullFileBase.ricciMesh, maxIter, t0) ;
+    if exist(ricciMeshFn, 'file')
+        load(ricciMeshFn, 'ricciMesh')
+        refMesh.u_ricci = ricciMesh.rectangle.u ;
+
+        % beltrami for this t0
+        ricciMuFn = sprintf(QS.fullFileBase.ricciMu, maxIter, t0) ;
+        if exist(ricciMuFn, 'file')
+            load(ricciMuFn, 'mu_rectangle')
+            refMesh.mu = mu_rectangle ;
+        else
+            disp('could not find beltrami for ricciMesh on disk, computing...')
+            refMesh.mu = bc_metric(refMesh.f, refMesh.u_ricci, refMesh.vrs, 3) ;    
+        end
+    else
+        opts = struct() ;
+        opts.maxIter = maxIter ;
+        [ricciMesh, ricciMu] = QS.generateRicciMeshTimePoint(t0, opts) ;
+        refMesh.u_ricci = ricciMesh.rectangle.u ;
+        refMesh.mu = ricciMu.rectangle ;
+    end
+    refMesh.readme = 'mu is computed after Ricci flow generates refMesh.u_ricci' ;
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Compute dzeta -- material frame distance between DV hoops
+    % (dzeta along the surface from each hoop to the next)
+    % The distance from one hoop to another is the
+    % difference in position from (u_i, v_i) to (u_{i+1}, v_i).
+    refMesh.dzeta = reshape(vecnorm(...
+        diff(reshape(refMesh.vrs, [refMesh.nU, refMesh.nV, 3])), 2, 3), ...
+        [refMesh.nU-1, refMesh.nV]) ;
+    refMesh.dzeta_mean = nanmean(refMesh.dzeta, 2) ;
+        
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % save refMesh
     save(refMeshFn, 'refMesh')
 else
     load(refMeshFn, 'refMesh')
     try
         refMesh.mu ;
     catch
-        refMesh.mu = bc_metric(refMesh.f, refMesh.u, refMesh.v, 3) ;
+        refMesh.mu = bc_metric(refMesh.f, refMesh.u_ricci, refMesh.vrs, 3) ;
     end
 end
 
@@ -202,7 +241,7 @@ for pp = 1:2
         nFieldsOnSurface({m2view, m2view, m2view, m2view}, ...
         {gg(:, 1), gg(:, 2), gg(:, 3), gg(:, 4)}, opts) ;
     fn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
-    fn = [fn(1:end-4) '_g_fundForm' strClims{pp} '.png'] ;
+    fn = [fn(1:end-4) '_dirichlet_g_fundForm' strClims{pp} '.png'] ;
     saveas(gcf, fn)
     % plot bb
     opts = struct() ;
@@ -225,9 +264,183 @@ for pp = 1:2
         nFieldsOnSurface({m2view, m2view, m2view, m2view}, ...
         {bb(:, 1), bb(:, 2), bb(:, 3), bb(:, 4)}, opts) ;
     fn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
-    fn = [fn(1:end-4) '_b_fundForm' strClims{pp} '.png'] ;
+    fn = [fn(1:end-4) '_dirichlet_b_fundForm' strClims{pp} '.png'] ;
     saveas(gcf, fn)
 end
+
+
+%% Save metric images of refMesh -- ricci result
+xx = refMesh.u_ricci ;
+[gcell, bcell] = constructFundamentalForms(refMesh.f, refMesh.vrs, xx) ;
+gg = zeros(length(gcell), 4) ;
+bb = zeros(length(gcell), 4) ;
+for qq = 1:length(gcell)
+    gg(qq, 1) = gcell{qq}(1, 1) ;
+    gg(qq, 2) = gcell{qq}(1, 2) ;
+    gg(qq, 3) = gcell{qq}(2, 1) ;
+    gg(qq, 4) = gcell{qq}(2, 2) ;
+    bb(qq, 1) = bcell{qq}(1, 1) ;
+    bb(qq, 2) = bcell{qq}(1, 2) ;
+    bb(qq, 3) = bcell{qq}(2, 1) ;
+    bb(qq, 4) = bcell{qq}(2, 2) ;
+end
+strClims = {'climVariable', 'climUniform'} ;
+for pp = 1:2
+    opts = struct() ;
+    if pp == 1
+        opts.clims = {max(abs(gg(:, 1))) * [-1, 1], ...
+            max(abs(gg(:, 2))) * [-1, 1], ...
+            max(abs(gg(:, 3))) * [-1, 1], ...
+            max(abs(gg(:, 4))) * [-1, 1]} ;
+    else
+        opts.clim = max(abs(gg(:))) * [-1, 1] ;
+    end
+    labels = {'$\mathbf{g}_{\zeta\zeta}$', ...
+        '$\mathbf{g}_{\zeta\phi}$', ...
+        '$\mathbf{g}_{\phi\zeta}$', ...
+        '$\mathbf{g}_{\phi\phi}$'} ;
+    m2view = refMesh ;
+    m2view.v = refMesh.vrs ;
+    opts.labels = labels ;
+    opts.views = [0, 0] ;
+    opts.axisOff = true ;
+    [axs, cbs, meshHandles] = ...
+        nFieldsOnSurface({m2view, m2view, m2view, m2view}, ...
+        {gg(:, 1), gg(:, 2), gg(:, 3), gg(:, 4)}, opts) ;
+    fn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
+    fn = [fn(1:end-4) '_ricci_g_fundForm' strClims{pp} '.png'] ;
+    saveas(gcf, fn)
+    % plot bb
+    opts = struct() ;
+    if pp == 1
+        opts.clims = {max(abs(bb(:, 1))) * [-1, 1], ...
+            max(abs(bb(:, 2))) * [-1, 1], ...
+            max(abs(bb(:, 3))) * [-1, 1], ...
+            max(abs(bb(:, 4))) * [-1, 1]} ;
+    else
+        opts.clim = max(abs(bb(:))) * [-1, 1] ;
+    end
+    labels = {'$\mathbf{b}_{\zeta\zeta}$', ...
+        '$\mathbf{b}_{\zeta\phi}$', ...
+        '$\mathbf{b}_{\phi\zeta}$', ...
+        '$\mathbf{b}_{\phi\phi}$'} ;
+    opts.labels = labels ;
+    opts.views = [0, 0] ;
+    opts.axisOff = true ;
+    [axs, cbs, meshHandles] = ...
+        nFieldsOnSurface({m2view, m2view, m2view, m2view}, ...
+        {bb(:, 1), bb(:, 2), bb(:, 3), bb(:, 4)}, opts) ;
+    fn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
+    fn = [fn(1:end-4) '_ricci_b_fundForm' strClims{pp} '.png'] ;
+    saveas(gcf, fn)
+end
+
+%% For reference -- Dirichlet approach to mu minimization
+% refMeshFn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
+% if ~exist(refMeshFn, 'file') || overwrite 
+%     if strcmp(QS.piv.imCoords, 'sp_sme')
+%         refMesh = load(sprintf(QS.fullFileBase.spcutMeshSm, t0), 'spcutMeshSm') ;
+%         refMesh = refMesh.spcutMeshSm ;
+%     else
+%         error('handle this imCoords here')
+%     end
+%     umax0 = max(refMesh.u(:, 1)) ;
+%     vmax0 = max(refMesh.u(:, 2)) ;
+%     % Get size Lx and Ly for XY space
+%     im0 = imread(sprintf(QS.fullFileBase.im_sp_sme, t0)) ;
+%     % for now assume all images are the same size
+%     disp('for now assuming all images are the same size')
+%     Lx = size(im0, 1) * ones(length(timePoints), 1) ;
+%     Ly = size(im0, 2) * ones(length(timePoints), 1) ;
+%     m0XY = QS.uv2XY([Lx(tIdx0), Ly(tIdx0)], refMesh.u, doubleCovered, umax0, vmax0) ;
+%     refMesh.XY = m0XY ;
+%     uv = refMesh.u ;
+%     uv(:, 1) = refMesh.u(:, 1) / max(refMesh.u(:, 1)) ;
+%     refMesh.readme = 'mu is computed after rescaling refMesh.u(:, 1) to range from 0 to 1' ;
+%     refMesh.mu = bc_metric(refMesh.f, uv, refMesh.v, 3) ;
+%     
+%     try 
+%         refMesh.vrs;
+%     catch
+%         refMesh.vrs = QS.xyz2APDV(refMesh.v) ;
+%     end
+%     save(refMeshFn, 'refMesh')
+% else
+%     load(refMeshFn, 'refMesh')
+%     try
+%         refMesh.mu ;
+%     catch
+%         refMesh.mu = bc_metric(refMesh.f, refMesh.u, refMesh.v, 3) ;
+%     end
+% end
+% 
+% %% Save metric images of refMesh
+% xx = refMesh.u ;
+% aspectShear = (1 - mean(real(refMesh.mu))) / (1 + mean(real(refMesh.mu))) ;
+% xx(:, 1) = refMesh.u(:, 1) / max(refMesh.u(:, 1)) * aspectShear ; 
+% [gcell, bcell] = constructFundamentalForms(refMesh.f, refMesh.vrs, xx) ;
+% gg = zeros(length(gcell), 4) ;
+% bb = zeros(length(gcell), 4) ;
+% for qq = 1:length(gcell)
+%     gg(qq, 1) = gcell{qq}(1, 1) ;
+%     gg(qq, 2) = gcell{qq}(1, 2) ;
+%     gg(qq, 3) = gcell{qq}(2, 1) ;
+%     gg(qq, 4) = gcell{qq}(2, 2) ;
+%     bb(qq, 1) = bcell{qq}(1, 1) ;
+%     bb(qq, 2) = bcell{qq}(1, 2) ;
+%     bb(qq, 3) = bcell{qq}(2, 1) ;
+%     bb(qq, 4) = bcell{qq}(2, 2) ;
+% end
+% strClims = {'climVariable', 'climUniform'} ;
+% for pp = 1:2
+%     opts = struct() ;
+%     if pp == 1
+%         opts.clims = {max(abs(gg(:, 1))) * [-1, 1], ...
+%             max(abs(gg(:, 2))) * [-1, 1], ...
+%             max(abs(gg(:, 3))) * [-1, 1], ...
+%             max(abs(gg(:, 4))) * [-1, 1]} ;
+%     else
+%         opts.clim = max(abs(gg(:))) * [-1, 1] ;
+%     end
+%     labels = {'$\mathbf{g}_{\zeta\zeta}$', ...
+%         '$\mathbf{g}_{\zeta\phi}$', ...
+%         '$\mathbf{g}_{\phi\zeta}$', ...
+%         '$\mathbf{g}_{\phi\phi}$'} ;
+%     m2view = refMesh ;
+%     m2view.v = refMesh.vrs ;
+%     opts.labels = labels ;
+%     opts.views = [0, 0] ;
+%     opts.axisOff = true ;
+%     [axs, cbs, meshHandles] = ...
+%         nFieldsOnSurface({m2view, m2view, m2view, m2view}, ...
+%         {gg(:, 1), gg(:, 2), gg(:, 3), gg(:, 4)}, opts) ;
+%     fn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
+%     fn = [fn(1:end-4) '_g_fundForm' strClims{pp} '.png'] ;
+%     saveas(gcf, fn)
+%     % plot bb
+%     opts = struct() ;
+%     if pp == 1
+%         opts.clims = {max(abs(bb(:, 1))) * [-1, 1], ...
+%             max(abs(bb(:, 2))) * [-1, 1], ...
+%             max(abs(bb(:, 3))) * [-1, 1], ...
+%             max(abs(bb(:, 4))) * [-1, 1]} ;
+%     else
+%         opts.clim = max(abs(bb(:))) * [-1, 1] ;
+%     end
+%     labels = {'$\mathbf{b}_{\zeta\zeta}$', ...
+%         '$\mathbf{b}_{\zeta\phi}$', ...
+%         '$\mathbf{b}_{\phi\zeta}$', ...
+%         '$\mathbf{b}_{\phi\phi}$'} ;
+%     opts.labels = labels ;
+%     opts.views = [0, 0] ;
+%     opts.axisOff = true ;
+%     [axs, cbs, meshHandles] = ...
+%         nFieldsOnSurface({m2view, m2view, m2view, m2view}, ...
+%         {bb(:, 1), bb(:, 2), bb(:, 3), bb(:, 4)}, opts) ;
+%     fn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
+%     fn = [fn(1:end-4) '_b_fundForm' strClims{pp} '.png'] ;
+%     saveas(gcf, fn)
+% end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PIV evaluation coordinates in XY pixel space
@@ -258,6 +471,7 @@ if ~exist(plineXY, 'file') || overwrite
     pivPathlines.tIdx0 =  tIdx0 ;
     
     smoothing_sigma = QS.piv.smoothing_sigma ;
+    disp(['Saving ' plineXY])
     save(plineXY, 'pivPathlines', 'smoothing_sigma')
     
     computed_XY = true ;
@@ -659,7 +873,7 @@ end
 %% Push forward vertex pathlines from pullback to embedding coordinates
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 plinev3d = sprintf(QS.fileName.pathlines.v3d, t0) ;
-if ~exist(plinev3d, 'file') || overwrite || true
+if ~exist(plinev3d, 'file') || overwrite 
     disp('Compute 3d pathlines in embedding space for Lagrangian/advected spcutMesh vertex coords')
     % Build 3d pathlines in embedding space for all vertex locations
     % Load 2d pathlines in pullback space if not already in RAM
@@ -879,6 +1093,248 @@ for tidx = 1:length(QS.xp.fileMeta.timePoints)
         close all
     else
         disp(['Mesh advected vertex XYZ pathline image already on disk: ' plineFig])
+    end
+end
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% RADII -- Push forward vertex pathlines from pullback to embedding coordinates
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+pliner3d = sprintf(QS.fileName.pathlines.radius, t0) ;
+if ~exist(pliner3d, 'file') || overwrite || overwriteImages
+    disp('Computing radii along pathlines in embedding space for Lagrangian/advected uvprimecutMesh vertex coords')
+    % Build 3d pathlines in embedding space for all vertex locations
+    % Load 2d pathlines in pullback space if not already in RAM
+    if ~computed_vXY 
+        load(sprintf(QS.fileName.pathlines.vXY, t0), 'vertexPathlines')
+        vX = vertexPathlines.vX ;
+        vY = vertexPathlines.vY ;
+        t0 = vertexPathlines.t0 ;
+        tIdx0 = vertexPathlines.tIdx0 ;
+        Lx = vertexPathlines.Lx ;
+        Ly = vertexPathlines.Ly ;
+        computed_vXY = true ;
+    end
+    
+    % Preallocate v3d = (XX, YY, ZZ)
+    vRad = zeros(size(vX)) ;
+    
+    % For each timepoint, push advected vertices forward into embedding space
+    for tidx = 1:length(timePoints)
+        tp = timePoints(tidx) ;
+        if mod(tidx, 10) == 0
+            disp(['t = ', num2str(tp)])
+        end
+        
+        % Load this timepoint's smoothed cutMesh
+        if strcmpi(QS.piv.imCoords, 'sp_sme')
+            mesh0 = load(sprintf(QS.fullFileBase.spcutMeshSm, tp), ...
+                                 'spcutMeshSm') ;
+        else
+            error('handle these piv coords here')
+        end
+        mesh0 = mesh0.spcutMeshSm ;
+        rad0 = mesh0.radius_um(:) ;
+        umax0 = max(mesh0.u(:, 1)) ;
+        vmax0 = max(mesh0.u(:, 2)) ;
+        nU = mesh0.nU ;
+        nV = mesh0.nV ;
+        tileCount = [1 1] ;
+        [tm0f, tm0v2d, tm0v3d] = tileAnnularCutMesh(mesh0, tileCount);
+        rad0Tiled = [rad0(1:nU*(nV-1)); rad0; rad0(nU+1:end)] ;
+        tm0XY = QS.uv2XY([Lx(tidx) Ly(tidx)], tm0v2d, ...
+                         doubleCovered, umax0, vmax0) ;
+                     
+        % Evaluate at advected Lagrangian-frame vertex positions
+        Xeval = vX(tidx, :, :) ;
+        Yeval = vY(tidx, :, :) ;
+        
+        % Adjust the XY positions so that none are out of bounds
+        epsilon = 1e-7 ;
+        minXallowed = 1 + epsilon ;
+        Xeval = Xeval(:) ;
+        Yeval = Yeval(:) ;
+        Xeval(Xeval(:, 1) < minXallowed) = minXallowed ;
+        Xeval(Xeval(:, 1) > Lx(tidx) - epsilon) = Lx(tidx) - epsilon ;
+        
+        radi = scatteredInterpolant(tm0XY(:, 1), tm0XY(:, 2), rad0Tiled,...
+            'linear', 'nearest') ;
+        radv = radi(Xeval(:), Yeval(:)) ;
+        assert(all(isfinite(radv(:)))) 
+        
+        % Check that points are inside
+        % plot(tm0XY(:, 1), tm0XY(:, 2), '-')
+        % hold on ;
+        % plot(Xeval(:), Yeval(:), '.')
+                
+        % Store in grid 
+        vRad(tidx, :, :) = reshape(radv, [size(vRad, 2), size(vRad, 3)]) ;
+    end
+    
+    % Save pathlines of PIV evaluation coords in embedding coords, XYZ
+    vRadiusPathlines = struct() ;
+    vRadiusPathlines.radii = vRad ;
+    vRadiusPathlines.t0 = t0 ;
+    vRadiusPathlines.tIdx0 = tIdx0 ;
+    disp(['Saving pathline radii to ', pliner3d])
+    save(pliner3d, 'vRadiusPathlines')
+    computed_rad = true ;
+else
+    computed_rad = false ;
+end
+
+if ~exist(sprintf(pathlineDir.radius, t0), 'dir')
+    mkdir(sprintf(pathlineDir.radius, t0))
+end
+
+%% Compute radius kymograph along AP
+kymoDir = sprintf(QS.dir.pathlines.kymographs, t0) ;
+if ~exist(kymoDir, 'dir')
+    mkdir(kymoDir) 
+end
+plinerAP = sprintf(QS.fileName.pathlines.kymographs.radius, t0) ;
+if ~exist(plinerAP, 'file') || overwrite 
+    if ~computed_rad
+        load(pliner3d, 'vRadiusPathlines')
+        computed_rad = true ;
+    end
+    timePoints = QS.xp.fileMeta.timePoints;
+    nU = size(vRadiusPathlines.radii, 2) ;
+    nV = size(vRadiusPathlines.radii, 3) ;
+    radius_apM = zeros(length(timePoints), nU) ;
+    radius_dM = zeros(length(timePoints), nU) ;
+    radius_vM = zeros(length(timePoints), nU) ;
+    radius_lM = zeros(length(timePoints), nU) ;
+    radius_rM = zeros(length(timePoints), nU) ;
+    for tidx = 1:length(timePoints)
+        radi = squeeze(vRadiusPathlines.radii(tidx, :, :)) ;
+        [dorsal, ventral, left, right] = QS.quarterIndicesDV(nV) ;
+        radius_apM(tidx, :) = mean(radi(:, 1:nV-1), 2) ;
+        radius_dM(tidx, :) = mean(radi(:, dorsal), 2) ;
+        radius_vM(tidx, :) = mean(radi(:, ventral), 2) ;
+        radius_lM(tidx, :) = mean(radi(:, left), 2) ;
+        radius_rM(tidx, :) = mean(radi(:, right), 2) ;
+    end
+    
+    save(plinerAP, 'radius_apM', 'radius_dM', 'radius_vM', ...
+        'radius_lM', 'radius_rM')
+else
+    load(plinerAP, 'radius_apM', 'radius_dM', 'radius_vM', ...
+        'radius_lM', 'radius_rM')
+end
+
+% Image filenames
+fns = {[plinerAP(1:end-4) '_ap.png'], ...
+    [plinerAP(1:end-4) '_d.png'], ...
+    [plinerAP(1:end-4) '_v.png'], ...
+    [plinerAP(1:end-4) '_l.png'], ...
+    [plinerAP(1:end-4) '_r.png']} ;
+fns_exist = exist(fns{1}, 'file') ;
+if ~fns_exist || overwrite || overwriteImages
+    % Get nU and nV
+    if ~computed_rad
+        load(pliner3d, 'vRadiusPathlines')
+        computed_rad = true ;
+    end
+    timePoints = QS.xp.fileMeta.timePoints;
+    nU = size(vRadiusPathlines.radii, 2) ;
+    nV = size(vRadiusPathlines.radii, 3) ;
+    
+    % Plot each kymo
+    clf
+    kymos = {radius_apM, radius_dM, radius_vM, radius_lM, radius_rM} ;
+    titles = {'$(u'',v'')$ pathline radii', ...
+        '$(u'',v'')$ pathline radii, dorsal side', ...
+        '$(u'',v'')$ pathline radii, ventral side', ...
+        '$(u'',v'')$ pathline radii, left side', ...
+        '$(u'',v'')$ pathline radii, right side'} ;
+    uspace = linspace(0, 1, nU) ;
+    for qq = 1:length(kymos)
+        if strcmpi(QS.timeUnits, 'min')
+            imagesc(uspace, (timePoints - vRadiusPathlines.t0)/60, kymos{qq})
+        else
+            imagesc(uspace, timePoints - vRadiusPathlines.t0, radius_apM)
+        end
+        xlabel('ap position, $u$', 'interpreter', 'latex')
+        if strcmpi(QS.timeUnits, 'min')
+            ylabel('time, [hr]', 'interpreter', 'latex')
+        else
+            ylabel(['time, [' QS.timeUnits ']'], 'interpreter', 'latex')
+        end
+        title(titles{qq}, 'interpreter', 'latex')
+        cb = colorbar() ;
+        ylabel(cb, ['radius, [' QS.spaceUnits ']'], 'interpreter', 'latex')
+        saveas(gcf, fns{qq})
+    end
+end
+
+%% Plot radius in 3d
+close all
+for tidx = 1:length(QS.xp.fileMeta.timePoints)
+    tp = QS.xp.fileMeta.timePoints(tidx) ;
+    
+    plineRadFig = fullfile(sprintf(pathlineDir.radius, t0), ...
+        [sprintf(QS.fileBase.name, tp) '.png']) ;
+    
+    if ~exist(plineRadFig, 'file') || overwrite
+        if ~computed_rad
+            load(pliner3d, 'vRadiusPathlines')
+            computed_rad = true ;
+        end        
+        % Plot the pathlines -- NOTE that we flip YY coordinates (MATLAB)
+        close all
+        set(gcf, 'visible', 'off')
+        clf
+        
+        xx = vX3rs(tidx, :) ;
+        yy = vY3rs(tidx, :) ;
+        zz = vZ3rs(tidx, :) ;
+        opts = struct() ;
+        opts.axisOff = true ;
+        opts.style = 'positive' ;
+        opts.axPosition = [0.1 0.11 0.85 0.8] ;
+        opts.fig = gcf ;
+        opts.sscale = max(vRadiusPathlines.radii(:)) ;
+        [~, cb] = scalarFieldOnSurface(refMesh.f, [xx(:), yy(:), zz(:)], ...
+            vRadiusPathlines.radii(tidx, :), opts) ;
+        xlim(xyzlims(1, :))
+        ylim(xyzlims(2, :))
+        zlim(xyzlims(3, :))
+        view(0, 0) 
+        xlabel(['ap position [' QS.spaceUnits ']'], 'Interpreter', 'Latex')
+        ylabel(['lateral position [' QS.spaceUnits ']'], 'Interpreter', 'Latex')
+        zlabel(['dv position [' QS.spaceUnits ']'], 'Interpreter', 'Latex')
+        
+        % axis off
+        
+        if black_figs
+            set(gcf, 'color', 'k')
+            set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w', 'zcol', 'w')
+        else
+            set(gca, 'color', 'w')
+        end
+
+        if black_figs
+            set(cb, 'color', 'w') ;
+        end
+        
+        % Adjust size of colorbar
+        cbheight = cb.Position(4) ;
+        cb.Position(1) = cb.Position(1) - 0.02 ;
+        cb.Position(4) = 0.6 * cb.Position(4) ;
+        cb.Position(2) = cb.Position(2) + 0.15 * cbheight ;
+        ax = gca ;
+        ax.Position(1) = ax.Position(1) - 0.05 ; 
+        ylabel(cb, ['radius [' QS.spaceUnits ']' ], 'Interpreter', 'Latex')
+        
+        title(['$t=$' sprintf('%03d', (tp-t0)*QS.timeInterval) ' ' QS.timeUnits ], ...
+            'interpreter', 'latex')
+        saveas(gcf, plineRadFig)
+        close all
+    else
+        disp(['Mesh radii pathline image already on disk: ' plineFig])
     end
 end
 

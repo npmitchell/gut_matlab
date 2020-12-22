@@ -32,7 +32,6 @@ spcutMeshBase = QS.fullFileBase.spcutMesh ;
 resolution = QS.APDV.resolution ;
 flipy = QS.flipy ;
 
-
 %% Unpack options
 % Default options
 width = 4 ;
@@ -52,6 +51,7 @@ end
 %% Prep filter
 disp('Building tripulse filter equivalent to tripuls(-0.5:0.1:0.5)')
 % made the width variable 2020-12-09, used to be 0:0.2:1, so 9 tp included
+% --> ie width used to equal 6.
 tripulse = linspace(0, 1, width) ;
 tripulse = [tripulse, fliplr(tripulse(1:end-1))] ;
 tripulse = tripulse ./ sum(tripulse(:)) ;
@@ -103,6 +103,7 @@ if redo_meshsmooth
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     for qq = 1:length(timePoints)
         tt = timePoints(qq) ;
+        load(sprintf(spcutMeshBase, tt), 'spcutMesh') ;
 
         % First build normals from smoothed vertices as facenormals
         vqq = squeeze(v3dsmM(qq, :, :)) ;

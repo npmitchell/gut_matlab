@@ -4,8 +4,10 @@ function [axs, cbs, meshHandles] = ...
 %
 % Inputs
 % ------
-% meshes : struct with fields f and v OR 2x1 cell array of faces and vertices
-%   the meshes on which to plot the scalar fields
+% meshes : struct with fields f and v 
+%          OR 2x1 cell array of faces and vertices
+%          OR triangulation object with fields ConnectivityList and Points
+%   The meshes on which to plot the scalar fields. Can be 2D or 3D.
 % fields : #vertices x 1 or #faces x 1 float array or length2 cell of
 %   magnitude and angle for nematic fields
 %   The fields to plot on the surfaces.
@@ -50,11 +52,16 @@ function [axs, cbs, meshHandles] = ...
 %
 % NPMitchell 2020
 
-% Default options
+%% Default options
 nfields = length(fields) ;
-    
-% Define axes
-set(gcf, 'visible', 'off')
+axisOff = false ;
+visible = 'off' ;
+if isfield(options, 'visible')
+    visible = options.visible ;
+end
+
+%% Define axes
+set(gcf, 'visible', visible)
 if isfield(options, 'axs')
     axs = options.axs ;
 else
@@ -194,11 +201,13 @@ else
     masterCbar = false ;
 end
 
-%% Panel 
+%% Panels
 for qq = 1:nfields
     % Unpack meshes if there are multiple
     if isa(meshes, 'cell')
-        if isa(meshes{qq}, 'struct') || isa(meshes{qq}, 'cell')
+        if isa(meshes{qq}, 'struct') || ...
+                isa(meshes{qq}, 'cell') || ...
+                isa(meshes{qq}, 'triangulation')
             mesh = meshes{qq} ;
         else
             mesh = meshes ;
@@ -213,13 +222,34 @@ for qq = 1:nfields
     if ~isa(fields{qq}, 'cell')
         % Scalar field
         if isa(mesh, 'struct')
-            meshHandles{qq} = trisurf(mesh.f, mesh.v(:, 1), ...
-                mesh.v(:, 2), mesh.v(:, 3), ...
-                'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
+            if size(mesh.v, 2) == 3
+                meshHandles{qq} = trisurf(mesh.f, mesh.v(:, 1), ...
+                    mesh.v(:, 2), mesh.v(:, 3), ...
+                    'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
+            elseif size(mesh.v, 2) == 2
+                meshHandles{qq} = trisurf(mesh.f, mesh.v(:, 1), ...
+                    mesh.v(:, 2), 0*mesh.v(:, 1), ...
+                    'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
+            end
         elseif isa(mesh, 'cell')    
-            meshHandles{qq} = trisurf(mesh{1}, mesh{2}(:, 1), ...
-                mesh{2}(:, 2), mesh{2}(:, 3), ...
-                'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
+            if size(mesh{2}, 2) == 3
+                meshHandles{qq} = trisurf(mesh{1}, mesh{2}(:, 1), ...
+                    mesh{2}(:, 2), mesh{2}(:, 3), ...
+                    'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
+            elseif size(mesh{2}, 2) == 2
+                meshHandles{qq} = trisurf(mesh{1}, mesh{2}(:, 1), ...
+                    mesh{2}(:, 2), 0*mesh{2}(:, 1), ...
+                    'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
+            end
+        elseif isa(mesh, 'triangulation') 
+            if size(mesh.Points, 2) == 3
+                meshHandles{qq} = trisurf(mesh, ...
+                    'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
+            elseif size(mesh.Points, 2) == 2
+                meshHandles{qq} = trisurf(mesh.ConnectivityList, ...
+                    mesh.Points(:, 1), mesh.Points(:, 2), 0*mesh.Points(:, 1), ... 
+                    'FaceVertexCData', fields{qq}(:), 'edgecolor', edgecolor) ;
+            end    
         end
         axis equal
         

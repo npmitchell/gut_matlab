@@ -153,7 +153,8 @@ for tidx = 1:length(timePoints)
             if vecnorm(squeeze(c3d_dsv_pix(i, 1, :)) - squeeze(c3d_dsv_pix(i, end, :))) > 1e-7
                 error('endpoints do not join! Exiting')
             end
-            avgpts_pix(i, :) = mean(squeeze(c3d_dsv_pix(i, :, :)), 1) ; 
+            % Drop the final endpoint in the mean pt determination
+            avgpts_pix(i, :) = mean(squeeze(c3d_dsv_pix(i, 1:end-1, :)), 1) ; 
             radius_pix(i, :) = vecnorm(squeeze(curves3d_pix(i, :, :)) - avgpts_pix(i, :), 2, 2) ;
         end
         

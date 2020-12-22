@@ -1227,9 +1227,38 @@ disp('done')
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
+options.width = 4 ;  % before 2020-12-09, this was 6.
 QS.smoothDynamicSPhiMeshes(options) ;
 
-% Plot the time-smoothed meshes
+%% Fix one field of spcutMeshSm / spcutMeshSmRS / spcutMeshSmRSC -- 2020-12-21
+% for tidx = 1:length(QS.xp.fileMeta.timePoints)
+%     tt = QS.xp.fileMeta.timePoints(tidx) ;
+%     
+%     spcutMeshBase = QS.fullFileBase.spcutMesh ;
+%     spcutMeshSmBase = QS.fullFileBase.spcutMeshSm ;
+%     spcutMeshSmRSBase = QS.fullFileBase.spcutMeshSmRS ;
+%     spcutMeshSmRSCBase = QS.fullFileBase.spcutMeshSmRSC ;
+% 
+%     % Load the files
+%     load(sprintf(spcutMeshBase, tt), 'spcutMesh') ;
+%     load(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
+%     load(sprintf(spcutMeshSmRSBase, tt), 'spcutMeshSmRS') ;
+%     load(sprintf(spcutMeshSmRSCBase, tt), 'spcutMeshSmRSC') ;
+%     
+%     spcutMeshSm.u = spcutMesh.sphi ;
+%     spcutMeshSmRS.u = spcutMesh.sphi ;
+%     spcutMeshSmRSC.u = spcutMesh.sphi(1:nU*(nV-1), :) ;
+%     assert(size(spcutMeshSmRSC.u, 1) == size(spcutMeshSmRSC.v, 1))
+%     
+%     % Resave the files
+%     disp(['Saving ' sprintf(spcutMeshSmBase, tt)])
+%     save(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
+%     save(sprintf(spcutMeshSmRSBase, tt), 'spcutMeshSmRS') ;
+%     save(sprintf(spcutMeshSmRSCBase, tt), 'spcutMeshSmRSC') ;
+%             
+% end
+
+%% Plot the time-smoothed meshes
 % Skip if already done
 options.overwrite = false ;
 QS.plotSPCutMeshSmRS(options) ;
@@ -1302,89 +1331,82 @@ disp('done')
 options = struct() ;
 QS.plotMetric(options) ;
 
-%% Create u'v' coordinate cutMeshes (conformal with minimally twisted boundaries)
+%% Add radii to spcutMeshSm's in post
+% 
+% for tidx = 1:length(QS.xp.fileMeta.timePoints)
+%     tp = QS.xp.fileMeta.timePoints(tidx) ;
+%     % Load this timepoint spcutMeshSm
+%     QS.setTime(tp)
+%     spcutMeshSm = QS.getCurrentSPCutMeshSm() ;
+%     spcutMeshSmRS = QS.getCurrentSPCutMeshSmRS() ;
+%     spcutMeshSmRSC = QS.getCurrentSPCutMeshSmRSC() ;
+%     
+%     % Make avgpts in pixel space (not RS)
+%     fprintf('Resampling uvgrid3d curves in pix...\n')
+%     nU = spcutMeshSm.nU ;
+%     nV = spcutMeshSm.nV ;
+%     curves3d_pix = reshape(spcutMeshSm.v, [nU, nV, 3]) ;
+%     c3d_dsv_pix = zeros(size(curves3d_pix)) ;  % in units of pix
+%     avgpts_pix = zeros(nU, 3) ;
+%     radius_pix = zeros(nU, nV) ;
+%     for i=1:nU
+%         % Note: no need to add the first point to the curve
+%         % since the endpoints already match exactly in 3d and
+%         % curvspace gives a curve with points on either
+%         % endpoint (corresponding to the same 3d location).
+%         c3d_dsv_pix(i, :, :) = resampleCurvReplaceNaNs(squeeze(curves3d_pix(i, :, :)), nV, true) ;
+%         if vecnorm(squeeze(c3d_dsv_pix(i, 1, :)) - squeeze(c3d_dsv_pix(i, end, :))) > 1e-7
+%             error('endpoints do not join! Exiting')
+%         end
+%         % Drop the final endpoint in the mean pt determination
+%         avgpts_pix(i, :) = mean(squeeze(c3d_dsv_pix(i, 1:end-1, :)), 1) ; 
+%         radius_pix(i, :) = vecnorm(squeeze(curves3d_pix(i, :, :)) - avgpts_pix(i, :), 2, 2) ;
+%     end
+% 
+%     % uvpcutMesh.raw.avgpts_pix = avgpts_pix ;
+%     % uvpcutMesh.raw.radius_pix = radius_pix ;
+%     spcutMeshSm.avgpts_um = QS.xyz2APDV(avgpts_pix) ;
+%     spcutMeshSm.radius_um = radius_pix * QS.APDV.resolution ;
+%     
+%     % Add to RS and RSC versions
+%     spcutMeshSmRS.avgpts_um = spcutMeshSm.avgpts_um ;
+%     spcutMeshSmRS.radius_um = spcutMeshSm.radius_um ;
+%     % RSC
+%     spcutMeshSmRSC.avgpts_um = spcutMeshSm.avgpts_um ;
+%     spcutMeshSmRSC.radius_um = spcutMeshSm.radius_um(:, 1:end-1) ;
+%     
+%     % Save spcutMeshSm / RS / RSC
+%     save(sprintf(QS.fullFileBase.spcutMeshSm, QS.currentTime), ...
+%         'spcutMeshSm')
+%     save(sprintf(QS.fullFileBase.spcutMeshSmRS, QS.currentTime), ...
+%         'spcutMeshSmRS')
+%     save(sprintf(QS.fullFileBase.spcutMeshSmRSC, QS.currentTime), ...
+%         'spcutMeshSmRSC')
+% end
+
+%% Create ricci meshes
 options = struct() ;
 options.overwrite = false ;
-options.save_ims = true ;
-options.preview = false ;
-QS.generateUVPrimeCutMeshes(options)
-
-%% TexturePatch image pullbacks 
-for tidx = 1:length(QS.xp.fileMeta.timePoints)
-    tp = QS.xp.fileMeta.timePoints(tidx) ;
-    QS.setTime(tp) ;
-    pbOptions.overwrite = false ;
-    pbOptions.generate_uv = false ;
-    pbOptions.generate_uphi = false ;
-    pbOptions.generate_relaxed = false ;
-    pbOptions.generate_rsm = true ;
-    pbOptions.generate_uvprime = true ;
-    pbOptions.generate_ruvprime = false ;
-    pbOptions.numLayers = [7, 7] ;  % previously [5,5]
-    pbOptions.layerSpacing = 0.75 ;
-    QS.generateCurrentPullbacks([], [], [], pbOptions) ;
-end
-
-% TILE/EXTEND (smoothed) UVPrime images in Y and resave =======================================
-% Skip if already done
-options = struct() ;
-options.overwrite = false ;
-options.coordsys = 'uvprime' ;
-QS.doubleCoverPullbackImages(options)
-disp('done')
-
-%% Perform PIV on Extended uvprime coordinates for quasiconformal measurement
-% Perform this in PullbackImages_XXstep_uvprime/piv/
-%
-% % Compute PIV in PIVLab
-% % ---------------------
-% % Open PIVLab
-% % Select all frames in meshDir/PullbackImages_010step_sphi/smoothed_extended/
-% % Select Sequencing style 1-2, 2-3, ... 
-% % Image Preprocessing (used to select all, but now:)
-% %  --> CHOOSE EITHER WAY: Enable CLAHE with >=20 pix
-% %  --> DO NOT Enable highpass with 15 pix
-% %  --> DO NOT Enable Intensity capping
-% %  --> Wiener2 denoise filter with 3 pix
-% %  --> DO NOT Auto constrast stretch
-% % PIV settings: 
-% %  --> 128 (32 step), 64 (32 step), 32 (16 step), 16 (8 step)
-% %  --> Linear window deformation interpolator
-% %  --> 5x repeated correlation 
-% %  --> Disable auto-correlation
-% % Post-processing
-% %  --> Standard deviation filter: 7 stdev
-% %  --> Local median filter: thres=5, eps=0.1
-% %  --> Interpolate missing data
-% % Export 
-% %  --> File > Save > MAT file
-
-%% Pathlines in uv' coords
-options = struct() ;
-options.overwrite = false ;
-options.overwriteImages = false ;
-QS.measureUVPrimePathlines(options)
-
-%%
-options = struct() ;
-options.overwrite = false ;
-options.overwriteImages = false ;
 options.climit = 1 ;
-options.coordSys = 'uvprime' ;
-QS.measureBeltramiCoefficient(options)
+options.coordSys = 'ricci' ;
+QS.measureBeltramiCoefficient(options) ;
+
+%% Compare to linearized description
+options = struct() ;
+options.overwrite = false ;
+options.overwriteImages = false ;
+options.coordSys = 'ricci' ;
+QS.compareBeltramiToLinearizedConstriction(options) ;
 
 %% Compare to nonlinear isothermal description
 options = struct() ;
 options.overwrite = true ;
 options.overwriteImages = false ;
-options.coordSys = 'uvprime' ;
+options.coordSys = 'ricci' ;
 QS.compareBeltramiToConstriction(options) ;
 
-%% Compare to linearized description
-options = struct() ;
-options.overwrite = true ;
-options.overwriteImages = false ;
-QS.compareBeltramiToLinearizedConstriction(options) ;
+%% UVPrime option (ignore)
+master_uvprime_module
 
 %% Measure Cell density
 % Skip if already done

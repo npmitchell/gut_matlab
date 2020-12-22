@@ -90,18 +90,22 @@ if isfield(options, 'cbarPosition')
 end
 
 % Set up the figure
-if isfield(options, 'ax')
-    axes(options.ax) ;
-elseif isfield(options, 'axis')
-    axes(options.axis) ;
-elseif isfield(options, 'fig')
+if isfield(options, 'fig')
     fig = options.fig ;
-    ax = gca ;
+end
+if isfield(options, 'ax')
+    set(fig, 'CurrentAxes', options.ax) ;
+elseif isfield(options, 'axis')
+    set(fig, 'CurrentAxes', options.axis) ;
+elseif isfield(options, 'fig')
+    % pass here.
+    % we will next do: ax = gca ;
 else
     close all
     fig = figure('units', 'normalized', ...
         'outerposition', [0 0 1 1], 'visible', 'off') ;
 end
+ax = gca ;
 
 % Add the scalar field defined on faces
 if strcmp(style, 'phasemap')

@@ -41,8 +41,14 @@ if nargin > 1
     else
         vmax = 1 ;
     end
+    if isfield(options, 'ignoreRectangularConstraint')
+        ignoreRectangularConstraint = options.ignoreRectangularConstraint ;
+    else
+        ignoreRectangularConstraint = false ;
+    end
 else
     vmax = 1 ;
+    ignoreRectangularConstraint = false ;
 end
 
 nU = mesh.nU ;
@@ -50,12 +56,23 @@ nV = length(mesh.v(:, 1)) / nU + 1;
 cutMesh = mesh ;
 
 % Duplicate the first row as the last row
-cutMesh.v(nU*(nV-1) + 1:nU*nV, :) = mesh.v(1:nU, :) ;
+if isfield(mesh, 'v')
+    cutMesh.v(nU*(nV-1) + 1:nU*nV, :) = mesh.v(1:nU, :) ;
+end
 
 % Duplicate the first row as last in pullback space
-cutMesh.u(nU*(nV-1) + 1:nU*nV, :) = [0, vmax] + mesh.u(1:nU, :) ;
-cutMesh.f = defineFacesRectilinearGrid(mesh.u, nU, nV) ;
+if isfield(mesh, 'u')
+    cutMesh.u(nU*(nV-1) + 1:nU*nV, :) = [0, vmax] + mesh.u(1:nU, :) ;
+end
 
+% Redefine faces
+if ignoreRectangularConstraint
+    cutMesh.f = defineFacesRectilinearGrid([], nU, nV) ;    
+else
+    cutMesh.f = defineFacesRectilinearGrid(mesh.u, nU, nV) ;
+end
+
+% Duplicate normals for added points
 if isfield(mesh, 'vn')
     cutMesh.vn((nV-1)*nU + 1:nU*nV, :) = cutMesh.vn(1:nU, :) ;
 end

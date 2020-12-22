@@ -57,6 +57,7 @@ if ~isempty(uv)
         try 
             assert(uv(1, 1) == uv(2, 1))
             assert(uv(1, 2) ~= uv(2, 2))
+            error('Should we transpose here?')
         catch
             error('Input coordinates appear transposed from proper grid')
         end

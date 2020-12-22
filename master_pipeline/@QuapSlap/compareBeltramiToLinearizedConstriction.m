@@ -11,6 +11,7 @@ function compareBeltramiToLinearizedConstriction(QS, options)
 % NPMitchell 2020
 
 %% Default options
+coordSys = 'ricci' ;
 if isempty(QS.t0)
     t0Pathlines = QS.t0set() ;
 else
@@ -27,6 +28,9 @@ climit = 0.6 ;
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
+if isfield(options, 'coordSys')
+    coordSys = options.coordSys ;
+end
 if isfield(options, 't0Pathlines')
     t0Pathlines = options.t0Pathlines ;
 else
@@ -37,18 +41,24 @@ if isfield(options, 'climit')
 end
 
 % Load pathline velocities in UVPrime coordinates
-v3d = load(sprintf(QS.fileName.pathlines_uvprime.v3d, t0Pathlines));
+if strcmpi(coordSys, 'ricci')
+    v3d = load(sprintf(QS.fileName.pathlines.v3d, t0Pathlines));   
+    load(sprintf(QS.fileName.pathlines.refMesh, t0Pathlines), 'refMesh') ;
+    outdir = sprintf(QS.dir.pathlines.quasiconformal, t0Pathlines) ; 
+elseif strcmpi(coordSys, 'uvprime')
+    v3d = load(sprintf(QS.fileName.pathlines_uvprime.v3d, t0Pathlines));
+    load(sprintf(QS.fileName.pathlines_uvprime.refMesh, t0Pathlines), 'refMesh') ;
+    outdir = sprintf(QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines) ;
+end
 v3x = v3d.v3dPathlines.vXrs ;
 v3y = v3d.v3dPathlines.vYrs ;
 v3z = v3d.v3dPathlines.vZrs ;
 
 % Load refMesh
-load(sprintf(QS.fileName.pathlines_uvprime.refMesh, t0Pathlines), 'refMesh') ;
 u2d = [refMesh.u(:, 1), refMesh.u(:, 2), 0*refMesh.u(:, 2)] ;
 mesh2 = {refMesh.f, u2d} ;
 
 % Compare mu to indentation rho/2
-outdir = sprintf(QS.dir.pathlines_uvprime.quasiconformal, t0Pathlines) ;
 outdir = fullfile(outdir, 'linear_approx') ;
 if ~exist(outdir, 'dir')
     mkdir(outdir)
@@ -64,16 +74,23 @@ recompute = true ;
 if ~overwrite
     try
         % Load indentation kymograph
-        indentAPfn = sprintf(...
-            QS.fileName.pathlines_uvprime.kymographs.indentation, t0Pathlines) ;
+        if strcmpi(coordSys, 'ricci')
+            indentAPfn = sprintf(...
+                QS.fileName.pathlines.kymographs.indentation, t0Pathlines) ;
+            muAPfn = sprintf(...
+                QS.fileName.pathlines.kymographs.mu, t0Pathlines) ;
+        elseif strcmpi(coordSys, 'uvprime')            
+            indentAPfn = sprintf(...
+                QS.fileName.pathlines_uvprime.kymographs.indentation, t0Pathlines) ;
+            muAPfn = sprintf(...
+                QS.fileName.pathlines_uvprime.kymographs.mu, t0Pathlines) ;
+        end
         disp(['Attempting to load indent kymos from file: ' indentAPfn])
         load(indentAPfn, 'indent_apM', 'indent_dM', 'indent_vM', ...
             'indent_lM', 'indent_rM') ;
         disp('loaded')
 
         % Save mu Beltrami coefficient kymograph
-        muAPfn = sprintf(...
-            QS.fileName.pathlines_uvprime.kymographs.mu, t0Pathlines) ;
         disp(['Loading mu kymos from file: ' muAPfn])
         load(muAPfn, 'mu_apM', 'mu_dM', 'mu_vM', 'mu_lM', 'mu_rM') ;
 
@@ -113,7 +130,12 @@ if recompute
         %% GET DATA
         % Load quasiconformal results for this material frame (t0Pathlines)
         if ~loaded_mu
-            fn = sprintf(QS.fileName.pathlines_uvprime.quasiconformal, t0Pathlines) ;
+
+            if strcmpi(coordSys, 'ricci')
+                fn = sprintf(QS.fileName.pathlines.quasiconformal, t0Pathlines) ;
+            elseif strcmpi(coordSys, 'uvprime')
+                fn = sprintf(QS.fileName.pathlines_uvprime.quasiconformal, t0Pathlines) ;
+            end
             load(fn, 'mu_material_filtered')
             loaded_mu = true ;
         end
@@ -208,27 +230,37 @@ if recompute
     end
 
     % Save indentation kymograph
-    indentAPfn = sprintf(...
-        QS.fileName.pathlines_uvprime.kymographs.indentation, t0Pathlines) ;
+    if strcmpi(coordSys, 'ricci')
+        indentAPfn = sprintf(...
+            QS.fileName.pathlines.kymographs.indentation, t0Pathlines) ;
+        muAPfn = sprintf(...
+            QS.fileName.pathlines.kymographs.mu, t0Pathlines) ;
+    elseif strcmpi(coordSys, 'uvprime')
+        indentAPfn = sprintf(...
+            QS.fileName.pathlines_uvprime.kymographs.indentation, t0Pathlines) ;
+        muAPfn = sprintf(...
+            QS.fileName.pathlines_uvprime.kymographs.mu, t0Pathlines) ;
+    end
+        
+    % Save indentation and mu Beltrami coefficient kymograph
     save(indentAPfn, 'indent_apM', 'indent_dM', 'indent_vM', ...
         'indent_lM', 'indent_rM') ;
-    
-    % Save mu Beltrami coefficient kymograph
-    muAPfn = sprintf(...
-        QS.fileName.pathlines_uvprime.kymographs.mu, t0Pathlines) ;
     save(muAPfn, 'mu_apM', 'mu_dM', 'mu_vM', 'mu_lM', 'mu_rM') ;
 end
 
-
-
+% 
 nU = QS.nU ;
 nV = QS.nV ;
 timePoints = QS.xp.fileMeta.timePoints ;
 
-
 %% Plot kymograph of difference
-fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
-    t0Pathlines), 'linear_approx_kymograph.png') ;
+if strcmpi(coordSys, 'ricci')
+    fn = fullfile(sprintf(QS.dir.pathlines.quasiconformal, ...
+        t0Pathlines), 'linear_approx_kymograph.png') ;
+elseif strcmpi(coordSys, 'uvprime')
+    fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
+        t0Pathlines), 'linear_approx_kymograph.png') ;
+end
 if ~exist(fn, 'file')
     close all
     fields = {real(mu_apM), indent_apM * 0.5, real(mu_apM) - indent_apM * 0.5} ;
@@ -256,9 +288,13 @@ if ~exist(fn, 'file')
 end
 
 %% Plot without factor of 2 -- no good reason yet
-
-fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
-    t0Pathlines), 'other_approx_kymograph.png') ;
+if strcmpi(coordSys, 'ricci')
+    fn = fullfile(sprintf(QS.dir.pathlines.quasiconformal, ...
+        t0Pathlines), 'other_approx_kymograph.png') ;
+elseif strcmpi(coordSys, 'uvprime')
+    fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
+        t0Pathlines), 'other_approx_kymograph.png') ;
+end
 if ~exist(fn, 'file')
     close all
     fields = {real(mu_apM), indent_apM, real(mu_apM) - indent_apM} ;
@@ -288,7 +324,11 @@ end
 %% Obtain location of folds / features
 featureOpts = struct() ;
 featureOpts.field2 = 'radius' ;
-featureIDs = QS.getUVPrimePathlineFeatureIDs('vertices', featureOpts) ;
+if strcmpi(coordSys, 'ricci')
+    featureIDs = QS.getPathlineFeatureIDs('vertices', featureOpts) ;
+elseif strcmpi(coordSys, 'uvprime')
+    featureIDs = QS.getUVPrimePathlineFeatureIDs('vertices', featureOpts) ;
+end
 QS.getFeatures()
 fold_onset = QS.features.fold_onset ;
 widths = [0.01, 0.02, 0.05] ;
@@ -297,8 +337,14 @@ widths = [0.01, 0.02, 0.05] ;
 close all
 for width = widths
     close all
-    fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
-        t0Pathlines), ['linear_approx_folds_width' num2str(round(width * nU)) '.png']) ;
+    
+    if strcmpi(coordSys, 'ricci')
+        fn = fullfile(sprintf(QS.dir.pathlines.quasiconformal, ...
+            t0Pathlines), ['linear_approx_folds_width' num2str(round(width * nU)) '.png']) ;
+    elseif strcmpi(coordSys, 'uvprime')
+        fn = fullfile(sprintf(QS.dir.pathlines_uvprime.quasiconformal, ...
+            t0Pathlines), ['linear_approx_folds_width' num2str(round(width * nU)) '.png']) ;    
+    end
     nfolds = length(fold_onset) ;
 
     % Adjust time to hours if in minutes
