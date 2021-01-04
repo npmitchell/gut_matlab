@@ -43,6 +43,7 @@ cutMeshClosed.v = cutMesh.v(1:end-nU, :) ;
 % Redefine the last row of the cutMesh to be the same as the first
 % Take nU*(nV-1):nU*nV --> 0:nU-1 --> 1:nU
 cutMeshClosed.f = mod(cutMesh.f, (nV-1)*nU + 1) ;
+% Since modulo sets repeated vertex 1,2,3 -> 0,1,2, we adjust indices by 1.
 cutMeshClosed.f(cutMesh.f > (nV-1)*nU) = cutMeshClosed.f(cutMesh.f > (nV-1)*nU) + 1 ;
 if isfield(cutMesh, 'vn')
     cutMeshClosed.vn = cutMesh.vn(1:end-nU, :) ;

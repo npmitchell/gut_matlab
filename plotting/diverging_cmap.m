@@ -2,7 +2,7 @@ function[map] = diverging_cmap(s,rgb1,rgb2)
 %This function is based on Kenneth Moreland's code for greating Diverging
 % Colormaps.  Created by Andy Stein, improved Noah P Mitchell 2019.
 % template accessed from: https://www.kennethmoreland.com/color-maps/
-%s is a vector that goes between zero and one 
+% s is a vector that goes between zero and one 
 % Common rgb1, rgb2 pairs are (rgb1, rgb2), (rgb3, rgb4), etc with these
 % each defined below
 % 

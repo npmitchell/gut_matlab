@@ -30,11 +30,12 @@ function plotPathlineMetricKinematics(QS, options)
 %% Default options 
 overwrite = false ;
 plot_kymographs = true ;
-plot_kymographs_cumsum = true ;
+plot_kymographs_cumsum = false ;
 plot_kymographs_cumprod = false ;
 plot_correlations = true ;
 plot_fold_kinematics = true ;
 plot_lobe_kinematics = true ;
+plot_cumsum_cumprod = false ;
 plot_ap = true ;
 plot_left = true ;
 plot_right = true ;
@@ -49,6 +50,8 @@ t0Pathline = QS.t0 ;
 lambda = QS.smoothing.lambda ;
 lambda_mesh = QS.smoothing.lambda_mesh ;
 lambda_err = QS.smoothing.lambda_err ;
+nmodes = QS.smoothing.nmodes ;
+zwidth = QS.smoothing.zwidth ;
 climit = 0.2 ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
@@ -69,6 +72,12 @@ if isfield(options, 'lambda_err')
 end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;
+end
+if isfield(options, 'nmodes')
+    nmodes = options.nmodes ;
+end
+if isfield(options, 'zwidth')
+    zwidth = options.zwidth ;
 end
 if isfield(options, 't0Pathline')
     t0 = options.t0Pathline ;
@@ -121,6 +130,9 @@ end
 if isfield(options, 'plot_kymographs_cumprod')
     plot_kymographs_cumprod = options.plot_kymographs_cumprod ;
 end
+if isfield(options, 'plot_cumsum_cumprod')
+    plot_cumsum_cumprod = options.plot_cumsum_cumprod ;
+end
 if isfield(options, 'plot_correlations')
     plot_correlations = options.plot_correlations ;
 end
@@ -157,10 +169,18 @@ xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 mKDir = fullfile(QS.dir.metricKinematics.root, ...
-    strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
-    lambda, lambda_mesh, lambda_err), '.', 'p'));
-folds = load(QS.fileName.fold) ;
-fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
+    strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f_modes%02dw%02d'], ...
+    lambda, lambda_mesh, lambda_err, nmodes, zwidth), '.', 'p'));
+
+%% Get fold locations for pathlines
+try
+    folds = load(sprintf(QS.fileName.pathlines.featureIDs, t0Pathline)) ;
+catch
+    disp('Feature IDs for pathlines not stored on disk. Defining...')
+    folds = QS.measurePathlineFeatureIDs ;
+end
+foldNonPathline = load(QS.fileName.fold) ;
+fons = foldNonPathline.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 
 %% Colormap
 bwr256 = bluewhitered(256) ;
@@ -410,7 +430,7 @@ if plot_kymographs
                 for ii = 1:length(fons)
                     fonsi = max(1, fons(ii)) ;
                     tones = ones(size(tps(fonsi:end))) ;
-                    plot(featureIDs(1) * tones / nU, tps(fonsi:end))
+                    plot(featureIDs(ii) * tones / nU, tps(fonsi:end))
                 end
                 
                 % title and save
@@ -497,7 +517,7 @@ if plot_kymographs_cumsum
                 for ii = 1:length(fons)
                     fonsi = max(1, fons(ii)) ;
                     tones = ones(size(tps(fonsi:end))) ;
-                    plot(featureIDs(1) * tones / nU, tps(fonsi:end))
+                    plot(featureIDs(ii) * tones / nU, tps(fonsi:end))
                 end
                 
                 % title and save
@@ -812,148 +832,150 @@ end
 
 %% Plot 1D curves for region around each fold
 % Sample divv/H2vn/gdot in each lobe
-foldw = 0.05 ;
-endw = 0.10 ;
+if plot_cumsum_cumprod
+    foldw = 0.05 ;
+    endw = 0.10 ;
 
-if length(featureIDs) == 1
-    cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
-            featureIDs(1)+round(foldw*nU), round((1-endw) * nU)] ;
-    lobes = { cut(1):cut(2), cut(3):cut(4) } ;
-elseif length(featureIDs) == 2
-    cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
-            featureIDs(1)+round(foldw*nU), featureIDs(2)-round(foldw*nU), ...
-            featureIDs(2)+round(foldw*nU),  round((1-endw) * nU)] ;
-    lobes = { cut(1):cut(2), cut(3):cut(4), cut(5):cut(6) } ;
-elseif length(featureIDs) == 3
-    cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
-            featureIDs(1)+round(foldw*nU), featureIDs(2)-round(foldw*nU), ...
-            featureIDs(2)+round(foldw*nU), featureIDs(3)-round(foldw*nU), ... 
-            featureIDs(3)+round(foldw*nU), round((1-endw) * nU)] ;
-    lobes = { cut(1):cut(2), cut(3):cut(4), cut(5):cut(6), cut(7):cut(8) } ;
-else
-    error('Code for this number of features here')
-end
-
-    
-avgStrings = {'dv-averaged', 'left side', 'right side', ...
-    'dorsal side', 'ventral side'} ;
-do_plots = [plot_ap, plot_left, plot_right, plot_dorsal, plot_ventral] ;
-avgLabel = {'dv', 'left', 'right', 'dorsal', 'ventral'} ;
-titleFoldBase = 'Lagrangian metric kinematics along folds, ' ;
-titleLobeBase = 'Lagrangian metric kinematics along lobes, ' ;
-
-% todo: modify if different # of features
-foldYlabels = {'anterior fold', 'middle fold', 'posterior fold'} ;
-lobeYlabels = {'lobe 1', 'lobe 2', 'lobe 3', 'lobe 4'} ;
-for qq = find(do_plots)
-    divv = divvsK{qq} ;
-    H2vn = H2vnsK{qq} ;
-    HH = HHsK{qq} ;
-    if ~exist(outdirs{qq}, 'dir')
-        mkdir(outdirs{qq})
+    if length(featureIDs) == 1
+        cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
+                featureIDs(1)+round(foldw*nU), round((1-endw) * nU)] ;
+        lobes = { cut(1):cut(2), cut(3):cut(4) } ;
+    elseif length(featureIDs) == 2
+        cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
+                featureIDs(1)+round(foldw*nU), featureIDs(2)-round(foldw*nU), ...
+                featureIDs(2)+round(foldw*nU),  round((1-endw) * nU)] ;
+        lobes = { cut(1):cut(2), cut(3):cut(4), cut(5):cut(6) } ;
+    elseif length(featureIDs) == 3
+        cut = [round(endw*nU), featureIDs(1)-round(foldw*nU), ...
+                featureIDs(1)+round(foldw*nU), featureIDs(2)-round(foldw*nU), ...
+                featureIDs(2)+round(foldw*nU), featureIDs(3)-round(foldw*nU), ... 
+                featureIDs(3)+round(foldw*nU), round((1-endw) * nU)] ;
+        lobes = { cut(1):cut(2), cut(3):cut(4), cut(5):cut(6), cut(7):cut(8) } ;
+    else
+        error('Code for this number of features here')
     end
 
-    %% Plot fold Kinematics -- instantaneous data
-    % Explore a range of widths for plotting
-    for width = 1:round(maxWFrac * nU)
-        fn = fullfile(outdirs{qq}, ...
-            [sprintf('fold_kinematics_w%03d_', 2*width+1), ...
-            avgLabel{qq}, '.png']) ;
-        fn_withH = fullfile(outdirs{qq}, ...
-            [sprintf('fold_kinematics_w%03d_', 2*width+1), ...
-            avgLabel{qq}, '_withH.png']) ;
 
-        aux_plotPathlineMetricKinematicsFolds_subpanels(QS, ...
-            fn, fn_withH, ...
-            featureIDs, width, nU, tps, divv, H2vn, HH, titleFoldBase, ...
-            foldYlabels, avgStrings{qq}, divvcolor, H2vncolor, ...
-            Hposcolor, Hnegcolor, Hsz, overwrite)
-    end
+    avgStrings = {'dv-averaged', 'left side', 'right side', ...
+        'dorsal side', 'ventral side'} ;
+    do_plots = [plot_ap, plot_left, plot_right, plot_dorsal, plot_ventral] ;
+    avgLabel = {'dv', 'left', 'right', 'dorsal', 'ventral'} ;
+    titleFoldBase = 'Lagrangian metric kinematics along folds, ' ;
+    titleLobeBase = 'Lagrangian metric kinematics along lobes, ' ;
 
-    %% Plot lobe Kinematics -- instantaneous data
-    fn = fullfile(outdirs{qq}, ...
-        ['lobe_kinematics_' avgLabel{qq} '.png']) ;
-    fn_withH = fullfile(outdirs{qq}, ...
-        ['lobe_kinematics_' avgLabel{qq} '_withH.png']) ;
-    aux_plotPathlineMetricKinematicsLobes_subpanels(QS, fn, fn_withH, ...
-        lobes, tps, divv, H2vn, HH, lobeYlabels, avgStrings{qq}, ...
-        titleLobeBase, divvcolor, H2vncolor, ...
-        Hposcolor, Hnegcolor, Hsz, overwrite)
-
-    %% Fold kinematics -- cumprod gdot
-    cumsum_cumprod = {'cumsum', 'cumprod'} ;
-
-    for spij = 1:2
-        sumprod = cumsum_cumprod{spij} ;
-        odir = fullfile(outdirs{qq}, [sumprod 's']) ;
-        if ~exist(odir, 'dir')
-            mkdir(odir)
+    % todo: modify if different # of features
+    foldYlabels = {'anterior fold', 'middle fold', 'posterior fold'} ;
+    lobeYlabels = {'lobe 1', 'lobe 2', 'lobe 3', 'lobe 4'} ;
+    for qq = find(do_plots)
+        divv = divvsK{qq} ;
+        H2vn = H2vnsK{qq} ;
+        HH = HHsK{qq} ;
+        if ~exist(outdirs{qq}, 'dir')
+            mkdir(outdirs{qq})
         end
+
+        %% Plot fold Kinematics -- instantaneous data
+        % Explore a range of widths for plotting
         for width = 1:round(maxWFrac * nU)
-            %% Plot kinematics on separate axis for each fold
-            % ms2plot = {'gdot', 'divv', 'H2vn'} ;    
-            fn = fullfile(odir, ...
-                ['fold_kinematics_', sumprod, ...
-                sprintf('_w%03d_', 2*width+1), ...
-                avgLabel{qq}, '.png']) ;
-            fn_withH = fullfile(odir, ...
-                ['fold_kinematics_', sumprod, ...
-                sprintf('w%03d_', 2*width+1), ...
-                avgLabel{qq}, '_withH.png']) ;
-            if plot_fold_kinematics
-                aux_plotPathlineMetricKinematicsFolds_integrated_subpanels(QS, ...
-                    fn, featureIDs, width, nU, tps, divv, H2vn, titleFoldBase, ...
-                    foldYlabels, avgStrings{qq}, ...
-                    divvcolor, H2vncolor, gdotcolor, overwrite, sumprod)
-            end
-
-            %% Plot all fold gdots on one axis
-            ms2plot = {'gdot', 'divv', 'H2vn'} ;
-            for jj = 1:length(ms2plot)
-                m2plot = ms2plot{jj} ; 
-
-                fn = fullfile(odir, ...
-                    ['fold_kinematics_', m2plot, '_', sumprod, ...
-                    sprintf('_compare_w%03d_', 2*width+1), ...
-                    avgLabel{qq}, '.png']) ;
-
-                fn_withH = fullfile(odir, ...
-                    ['fold_kinematics_', m2plot, '_', sumprod, ...
-                    sprintf('_compare_w%03d_', 2*width+1), ...
-                    avgLabel{qq}, '_withH.png']) ;
-                aux_plotPathlineMetricKinematicsFolds_integrated(QS, m2plot, fn, fn_withH, ...
-                    featureIDs, width, nU, tps, divv, H2vn, HH, foldYlabels, ...
-                    avgStrings{qq}, Hsz, overwrite, sumprod) 
-            end
-        end
-
-        %% Lobe kinematics -- cumprod gdot
-        if plot_lobe_kinematics
             fn = fullfile(outdirs{qq}, ...
-                ['lobe_kinematics_' sumprod '.png']) ;
+                [sprintf('fold_kinematics_w%03d_', 2*width+1), ...
+                avgLabel{qq}, '.png']) ;
             fn_withH = fullfile(outdirs{qq}, ...
-                ['lobe_kinematics_' sumprod '_withH.png']) ;
-            aux_plotPathlineMetricKinematicsLobes_integrated_subplots(QS, ...
+                [sprintf('fold_kinematics_w%03d_', 2*width+1), ...
+                avgLabel{qq}, '_withH.png']) ;
+
+            aux_plotPathlineMetricKinematicsFolds_subpanels(QS, ...
                 fn, fn_withH, ...
-                lobes, tps, divv, H2vn, lobeYlabels, avgStrings{qq}, ...
-                titleLobeBase, overwrite, sumprod)
+                featureIDs, width, nU, tps, divv, H2vn, HH, titleFoldBase, ...
+                foldYlabels, avgStrings{qq}, divvcolor, H2vncolor, ...
+                Hposcolor, Hnegcolor, Hsz, overwrite)
         end
 
-        %% Plot all lobes' kinematic quantitiy (gdot/H2vn/divv) on one axis
-        if  plot_lobe_kinematics
-            ms2plot = {'gdot', 'divv', 'H2vn'} ;
-            for jj = 1:length(ms2plot)
-                m2plot = ms2plot{jj} ; 
+        %% Plot lobe Kinematics -- instantaneous data
+        fn = fullfile(outdirs{qq}, ...
+            ['lobe_kinematics_' avgLabel{qq} '.png']) ;
+        fn_withH = fullfile(outdirs{qq}, ...
+            ['lobe_kinematics_' avgLabel{qq} '_withH.png']) ;
+        aux_plotPathlineMetricKinematicsLobes_subpanels(QS, fn, fn_withH, ...
+            lobes, tps, divv, H2vn, HH, lobeYlabels, avgStrings{qq}, ...
+            titleLobeBase, divvcolor, H2vncolor, ...
+            Hposcolor, Hnegcolor, Hsz, overwrite)
 
+        %% Fold kinematics -- cumprod gdot
+        cumsum_cumprod = {'cumsum', 'cumprod'} ;
+
+        for spij = 1:2
+            sumprod = cumsum_cumprod{spij} ;
+            odir = fullfile(outdirs{qq}, [sumprod 's']) ;
+            if ~exist(odir, 'dir')
+                mkdir(odir)
+            end
+            for width = 1:round(maxWFrac * nU)
+                %% Plot kinematics on separate axis for each fold
+                % ms2plot = {'gdot', 'divv', 'H2vn'} ;    
                 fn = fullfile(odir, ...
-                    ['lobe_kinematics_', m2plot, '_', ...
-                    sumprod, '_compare.png']) ;
+                    ['fold_kinematics_', sumprod, ...
+                    sprintf('_w%03d_', 2*width+1), ...
+                    avgLabel{qq}, '.png']) ;
                 fn_withH = fullfile(odir, ...
-                    ['lobe_kinematics_' m2plot '_', ...
-                    sumprod, '_compare_withH.png']) ;
-                aux_plotPathlineMetricKinematicsLobes_integrated(QS, m2plot, fn, fn_withH, ...
-                    lobes, tps, divv, H2vn, HH, lobeYlabels, ...
-                    avgStrings{qq}, Hsz, overwrite, sumprod)
+                    ['fold_kinematics_', sumprod, ...
+                    sprintf('w%03d_', 2*width+1), ...
+                    avgLabel{qq}, '_withH.png']) ;
+                if plot_fold_kinematics
+                    aux_plotPathlineMetricKinematicsFolds_integrated_subpanels(QS, ...
+                        fn, featureIDs, width, nU, tps, divv, H2vn, titleFoldBase, ...
+                        foldYlabels, avgStrings{qq}, ...
+                        divvcolor, H2vncolor, gdotcolor, overwrite, sumprod)
+                end
+
+                %% Plot all fold gdots on one axis
+                ms2plot = {'gdot', 'divv', 'H2vn'} ;
+                for jj = 1:length(ms2plot)
+                    m2plot = ms2plot{jj} ; 
+
+                    fn = fullfile(odir, ...
+                        ['fold_kinematics_', m2plot, '_', sumprod, ...
+                        sprintf('_compare_w%03d_', 2*width+1), ...
+                        avgLabel{qq}, '.png']) ;
+
+                    fn_withH = fullfile(odir, ...
+                        ['fold_kinematics_', m2plot, '_', sumprod, ...
+                        sprintf('_compare_w%03d_', 2*width+1), ...
+                        avgLabel{qq}, '_withH.png']) ;
+                    aux_plotPathlineMetricKinematicsFolds_integrated(QS, m2plot, fn, fn_withH, ...
+                        featureIDs, width, nU, tps, divv, H2vn, HH, foldYlabels, ...
+                        avgStrings{qq}, Hsz, overwrite, sumprod) 
+                end
+            end
+
+            %% Lobe kinematics -- cumprod gdot
+            if plot_lobe_kinematics
+                fn = fullfile(outdirs{qq}, ...
+                    ['lobe_kinematics_' sumprod '.png']) ;
+                fn_withH = fullfile(outdirs{qq}, ...
+                    ['lobe_kinematics_' sumprod '_withH.png']) ;
+                aux_plotPathlineMetricKinematicsLobes_integrated_subplots(QS, ...
+                    fn, fn_withH, ...
+                    lobes, tps, divv, H2vn, lobeYlabels, avgStrings{qq}, ...
+                    titleLobeBase, overwrite, sumprod)
+            end
+
+            %% Plot all lobes' kinematic quantitiy (gdot/H2vn/divv) on one axis
+            if  plot_lobe_kinematics
+                ms2plot = {'gdot', 'divv', 'H2vn'} ;
+                for jj = 1:length(ms2plot)
+                    m2plot = ms2plot{jj} ; 
+
+                    fn = fullfile(odir, ...
+                        ['lobe_kinematics_', m2plot, '_', ...
+                        sumprod, '_compare.png']) ;
+                    fn_withH = fullfile(odir, ...
+                        ['lobe_kinematics_' m2plot '_', ...
+                        sumprod, '_compare_withH.png']) ;
+                    aux_plotPathlineMetricKinematicsLobes_integrated(QS, m2plot, fn, fn_withH, ...
+                        lobes, tps, divv, H2vn, HH, lobeYlabels, ...
+                        avgStrings{qq}, Hsz, overwrite, sumprod)
+                end
             end
         end
     end

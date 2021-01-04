@@ -1,4 +1,4 @@
-function [ynew, data_output, fft_output] = modeFilter(yy, options)
+function [ynew, data_output, fft_output] = modeFilter(yy, nmodes, preview)
 %[ynew, fft_output] = modeFilter(yy, nmodes, preview)
 % FFT reconstruction of lowest nmodes of 1d periodic signal with evenly
 % spaced sampling in "time" or other presumably cyclic coordinate.
@@ -64,14 +64,7 @@ if nargin < 2
     nmodes = 5 ;
     preview = false ;
 else
-    if isfield(options, 'nmodes')
-        nmodes = options.nmodes ;
-    else
-        nmodes = 5 ;
-    end
-    if isfield(options, 'preview')
-        preview = options.preview ;
-    else
+    if nargin < 3
         preview = false ;
     end
 end

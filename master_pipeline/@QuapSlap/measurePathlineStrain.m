@@ -250,12 +250,17 @@ for tidx = tidx2do
         %       original input mesh, so that strain_orig = strain(faceIDs)
         fundForms = outputStruct.fundForms ;
         bondDxDy = outputStruct.bondDxDy ;
+        % The following are already stored in bondDxDy:
+        %  dx_strain = outputStruct.dx_strain ;
+        %  dy_strain = outputStruct.dy_strain ;
+        %  dbonds_ref = outputStruct.dbonds_ref ;
+        %  dbonds_def = outputStruct.dbonds_def ;
         theta_pb = outputStruct.theta_pb ;
         faceIDs = outputStruct.faceIDs ;
         save(ffn, 'strain', 'tre', 'dev', 'theta', 'fundForms', 'bondDxDy', ...
-            'theta_pb', 'faceIDs') ;
+            'theta_pb', 'faceIDs', 'dbonds_def', 'dbonds_ref') ;
     else
-        disp(['FundForms for t = ' num2str(tp) ' already on disk'])
+        disp(['Strain + fundForms for t = ' num2str(tp) ' already on disk'])
     end
 
     %% Plot strain for this timepoint

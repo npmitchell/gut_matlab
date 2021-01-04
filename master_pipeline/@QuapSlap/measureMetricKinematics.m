@@ -195,9 +195,10 @@ ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
 
 % Build timepoint list so that we first do every 10, then fill in details
 lastIdx = length(QS.xp.fileMeta.timePoints) - 1 ;
-coarseIdx = 1:10:lastIdx ;
-fineIdx = setdiff(1:lastIdx, coarseIdx) ;
-allIdx = [coarseIdx, fineIdx ] ;
+veryCoarseIdx = 1:50:lastIdx ;
+coarseIdx = setdiff(1:10:lastIdx, veryCoarseIdx) ;
+fineIdx = setdiff(1:lastIdx, [veryCoarseIdx, coarseIdx]) ;
+allIdx = [veryCoarseIdx, coarseIdx, fineIdx ] ;
 tp2do = QS.xp.fileMeta.timePoints(allIdx) ;
 
 % Output directory is inside metricKinematics dir
@@ -290,9 +291,13 @@ for tp = tp2do
         end
         
         % Smooth divergence(v) [divv]
-        divv3d = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
-                                lambda, 'implicit', dec_tp.divs.raw) ;
-
+        if lambda > 0
+            divv3d = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
+                                    lambda, 'implicit', dec_tp.divs.raw) ;
+        else
+            divv3d = dec_tp.divs.raw ;
+        end
+        
         % veln = divv / (2H) ; 
         % veln_pred = DEC.divergence(fvel) ./ (2.0 * H) ;
         % veln is normal velocity field (velocities along vertex normals)
@@ -302,13 +307,19 @@ for tp = tp2do
         vx = squeeze(vertex_vels(tidx, 1:(nV-1)*nU, 1)) ;
         vy = squeeze(vertex_vels(tidx, 1:(nV-1)*nU, 2)) ;
         vz = squeeze(vertex_vels(tidx, 1:(nV-1)*nU, 3)) ;
-        vxs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
-            lambda, 'implicit', vx') ;
-        vys = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
-            lambda, 'implicit', vy') ;
-        vzs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
-            lambda, 'implicit', vz') ;
-
+        if lambda > 0
+            vxs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
+                lambda, 'implicit', vx') ;
+            vys = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
+                lambda, 'implicit', vy') ;
+            vzs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
+                lambda, 'implicit', vz') ;
+        else
+            vxs = vx' ; 
+            vys = vy' ; 
+            vzs = vz' ;   
+        end
+        
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % This should not be necessary, since vertex_vels should already
         % account for APDV framing! Debug this issue earlier
@@ -502,9 +513,10 @@ for tp = tp2do
 
     %% Save lambdas used to disk
     if save_lambdas    
-        lambs = [lambda, lambda_mesh, lambda_err] ;
-        header = ['laplacian smoothing parameters: lambda for ', ...
-            'velocity & div(v), lambda for mesh, lambda for residual (gdot)'] ;
+        lambs = [lambda, lambda_mesh, lambda_err, nmodes, zwidth] ;
+        header = ['laplacian smoothing and spectral filtering parameters: lambda for ', ...
+            'velocity & div(v), lambda for mesh, lambda for residual (gdot), '...
+            '#modes, zwidth of spectral filter'] ;
         filename = fullfile(mKDir, 'lambdas.txt') ;
         write_txt_with_header(filename, lambs, header)
     end

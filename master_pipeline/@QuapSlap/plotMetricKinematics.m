@@ -27,6 +27,8 @@ overwrite_timePoints = false ;
 plot_kymographs = true ;
 plot_correlations = true ;
 plot_gdot_correlations = false ;
+plot_raw_scatter_correlations = false ;
+plot_spaceMaps = false ;
 plot_gdot_decomp = true ;
 plot_flows = true ;
 plot_factors = true ;
@@ -36,6 +38,8 @@ plot_Hgdot = false ;
 lambda = QS.smoothing.lambda ; 
 lambda_err = QS.smoothing.lambda_err ;
 lambda_mesh = QS.smoothing.lambda_mesh ;
+nmodes = QS.smoothing.nmodes ;
+zwidth = QS.smoothing.zwidth ;
 climit = 0.2 ;
 climit_err = 0.2 ;
 climit_veln = climit * 10 ;
@@ -63,6 +67,12 @@ if isfield(options, 'lambda_err')
 end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;
+end
+if isfield(options, 'nmodes')
+    nmodes = options.nmodes ;
+end
+if isfield(options, 'zwidth')
+    zwidth = options.zwidth ;
 end
 if isfield(options, 'climit')
     climit = options.climit ;
@@ -110,6 +120,12 @@ if isfield(options, 'plot_raw_correlations')
 else
     plot_raw_correlations = plot_correlations ;
 end
+if isfield(options, 'plot_raw_scatter_correlations')
+    plot_raw_scatter_correlations = options.plot_raw_scatter_correlations ;
+end
+if isfield(options, 'plot_spaceMaps')
+    plot_spaceMaps = options.plot_spaceMaps ;
+end
 if isfield(options, 'plot_gdot_correlations')
     plot_gdot_correlations = options.plot_gdot_correlations ;
 end
@@ -134,8 +150,8 @@ xyzlim = QS.plotting.xyzlim_um ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 mKDir = fullfile(QS.dir.metricKinematics.root, ...
-    strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
-    lambda, lambda_mesh, lambda_err), '.', 'p'));
+    strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f_modes%02dw%02d'], ...
+    lambda, lambda_mesh, lambda_err, nmodes, zwidth), '.', 'p'));
 folds = load(QS.fileName.fold) ;
 fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 
@@ -217,26 +233,26 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     rfn = fullfile(outdir, sprintf('radius_vertices_%06d.mat', tp)) ;
 
     % Load timeseries measurements
-    load(Hfn, 'HH', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
-    load(efn, 'gdot', 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
-    load(dfn, 'divv', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
-    load(nfn, 'veln', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
-    load(H2vnfn, 'H2vn', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
-    load(rfn, 'radius', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v') 
+    load(Hfn, 'HH_filt', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
+    load(efn, 'gdot_filt', 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
+    load(dfn, 'divv_filt', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')
+    load(nfn, 'veln_filt', 'veln_ap', 'veln_l', 'veln_r', 'veln_d', 'veln_v') 
+    load(H2vnfn, 'H2vn_filt', 'H2vn_ap', 'H2vn_l', 'H2vn_r', 'H2vn_d', 'H2vn_v') 
+    load(rfn, 'radius_filt', 'radius_ap', 'radius_l', 'radius_r', 'radius_d', 'radius_v') 
 
     % separate 2d/3d data
-    H2d = HH ;
-    H3d = HH(:, 1:nV-1) ;
-    gdot2d = gdot ;
-    gdot3d = gdot(:, 1:nV-1);
-    divv2d = divv ;
-    divv3d = divv(:, 1:nV-1) ;
-    veln2d = veln ;
-    veln3d = veln(:, 1:nV-1) ;
-    H2vn2d = H2vn ;
-    H2vn3d = H2vn(:, 1:nV-1) ;
-    radi2d = radius ;
-    radi3d = radius(:, 1:nV-1) ;
+    H2d = HH_filt ;
+    H3d = HH_filt(:, 1:nV-1) ;
+    gdot2d = gdot_filt ;
+    gdot3d = gdot_filt(:, 1:nV-1);
+    divv2d = divv_filt ;
+    divv3d = divv_filt(:, 1:nV-1) ;
+    veln2d = veln_filt ;
+    veln3d = veln_filt(:, 1:nV-1) ;
+    H2vn2d = H2vn_filt ;
+    H2vn3d = H2vn_filt(:, 1:nV-1) ;
+    radi2d = radius_filt ;
+    radi3d = radius_filt(:, 1:nV-1) ;
     
     %% Plot results
     % % operational plotting options
@@ -249,6 +265,8 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     pOptions.lambda = lambda ;
     pOptions.lambda_err = lambda_err ;
     pOptions.lambda_mesh = lambda_mesh ;
+    pOptions.nmodes = nmodes ;
+    pOptions.zwidth = zwidth ;
     pOptions.H2vn2d = H2vn2d ;
     pOptions.divv2d = divv2d ;
     pOptions.gdot2d = gdot2d ;
@@ -270,11 +288,11 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     QS.plotMetricKinematicsTimePoint(tp, pOptions)
     
     %% Store in matrices
-    HH_M(tidx, :, :) = HH ;
-    gdot_M(tidx, :, :) = gdot ;
-    divv_M(tidx, :, :) = divv ;
-    veln_M(tidx, :, :) = veln ;
-    H2vn_M(tidx, :, :) = H2vn ;
+    HH_M(tidx, :, :) = HH_filt ;
+    gdot_M(tidx, :, :) = gdot_filt ;
+    divv_M(tidx, :, :) = divv_filt ;
+    veln_M(tidx, :, :) = veln_filt ;
+    H2vn_M(tidx, :, :) = H2vn_filt ;
     
     % dv averaged
     HH_apM(tidx, :) = HH_ap ;
@@ -306,7 +324,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     divv_dM(tidx, :) = divv_d ;
     veln_dM(tidx, :) = veln_d ;
     H2vn_dM(tidx, :) = H2vn_d ;
-    radi_dM(tidx, :) = radius_r ;
+    radi_dM(tidx, :) = radius_d ;
 
     % ventral quarter
     HH_vM(tidx, :) = HH_v ;
@@ -387,7 +405,8 @@ if plot_kymographs
                 hold on;
                 for ii = 1:length(fons)
                     fonsi = max(1, fons(ii) ) ; 
-                    plot(folds.folds(fonsi:end-1, ii) / nU, tps(fonsi:end))            
+                    plot(double(folds.folds(fonsi:end-1, ii)) / double(nU), ...
+                        tps(fonsi:end))            
                 end
 
                 % title and save
@@ -407,7 +426,7 @@ if plot_kymographs
                     disp(['saving ', fn])
                     export_fig(fn, '-png', '-nocrop', '-r200')   
                     % Zoom in on early times
-                    ylim([min(tps), max(fons) + 10])
+                    ylim([min(tps), min(max(tps), max(fons-tfold) + 10)])
                     caxis([-climits(pp)/3, climits(pp)/3])
                     fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
                     disp(['saving ', fn])
@@ -420,7 +439,34 @@ end
 
 %% Metric Kinematic Correlations -- vertex-by-vertex
 % Plot both all time and select times
-timeSpans = {tps, tps(tps < max(fons) + 11)} ;
+timeSpans = {tps} ;
+% define pre-folding time chunk(s)
+DTime = 30 ;    % 30 minute chunks
+if tps(1) < 0
+    nchunks = ceil(abs(tps(1)/DTime)) ;
+    for qq = 1:nchunks
+        timeSpans{1+qq} = max(min(tps), -(nchunks-qq+1)*DTime):-(nchunks-qq)*DTime ;
+    end
+else
+    qq = 0 ;
+end
+% Now add time chunks after initial folding t0
+if max(tps) > 0
+    nchunks = ceil(max(tps)/DTime) ;
+    for pp = 1:nchunks
+        timeSpans{1+qq+pp} = (pp-1)*DTime:min(max(tps), pp*DTime) ;
+    end
+end
+% Include one tpsan of -1hr, 1hr, 2hr after t0
+hrTSpans = {max(min(tps),-60):0, 0:60, 60:min(max(tps),120)} ;
+timeSpans{end+1} = hrTSpans{1} ;
+timeSpans{end+1} = hrTSpans{2} ;
+timeSpans{end+1} = hrTSpans{3} ;
+% Include one tpsan of -1.5hr, 1.5hr, 3hr after t0
+lhrTSpans = {max(min(tps),-90):0, 0:90, 90:min(max(tps), 180)} ;
+timeSpans{end+1} = lhrTSpans{1} ;
+timeSpans{end+1} = lhrTSpans{2} ;
+timeSpans{end+1} = lhrTSpans{3} ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Plot correlation between terms div(v) and 2Hvn for each point (no DV
@@ -440,12 +486,126 @@ right = q2:q3 ;
 dorsal = [q3:nV, 1:q1] ;
 rows = {left, right, dorsal, ventral} ;
     
-%% HISTCOUNTS VERSION
+%% SPATIAL VERSION -- ON MESH, SIMPLE-AVERAGED IN TIME
+% Predefine file names
+mapDir = fullfile(mKDir, 'spaceMap') ;
+outputFileNames = {fullfile(mapDir, 'correlation_alltime_div_2Hvn')} ;
+files_exist = true ;
+for qq = 2:length(timeSpans)
+    outputFileNames{qq} = ...
+        fullfile(mapDir, ...
+        sprintf('spaceMapKinematics_times%02d_div_2Hvn', qq)) ;
+    files_exist = files_exist && exist([outputFileNames{qq}, '_zoom.pdf'], 'file') ;
+end
+if plot_spaceMaps && (~files_exist || overwrite)
+    if ~exist(mapDir, 'dir')
+        mkdir(mapDir)
+    end
+    close all
+    set(gcf, 'visible', 'off')
+    % Consider each timespan (early or entire series)
+    for tspanIdx = 2:length(timeSpans)
+        fnout = outputFileNames{tspanIdx} ;
+        timeSpan_i = timeSpans{tspanIdx} ;
+        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        close all
+        
+        % Get middle mesh for this time range if not ALLTime
+        if tspanIdx == 1
+            QS.setTime(QS.t0set()) ;
+            mesh = QS.getCurrentSPCutMeshSmRS ;
+        else
+            QS.setTime(round(mean(tidx_i))) ;
+            mesh = QS.getCurrentSPCutMeshSmRS ;
+        end
+        m2d = mesh ;
+        m2d.v = m2d.u ;
+        m2d.v(:, 1) = m2d.v(:, 1) / max(m2d.v(:, 1)) ;
+        
+        % Get mean divv and mean H2vn for these times
+        mdivv = squeeze(mean(divv_M(tidx_i, :, :), 1)) ;
+        mH2vn = squeeze(mean(H2vn_M(tidx_i, :, :), 1)) ;
+        halfgdot = mdivv - mH2vn ;
+        pOptions.labels = {'$2Hv_n$', '$\nabla \cdot v_t$', ...
+            '$\frac{1}{2}\mathrm{Tr}\left[\mathbf{g}^{-1} \dot{\mathbf{g}}\right]=\nabla \cdot v_t-2Hv_n$', ...
+            '', '', ''} ;
+        pOptions.cbarlabels = {'', '', '', ...
+            '$2Hv_n$', '$\nabla \cdot v_t$', ...
+            '$\frac{1}{2}\mathrm{Tr}\left[\mathbf{g}^{-1} \dot{\mathbf{g}}\right]$'} ;
+        pOptions.makeCbar = [false, false, false, true, true, true] ;
+        % pOptions.cmap = bwr ;
+        % pOptions.cmap = twilight_shifted_trueWhite(256) ;
+        pOptions.cmap = twilight_shifted_mod(256) ;
+        pOptions.axisOn = false ;
+        pOptions.clim = [-climit, climit] ;
+        pOptions.visible = 'On' ;
+        pOptions.view = {[0,0], [0,0], [0,0], [0,90], [0,90], [0,90]} ;
+        [axs, cbs, meshHandles]  = ...
+            nFieldsOnSurface({mesh, mesh, mesh, m2d, m2d, m2d}, ...
+            {mH2vn(:), mdivv(:), halfgdot(:), ...
+            mH2vn(:), mdivv(:), halfgdot(:)}, pOptions) ;
+        
+        % Enlarge lower 2d axes to fit 3d embedding axis size
+        pos = {} ;
+        for ii = 1:3
+            set(gcf, 'CurrentAxes', axs{ii})
+            pos{ii} = get(gca, 'position') ;
+        end
+        for ii = 4:length(axs)
+            set(gcf, 'CurrentAxes', axs{ii})
+            p2 = get(gca, 'position') ;
+            set(gca, 'position', [pos{ii-3}(1), p2(2)-pos{ii-3}(4)*0.1, pos{ii-3}(3), pos{ii-3}(4)])
+        end
+        
+        % master titles (suptitles)
+        if tspanIdx > 1
+            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
+                num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
+                ' ' QS.timeUnits], ...
+                'Interpreter', 'Latex') ;
+        else
+            sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
+                'Interpreter', 'Latex') ;
+        end
+        
+        % Save figure
+        saveas(gcf, [fnout '.png']) ;
+        saveas(gcf, [fnout '.pdf']) ;
+        
+        % Zoom in on color
+        for ii = 1:length(axs)
+            set(gcf, 'CurrentAxes', axs{ii})
+            caxis([-climit / 2, climit / 2])
+        end
+        % Save figure
+        saveas(gcf, [fnout '_zoom.png']) ;
+        saveas(gcf, [fnout '_zoom.pdf']) ;
+        
+        % Zoom out on color
+        for ii = 1:length(axs)
+            set(gcf, 'CurrentAxes', axs{ii})
+            caxis([-climit * 2, climit * 2])
+        end
+        % Save figure
+        saveas(gcf, [fnout '_out.png']) ;
+        saveas(gcf, [fnout '_out.pdf']) ;
+        
+        close all
+        clearvars sphCollection
+        set(gcf, 'visible', 'off')
+    end
+    disp('done with spaceMaps of divv, H2vn, and difference')
+end
+
+%% HISTCOUNTS VERSION -- vertex-by-vertex
 corrDir = fullfile(mKDir, 'correlations') ;
-outputFileNames = {fullfile(corrDir, 'histc_correlation_alltime_div_2Hvn.png'), ...
-    fullfile(corrDir, 'histc_correlation_earlytimes_div_2Hvn.png')} ;
-files_exist = exist(outputFileNames{1}, 'file') && ...
-    exist(outputFileNames{2}, 'file') ;
+outputFileNames = {fullfile(corrDir, 'histc_correlation_alltime_div_2Hvn.png')} ;
+files_exist = exist(outputFileNames{1}, 'file') ;
+for qq = 2:length(timeSpans)
+    outputFileNames{qq} = ...
+        fullfile(corrDir, sprintf('histc_correlation_times%02d_div_2Hvn.png', qq)) ;
+    files_exist = files_exist && exist(outputFileNames{qq}, 'file') ;
+end 
 if plot_raw_correlations && (~files_exist || overwrite)
     xedges = linspace(-2 * climit, 2 * climit, 50) ;
     yedges = xedges ;
@@ -456,10 +616,12 @@ if plot_raw_correlations && (~files_exist || overwrite)
     close all
     set(gcf, 'visible', 'off')
     % Consider each timespan (early or entire series)
-    for tspanIdx = 1:2
+    
+    for tspanIdx = 1:length(timeSpans)
         fnout = outputFileNames{tspanIdx} ;
         timeSpan_i = timeSpans{tspanIdx} ;
-        ntspan = length(timeSpan_i) ;
+        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        % ntspan = length(timeSpan_i) ;
         titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
         close all
         sphCollection = cell(4, 1) ;
@@ -471,8 +633,8 @@ if plot_raw_correlations && (~files_exist || overwrite)
             H2vn = H2vn_M(:, rows{qq}, cols) ;
             
             sphCollection{qq} = subplot(2, 2, qq) ;
-            divv_tp = divv(1:ntspan, :, :) ;
-            H2vn_tp = H2vn(1:ntspan, :, :) ;
+            divv_tp = divv(tidx_i, :, :) ;
+            H2vn_tp = H2vn(tidx_i, :, :) ;
             nn = histcounts2(divv_tp(:), H2vn_tp(:), ...
                 xedges, yedges) ;
             nnmax = max(nnmax, max(nn(:))) ;
@@ -485,8 +647,8 @@ if plot_raw_correlations && (~files_exist || overwrite)
             H2vn = H2vn_M(:, rows{qq}, cols) ;
             
             sphCollection{qq} = subplot(2, 2, qq) ;
-            divv_tp = divv(1:ntspan, :, :) ;
-            H2vn_tp = H2vn(1:ntspan, :, :) ;
+            divv_tp = divv(tidx_i, :, :) ;
+            H2vn_tp = H2vn(tidx_i, :, :) ;
             nn = histcounts2(divv_tp(:), H2vn_tp(:), ...
                 xedges, yedges) ;
             imagesc(xedges, yedges, log10(nn)') ;
@@ -558,9 +720,10 @@ if plot_raw_correlations && (~files_exist || overwrite)
         end
 
         % master titles (suptitles)
-        if tspanIdx < 2
+        if tspanIdx > 1
             sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
-                '$t<$' num2str(max(timeSpan_i)) ' ' QS.timeUnits], ...
+                num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
+                ' ' QS.timeUnits], ...
                 'Interpreter', 'Latex') ;
         else
             sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
@@ -568,7 +731,7 @@ if plot_raw_correlations && (~files_exist || overwrite)
         end
         
         % Add colorbar
-        c = colorbar('Position',[.85 .333 .02 .333]) ;
+        c = colorbar('Position', [.85 .333 .02 .333]) ;
         % % Make colorbar share the alpha of the image
         % % Manually flush the event queue and force MATLAB to render the colorbar
         % % necessary on some versions
@@ -583,12 +746,11 @@ if plot_raw_correlations && (~files_exist || overwrite)
         % c.Face.Texture.CData = cdata;
         c.Label.Interpreter = 'Latex' ;
         c.Label.String = 'counts' ;
-        c.Ticks = [0, log10(nnmax*0.001), ...
-            log10(nnmax*0.01), log10(nnmax*0.1), log10(nnmax)] ;
-        c.TickLabels = nnmax * [0, 0.001, 0.01, 0.1, 1] ;
+        c.Ticks = linspace(1, round(log10(nnmax)), round(log10(nnmax)));
+        c.TickLabels = logspace(1, round(log10(nnmax)), round(log10(nnmax))) ;
         
         % Save figure
-        saveas(gcf, [fnout '.png']) ;
+        saveas(gcf, fnout) ;
         close all
         clearvars sphCollection
         set(gcf, 'visible', 'off')
@@ -598,24 +760,28 @@ end
 %% SCATTERPLOT VERSION
 % Predefine file names
 corrDir = fullfile(mKDir, 'correlations') ;
-outputFileNames = {fullfile(corrDir, 'correlation_alltime_div_2Hvn.png'), ...
-    fullfile(corrDir, 'correlation_earlytimes_div_2Hvn.png')} ;
-files_exist = exist(outputFileNames{1}, 'file') && ...
-    exist(outputFileNames{2}, 'file') ;
+outputFileNames = {fullfile(corrDir, 'correlation_alltime_div_2Hvn.png')} ;
+files_exist = exist(outputFileNames{1}, 'file')  ;
+for qq = 2:length(timeSpans)
+    outputFileNames{qq} = ...
+        fullfile(corrDir, sprintf('correlation_times%02d_div_2Hvn.png', qq)) ;
+    files_exist = files_exist && exist(outputFileNames{qq}, 'file') ;
+end
 
-if plot_raw_correlations && (~files_exist || overwrite)
+if plot_raw_scatter_correlations && (~files_exist || overwrite)
     if ~exist(corrDir, 'dir')
         mkdir(corrDir)
     end
-    alphaVal = 0.005 ;
+    alphaVal = 0.05 ;
     sz = 2 ;
-    cmap = parula ;
+    cmap = phasemap(256) ;
     close all
     set(gcf, 'visible', 'off')
     % Consider each timespan (early or entire series)
-    for tspanIdx = 1:2
+    for tspanIdx = 1:length(timeSpans)
         fnout = outputFileNames{tspanIdx} ;
         timeSpan_i = timeSpans{tspanIdx} ;
+        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
         ntspan = length(timeSpan_i) ;
         titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
         markers = QS.plotting.markers ;
@@ -629,13 +795,14 @@ if plot_raw_correlations && (~files_exist || overwrite)
             H2vn = H2vn_M(:, rows{qq}, cols) ;
             
             sphCollection{qq} = subplot(2, 2, qq) ;
-            for row = 1:ntspan
+            for row = tidx_i
                 disp(['row = ', num2str(row)])
                 divv_tp = divv(row, :, :) ;
                 H2vn_tp = H2vn(row, :, :) ;
+                set(gcf, 'visible', 'off')
                 scatter(divv_tp(:), H2vn_tp(:), sz, ...
                     markers{qq}, 'MarkerFaceColor', 'none', ...
-                    'MarkerEdgeColor', colors(row, :), ...
+                    'MarkerEdgeColor', colors(row-tidx_i(1)+1, :), ...
                     'MarkerEdgeAlpha', alphaVal) ;
                 hold on ;
             end
@@ -649,10 +816,14 @@ if plot_raw_correlations && (~files_exist || overwrite)
             % Add dashed y=x line
             xlims = get(gca, 'xlim') ;
             ylims = get(gca, 'ylim') ;
-            xmin = max(-2 * climit, xlims(1)) ;
-            xmax = min( 2 * climit, xlims(2)) ;
-            ymin = max(-2 * climit, ylims(1)) ;
-            ymax = min( 2 * climit, ylims(2)) ;
+            
+            % Get xmin, xmax, ymin, ymax for the ALL TIMES plot
+            if tspanIdx == 1
+                xmin = max(-2 * climit, xlims(1)) ;
+                xmax = min( 2 * climit, xlims(2)) ;
+                ymin = max(-2 * climit, ylims(1)) ;
+                ymax = min( 2 * climit, ylims(2)) ;
+            end
 
             % xlim([max(-2 * climit, xlims(1)), min(2 * climit, xlims(2))])
             % ylim([max(-2 * climit, ylims(1)), min(2 * climit, ylims(2))])
@@ -664,7 +835,6 @@ if plot_raw_correlations && (~files_exist || overwrite)
 
             % Label the y axis if on the left column
             ylabel(['$2Hv_n$ ' unitstr], 'Interpreter', 'Latex') ;
-            title(titles{qq}, 'Interpreter', 'Latex')
 
             % Grab axis position
             sposCollection{qq} = get(sphCollection{qq}, 'Position');
@@ -711,8 +881,15 @@ if plot_raw_correlations && (~files_exist || overwrite)
         end
 
         % master titles (suptitles)
-        sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
-            'Interpreter', 'Latex') ;
+        if tspanIdx > 1
+            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
+                num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
+                ' ' QS.timeUnits], ...
+                'Interpreter', 'Latex') ;
+        else
+            sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
+                'Interpreter', 'Latex') ;
+        end
 
         % Add colorbar
         c = colorbar('Position',[.9 .333 .02 .333]) ;
@@ -731,7 +908,7 @@ if plot_raw_correlations && (~files_exist || overwrite)
         c.Label.Interpreter = 'Latex' ;
         c.Label.String = ['time [' QS.timeUnits ']'] ;
         c.Ticks = [0, 1] ;
-        c.TickLabels = [tps(1), max(timeSpan_i)] ;
+        c.TickLabels = [min(timeSpan_i), max(timeSpan_i)] ;
 
         % Save figure
         saveas(gcf, fnout) ;
@@ -742,39 +919,138 @@ if plot_raw_correlations && (~files_exist || overwrite)
     disp('done with correlation plots betweeen divv and H2vn')
 end
 
-%% Metric Kinematic Correlations
-% Plot both all time and select times
-timeSpans = {tps, tps(tps < max(fons) + 11)} ;
+%% Metric Kinematic Correlations for each hour, one single axis only (all quadrants)
+collateTSpans = {0:min(max(tps), 120)} ;
+for qq = 1:length(hrTSpans)
+    collateTSpans{qq+1} = hrTSpans{qq} ;
+end
+padN = round(0.1 * nU) ;
+cols = padN:nU - padN ;
+corrDVqDir = fullfile(mKDir, 'correlations_DVquadrants_collapsed') ;
+files_exist = true ;
+for qq = 1:length(collateTSpans)
+    outputFileNames{qq} = ...
+        fullfile(corrDVqDir, sprintf('correlation_allQuad_times%02d_div_2Hvn', qq)) ;
+    files_exist = files_exist && exist([outputFileNames{qq} '.png'], 'file') ;
+end
 
+if plot_correlations && (~files_exist || overwrite)
+    if ~exist(corrDVqDir, 'dir')
+        mkdir(corrDVqDir)
+    end    
+    alphaVal = 0.2 ;
+    sz = 4 ;
+    cmap = phasemap(256) ;
+    close all
+    set(gcf, 'visible', 'off')
+    % Consider each hr long timespan (early or entire series)
+    for tspanIdx = 1:length(collateTSpans)
+        fnout = outputFileNames{tspanIdx} ;
+        timeSpan_i = collateTSpans{tspanIdx} ;
+        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        markers = QS.plotting.markers ;
+        colors = mapValueToColor(1:5, [1, 5], cmap) ;
+        close all
+        for qq = 1:4  % consider left, right, dorsal, ventral
+            disp(['qq = ', num2str(qq), ': ', titles{qq}])
+            divv = divvsK{qq + 1}(:, cols) ;    
+            H2vn = H2vnsK{qq + 1}(:, cols) ;
+            xx = divv(tidx_i, :) ;
+            yy = H2vn(tidx_i, :) ;
+            scatter(xx(:), yy(:), sz, ...
+                markers{qq}, 'MarkerFaceColor', 'none', ...
+                'MarkerEdgeColor', colors(qq, :), ...
+                'MarkerEdgeAlpha', alphaVal) ;
+            hold on ;
+
+            % Label the x axis if on the bottom row
+            xlabel(['$\nabla \cdot \bf{v}_\parallel$ ' unitstr], ...
+                    'Interpreter', 'Latex') ;
+            ylabel(['$2Hv_n$ ' unitstr], 'Interpreter', 'Latex') ;
+        end
+        
+        % Add dashed y=x line
+        xlims = get(gca, 'xlim') ;
+        ylims = get(gca, 'ylim') ;
+        axis equal
+        xlim([max(-2 * climit, xlims(1)), min(2 * climit, xlims(2))])
+        ylim([max(-2 * climit, ylims(1)), min(2 * climit, ylims(2))])
+        xlims = get(gca, 'xlim') ;
+        ylims = get(gca, 'ylim') ;
+        leftdot = max(xlims(1), ylims(1)) ;
+        rightdot = min(xlims(2), ylims(2)) ;
+        plot([leftdot, rightdot], [leftdot, rightdot], 'k--')
+         
+        % % master titles (suptitles)
+        % figure(1) ;
+        % % Add colorbar
+        % c = colorbar() ;
+        % % Make colorbar share the alpha of the image
+        % % Manually flush the event queue and force MATLAB to render the colorbar
+        % % necessary on some versions
+        % drawnow
+        % % Get the color data of the object that correponds to the colorbar
+        % colormap(cmap)
+        % cdata = c.Face.Texture.CData;
+        % % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+        % cdata(end,:) = uint8(alphaVal * cdata(end,:));
+        % % Ensure that the display respects the alpha channel
+        % c.Face.Texture.ColorType = 'truecoloralpha';
+        % % Update the color data with the new transparency information
+        % c.Face.Texture.CData = cdata;
+        % c.Label.Interpreter = 'Latex' ;
+        % c.Label.String = ['time [' QS.timeUnits ']'] ;
+        % c.Ticks = [0, 1] ;
+        % c.TickLabels = [tps(1), max(timeSpan_i)] ;
+
+        sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
+            num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
+            ' ' QS.timeUnits], ...
+            'Interpreter', 'Latex') ;
+
+        % Save figure
+        figure(1)
+        saveas(gcf, [fnout '.png']) ;
+        disp('saving pdf version...')
+        saveas(gcf, [fnout '.pdf']) ;
+        disp('done')
+        close all
+        set(gcf, 'visible', 'off')
+    end
+    disp('done with collapsed correlation plots betweeen divv and H2vn')
+end
+
+%% Metric Kinematic Correlations for each timeSpan
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Plot correlation between terms div(v) and 2Hvn for each quadrant
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 padN = round(0.1 * nU) ;
 cols = padN:nU - padN ;
 
-corrDir = fullfile(mKDir, 'correlations_DVquadrants') ;
+corrDVqDir = fullfile(mKDir, 'correlations_DVquadrants') ;
 % Warning: not truly Lagrangian averaged if sigma > 0. 
-outputFileNames = {fullfile(corrDir, ...
-    'correlation_alltime_div_2Hvn'), ...
-    fullfile(corrDir, ...
-    'correlation_earlytimes_div_2Hvn')} ;
-files_exist = exist(outputFileNames{1}, 'file') && ...
-    exist(outputFileNames{2}, 'file') ;
+files_exist = exist(outputFileNames{1}, 'file')  ;
+for qq = 2:length(timeSpans)
+    outputFileNames{qq} = ...
+        fullfile(corrDVqDir, sprintf('correlation_times%02d_div_2Hvn.png', qq)) ;
+    files_exist = files_exist && exist(outputFileNames{qq}, 'file') ;
+end
 
 if plot_correlations && (~files_exist || overwrite)
-    if ~exist(corrDir, 'dir')
-        mkdir(corrDir)
+    if ~exist(corrDVqDir, 'dir')
+        mkdir(corrDVqDir)
     end    
     alphaVal = 0.2 ;
     sz = 4 ;
-    cmap = parula ;
+    cmap = phasemap(256) ;
     close all
     set(gcf, 'visible', 'off')
     % Consider each timespan (early or entire series)
-    for tspanIdx = 1:2
+    for tspanIdx = 1:length(timeSpans)
         fnout = outputFileNames{tspanIdx} ;
         timeSpan_i = timeSpans{tspanIdx} ;
         ntspan = length(timeSpan_i) ;
+        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
         titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
         markers = QS.plotting.markers ;
         colors = mapValueToColor(1:ntspan, [1, ntspan], cmap) ;
@@ -799,22 +1075,22 @@ if plot_correlations && (~files_exist || overwrite)
             % Check the quadrant kymographs
             figure(2) ;
             sphCollection2{qq} = subplot(2, 2, qq) ;
-            imagesc(cols/nU, tps, divv); 
+            imagesc(cols/nU, timeSpan_i, divv(tidx_i, :)); 
             caxis([-climit, climit])
             colormap(bwr256)
             figure(3) ;
             sphCollection3{qq} = subplot(2, 2, qq) ;
-            imagesc(cols/nU, tps, H2vn); 
+            imagesc(cols/nU, timeSpan_i, H2vn(tidx_i, :)); 
             caxis([-climit, climit])
             colormap(bwr256)
 
             figure(1) ;
             sphCollection{qq} = subplot(2, 2, qq) ;
-            for row = 1:ntspan
+            for row = tidx_i
                 disp(['row = ', num2str(row)])
                 scatter(divv(row, :), H2vn(row, :), sz, ...
                     markers{qq}, 'MarkerFaceColor', 'none', ...
-                    'MarkerEdgeColor', colors(row, :), ...
+                    'MarkerEdgeColor', colors(row-tidx_i(1)+1, :), ...
                     'MarkerEdgeAlpha', alphaVal) ;
                 hold on ;
             end
@@ -875,18 +1151,7 @@ if plot_correlations && (~files_exist || overwrite)
                 set(sphCollection3{qq}, 'Position', [spos(1)-0.06, spos(2), wh, wh])
             end
         end
-
-        % master titles (suptitles)
-        figure(1) ;
-        sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$'], ...
-            'Interpreter', 'Latex') ;
-
-        figure(2) ;
-        sgtitle(['$\nabla \cdot \bf{v}_\parallel$'], ...
-                'Interpreter', 'Latex') ;
-        figure(3) ;
-        sgtitle(['$2Hv_n$'], 'Interpreter', 'Latex') ;
-
+        
         % Add colorbar
         figure(1) ;
         c = colorbar('Position',[.9 .333 .02 .333]) ;
@@ -907,10 +1172,38 @@ if plot_correlations && (~files_exist || overwrite)
         c.Ticks = [0, 1] ;
         c.TickLabels = [tps(1), max(timeSpan_i)] ;
 
+        if tspanIdx > 1
+            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
+                num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
+                ' ' QS.timeUnits], ...
+                'Interpreter', 'Latex') ;
+        else
+            sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
+                'Interpreter', 'Latex') ;
+        end
+
         figure(2) ;
         c = colorbar('Position',[.9 .333 .02 .333]) ;
+        if tspanIdx > 1
+            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
+                num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
+                ' ' QS.timeUnits], ...
+                'Interpreter', 'Latex') ;
+        else
+            sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
+                'Interpreter', 'Latex') ;
+        end
         figure(3) ;
         c = colorbar('Position',[.9 .333 .02 .333]) ;
+        if tspanIdx > 1
+            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
+                num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
+                ' ' QS.timeUnits], ...
+                'Interpreter', 'Latex') ;
+        else
+            sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
+                'Interpreter', 'Latex') ;
+        end
 
         % Save figure
         figure(1)
@@ -941,7 +1234,7 @@ files_exist = exist(outputFileNames{1}{1}, 'file') && ...
 if plot_gdot_correlations && (~files_exist || overwrite)
     alphaVal = 0.1 ;
     sz = 4 ;
-    cmap = parula ;
+    cmap = phasemap(256) ;
     close all
     set(gcf, 'visible', 'off')
     for pairIdx = 1:2
@@ -1061,7 +1354,7 @@ if plot_gdot_correlations && (~files_exist || overwrite)
 end
 
 
-%% Metric Kinematics -- decompose into isotropic and other component
+%% Metric Kinematics -- plot isotropic component only (part of decomposition)
 if plot_gdot_decomp
     % Make kymographs averaged over dv, or left, right, dorsal, ventral 1/4
     dvDir = fullfile(mKDir, 'avgDV') ;

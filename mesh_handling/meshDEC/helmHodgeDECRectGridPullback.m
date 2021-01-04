@@ -13,17 +13,25 @@ function [divs, rots, harms, glueMesh] = ...
 % Options : struct with fields
 %   lambda : smoothing diffusion constant
 % varargin : keyword arguments (optional)
+%   nSpectralFilterModes : int (default = 0)
+%       number of circumferential modes to keep in spectral filter
+%       (low-pass filtering)
+%   spectralFilterWidth : int (default = 0)
+%       longitudinal half-width along which to average modes in spectral
+%       filtering as tripulse filter.
 %   niterSmoothing : int or three ints 
-%       how many smoothing steps to perform. 
+%       how many smoothing steps to perform on U fields (div,rot,harm
+%       scalar fields)
 %       If two values given, applies to div, rot separately
 %       If method is 'both', applies to 
 %       div-denoise, div-smooth, rot-denoise, rot-smooth
 %   filterMethod : 'smooth' 'denoise' 'both'
-%       What smoothing method to apply
+%       What smoothing method to apply to U fields (div,rot,harm scalar
+%       fields)
 %           denoise : average local extrema with neighboring face values
 %           smooth : average all values with neighboring face values
 %           both : first denoise, then smooth
-%   Epsilon : float
+%   epsilon : float
 %       small value setting threshold for local extremum for method == denoise
 %   clipDiv : list of two floats
 %       values to clip the rotation field
@@ -31,6 +39,8 @@ function [divs, rots, harms, glueMesh] = ...
 %       values to clip the curl field
 %   preview : bool 
 %       view intermediate results
+%   outdir : str
+%       output directory for preview results and smoothing analysis
 %
 % Returns
 % -------
@@ -51,17 +61,35 @@ niterU2d_rot = 0 ;
 niterU2d_harm = 0 ;
 clipDiv = [-Inf, Inf] ;  
 clipRot = [-Inf, Inf] ;  
-lambda_smooth = 0.01 ;
-lambda_mesh = 0.001 ;
-method = 'smooth' ;     % options: smooth, denoise
+lambda_smooth = 0 ;
+lambda_mesh = 0 ;
+nmodes = 0 ;
+zwidth = 0 ;
+method = 'smooth' ;     % options: smooth, denoise, both
 eps = 1e-16 ;
 preview = false ;
+do_calibration = false ;
+
 %% Unpack options
 if isfield(Options, 'lambda')
     lambda_smooth = Options.lambda ;
 end
 if isfield(Options, 'lambda_mesh')
     lambda_mesh = Options.lambda_mesh ;
+end
+if isfield(Options, 'nSpectralFilterModes')
+    nmodes = Options.nSpectralFilterModes ;
+end
+if isfield(Options, 'spectralFilterWidth')
+    zwidth = Options.spectralFilterWidth;
+end
+if isfield(Options, 'outdir')
+    outdir = Options.outdir;
+else
+    outdir = '' ;
+end
+if isfield(Options, 'do_calibration')
+    do_calibration = Options.do_calibration;
 end
 
 %% varargin options
@@ -217,23 +245,169 @@ if preview
     pause(1)
 end
 
+%% First pass: do calibration for good params
+if do_calibration && false
+    nmodes2explore = 1:10 ;
+    lambdas2explore = linspace(0, 0.005, 10) ;
+    errs = zeros(length(nmodes2explore), length(lambdas2explore)) ;
+    errm = errs ;
+    % cut off endcaps
+    divvCut = reshape(divv, [nU, nV-1]) ;
+    divvCut = divvCut(3:end-3, :) ;
+
+    for ii = 1:length(nmodes2explore)
+        for jj = 1:length(lambdas2explore)
+            nmodesij = nmodes2explore(ii) ;
+            lambda_smooth_ij = lambdas2explore(jj) ;
+            if nmodesij > 0
+                disp('Mode filtering divv on vertices')
+                filterOpts.nmodesY = nmodesij ;
+                filterOpts.widthX = 1 ;
+                divvsm = modeFilterQuasi1D(reshape(divv, [nU, (nV-1)]), filterOpts) ;
+            else
+                divvsm = divv ;
+            end
+
+            if lambda_smooth_ij > 0 
+                disp('Laplacian smoothing divv on vertices')
+                fixed_verts = [] ;  % note: could use boundaries here, seems unnecessary
+                divvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+                    lambda_smooth_ij, 'explicit', divvsm(:), max_niter_div) ;
+            end
+
+            % cut off endcaps
+            divvsm = reshape(divvsm, [nU, nV-1]) ;
+            divvsm = divvsm(3:end-3, :) ;
+
+            errs(ii, jj) = mean((divvsm(:) - divvCut(:)).^2) / var(divvCut(:)) ;
+            errm(ii, jj) = max((divvsm(:) - divvCut(:)).^2) / max(abs(divvCut(:))) ;        
+        end
+    end
+    subplot(1, 2, 1)
+    imagesc(nmodes2explore, lambdas2explore, errs')
+    xlabel('\#modes', 'interpreter', 'latex')
+    ylabel('$\lambda$', 'interpreter', 'latex')
+    set(gca, 'YDir', 'normal');
+    colorbar('location', 'southoutside')
+    title('$\frac{\langle\Delta\nabla \cdot v_t \rangle}{\sigma^2_{\nabla \cdot v_t}}$', 'interpreter', 'latex')
+    subplot(1, 2, 2)
+    imagesc(nmodes2explore, lambdas2explore, errm')
+    xlabel('\#modes', 'interpreter', 'latex')
+    ylabel('$\lambda$', 'interpreter', 'latex')
+    set(gca, 'YDir', 'normal');
+    colorbar('location', 'southoutside')
+    title('$\frac{\mathrm{max}\Delta\nabla \cdot v_t}{\mathrm{max}\nabla \cdot v_t}$', 'interpreter', 'latex')
+    sgtitle('Smoothing analysis for divergence', 'interpreter', 'latex')
+    saveas(gcf, fullfile(outdir, 'smoothing_error_analysis.png'))
+
+    %% Change width of filter in longitude
+    nmodes2explore = 1:10 ;
+    zw2explore = 0:5 ;
+    errs = zeros(length(nmodes2explore), length(zw2explore)) ;
+    errm = errs ;
+    % cut off endcaps
+    divvCut = reshape(divv, [nU, nV-1]) ;
+    divvCut = divvCut(3:end-3, :) ;
+    for ii = 1:length(nmodes2explore)
+        for jj = 1:length(zw2explore)
+            nmij = nmodes2explore(ii) ;
+            zwij = zw2explore(jj) ; 
+            if nmodes > 0
+                disp('Mode filtering divv on vertices')
+                filterOpts.nmodesY = nmij ;
+                filterOpts.widthX = zwij ;
+                divvsm = modeFilterQuasi1D(reshape(divv, [nU, (nV-1)]), filterOpts) ;
+            else
+                divvsm = divv ;
+            end
+
+            % cut off endcaps
+            divvsm = reshape(divvsm, [nU, nV-1]) ;
+            divvsm = divvsm(3:end-3, :) ;
+
+            errs(ii, jj) = mean((divvsm(:) - divvCut(:)).^2) / var(divvCut(:)) ;
+            errm(ii, jj) = max((divvsm(:) - divvCut(:)).^2) / max(abs(divvCut(:))) ;        
+        end
+    end
+    subplot(1, 2, 1)
+    imagesc(nmodes2explore, lambdas2explore, errs')
+    xlabel('\#modes', 'interpreter', 'latex')
+    ylabel('$w$', 'interpreter', 'latex')
+    set(gca, 'YDir', 'normal');
+    colorbar('location', 'southoutside')
+    title('$\frac{\langle\Delta\nabla \cdot v_t \rangle}{\sigma^2_{\nabla \cdot v_t}}$', 'interpreter', 'latex')
+    subplot(1, 2, 2)
+    imagesc(nmodes2explore, lambdas2explore, errm')
+    xlabel('\#modes', 'interpreter', 'latex')
+    ylabel('$w$', 'interpreter', 'latex')
+    set(gca, 'YDir', 'normal');
+    colorbar('location', 'southoutside')
+    title('$\frac{\mathrm{max}\Delta\nabla \cdot v_t}{\mathrm{max}\nabla \cdot v_t}$', 'interpreter', 'latex')
+    sgtitle('Smoothing analysis for divergence', 'interpreter', 'latex')
+    saveas(gcf, fullfile(outdir, 'smoothing_error_analysis2.png'))
+end
+
 %% LAPLACIAN SMOOTHING for divergence field
-fixed_verts = [] ;  % note: could use boundaries here, seems unnecessary
-divvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
-    lambda_smooth, 'explicit', divv, max_niter_div) ;
+if nmodes > 0 || zwidth > 0
+    disp('Mode filtering divv on vertices')
+    filterOpts.nmodesY = nmodes ;
+    filterOpts.widthX = zwidth ;
+    divvm = modeFilterQuasi1D(reshape(divv, [nU, (nV-1)]), filterOpts) ;
+else
+    divvm = divv ;
+end
+
+if lambda_smooth > 0 
+    disp('Laplacian smoothing divv on vertices')
+    fixed_verts = [] ;  % note: could use boundaries here, seems unnecessary
+    divvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+        lambda_smooth, 'explicit', divvm(:), max_niter_div) ;
+else
+    divvsm = divvm(:) ;
+end
 
 % View results on divergence
 if preview 
-    tmp = reshape(divvsm, [nU, (nV-1)]) ;
-    imagesc(tmp)
+    clf
+    clim = max(abs(divv)) ;
+    tmp = reshape(divv, [nU, (nV-1)]) ;
+    subplot(2, 2, 1)
+    imagesc(tmp')
     colormap bwr 
     colorbar
-    caxis([-0.4, 0.4])
-    title('Divergence, after denoising/smoothing')
+    caxis([-clim, clim]); axis off ;
+    title('Divergence')
+    tmp = reshape(divvm, [nU, (nV-1)]) ;
+    subplot(2, 2, 2)
+    imagesc(tmp')
+    colormap bwr 
+    colorbar
+    caxis([-clim, clim]); axis off ;
+    title('after filtering')
+    subplot(2, 2, 3)
+    tmp = reshape(divvsm, [nU, (nV-1)]) ;
+    imagesc(tmp')
+    colormap bwr 
+    colorbar
+    caxis([-clim, clim]); axis off ;
+    title('after filtering + smoothing')
+    % Compare to no spectral filter at all
+    subplot(2, 2, 4)
+    tmp = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...  
+        lambda_smooth, 'explicit', divv(:), max_niter_div) ;
+    tmp = reshape(tmp, [nU, (nV-1)]) ;
+    imagesc(tmp')
+    colormap bwr 
+    colorbar
+    caxis([-clim, clim]); axis off ;
+    title('just smoothing')
+    sgtitle(['\#modes=' num2str(nmodes) ', $w$=' num2str(zwidth) ', $\lambda$=' ...
+        num2str(lambda_smooth) ' $\lambda_m$=' num2str(lambda_mesh)], ...
+        'interpreter', 'latex') ;
     pause(1)
 end
 
-%% LAPLACIAN SMOOTHING for rotational field
+%% SMOOTHING for rotational field
 % weight curl by face area
 % Note: hodge dual (star) is applied at end of Curl(), so no area exists in
 % the curl/rotational field, so just average with any weighting we like (we
@@ -247,17 +421,29 @@ if preview
     imagesc(tmp)
     colormap bwr 
     colorbar
-    caxis([-0.4, 0.4])
+    caxis([-clim, clim])
     title('Curl, before denoising/smoothing')
     pause(1)
 end
 
-% LAPLACIAN SMOOTHING on vertices (rotation field)
+%% SMOOTHING on vertices (rotation field)
 fixed_verts = [] ;  % note: could use boundaries here, seems unnecessary
 [~, gF2V] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
 rotvsm = gF2V * rotv ;
-rotvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
-    lambda_smooth, 'implicit', rotvsm, max_niter_rot) ;
+% Spectral filtering
+if nmodes > 0 
+    disp('Spectral filtering rotv on vertices')
+    filterOpts.nmodesY = nmodes ;
+    filterOpts.widthX = zwidth ;
+    rotvsm = modeFilterQuasi1D(reshape(rotvsm, [nU, (nV-1)]), filterOpts) ;
+end
+% Average using laplacian smoothing
+if lambda_smooth > 0 
+    disp('Laplacian smoothing rotv on vertices')
+    rotvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+        lambda_smooth, 'implicit', rotvsm(:), max_niter_rot) ;
+end
+rotvsm = rotvsm(:) ;
 
 % add nU points back to divv from phi=0 by duplication --> convert back to
 % cut mesh indices

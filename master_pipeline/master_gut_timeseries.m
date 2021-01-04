@@ -36,7 +36,7 @@ clear; close all; clc;
 % cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1.5_2/data
 % .=========.
 % |  VIP10  |
 % .=========.
@@ -1382,31 +1382,20 @@ QS.plotMetric(options) ;
 %         'spcutMeshSmRS')
 %     save(sprintf(QS.fullFileBase.spcutMeshSmRSC, QS.currentTime), ...
 %         'spcutMeshSmRSC')
+%     
+%     if mod(tidx, 10) < 3
+%         clf; set(gcf, 'visible', 'on')
+%         trisurf(triangulation(spcutMeshSmRSC.f, spcutMeshSmRSC.v), 'edgecolor', 'none')
+%         axis equal 
+%         title(num2str(tidx))
+%         pause(1)
+%         cla
+%         trisurf(triangulation(spcutMeshSmRS.f, spcutMeshSmRS.v), 'edgecolor', 'k')
+%         axis equal
+%         title([num2str(tidx) ' open'])
+%         pause(0.0001)
+%     end
 % end
-
-%% Create ricci meshes
-options = struct() ;
-options.overwrite = false ;
-options.climit = 1 ;
-options.coordSys = 'ricci' ;
-QS.measureBeltramiCoefficient(options) ;
-
-%% Compare to linearized description
-options = struct() ;
-options.overwrite = false ;
-options.overwriteImages = false ;
-options.coordSys = 'ricci' ;
-QS.compareBeltramiToLinearizedConstriction(options) ;
-
-%% Compare to nonlinear isothermal description
-options = struct() ;
-options.overwrite = true ;
-options.overwriteImages = false ;
-options.coordSys = 'ricci' ;
-QS.compareBeltramiToConstriction(options) ;
-
-%% UVPrime option (ignore)
-master_uvprime_module
 
 %% Measure Cell density
 % Skip if already done
@@ -1598,40 +1587,28 @@ options.invertImage = true ;
 options.averagingStyle = 'Lagrangian'; 
 options.samplingResolution = '1x'; 
 QS.plotTimeAvgVelocities(options)
-% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
+%% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.samplingResolution = '1x' ;
 options.averagingStyle = 'Lagrangian' ;
+options.lambda = 0 ;
+options.lambda_mesh = 0 ; 
 QS.helmholtzHodge(options) ;
+
 %% Compressibility & kinematics for Lagrangian
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.samplingResolution = '1x'; 
-% options.nmodes = 5 ;  %% bandwidth filtering
+options.lambda_mesh = 0 ;
+options.lambda_err = 0 ;
+options.lambda = 0 ;
+options.nmodes = 7 ;  %% bandwidth filtering
+options.zwidth = 1 ; 
 QS.measureMetricKinematics(options)
-
-%% Metric Kinematics Kymographs & Correlations -- RAW
-options = struct() ;
-options.nModes = 0 ;  %% no bandwidth filtering
-options.overwrite = false ;
-options.overwrite_timePoints = false ;
-options.plot_Hgdot = false ;
-options.plot_flows = false ;
-options.plot_factors = false ;
-options.plot_kymographs = true ;
-options.plot_kymographs_cumsum = true ;
-options.plot_kymographs_cumprod = true ;
-options.plot_correlations = true ;
-options.plot_raw_correlations = false ;
-options.plot_gdot_correlations = false ;
-options.plot_gdot_decomp = false ;
-options.climit = 0.1 ;
-QS.plotMetricKinematics(options)
 
 %% Metric Kinematics Kymographs & Correlations -- Bandwidth Filtered
 options = struct() ;
-options.nModes = 5 ; %% bandwidth filtering to 5 lowest circumferential modes
 options.overwrite = false ;
 options.overwrite_timePoints = false ;
 options.plot_Hgdot = false ;
@@ -1641,10 +1618,16 @@ options.plot_kymographs = true ;
 options.plot_kymographs_cumsum = true ;
 options.plot_kymographs_cumprod = true ;
 options.plot_correlations = true ;
+options.plot_spaceMaps = true ;
 options.plot_raw_correlations = true ;
 options.plot_gdot_correlations = false ;
 options.plot_gdot_decomp = false ;
-options.climit = 0.1 ;
+options.lambda = 0 ;
+options.lambda_err = 0.00 ;
+options.lambda_mesh = 0 ;
+options.nmodes = 7 ;  %% bandwidth filtering
+options.zwidth = 1 ; 
+options.climit = 0.3 ;
 QS.plotMetricKinematics(options)
 
 %% Pullback pathlines connecting Lagrangian grids
@@ -1665,21 +1648,53 @@ options.overwrite = false ;
 options.gridTopology = 'triangulated' ;
 QS.plotPathlineVelocities(options)
 
-% Measure Pathline Kinematics
+%% Measure Pathline Kinematics
 options = struct() ;
 options.overwrite = false ;
+options.lambda = 0 ;
+options.lambda_error = 0 ;
+options.lambda_mesh = 0 ;
+options.nmodes = 7 ;
+options.zwidth = 1 ; 
 QS.measurePathlineMetricKinematics(options)
-% Plot Pathline Kinematics
+
+%% Plot Pathline Kinematics
 options = struct() ;
-options.overwrite = false ;
-options.plot_kymographs = false ;
+options.overwrite = true ;
+options.plot_kymographs = true ;
 options.plot_kymographs_cumsum = false ;
 options.plot_kymographs_cumprod = false ;
-options.plot_correlations = false ;
+options.plot_correlations = true ;
 options.plot_fold_kinematics = true ;
 options.plot_lobe_kinematics = true ;
-options.climit = 0.10 ;
+options.climit = 0.30 ;
 QS.plotPathlineMetricKinematics(options)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Create ricci mesh at t0 to measure Beltrami coefficient in pathlines
+options = struct() ;
+options.overwrite = false ;
+options.climit = 1 ;
+options.coordSys = 'ricci' ;
+QS.measureBeltramiCoefficient(options) ;
+
+%% Compare to linearized description
+options = struct() ;
+options.overwrite = false ;
+options.overwriteImages = false ;
+options.coordSys = 'ricci' ;
+QS.compareBeltramiToLinearizedConstriction(options) ;
+
+%% Compare to nonlinear isothermal description
+options = struct() ;
+options.overwrite = true ;
+options.overwriteImages = false ;
+options.coordSys = 'ricci' ;
+QS.compareBeltramiToConstriction(options) ;
+
+%% UVPrime option (ignore)
+master_uvprime_module
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Measure twist (d v_phi / d zeta)
 options = struct() ;
@@ -1692,18 +1707,21 @@ options.overwrite = false ;
 QS.measureStressPattern(options) ;
 
 %% Measure metric strain rate (epsilon=gdot/2)
-option = struct() ;
-options.overwrite = true ;
-options.preview = false ;
-QS.measureMetricStrainRate(options) 
+% option = struct() ;
+% options.overwrite = true ;
+% options.preview = false ;
+% QS.measureMetricStrainRate(options) 
+
 %% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
 options = struct() ;
-options.overwrite = true ;measure
+options.overwrite = true ;
 options.overwriteImages = true ;
 options.preview = false ;
+options.lambda = 0.001 ;
 QS.measureStrainRate(options) 
 
-%% Plot time-averaged strain rates in 3d on meshoptions = struct() ;
+%% Plot time-averaged strain rates in 3d on mesh
+options = struct() ;
 % error('This does not look great -- tweak how the averaging is done to be Lagrangian?')
 options.overwrite = true ;
 options.preview = false ;
@@ -1734,7 +1752,15 @@ QS.measurePathlineStrainRate(options)
 % options.climitRatio = 1 ;
 % QS.measurePathlineIntegratedStrain(options)
 
-
+%% Pathline strain rate plots
+options = struct() ;
+options.overwrite = true ;
+options.plot_kymographs = true ;
+options.plot_fold_strainRate = true ;
+options.plot_lobe_strainRate = true ;
+options.climit = 0.05 ;
+options.climitWide = 1.0 ;
+QS.plotPathlineStrainRate(options)
 
 %% (REPEAT FROM ABOVE) Pullback pathlines connecting Lagrangian grids
 % options = struct() ;
@@ -1744,32 +1770,33 @@ QS.measurePathlineStrainRate(options)
 % QS.measurePullbackPathlines(options)
 %% Measure strain along pathlines -- note this is from pathlines, not integrating rates
 options = struct() ;
-options.overwrite = false ;
-options.overwriteImages = true ;
+options.overwrite = true ;
+options.overwriteImages = false ;
 options.plot_dzdp = false ;
 options.climitInitial = 0.05 ;
 options.climitRamp = 0.01 ;
 options.climitRatio = 1 ;
 QS.measurePathlineStrain(options)
+QS.plotPathlineStrain(options)
+
+%% Measure coarse-grained bond contraction and dilation in zeta=s/L, phi
+% todo: consider putting this in Ricci map frame instead of (s,phi) frame
+options = struct() ;
+options.overwrite = true ;
+options.overwriteImages = true ;
+QS.measureDxDyStrainFiltered(options) ;
 
 %% Output gg and bb in fixed frame (t0 Lagrangian zeta phi frame) -- this is done in measurePathlineStrain()
 % options = struct() ;
 % options.overwrite = false ;
 % measurePathlineMetric(QS, options)
 
-
-%% Pathline strain rate plots
+%% Simulate this experiment
 options = struct() ;
-options.overwrite = true ;
-options.plot_kymographs = false ;
-options.plot_kymographs_strain = true ;
-options.plot_fold_strainRate = false ;
-options.plot_lobe_strainRate = false ;
-options.plot_fold_strain = true ;
-options.plot_lobe_strain = true ;
-options.climit = 0.05 ;
-options.climitWide = 1.0 ;
-QS.plotPathlineStrainRate(options)
+QS.simulateNES(options)
+
+
+
 
 %% Measure surface area growh of lobes and folds in Eulerian frame
 options = struct() ;

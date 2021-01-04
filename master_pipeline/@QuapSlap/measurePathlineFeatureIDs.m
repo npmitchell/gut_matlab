@@ -40,6 +40,9 @@ starttime_for_detection = 20 ;
 endtime_for_detection = 60 ; 
 if nargin < 2
     pathlineType = 'vertices' ;
+    options = struct() ;
+elseif nargin < 3
+    options = struct() ;
 end
 if isempty(QS.pathlines.t0)
     QS.pathlines.t0 = QS.t0set() ;

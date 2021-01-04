@@ -23,6 +23,12 @@ switch strainstyle
         % target strain is zero at midplane and above, varies to mag at z=-Rad
         scalefactor = 1 + mag .* abs(sin(beta)) .* (midy/Rad);
         scalefactor(scalefactor > 1) = 1 ;
+    case 'linearhoop'
+        % target strain is zero at dorsal, varies to mag at z=-Rad
+        scalefactor = 1 + mag .* abs(sin(beta)) .* (midy - Rad)/(2*Rad) ;
+    case 'ringstrain'
+        scalefactor = 1 - mag .* abs(sin(beta)) ;
+        scalefactor(abs(sin(beta))<0.99) = 1 ;
 end
 eL = eL0 .* scalefactor ;
 estrain = (eL - eL0) ./ eL0 ;

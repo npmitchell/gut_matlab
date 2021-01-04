@@ -1,7 +1,8 @@
 function plotStrainRate3DFiltered(QS, options)
 %plotStrainRate3DFiltered(QS, options)
-%   load epsilon = 1/2 (\nabla_i v_j + \nabla_j v_i) - vN b_{ij} from disk,
-%   smooth with time filter/space filter and plot in 3d
+%   load spatially-smoothed 
+%   epsilon = 1/2 (\nabla_i v_j + \nabla_j v_i) - vN b_{ij} from disk,
+%   smooth with time filter and plot in 3d
 %   
 % Parameters
 % ----------
@@ -31,6 +32,8 @@ lambda_mesh = 0.0 ;
 overwrite = false ;
 preview = true ;
 averagingStyle = 'Lagrangian' ;
+nmodes = QS.smoothing.nmodes ;
+zwidth = QS.smoothing.zwidth ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
 debug = false ;
@@ -50,6 +53,12 @@ if isfield(options, 'lambda')
 end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;
+end
+if isfield(options, 'nmodes')
+    nmodes = options.nmodes ;
+end
+if isfield(options, 'zwidth')
+    zwidth = options.zwidth ;
 end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
@@ -78,7 +87,7 @@ QS.getXYZLims ;
 xyzlim = QS.plotting.xyzlim_um ;
 % Output directory
 egImDir = strrep(sprintf( ...
-    QS.dir.strainRate.smoothing, lambda, lambda_mesh), '.', 'p') ;
+    QS.dir.strainRate.smoothing, lambda, lambda_mesh, nmodes, zwidth), '.', 'p') ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 
@@ -117,7 +126,7 @@ for tp = tp2do
     tp2doFilter = tp-nTimePoints:tp+nTimePoints ;
     for tpsFilter = tp2doFilter
         tpj = min(max(tpsFilter, QS.xp.fileMeta.timePoints(1)), ...
-            QS.xp.fileMeta.timePoints(end-1)) 
+            QS.xp.fileMeta.timePoints(end-1)) ;
         tidx = QS.xp.tIdx(tpj) ;
         
         %% load the metric strain
@@ -149,9 +158,22 @@ for tp = tp2do
         
     end
     
-    % Build AVERAGE/FILTERED tre, dev, theta
+    % Build TIME-AVERAGED tre, dev, theta
     tre = mean(tres, 2) ;
     [dev, theta] = QS.dvAverageNematic(devs, thetas) ;
+    
+    % Transfer to vertices
+    [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.u) ;
+    dev = reshape(F2V * dev, [nU, nV-1]) ;
+    theta = reshape(F2V * theta, [nU, nV-1]) ;
+    
+    % Space-filter the data using spectral filter
+    filtOpts = struct('nmodes', nmodes, 'xwidth', zwidth) ;
+    tre = modeFilterQuasi1D(tre, filtOpts) ;
+    ctheta = modeFilterQuasi1D(dev .* cos(2 * theta)) ;
+    stheta = modeFilterQuasi1D(dev .* sin(2 * theta)) ;
+    dev = sqrt(ctheta.^2 + stheta.^2) ;
+    theta = 0.5 * mod(atan2(stheta, ctheta), 2*pi) ;
     
     % Restrict to single cover and unravel for vertices
     % tre = tre_avg(1:nU*(nV-1)) ;
@@ -274,7 +296,7 @@ for tp = tp2do
     %% Now plot in 2d
     close all
     set(gcf, 'visible', 'off') ;
-    fn = fullfile(egImDir, ['strainRate2d_filtered'], ...
+    fn = fullfile(egImDir, 'strainRate2d_filtered', ...
             sprintf([QS.fileBase.spcutMeshSm '.png'], tp));
     if ~exist(fn, 'file') || overwrite
         % Panel 1

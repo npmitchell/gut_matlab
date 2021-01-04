@@ -14,12 +14,14 @@ function [outGrid, modeData] = modeFilterQuasi1D(gridData, options)
 %
 % Parameters
 % ----------
-% yy : numeric 1d array
-%   input signal to filter
+% yy : numeric 2d array
+%   input signal to filter spectrally along second dimension (keeping 
+%   nmodes) and with tripulse filter for mode coefficients along first 
+%   dimension with width widthX
 % options : struct with fields
-%   nmodes : int (default=5)
+%   nmodesY or nmodes : int (default=5)
 %       number of modes (including DC offset/average) to use in reconstruction 
-%   widthX : int
+%   widthX or Xwidth or Zwidth: int
 %       half width of pulse filter along first dimension
 %       for ex, if widthX=3, then filter=[0,0.11,0.22,0.33,0.22,0.11,0]
 %   extrapolationMethod : 'nearest', 'periodic', 'reflect'
@@ -66,9 +68,23 @@ extrapolationMethod = 'nearest' ;
 %% Unpack options
 if isfield(options, 'nmodesY')
     nmodesY = options.nmodesY ;
+elseif isfield(options, 'nmodesy')
+    nmodesY = options.nmodesy ;
+elseif isfield(options, 'nmodes')
+    nmodesY = options.nmodes ;
 end
 if isfield(options, 'widthX')
     widthX = options.widthX ;
+elseif isfield(options, 'widthx')
+    widthX = options.widthx ;
+elseif isfield(options, 'Xwidth')
+    widthX = options.Xwidth ;
+elseif isfield(options, 'xwidth')
+    widthX = options.xwidth ;
+elseif isfield(options, 'Zwidth')
+    widthX = options.Zwidth ;
+elseif isfield(options, 'zwidth')
+    widthX = options.zwidth ;
 end
 if isfield(options, 'extrapolationMethod')
     extrapolationMethod = options.extrapolationMethod ;

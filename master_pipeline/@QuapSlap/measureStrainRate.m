@@ -1,6 +1,11 @@
 function measureStrainRate(QS, options)
 %measureStrainRate(QS, options)
 %   Compute epsilon = 1/2 (\nabla_i v_j + \nabla_j v_i) - vN b_{ij} 
+%   The result on faces is smoothed insofar as the velocities are smoothed
+%   with options.lambda and the mesh (governing b_{ij}) is smoothed with
+%   options.labmda_mesh. 
+%   The result on vertices is additionally smoothed via a quasi-1D spectral 
+%   filter governed by options.nmodes and options.zwidth. 
 %   
 % Parameters
 % ----------
@@ -17,16 +22,21 @@ function measureStrainRate(QS, options)
 % 
 % Returns 
 % -------
+% (none)
 %
 % Saves to disk
 % -------------
-%
-%
+% strainRate results in QS.dir.strainRate.measurements/strainRate_%06d.mat
+%   -> one result per timepoint, with spectral smoothing applied to
+%   vertex-based results
+% 
 % NPMitchell 2020
 
 %% Default options
-lambda = 0.01 ;
-lambda_mesh = 0.0 ;
+lambda = QS.smoothing.lambda ;
+lambda_mesh = QS.smoothing.lambda_mesh ;
+nmodes = QS.smoothing.nmodes ;
+zwidth = QS.smoothing.zwidth ;
 overwrite = false ;
 overwriteImages = false ;
 preview = true ;
@@ -52,6 +62,12 @@ if isfield(options, 'lambda')
 end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;
+end
+if isfield(options, 'nmodes')
+    nmodes = options.nmodes ;
+end
+if isfield(options, 'zwidth')
+    zwidth = options.zwidth ;
 end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
@@ -117,12 +133,12 @@ for tp = tp2do
     mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) ;
     clearvars tmp
 
-    % Define metric strain filename        
+    % Define strain rate filename        
     estrainFn = fullfile(strrep(sprintf( ...
-        QS.dir.strainRate.measurements, lambda, lambda_mesh), '.', 'p'), ...
+        QS.dir.strainRate.measurements, lambda, lambda_mesh, nmodes, zwidth), '.', 'p'), ...
         sprintf('strainRate_%06d.mat', tp));
         
-    % Compute the metric strain if not on disk
+    % Compute the strain rate if not on disk
     if ~exist(estrainFn, 'file') || overwrite
         if exist(estrainFn, 'file')
             disp('Overwriting strain rate on disk')
@@ -142,12 +158,17 @@ for tp = tp2do
         end
                 
         % Smooth the velocities in space using gptoolbox
-        vraw = squeeze(vertex_vels(tidx, 1:(nV-1)*nU, :)) ;
-        vs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
-            lambda, 'implicit', vraw) ;   
-        % Push vectors onto faces
-        [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
-        vf = V2F * vs ;
+        
+        if lambda > 0 
+            vraw = squeeze(vertex_vels(tidx, 1:(nV-1)*nU, :)) ;
+            vs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
+                lambda, 'implicit', vraw) ;   
+            % Push vectors onto faces
+            [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
+            vf = V2F * vs ;
+        else
+            vf = face_vels(tidx, :) ;
+        end
         
         % %% Checking -- debug
         % if debug
@@ -233,6 +254,21 @@ for tp = tp2do
         epsilon_zp_vtx = F2V * epsilon_zp ;
         epsilon_pz_vtx = F2V * epsilon_pz ;
         epsilon_pp_vtx = F2V * epsilon_pp ;
+        
+        assert(all(epsilon_zp_vtx == epsilon_pz_vtx))
+        % Smooth with spectral mode filter if nmodes > 0 
+        if nmodes > 0
+            filtOpts = struct('nmodes', nmodes, 'zwidth', zwidth) ;
+            epsilon_zz_vtx = modeFilterQuasi1D(reshape(epsilon_zz_vtx, [nU, nV-1]), filtOpts) ;
+            epsilon_zp_vtx = modeFilterQuasi1D(reshape(epsilon_zp_vtx, [nU, nV-1]), filtOpts) ;
+            epsilon_pz_vtx = modeFilterQuasi1D(reshape(epsilon_pz_vtx, [nU, nV-1]), filtOpts) ;
+            epsilon_pp_vtx = modeFilterQuasi1D(reshape(epsilon_pp_vtx, [nU, nV-1]), filtOpts) ;
+            epsilon_zz_vtx = epsilon_zz_vtx(:) ;
+            epsilon_zp_vtx = epsilon_zp_vtx(:) ;
+            epsilon_pz_vtx = epsilon_pz_vtx(:) ;
+            epsilon_pp_vtx = epsilon_pp_vtx(:) ;
+        end
+        
         g_zz_vtx = F2V * g_zz ;
         g_zp_vtx = F2V * g_zp ;
         g_pz_vtx = F2V * g_pz ;
@@ -380,8 +416,10 @@ for tp = tp2do
     options.cutMesh = cutMesh ;
     options.lambda = lambda ;
     options.lambda_mesh = lambda_mesh ;
+    options.nmodes = nmodes ;
+    options.zwidth = zwidth ;
     options.debug = debug ;
     QS.plotStrainRateTimePoint(tp, options)
 end
-
+disp('done with measuring strain rates')
 

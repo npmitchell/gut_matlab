@@ -33,14 +33,16 @@ plot_dec_pullback = true ;
 plot_dec_texturepatch = false ;
 preview = false ;
 pivimCoords = QS.piv.imCoords ;
-lambda_smooth = 0.01 ;
-lambda_mesh = 0.001 ;
+lambda_smooth = QS.smoothing.lambda ;
+lambda_mesh = QS.smoothing.lambda_mesh ;
+nmodes = QS.smoothing.nmodes ;
+zwidth = QS.smoothing.zwidth ;
 samplingResolution = '1x' ;
 averagingStyle = 'Lagrangian' ;
 clipDiv = 5.0 ;                     % max allowed divergence measurement  
 clipRot = 0.5 ;                     % max allowed vorticity measurement
-sscaleDiv = 0.1 ;                   % climit (color limit) for divergence
-sscaleRot = 0.1 ;                   % climit (color limit) for vorticity
+sscaleDiv = 0.5 ;                   % climit (color limit) for divergence
+sscaleRot = 0.15 ;                  % climit (color limit) for vorticity
 
 %% Unpack options
 if isfield(options, 'samplingResolution')
@@ -197,9 +199,14 @@ end
 %% Perform Decomposition
 % Consider each timepoint and plot the div and curl
 tidxAll = 1:length(timePoints(1:end-1)) ;
-tidx2do = 1:10:length(timePoints(1:end-1)) ;
+tidx2do = 1:50:length(timePoints(1:end-1)) ;
+tidx10 = 1:10:length(timePoints(1:end-1)) ;
+% add next sparsity level (every 10)
+tidxNext = setdiff(tidx10, tidx2do) ;
+tidx2do = [tidx2do, tidxNext] ;
+% add final sparsity level (every frame)
 tidxOther = setdiff(tidxAll, tidx2do) ;
-tidx2do = [tidx2do, tidxOther] ;
+tidx2do = [170, tidx2do, tidxOther] ;
 for tidx = tidx2do
     tp = timePoints(tidx) ;
     disp(['t = ', num2str(tp)])
@@ -273,7 +280,11 @@ for tidx = tidx2do
         disp('Decomposing flow into div/rot...')
         Options = struct() ;
         Options.lambda = lambda_smooth ;   
-        Options.lambda_mesh = lambda_mesh ;        
+        Options.lambda_mesh = lambda_mesh ;     
+        Options.nSpectralFilterModes = nmodes ;
+        Options.spectralFilterWidth = zwidth ;
+        Options.outdir = QS.dir.pivAvgDEC.data ;
+        Options.do_calibration = (tidx == tidx2do(1)) ;
         [divs, rots, harms, glueMesh] = ...
             helmHodgeDECRectGridPullback(cutM, vfsm, Options,...
             'niterSmoothing', niter_smoothing, ...
@@ -283,10 +294,11 @@ for tidx = tidx2do
         
         %% save divs, rots, and harms as structs in .mat file
         disp(['Saving DEC t=' num2str(tp) ': ' decDataFn])
-        save(decDataFn, 'divs', 'rots', 'harms')
+        save(decDataFn, 'divs', 'rots', 'harms', ...
+            'lambda_smooth', 'lambda_mesh', 'nmodes', 'zwidth')
     elseif plot_dec_pullback_tidx || plot_dec_texturepatch_tidx
         disp(['Loading DEC t=' num2str(tp) ': ' decDataFn])
-        load(decDataFn, 'divs', 'rots', 'harms')
+        load(decDataFn, 'divs', 'rots')
     
         % Load piv3d
         piv3d = load(sprintf(piv3dFileBase, tp)) ;

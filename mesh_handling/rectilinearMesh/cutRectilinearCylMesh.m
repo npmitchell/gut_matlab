@@ -5,22 +5,23 @@ function cutMesh = cutRectilinearCylMesh(mesh, options)
 % ----------
 % mesh : struct, closed cylinder mesh with fields
 %   nU : int
-%   v : (nU*(nV-1)) x 3 float array
+%   v : (nU*(nV-1)) x 3 float array, optional
 %       3d vertices of the mesh embedding
-%   u : (nU*(nV-1)) x 2 float array
+%   u : (nU*(nV-1)) x 2 float array, optional
 %       2d vertices of the rectilinear mesh in pullback space
 %   f : #faces x 3 int array
 %       indices into v (or equivalently into u) of mesh connectivity
 %       (faces)
-%   and optional fields
-%       vn : (nU*nV) x 3 float array
-%           vertex normals 
+%   vn : (nU*nV) x 3 float array, optional
+%       vertex normals 
 % options : optional struct with fields
-%   
+%   ignoreRectangularConstraint : bool
+%       allow the assumption that 2d (pullback) coordinates are ordered as
+%       rectilinear mesh, without checking this   
 % 
 % Returns 
 % -------
-% cutMesh : struct with fields
+% cutMesh : struct with same fieldnames as input mesh, with properties
 %   nU : int
 %   v : (nU*nV) x 3 float array
 %       3d vertices of the mesh embedding
@@ -43,6 +44,8 @@ if nargin > 1
     end
     if isfield(options, 'ignoreRectangularConstraint')
         ignoreRectangularConstraint = options.ignoreRectangularConstraint ;
+    elseif isfield(options, 'ignoreRectilinearConstraint')
+        ignoreRectangularConstraint = options.ignoreRectilinearConstraint ;
     else
         ignoreRectangularConstraint = false ;
     end
@@ -71,6 +74,7 @@ if ignoreRectangularConstraint
 else
     cutMesh.f = defineFacesRectilinearGrid(mesh.u, nU, nV) ;
 end
+assert(all(size(cutMesh.f) == size(mesh.f)))
 
 % Duplicate normals for added points
 if isfield(mesh, 'vn')

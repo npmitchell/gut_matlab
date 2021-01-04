@@ -42,6 +42,8 @@ samplingResolution = '1x' ;      % 1x or 2x, resolution of
 vtscale = 0 ;                    % if zero, default is used
 vnscale = 0 ;                    % if zero, default is used
 vscale = 0 ;                     % if zero, default is used
+invertImage = false ;            % invert the data underneath velocity heatmaps
+washout2d = 0.5 ;                % washout the data image under velocity heatmaps
 %% Unpack options
 if isfield(options, 'plot_vxyz')
     plot_vxyz = options.plot_vxyz ;
@@ -57,6 +59,12 @@ if isfield(options, 'vnscale')
 end
 if isfield(options, 'vscale')
     vscale = options.vscale ;
+end
+if isfield(options, 'invertImage')
+    invertImage = options.invertImage ;
+end
+if isfield(options, 'washout2d')
+    washout2d = options.washout2d ;
 end
 if isfield(options, 'samplingResolution')
     samplingResolution = options.samplingResolution ;
@@ -149,7 +157,9 @@ vnsmM = velstruct.vn ;
 % Display the velocities
 close all
 fig = figure('visible', 'off') ;
-for i = 1:size(vsmM, 1)
+t2do = 1:10:size(vsmM, 1) ;
+t2do = [t2do, setdiff(1:size(vsmM, 1), t2do)] ;
+for i = t2do
     tp = timePoints(i) ;
     disp(['t = ', num2str(tp)])
     
@@ -163,6 +173,7 @@ for i = 1:size(vsmM, 1)
     options.vnsm = vnsm_ii ;
     options.vtscale = vtscale ;
     options.vnscale = vnscale ;
+    options.invertImage = invertImage ;
     QS.plotAverageVelocitiesTimePoint(tp, options)   
         
 end

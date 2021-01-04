@@ -8,22 +8,28 @@ function [axs, cbs, meshHandles] = ...
 %          OR 2x1 cell array of faces and vertices
 %          OR triangulation object with fields ConnectivityList and Points
 %   The meshes on which to plot the scalar fields. Can be 2D or 3D.
-% fields : #vertices x 1 or #faces x 1 float array or length2 cell of
-%   magnitude and angle for nematic fields
+% fields : cell array of (#vertices x 1) or (#faces x 1) float array, 
+%   or length2 cell of magnitude and angle for nematic fields
 %   The fields to plot on the surfaces.
 % options : optional struct with optional fields
 %   clim : numeric or 2x1 numeric
 %       colorlimit, by default set to [-clim, clim] if single value
-%   clims : numeric, overwrites clim 
-%       colorlimit, by default set to [-clim1, clim1] if single value
+%   clims : cell of length-1 or length-2 numeric arrays, overwrites clim 
+%       colorlimit for each field, by default set to [-clim1, clim1] if 
+%       single value
 %   axs : axis instances for each field
-%   edgecolor : color specifier
-%   cmap : colormap for both axes
-%   cmaps : colormap for axis1, overwrites cmap
+%   edgecolor : color specifier (default='none')
+%       edge color for trisurf
+%   cmap : colormap for both axes (default='blueblackred')
+%       if a single colormap governs all axes, supply here
+%   cmaps : cell array of colormaps
+%       colormap for each axis, overwrites cmap
 %   labels : cell of strings
 %       titles for each subplot
 %   makeCbar : nfields x 1 bool array
 %       whether to make colorbar for each axis
+%   masterCbar : bool 
+%       make a single colorbar ruling all axes
 %   xyzlims : 3x2 numeric or (nfields)x1 cell array of 3x2 numeric arrays
 %       the xyz limits for all panels as [xmin,xmax;ymin,ymax;zmin,zmax]
 %   xlim : length 2 numeric array or length nfields cell array of length 2
@@ -41,7 +47,7 @@ function [axs, cbs, meshHandles] = ...
 %   
 % Returns
 % -------
-% [axs, cbs, meshHandles] : handles for figure objects
+% [axs, cbs, meshHandles] : cell arrays of handles for figure objects
 %
 % Example usage
 % -------------
@@ -158,6 +164,9 @@ end
 if isfield(options, 'axisOff')
     axisOff = options.axisOff ;
 end
+if isfield(options, 'axisOn')
+    axisOff = ~options.axisOn ;
+end
 
 % Define edgecolor
 edgecolor = 'none' ;
@@ -168,12 +177,16 @@ end
 % Define colormaps
 if isfield(options, 'colormap')
     cmap = options.colormap ;
+elseif isfield(options, 'cmap')
+    cmap = options.cmap ;
 else
     caxis([-1, 1])
     cmap = blueblackred(256) ;
 end
 if isfield(options, 'colormaps')
     cmaps = options.colormaps ;
+elseif isfield(options, 'cmaps')
+    cmaps = options.cmaps ;
 end
 
 if isfield(options, 'labels')
@@ -275,6 +288,10 @@ for qq = 1:nfields
             caxis([-max(abs(fields{qq})), max(abs(fields{qq}))])
         end
         
+        if makeCbar(qq) && isfield(options, 'cbarlabels')
+            xlabel(cbs{qq}, options.cbarlabels{qq}, 'interpreter', 'latex')
+        end
+        
         if ~isempty(labels)
             title(labels{qq}, 'Interpreter', 'Latex')   
         end
@@ -347,6 +364,11 @@ for qq = 1:nfields
             set(cbs{qq}{2}, 'position', [cbpos(1), cbpos(2), cbpos(3)*shrink, cbpos(4)])
             set(axs{qq}, 'position', axpos) ;
             hold on;
+            
+            % label the colorbar
+            if isfield(options, 'cbarlabels')
+                set(cbs{qq}{2}, 'xlabel', options.cbarlabels{qq})
+            end
         end
         
         % Set colorlimits

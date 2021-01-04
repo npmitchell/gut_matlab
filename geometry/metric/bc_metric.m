@@ -17,13 +17,17 @@ function mu = bc_metric(face, vertex, map, dimension)
 % -------------
 % mu = bc_metric(mesh.f, uv_pullback, mesh.v3d, 3) ;
 %
+% Commented NPM 2020
+
+
+% Unpack the input arguments
 face = face';
 vertex = vertex';
 map = map';
 
-
 MyDifferential = diff_operator(vertex, face);
 
+% Depending on the dimension of space (2 or 3), compute gradients
 switch dimension
     case 2
         f = complex(map(1,:), map(2,:));

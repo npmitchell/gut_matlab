@@ -3,14 +3,30 @@ function aux_plotPathlineStrainRegions(QS, ...
 %AUX_PLOTPATHLINESTRAINFEATURES(QS, fns, measurements, data, labels,
 %   options)
 % Plot each feature's (fold's) strain on one axis.  
+% NOTE: trace is passed to this function as 1/2*tr(epsilon), not tr(eps)
 %
 % Parameters
 % ----------
-% fn : str
-%   path to output figure filename
+% fns : struct with fields
+%   fn : str
+%       path to output figure filename
+%   fn_early : str
+%       path to output figure filename (zoom in x axis)
+%   norms_early : str
+%       path to output figure filename (zoom in x axis)
+%   fn_withH : str
+%       path to output figure filename with mean curvature on yyaxis right
+% data : struct with fields
+%   timepoints : Nx1 numeric array
+%       timepoints indexing the dynamics being plotted
+%   tr : Nx1 float array
+%       1/2 * trace of epsilon (half the trace of the strain rate), ie mean
+%       on-diagonal strain rate
+%   dv : Nx1 float array
+%   th : Nx1 float array
+%   HH : Nx1 float array
 % fons : #features x 1 numeric array
 %   timepoints for the onset of features
-% divv : 
 % cumsum_cumprod : str ('cumsum' or 'cumprod')
 %   Take cumulative sum (Euler integration) or cumulative product of
 %   (1 + dt * Tr[epsilon_dot]) for integration
@@ -38,8 +54,9 @@ fn_withH = fns.withH ;
 % unpack measurements
 fons = measurements.fons ;
 regions = measurements.regions ;
+% unpack data
 tps = data.timepoints ;
-trK = data.tr ;
+trK = data.tr ;  % note this is 1/2 * tr(dot(epsilon))
 dvK = data.dv ;
 thK = data.th ;
 HHK = data.HH ;
@@ -51,6 +68,7 @@ foldYlabels = labels.legend  ;
 foldYlabelsRatio = labels.legend_ratios ;
 trace_label = labels.trace ;
 deviator_label = labels.deviator ;
+tp_early = [max(-30,min(tps)), min(max(tps), max(120))] ;
 
 % Plot the data
 if ~exist(fn, 'file') || overwrite 
@@ -64,8 +82,8 @@ if ~exist(fn, 'file') || overwrite
             QS.dvAverageNematic(dvK(:, regions{jj}), thK(:, regions{jj})) ;
 
         % Plot this fold
-        plot(tps, trj, QS.plotting.markers{jj}, ...
-            'Color', QS.plotting.colors(jj+3, :))
+        plot(tps, trj, QS.plotting.markers{jj}, 'markersize', 4, 'color', 'k')
+        %    'Color', QS.plotting.colors(jj+3, :))
         hold on;
         scatter(tps, dvj, 10, thj, QS.plotting.markers{jj}, 'filled')
         colormap(phasecmap)
@@ -86,7 +104,7 @@ if ~exist(fn, 'file') || overwrite
     % Save figure
     disp(['Saving figure: ', fn])
     saveas(gcf, fn)
-    xlim([min(tps), min(max(tps), max(fons) + 10)])
+    xlim(tp_early)
     disp(['Saving figure: ', fn_early])
     saveas(gcf, fn_early)
 end
@@ -95,7 +113,9 @@ end
 %% Plot the magnitudes 
 if ~exist(fn, 'file') || overwrite 
     close all
+    set(gcf, 'visible', 'off')
     maxr = 0 ;
+    minr = 0 ;
     % Each fold is regions{jj}
     for jj = 1:length(regions)
         
@@ -103,11 +123,14 @@ if ~exist(fn, 'file') || overwrite
         trj = mean(trK(:, regions{jj}), 2) ;
         [dvj, ~] = ...
             QS.dvAverageNematic(dvK(:, regions{jj}), thK(:, regions{jj})) ;
+        trj = movmean(trj, 3) ;
+        dvj = movmean(dvj, 3) ;
 
-        % Plot this fold
-        plot(tps, abs(dvj) ./ abs(trj), [QS.plotting.markers{jj} '-'],...
+        % Plot this fold -- note that trK is supplied 1/2*tr(epsilondot)
+        plot(tps, medfilt1m(trj ./ abs(dvj),5), [QS.plotting.markers{jj} '-'],...
             'Color', QS.plotting.colors(jj+3, :))
-        maxr = max(maxr, max(abs(dvj) ./ abs(trj))) ;
+        maxr = max(maxr, max(trj ./ abs(dvj))) ;
+        minr = min(minr, min(trj ./ abs(dvj))) ;
         hold on;
     end    
 
@@ -119,10 +142,12 @@ if ~exist(fn, 'file') || overwrite
     ylabel(ratioLabel, 'Interpreter', 'Latex')
     % Save figure
     disp(['Saving figure: ', fn_norms])
-    ylim([0, min(10, maxr)])
+    ylim([max(-2, minr), min(2, maxr)])
+    plot([min(tps), max(tps)], [1,1], 'k--')
+    plot([min(tps), max(tps)], [-1,-1], 'k--')
     xlim([min(tps), max(tps)])
     saveas(gcf, fn_norms)
-    xlim([min(tps), min(max(tps), max(fons) + 10)])
+    xlim(tp_early)
     disp(['Saving figure: ', fn_norms_early])
     saveas(gcf, fn_norms_early)
 end

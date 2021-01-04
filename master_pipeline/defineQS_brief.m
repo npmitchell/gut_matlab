@@ -9,7 +9,7 @@ clear; close all; clc;
 % cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data
 % .=========.
 % |  VIP10  |
 % .=========.
@@ -208,9 +208,14 @@ opts.adjusthigh = 99.9 ;                 % ceil for intensity adjustment (clip)
 % opts.adjustlow = 0 ;                  %  floor for intensity adjustment
 % opts.adjusthigh = 0 ;                 % ceil for intensity adjustment (clip)
 opts.phiMethod = 'curves3d' ;
-options.lambda_mesh = 0.002 ;
-options.lambda = 0.01 ;
-options.lambda_err = 0.01 ;
+
+opts.lambda_mesh = 0 ;
+opts.lambda = 0 ;
+opts.lambda_err = 0 ;
+%  opts.lambda_mesh = 0.002 ;
+%  opts.lambda = 0.01 ;
+%  opts.lambda_err = 0.01 ;
+ 
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')

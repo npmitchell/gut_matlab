@@ -105,8 +105,8 @@ rot3dfnV = Options.rot3dfn_ventral ;
 % Unpack other options
 qsubU = 2 ;
 qsubV = 2 ;
-sscaleDiv = 0.2 ;
-sscaleRot = 0.2 ;
+sscaleDiv = 0.6 ;
+sscaleRot = 0.15 ;
 qscaleDiv2d = 0 ;
 qscaleRot2d = 0 ;
 qscaleDiv3d = 0 ;
@@ -188,8 +188,10 @@ end
 titlestrs = {[ 'dilatational flow, $\nabla \cdot v_t$' addTitleStr], ...
     [ 'rotational flow, $\star \mathrm{d} v_t^\flat$' addTitleStr], ...
     [ 'harmonic component of $v_t$:  ' addTitleStr]} ;
-labelstrs = {['$\nabla \cdot v_t$, ' labelUnit], ...
-    ['$\star$d$v_t^\flat$, ' labelUnit], ...
+labelstrs = {['$\star$d$\star\left(v_t^\flat\right)$, ' labelUnit], ...  % this is div(v)
+    ['$\star$d$v_t^\flat$, ' labelUnit], ... 
+    ... %Note that here the vector field curl v = \left(\star$d$v_t^\flat\right)^\sharp  
+    ... % is NOT what is being plotted, since we are visualizing the 1form \star$d$v_t^\flat 
     ['harm$(v_t)$ ' harmLabelUnit]} ;
 fnstrs2d = {div2dfn, rot2dfn} ;
 fnstrs3dL = {div3dfnL, rot3dfnL} ;
@@ -225,7 +227,7 @@ for divcurl = 1:2
     % vfq = vf3ds{divcurl} ;
     % Plot the fields in 3d
     close all
-    fig = scalarVectorFieldsOnSurface(FF, v3drs, sfs{divcurl}, ...
+    fig = scalarVectorFieldsOnSurface(FF, v3drs, sfs{divcurl}(:), ...
                 bc(inds,1), bc(inds,2), bc(inds,3), ...
                 vf(inds, 1), vf(inds, 2), vf(inds, 3), opts) ;
     

@@ -132,11 +132,11 @@ classdef QuapSlap < handle
             'cutMesh', [], ...
             'cutPath', [], ...
             'spcutMesh', [], ...
-            'spcutMeshSm', [], ...
-            'spcutMeshSmRS', [], ...
-            'spcutMeshSmRSC', [], ...
-            'ricciMesh', [], ...
-            'uvpcutMesh', []) 
+            'spcutMeshSm', [], ...      
+            'spcutMeshSmRS', [], ...    % rectilinear cutMesh in (s,phi) with rotated scaled embedding
+            'spcutMeshSmRSC', [], ...   % rectilinear cutMesh as closed cylinder (topological annulus), in (s,phi) with rotated scaled embedding
+            'ricciMesh', [], ...        % ricci flow result pullback mesh, topological annulus
+            'uvpcutMesh', [])           % rectilinear cutMesh in (u,v) from Dirichlet map result to rectangle 
         data = struct('adjustlow', 0, ...
             'adjusthigh', 0, ...
             'axisOrder', [1 2 3], ...
@@ -184,11 +184,11 @@ classdef QuapSlap < handle
         cleanCntrlines          % centerlines in embedding space after temporal averaging
         pivPullback = 'sp_sme'; % coordinate system used for velocimetry
         smoothing = struct(...
-            'lambda', 0.01, ...             % diffusion const for field smoothing on mesh
-            'lambda_mesh', 0.002, ...       % diffusion const for vertex smoothing of mesh itself
-            'lambda_err', 0.01, ...         % diffusion const for fields inferred from already-smoothed fields on mesh
-            'nmodes', 5, ...                % number of low freq modes to keep per DV hoop
-            'zwidth', 2) ;                  % half-width of tripulse filter applied along zeta/z/s/u direction in pullback space, in units of du/dz/ds/dzeta
+            'lambda', 0.002, ...            % diffusion const for field smoothing on mesh
+            'lambda_mesh', 0.001, ...       % diffusion const for vertex smoothing of mesh itself
+            'lambda_err', 0.005, ...        % diffusion const for fields inferred from already-smoothed fields on mesh
+            'nmodes', 7, ...                % number of low freq modes to keep per DV hoop
+            'zwidth', 1) ;                  % half-width of tripulse filter applied along zeta/z/s/u direction in pullback space, in units of du/dz/ds/dzeta
         pathlines = struct('t0', [], ...    % timestamp (not an index) at which pathlines form regular grid in space
             'piv', [], ...                  % Lagrangian pathlines from piv coords
             'vertices', [], ...             % Lagrangian pathlines from mesh vertices
@@ -254,6 +254,8 @@ classdef QuapSlap < handle
             QS.currentMesh.cutMesh = [] ;
             QS.currentMesh.spcutMesh = [] ;
             QS.currentMesh.spcutMeshSm = [] ;
+            QS.currentMesh.spcutMeshSmRS = [] ;
+            QS.currentMesh.spcutMeshSmRSC = [] ;
             QS.currentMesh.uvpcutMesh = [] ;
             QS.currentData.IV = [] ;
             QS.currentData.adjustlow = 0 ;
@@ -1707,6 +1709,7 @@ classdef QuapSlap < handle
         plotStrainRate(QS, options)
         plotStrainRate3DFiltered(QS, options)
         measurePathlineStrainRate(QS, options)
+        measureDxDyStrainFiltered(QS, options)
         % Also makes fund forms in regularlized (zeta, phi) t0 Lagrangian frame
         measurePathlineStrain(QS, options)
         plotPathlineStrainRate(QS, options)
@@ -1719,6 +1722,8 @@ classdef QuapSlap < handle
         %% timepoint-specific coordinate transformations
         sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)
         
+        %% Reconstruction of experiment via NES simulation 
+        simulateNES(QS, options)
     end
     
     methods (Static)

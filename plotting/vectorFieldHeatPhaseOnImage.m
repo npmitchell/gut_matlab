@@ -299,7 +299,7 @@ ax2 = gca() ;
 % Add colorbar
 cax = axes('Position',[.9 .3 .02 .3]) ;
 [~, yyq] = meshgrid(0:4, 0:100) ;
-imshow(fliplr(yyq/max(yyq(:)))) ;
+imshow(fliplr(double(yyq)/double(max(yyq(:))))) ;
 axis on
 yyaxis right
 ylabel(labelstr, 'color', 'k', 'Interpreter', 'Latex') ;

@@ -1,7 +1,9 @@
 function plotStrainRateTimePoint(QS, tp, options)
 %plotStrainRateTimePoint(QS, tp, options)
 %   Plot the traceful and traceless components of the strain rate tensor
-%   defined on each face
+%   defined on each face, using vertex-based results loaded from disk. 
+%   Note that the vertex-based results are more heavily smoothed (via
+%   spectral filtering) than the face-based results on disk.
 %
 % Parameters
 % ----------
@@ -18,6 +20,8 @@ tidx = QS.xp.tIdx(tp) ;
 %% Unpack required params
 lambda = options.lambda ;
 lambda_mesh = options.lambda_mesh ;
+nmodes = options.nmodes ;
+zwidth = options.zwidth ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
 debug = false ;
@@ -74,7 +78,8 @@ QS.getXYZLims ;
 xyzlim = QS.plotting.xyzlim_um ;
 % Output directory
 egImDir = strrep(sprintf( ...
-    QS.dir.strainRate.smoothing, lambda, lambda_mesh), '.', 'p') ;
+    QS.dir.strainRate.smoothing, lambda, lambda_mesh, ...
+    nmodes, zwidth), '.', 'p') ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 
@@ -95,7 +100,10 @@ if ~isfield(options, 'tre') || ~isfield(options, 'dev') || ...
         lambda, lambda_mesh), '.', 'p'), ...
         sprintf(QS.fileBase.strainRate, tp)) ;
     disp(['Loading strainrate results from disk: ' estrainFn])
-    load(estrainFn, 'strainrate', 'tre', 'dev', 'theta')
+    load(estrainFn, 'strainrate', 'tre_vtx', 'dev_vtx', 'theta_vtx')
+    tre = reshape(tre_vtx(:, 1:end-1), [size(tre_vtx, 1) * (size(tre_vtx,2)-1), 1]) ; 
+    dev = reshape(dev_vtx(:, 1:end-1), [size(tre_vtx, 1) * (size(tre_vtx,2)-1), 1]) ; 
+    theta = reshape(theta_vtx(:, 1:end-1), [size(tre_vtx, 1) * (size(tre_vtx,2)-1), 1]) ; 
 else
     tre = options.tre ;
     dev = options.dev ;
@@ -144,8 +152,10 @@ if ~exist(fn, 'file') || overwrite
         % for pp = 1:4
         subplot(1, 2, qq) ;
         if qq == 1
+            % trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
+            %     'FaceVertexCData', 0.5* tre, 'edgecolor', 'none')
             trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
-                'FaceVertexCData', 0.5* tre, 'edgecolor', 'none')
+                0.5* tre(:), 'edgecolor', 'none')
             caxis([-clim_trace, clim_trace])
             colormap(gca, bbr256)
             colorbar('location', 'southOutside') ;      
@@ -155,7 +165,7 @@ if ~exist(fn, 'file') || overwrite
             % Intensity from dev and color from the theta
             indx = max(1, round(mod(2*theta, 2*pi)*size(pm256, 1)/(2 * pi))) ;
             colors = pm256(indx, :) ;
-            colors = min(dev / clim_deviatoric, 1) .* colors ;
+            colors = min(dev(:) / clim_deviatoric, 1) .* colors ;
             trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
                 'FaceVertexCData', colors, 'edgecolor', 'none')
 
@@ -205,6 +215,7 @@ if ~exist(fn, 'file') || overwrite
     sgtitle(['strain rate, ', tstr], 'Interpreter', 'latex') 
 
     % Save the image
+    disp(['Saving 3d strain image: ' fn])
     saveas(gcf, fn) ;
     clf
 
@@ -218,10 +229,14 @@ fn = fullfile(egImDir, 'strainRate2d', ...
 if ~exist(fn, 'file') || overwrite
     % Panel 1
     subplot(1, 2, 1) ;
+    % trisurf(cutMesh.f, ...
+    %     cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
+    %     cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
+    %     'FaceVertexCData', 0.5* tre, 'edgecolor', 'none')
     trisurf(cutMesh.f, ...
         cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
-        'FaceVertexCData', 0.5* tre, 'edgecolor', 'none')
+        0.5* tre_vtx(:), 'edgecolor', 'none')
     daspect([1,1,1])
     cb = colorbar('location', 'southOutside') ;
 
@@ -234,9 +249,9 @@ if ~exist(fn, 'file') || overwrite
     % Panel 2 
     subplot(1, 2, 2) ;
     % Intensity from dev and color from the theta
-    indx = max(1, round(mod(2*theta, 2*pi)*size(pm256, 1)/(2 * pi))) ;
+    indx = max(1, round(mod(2*theta_vtx(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
     colors = pm256(indx, :) ;
-    colors = min(dev / clim_deviatoric, 1) .* colors ;
+    colors = min(dev_vtx(:) / clim_deviatoric, 1) .* colors ;
     trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
         'FaceVertexCData', colors, 'edgecolor', 'none')
@@ -284,7 +299,7 @@ if (~exist(fn, 'file') || overwrite) && plot_comparison
     trisurf(cutMesh.f, ...
         cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
         cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
-        'FaceVertexCData', 0.5*tre, 'edgecolor', 'none')
+        0.5*tre_vtx(:), 'edgecolor', 'none')
     daspect([1,1,1])
     colorbar('location', 'southOutside') ;
     caxis([-clim_trace, clim_trace])
@@ -309,6 +324,8 @@ if (~exist(fn, 'file') || overwrite) && plot_comparison
 
     % Save the image
     sgtitle(['comparison $\frac{1}{2}$Tr$[g^{-1}\dot{g}]$, ', tstr], 'Interpreter', 'latex') 
+    
+    disp(['Saving 2d strain image: ' fn])
     saveas(gcf, fn) ;
     clf
 end    

@@ -61,7 +61,7 @@ end
 timePoints = QS.xp.fileMeta.timePoints ;
 
 %% Perform/Load Lagrangian averaging along pathline
-disp('Performing/Loading simple averaging')
+disp('Loading simple averaging')
 % Create directories
 fileNames = QS.fileName.pathlines.velocities ;
 % Apply t0 to fileNames
@@ -79,11 +79,8 @@ end
 % face-based velocities are vf
 
 %% Build grids for averaging
-disp('Could not find time-smoothed velocities on disk')
-disp('Computing them...')
-
 % Load lagrangian pathlines
-disp('Loading pathlines: XY')
+disp('Loading pathlines for plotting: XY')
 load(sprintf(QS.fileName.pathlines.XY, t0), 'pivPathlines')
 load(sprintf(QS.fileName.pathlines.vXY, t0), 'vertexPathlines')
 load(sprintf(QS.fileName.pathlines.fXY, t0), 'facePathlines')

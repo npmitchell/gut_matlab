@@ -58,7 +58,7 @@ t0 = QS.t0set() ;
 timePoints = QS.xp.fileMeta.timePoints ;
 
 %% Perform/Load Lagrangian averaging along pathline
-disp('Performing/Loading simple averaging')
+disp('Performing/Loading Lagrangian averaged velocities')
 % Create directories
 fileNames = QS.fileName.pathlines.velocities ;
 % Apply t0 to fileNames
@@ -90,7 +90,7 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
     disp('Computing them...')
     
     % Load lagrangian pathlines
-    disp('Loading pathlines: XY')
+    disp('Loading pathlines for velocity computation: XY')
     load(sprintf(QS.fileName.pathlines.XY, t0), 'pivPathlines')
     load(sprintf(QS.fileName.pathlines.vXY, t0), 'vertexPathlines')
     load(sprintf(QS.fileName.pathlines.fXY, t0), 'facePathlines')

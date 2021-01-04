@@ -34,6 +34,8 @@ plot_gdot_decomp = true ;
 lambda = QS.smoothing.lambda ; 
 lambda_mesh = QS.smoothing.lambda_mesh ;
 lambda_err = QS.smoothing.lambda_err ;
+nmodes = QS.smoothing.nmodes ;
+zwidth = QS.smoothing.zwidth ;
 climit = 0.2 ;
 climit_err = 0.2 ;
 climit_veln = climit * 10 ;
@@ -60,6 +62,12 @@ if isfield(options, 'lambda_err')
 end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;
+end
+if isfield(options, 'nmodes')
+    nmodes = options.nmodes ;
+end
+if isfield(options, 'zwidth')
+    zwidth = options.zwidth ;
 end
 if isfield(options, 'climit')
     climit = options.climit ;
@@ -118,12 +126,12 @@ buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 if strcmp(averagingStyle, 'Lagrangian')
     mKDir = fullfile(QS.dir.metricKinematics.root, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
-        lambda, lambda_mesh, lambda_err), '.', 'p'));
+        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f_modes%02dw%02d'], ...
+        lambda, lambda_mesh, lambda_err, nmodes, zwidth), '.', 'p'));
 else
     mKDir = fullfile(QS.dir.metricKinematicsSimple, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f'], ...
-        lambda, lambda_mesh, lambda_err), '.', 'p'));
+        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f_modes%02dw%02'], ...
+        lambda, lambda_mesh, lambda_err, nmodes, zwidth), '.', 'p'));
 end
 
 %% load from QS
@@ -194,12 +202,18 @@ for tp = tp2do
         H2vnfnMesh = fullfile(mdatdir, sprintf('H2vn_vertices_%06d.mat', tp)) ;
 
         try
-            load(HfnMesh, 'HH')
-            load(efnMesh, 'gdot')
-            load(dfnMesh, 'divv')
-            load(nfnMesh, 'veln') 
-            load(H2vnfnMesh, 'H2vn') 
-            load(rfnMesh, 'radius') 
+            load(HfnMesh, 'HH_filt')
+            load(efnMesh, 'gdot_filt')
+            load(dfnMesh, 'divv_filt')
+            load(nfnMesh, 'veln_filt') 
+            load(H2vnfnMesh, 'H2vn_filt') 
+            load(rfnMesh, 'radius_filt') 
+            HH = HH_filt ;
+            gdot = gdot_filt ;
+            divv = divv_filt ;
+            veln = veln_filt ;
+            H2vn = H2vn_filt ;
+            radius = radius_filt ;
         catch
             msg = 'Run QS.measureMetricKinematics() ' ;
             msg = [msg 'with lambdas=(mesh,lambda,err)=('] ;
@@ -401,3 +415,4 @@ if ~files_exist || overwrite
         'H2vn_vM', 'radius_vM')
     
 end
+disp('done measuring pathline metric kinematics (div(vt) and 2Hvn, etc)')

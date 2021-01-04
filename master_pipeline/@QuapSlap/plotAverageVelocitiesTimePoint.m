@@ -24,15 +24,16 @@ function plotAverageVelocitiesTimePoint(QS, tp, options)
 
 %% Unpack options
 overwrite = false ;
-vtscale = 5 ;      % um / min
-vnscale = 2 ;      % um / min
-vscale = 5 ;       % um / min
-alphaVal = 0.7 ;   % alpha for normal velocity heatmap
-washout2d = 1. ;   % lightening factor for data if < 1
-qsubsample = 5 ;   % quiver subsampling in pullback space 
-pivimCoords = QS.piv.imCoords ;  % coordinate system of the pullback images used in PIV
-averagingStyle = 'Lagrangian' ;  % Lagrangian or simple, how velocities are averaged over time
-samplingResolution = '1x' ;      % 1x or 2x, resolution of 
+vtscale = 5 ;                   % um / min
+vnscale = 2 ;                   % um / min
+vscale = 5 ;                    % um / min
+alphaVal = 0.7 ;                % alpha for normal velocity heatmap
+invertImage = false ;           % invert the data underneath velocity heatmaps
+washout2d = 0.5 ;               % lightening factor for data if < 1
+qsubsample = 10 ;               % quiver subsampling in pullback space 
+pivimCoords = QS.piv.imCoords ; % coordinate system of the pullback images used in PIV
+averagingStyle = 'Lagrangian' ; % Lagrangian or simple, how velocities are averaged over time
+samplingResolution = '1x' ;     % 1x or 2x, resolution of 
 v2dsmum_ii = options.v2dsmum ;
 vnsm_ii = options.vnsm ;
 vsm_ii = options.vsm ;
@@ -58,6 +59,12 @@ if isfield(options, 'vscale')
     if options.vscale > 0
         vscale = options.vscale ;
     end
+end
+if isfield(options, 'invertImage')
+    invertImage = options.invertImage ;
+end
+if isfield(options, 'washout2d')
+    washout2d = options.washout2d ;
 end
 if isfield(options, 'alphaVal')
     alphaVal = options.alphaVal ;
@@ -239,7 +246,11 @@ end
 % Plot the tangential velocity as heatmap on top of the image
 if ~exist(vthfn, 'file') || overwrite
     disp(['Saving ' vthfn])
-    imw = im * washout2d + max(im(:)) * (1-washout2d) ;
+    if invertImage
+        imw = (max(im(:))-im) * washout2d + max(im(:)) * (1-washout2d) ;
+    else
+        imw = im * washout2d + max(im(:)) * (1-washout2d) ;
+    end
     qopts.overlay_quiver = false ;
     qopts.qsubsample = qsubsample ;
     qopts.overlay_quiver = true ;
@@ -260,7 +271,11 @@ if ~exist(vtgfn, 'file') || overwrite
     disp(['Saving ' vtgfn])
     vxb = imgaussfilt(vx, 4) ;
     vyb = imgaussfilt(vy, 4) ;
-    imw = im * washout2d + max(im(:)) * (1-washout2d) ;
+    if invertImage
+        imw = (max(im(:))-im) * washout2d + max(im(:)) * (1-washout2d) ;
+    else
+        imw = im * washout2d + max(im(:)) * (1-washout2d) ;
+    end
     qopts.qsubsample = qsubsample ;
     qopts.overlay_quiver = true ;
     qopts.qscale = 10 ;
@@ -282,7 +297,11 @@ end
 
 % Plot original velocity -- note no smoothing done here ;)
 if ~exist(vxyorigfn, 'file') || overwrite
-    imw = im * washout2d + max(im(:)) * (1-washout2d) ;
+    if invertImage
+        imw = (max(im(:))-im) * washout2d + max(im(:)) * (1-washout2d) ;
+    else
+        imw = im * washout2d + max(im(:)) * (1-washout2d) ;
+    end
     opts.label = '$\tilde{v}$ [pix/min]' ;
     opts.outfn = vxyorigfn ;
     opts.qscale = 15 ;
