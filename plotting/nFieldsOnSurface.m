@@ -26,7 +26,7 @@ function [axs, cbs, meshHandles] = ...
 %       colormap for each axis, overwrites cmap
 %   labels : cell of strings
 %       titles for each subplot
-%   makeCbar : nfields x 1 bool array
+%   makeCbar : nfields x 1 bool array or cell array
 %       whether to make colorbar for each axis
 %   masterCbar : bool 
 %       make a single colorbar ruling all axes
@@ -156,7 +156,9 @@ if isfield(options, 'xyzlims')
 end
 
 % Unpack view/views
-if isfield(options, 'view')
+if isfield(options, 'views')
+    views = options.views ;
+elseif isfield(options, 'view')
     views = options.view ;
 end
 
@@ -196,7 +198,13 @@ else
 end
 
 if isfield(options, 'makeCbar')
+    % grab boolean (or numeric with 0 and 1) array of whether to make a
+    % colorbar for each axis
     makeCbar = options.makeCbar ;
+    if isa(makeCbar, 'cell')
+        makeCbar = cell2mat(options.makeCbar) ;
+    end
+    assert(length(makeCbar) == 1 || length(makeCbar) == nfields)
 else
     makeCbar = ones(nfields, 1) ;
 end

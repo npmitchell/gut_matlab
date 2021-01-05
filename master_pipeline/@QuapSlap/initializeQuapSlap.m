@@ -500,6 +500,9 @@ QS.dir.pathlines.v3d = fullfile(QS.dir.pathlines.data, 'images_v3d') ;
 QS.dir.pathlines.f3d = fullfile(QS.dir.pathlines.data, 'images_f3d') ;
 QS.dir.pathlines.strain_images = fullfile(QS.dir.pathlines.data, 'images_strain') ;
 QS.dir.pathlines.strain = fullfile(QS.dir.pathlines.data, 'strain') ;
+QS.dir.pathlines.dxdyFiltered = fullfile(QS.dir.pathlines.data, 'DxDyStrainFiltered') ;
+
+% pathline fileNames
 QS.fileName.pathlines = struct() ;
 pdir = QS.dir.pathlines.data ;
 QS.fileName.pathlines.featureIDs = fullfile(pdir, 'featureIDs.mat') ;
@@ -517,7 +520,7 @@ QS.dir.pathlines.radius = fullfile(pdir, 'images_radii_vertices') ;
 QS.dir.pathlines.indentation = fullfile(pdir, 'images_indentation') ;
 QS.dir.pathlines.kymographs = fullfile(pdir, 'kymographs') ;
 
-% fileNames
+% pathline fileNames for conformal and kymo
 QS.fileName.pathlines.quasiconformal = ...
     fullfile(QS.dir.pathlines.quasiconformal, 'mu_v3dv2d.mat') ;
 QS.fileName.pathlines.radius = fullfile(pdir, 'pathline_radii.mat') ;
@@ -529,6 +532,37 @@ QS.fileName.pathlines.kymographs.indentation = ...
     fullfile(QS.dir.pathlines.kymographs, 'indentationKymographs.mat') ;
 QS.fileName.pathlines.kymographs.mu = ...
     fullfile(QS.dir.pathlines.kymographs, 'muKymographs.mat') ;
+
+%% Pathline-based strain measurement --> from pathline path
+QS.fileBase.strain = 'strain_%06d.mat' ;
+QS.fullFileBase.pathlines.strain = fullfile(QS.dir.pathlines.strain, ...
+    QS.fileBase.strain) ; 
+
+% pathline fundamental forms
+% fdir = QS.dir.pathlines.fundForms ;
+% QS.fileName.pathlines.fundForms = fullfile(fdir, 'fundForms.mat') ;
+% pathline velocities
+QS.fileName.pathlines.velocities = struct() ; 
+pdir = QS.dir.pathlines.data ;
+QS.dir.pathlines.velocities = fullfile(pdir, 'velocities') ;
+pvdir = QS.dir.pathlines.velocities ;
+QS.fileName.pathlines.velocities.v3d = fullfile(pvdir, 'vM.mat')  ;
+QS.fileName.pathlines.velocities.vn  = fullfile(pvdir, 'vnM.mat') ;
+QS.fileName.pathlines.velocities.vv  = fullfile(pvdir, 'vvM.mat') ;
+QS.fileName.pathlines.velocities.vf  = fullfile(pvdir, 'vfM.mat') ;
+QS.fileName.pathlines.velocities.v2d = fullfile(pvdir, 'v2dM.mat') ;
+QS.fileName.pathlines.velocities.v2dum = fullfile(pvdir, 'v2dMum.mat') ;
+QS.fileName.pathlines.velocities.v3dsm   = fullfile(pvdir, 'vsmM.mat') ;
+QS.fileName.pathlines.velocities.vnsm    = fullfile(pvdir, 'vnsmM.mat') ;
+QS.fileName.pathlines.velocities.vvsm    = fullfile(pvdir, 'vvsmM.mat') ;
+QS.fileName.pathlines.velocities.vfsm    = fullfile(pvdir, 'vfsmM.mat') ;
+QS.fileName.pathlines.velocities.v2dsm   = fullfile(pvdir, 'v2dsmM.mat') ;
+QS.fileName.pathlines.velocities.v2dsmum = fullfile(pvdir, 'v2dsmMum.mat') ;
+
+% pathline fileBases
+QS.fileBase.pathlines = struct() ;
+QS.fileBase.pathlines.strain = fullfile(QS.dir.pathlines.strain, QS.fileBase.strain) ;
+QS.fileBase.pathlines.dxdyFiltered = fullfile(QS.dir.pathlines.dxdyFiltered, ['dxdy_' QS.fileBase.strain]) ;
 
 
 %% UVPrime pathlines -- alternative to spsm piv, not very conformal, so not very useful
@@ -574,32 +608,6 @@ QS.fileName.pathlines_uvprime.kymographs.indentation = ...
 QS.fileName.pathlines_uvprime.kymographs.mu = ...
     fullfile(QS.dir.pathlines.kymographs, 'muKymographs.mat') ;
 
-
-%% Pathline-based strain measurement --> from pathline path
-QS.fileBase.strain = 'strain_%06d.mat' ;
-QS.fullFileBase.pathlines.strain = fullfile(QS.dir.pathlines.strain, ...
-    QS.fileBase.strain) ; 
-
-% pathline fundamental forms
-% fdir = QS.dir.pathlines.fundForms ;
-% QS.fileName.pathlines.fundForms = fullfile(fdir, 'fundForms.mat') ;
-% pathline velocities
-QS.fileName.pathlines.velocities = struct() ; 
-pdir = QS.dir.pathlines.data ;
-QS.dir.pathlines.velocities = fullfile(pdir, 'velocities') ;
-pvdir = QS.dir.pathlines.velocities ;
-QS.fileName.pathlines.velocities.v3d = fullfile(pvdir, 'vM.mat')  ;
-QS.fileName.pathlines.velocities.vn  = fullfile(pvdir, 'vnM.mat') ;
-QS.fileName.pathlines.velocities.vv  = fullfile(pvdir, 'vvM.mat') ;
-QS.fileName.pathlines.velocities.vf  = fullfile(pvdir, 'vfM.mat') ;
-QS.fileName.pathlines.velocities.v2d = fullfile(pvdir, 'v2dM.mat') ;
-QS.fileName.pathlines.velocities.v2dum = fullfile(pvdir, 'v2dMum.mat') ;
-QS.fileName.pathlines.velocities.v3dsm   = fullfile(pvdir, 'vsmM.mat') ;
-QS.fileName.pathlines.velocities.vnsm    = fullfile(pvdir, 'vnsmM.mat') ;
-QS.fileName.pathlines.velocities.vvsm    = fullfile(pvdir, 'vvsmM.mat') ;
-QS.fileName.pathlines.velocities.vfsm    = fullfile(pvdir, 'vfsmM.mat') ;
-QS.fileName.pathlines.velocities.v2dsm   = fullfile(pvdir, 'v2dsmM.mat') ;
-QS.fileName.pathlines.velocities.v2dsmum = fullfile(pvdir, 'v2dsmMum.mat') ;
 
 %% Velocities -- Lagrangian averaging
 QS.dir.pivAvg = fullfile(QS.dir.piv, 'lagrangianAvg') ;

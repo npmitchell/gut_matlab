@@ -1796,8 +1796,6 @@ options = struct() ;
 QS.simulateNES(options)
 
 
-
-
 %% Measure surface area growh of lobes and folds in Eulerian frame
 options = struct() ;
 options.overwrite = false ;
