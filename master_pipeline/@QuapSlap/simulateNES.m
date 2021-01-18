@@ -1,18 +1,23 @@
 function simulateNES(QS, options)
 
 %% Default options
-strainstyle = 'hoop' ;
+strainstyle = 'hoopCompression' ;  % 'axial' 'hoop' 'hoopCompression' 'ring' 'line'
+targetThetaStyle = 'plate' ; % either 'plate' or 'quasistatic'
+Alpha = 1 ;
+Beta = 1 ;
 fixVolume = true ;
 fixBoundary = false ;
 fixCap = false ;
 poisson_ratio = 0.5 ;
 thickness = 2 ;
+eL_allow = 0.1 ;
 nU = QS.nU ;
 nV = QS.nV ;
 t0Pathlines = QS.t0set() ;
 preview = false ;
-Dt = 30 ;
-Ntotal = 5 ;
+Dt = 10 ;
+nsteps_per_timepoint = 10 ;
+Ntotal = 155 ;
 plot_faces = true ;
 plot_dfaces = true ;
 plot_wire = false ;
@@ -60,7 +65,8 @@ end
 if fixCap
     exten = ['_fixC' exten ] ;
 end
-dirname = [strainstyle exten '_test'] ;
+exten = [ '_' targetThetaStyle exten] ;
+dirname = [ strainstyle exten ] ;
 outdir = fullfile(outRoot, dirname) ;
 if ~exist(outdir, 'dir')
     mkdir(outdir)
@@ -197,6 +203,7 @@ capID = [nU*(nV-1)+1, nU*(nV-1)+2]' ;
 % aux_plot_beta_pattern(betaCut, Vc, eIDxCut, outfn) ;
 outfn = fullfile(outdir, 'wire_beta_definition_glued.png') ;
 if ~exist(outfn, 'file')
+    disp('Generating wire_beta figure...')
     close all
     cmin_beta = 0; cmax_beta = 1 ;
     cmap = cubehelix(128,1.23,2.98,1.35,1.77,[0.17,0.98],[0.96,0.51]) ; 
@@ -243,13 +250,13 @@ cmap = bwr ;
 [~,~,~,xyzlim] = QS.getXYZLims() ;
 
 %% save simulation parameters
-targetTheta = 0 ; % either 0 or 'quasistatic'
 eIDx2dGlued = e2dg ;
 save(fullfile(outdir, 'simulation_parameters.mat'), ...
-    'targetTheta', 'strainstyle', ...
+    'targetThetaStyle', 'strainstyle', ...
     'fixBoundary', 'fixVolume', 'fixCap', 'V0', ...
     'thickness', 'poisson_ratio', 'capID', 'xyzlim', 'cutM', ...
-    'eIDx2d', 'eIDx2dGlued', 'i3d', 'i2d', 'ghostBonds2d', 'Dt')
+    'eIDx2d', 'eIDx2dGlued', 'i3d', 'i2d', 'ghostBonds2d', 'Dt', ...
+    'nsteps_per_timepoint', 'Alpha', 'Beta', 'eL_allow') ;
 
 %% Assign strain magnitudes based on 2d bond centers
 midx = 0.5 * (V2d(eIDx2d(:, 1), 1) + V2d(eIDx2d(:, 2), 1)) ;
@@ -302,9 +309,75 @@ if ~exist(bfn, 'file') || ~exist(bifn, 'file')
     aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, 0, bfn, bifn)
 end
 
+%% 
+if contains(strainstyle, 'restricted')
+    % Calculate the (Initial) Growth Restriction Vector Field ================
+    close all; clc;
+
+    [V2F, ~] = meshAveragingOperators(F, V);
+
+    phi = atan2(V(:,2), V(:,1));
+    theta = acos(V(:,3));
+
+    growthV0 = V2F * [ -sin(theta) .* sin(phi), ...
+        sin(theta) .* cos(phi), zeros(size(phi)) ];
+
+    % Ensure that the restriction field is tangent to the surface
+    fN = faceNormal(sphereTri);
+    growthV0 = growthV0 - ...
+        repmat(dot(growthV0, fN, 2), 1, 3) .* fN;
+
+    growthV0 = normalizerow(growthV0);
+
+    % View results ------------------------------------------------------------
+    % COM = barycenter(V, F);
+    % ssf = 5;
+    % 
+    % trisurf(sphereTri, 'FaceColor', [0.8 0.8 0.8]);
+    % hold on
+    % quiver3( COM(1:ssf:end,1), COM(1:ssf:end,2), COM(1:ssf:end,3), ...
+    %     growthV0(1:ssf:end,1), growthV0(1:ssf:end,2), ...
+    %     growthV0(1:ssf:end,3), 1, 'LineWidth', 2, 'Color', 'm' );
+    %     
+    % hold off
+    % axis equal
+
+    clear phi theta COM ssf V2F fN
+
+    %% Calculate the Projected Edge Lengths Along the Growth Vector ===========
+    % This will serve as the maximum projected length along the azimuthal
+    % direction along which mesh edges will not be allowed to expand
+
+    edgeVecX = V(E(:,2), 1) - V(E(:,1), 1);
+    edgeVecY = V(E(:,2), 2) - V(E(:,1), 2);
+    edgeVecZ = V(E(:,2), 3) - V(E(:,1), 3);
+
+    edgeVecF = cat(3, edgeVecX(feIDx), edgeVecY(feIDx), ...
+        edgeVecZ(feIDx) );
+
+    projL0 = repmat(permute(growthV0, [1 3 2]), 1, 3, 1);
+    projL0 = abs(dot(projL0, edgeVecF, 3));
+
+    %--------------------------------------------------------------------------
+    % NOTE: SETTING THE MAXIMUM EDGE LENGTH EQUAL TO THE INITIAL EDGE LENGTH
+    % WILL RESULT IN ABNORMAL TERMINATION OF THE MINIMIZATION. To account for
+    % this we set the maximum edge lengths to be slightly larger than the
+    % initial edge lengths. We also include a small, but finite threshold for
+    % edges that initially lie perpendicular to the growth direction
+    %--------------------------------------------------------------------------
+    projL0 = 1.1 .* projL0;                             % bonds are allowed to grow a little bit (10%)
+    projL0( projL0 < 1e-10 ) = mean(projL0(:)) / 1e2;   % perpendicular bonds do not have zero projection
+
+end
+
 %% Consider each timestep, which averages Dt timepoints of experiment
 for ii = 1:Ntotal
+
     tp = QS.t0set() + (ii-1)*Dt ;
+    
+    assert(tp < max(QS.xp.fileMeta.timePoints) + 1)
+
+    disp(['Considering tp = ' num2str(tp)])
     % Calculate Target Edge Lengths -------------------------------------------
     % Determine how bonds are strained
     switch strainstyle
@@ -312,6 +385,8 @@ for ii = 1:Ntotal
             titlestr = ['simulation with measured $\epsilon$'];
         case 'hoop'
             titlestr = ['simulation with measured $\epsilon_{\phi\phi}$'];  
+        case 'hoopCompression'
+            titlestr = ['compression with measured $\epsilon_{\phi\phi}$'];  
         case 'axial'
             titlestr = ['simulation with measured $\epsilon_{\zeta\zeta}$'];  
         case 'ring'
@@ -332,13 +407,21 @@ for ii = 1:Ntotal
             dys = dys + tmp.dys ;
         end
     end
-    dxs = dxs ;
-    dys = dys ;
 
     % hack for now --> go back and repeat with reflected boundaries
-    dxs(:, nV) = dxs(:, 1) ;
-    dys(:, nV) = dys(:, 1) ;
-
+    dxs(:, nV) = dxs(:, 1) ; 
+    dys(:, nV) = dys(:, 1) ; 
+    dxs = dxs / nsteps_per_timepoint ;
+    dys = dys / nsteps_per_timepoint ;
+    
+    %% Roll off the deformation to zero at anterior and posterior ends
+    % make something like a tukey window and apply to deformation
+    twinAnterior = tukeywin(nU, 0.15) ;
+    twinPosterior = tukeywin(nU, 0.25) ;
+    twin = twinAnterior ;
+    twin(round(nU*0.5):end) = twinPosterior(round(nU*0.5:end)) ;
+    dxsClip = twin .* dxs ;
+    dysClip = twin .* dys ;
 
     % prep for interpolation
     rux = refMesh.u(:, 1) / max(refMesh.u(:, 1)) ;
@@ -346,21 +429,24 @@ for ii = 1:Ntotal
     rux = reshape(rux, [nU, nV]) ;
     ruy = reshape(ruy, [nU, nV]) ;
     if preview
+        tmplim = max(max(dysClip(:)), max(dxsClip(:))) ;
         close all
         subplot(1, 2, 1)
-        imagesc(linspace(0,1,nU), linspace(0,1,nV), dxs')
+        imagesc(linspace(0,1,nU), linspace(0,1,nV), dxsClip')
         xlabel('$\zeta$','interpreter', 'latex')
         ylabel('$\phi$','interpreter', 'latex')
         title('$\delta \zeta$', 'interpreter', 'latex')
-        caxis([-max(abs(dxs(:))), max(abs(dxs(:)))])
+        caxis([-tmplim, tmplim])
         colormap bwr
+        colorbar('location', 'southoutside')
         subplot(1, 2, 2)
-        imagesc(linspace(0,1,nU), linspace(0,1,nV), dys')
+        imagesc(linspace(0,1,nU), linspace(0,1,nV), dysClip')
         xlabel('$\zeta$','interpreter', 'latex')
         ylabel('$\phi$','interpreter', 'latex')
         title('$\delta \phi$', 'interpreter', 'latex')
-        caxis([-max(abs(dxs(:))), max(abs(dxs(:)))])
+        caxis([-tmplim, tmplim])
         colormap bwr
+        colorbar('location', 'southoutside')
     end
 
     if any(strcmpi(strainstyle, {'all', 'axial', 'line'}))
@@ -383,15 +469,16 @@ for ii = 1:Ntotal
             pause(3)
         end
     end
-    if any(strcmpi(strainstyle, {'all', 'hoop', 'ring'}))
-        dyinterp = griddedInterpolant(rux, ruy, dys, 'linear') ;
+    if any(contains(lower(strainstyle), {'all', 'hoop', 'ring'}))
+        % Interpolation
+        dyinterp = griddedInterpolant(rux, ruy, dysClip, 'linear') ;
         dyi = dyinterp(bxy2dg(:, 1), bxy2dg(:, 2)) ;
         dymag = zeros(size(bbeta)) ;
         dymag(i3d) = dyi ;
 
         %% Preview 3d assignment
         if preview
-            clear all
+            clf
             midx = 0.5 * (VV(eIDx(:, 1), 1) + VV(eIDx(:, 2), 1)) ;
             midy = 0.5 * (VV(eIDx(:, 1), 2) + VV(eIDx(:, 2), 2)) ;
             midz = 0.5 * (VV(eIDx(:, 1), 3) + VV(eIDx(:, 2), 3)) ;
@@ -448,18 +535,98 @@ for ii = 1:Ntotal
             scalefactor = 1 + mag ;  
         case 'hoop'
             scalefactor = 1 + dymag .* abs(sin(bbeta)) ;
+        case 'hoopCompression'
+            dymag(dymag > 0) = 0 ;
+            scalefactor = 1 + dymag .* abs(sin(bbeta)) ;
         case 'axial'
-            scalefactor = 1 + mag .* abs(cos(bbeta)) ;
+            scalefactor = 1 + dxmag .* abs(cos(bbeta)) ;
         case 'ring'
-            scalefactor = 1 + mag .* abs(sin(bbeta)) ;
+            scalefactor = 1 + dymag .* abs(sin(bbeta)) ;
             scalefactor(abs(sin(bbeta))<0.99) = 1 ;
         case 'line'
-            scalefactor = 1 + mag .* abs(cos(bbeta)) ;
+            scalefactor = 1 + dxmag .* abs(cos(bbeta)) ;
             scalefactor(abs(cos(bbeta))<0.99) = 1 ;
     end
 
-    eL = eL .* scalefactor ;
+    % Calculate target geometry for current time point --------------------
+    [eL1, tarTheta] = calculateEdgeLengthsAndAngles(FF, VV);
+    eL = eL1 .* scalefactor ;
+    
+    if restrictGrowth
+        % Transform the growth vector into the current time point
+        curGrowthV = transformVectorField3Dto3DMesh( growthV0, V, curV, ...
+            F, (1:size(F,1)).' );
+        curGrowthV = normalizerow(curGrowthV);
+    end
+    
+    %% Check for triangle inequality: 
+    % sum of edge 2 lengths cannot be less than the third edgelength
+    % #faces x 3 array of target edge lengths on faces
+    % (i,j)th element gives target lengths of edge opposite j in face i
+    feL = eL(feIDx) ;
+    % circshift(arr,1,2) shifts by 1 element along dim 2
+    try
+        assert(all(all(feL - circshift(feL, 1, 2) - circshift(feL, 2, 2) < 0)))
+    catch
+        dmyk = 0 ;
+        bonds_ok = false ;
+        while ~bonds_ok
+            % which faces violate the triangle inequality?
+            fails = find(any(feL - circshift(feL, 1, 2) - circshift(feL, 2, 2) > 0, 2)) ;
+            nfails = length(fails) ;
+            disp(['triangle inequality is not satisfied in ' num2str(nfails) 'triangles'])
 
+            % Find unique edges to fix
+            [badtri, nodes] = find(feL - circshift(feL, 1, 2) - circshift(feL, 2, 2) > 0) ;
+            edges2relax = [] ;
+            for pq = 1:length(badtri)
+                thisTri = badtri(pq,:) ;
+                edges2relax = [edges2relax feIDx(thisTri, :)] ;
+            end
+            edges2relax = unique(edges2relax) ;
+            
+            % preview the failures
+            clf
+            for axid = 1:4
+                subplot(3, 2, axid)
+                trisurf(FF, VV(:, 1), VV(:, 2), VV(:, 3), ...
+                    sum(sign(feL - circshift(feL, 1, 2) - circshift(feL, 2, 2)), 2), ...
+                    'edgecolor', 'none')
+                axis equal
+                colormap(reds)
+                view(0, (axid-1) * 90)
+            end
+            subplot(3, 2, 5)
+            % Plot eL / eL0 
+            histogram(eL ./ eL1)
+            subplot(3, 2, 6)
+            histogram(eL(edges2relax) ./ eL1(edges2relax))
+            
+            sgtitle(['pass ' num2str(dmyk)])
+            pause(1)
+            clf
+            
+            % Average with current length
+            eL(edges2relax) = eL_allow * eL1(edges2relax) + ...
+                 (1-eL_allow) * eL(edges2relax) ;
+             
+            if dmyk > 50
+                eL(edges2relax) = eL1(edges2relax) ;
+            end
+            
+            % Reassign face edge lengths based on new definition of eL
+            feL = eL(feIDx) ;
+        
+            bonds_ok = all(all(feL - circshift(feL, 1, 2) - circshift(feL, 2, 2) < 0)) ;
+            dmyk = dmyk + 1 ;
+        end
+    end
+
+    %% check for negative target edgelengths
+    assert(all(eL ./ eL0 > 0))
+    
+    %% Consider gently bounding the minimum/maximum deviation?
+    % error('here')
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Plot initial strain assignment as wire frame
@@ -497,21 +664,26 @@ for ii = 1:Ntotal
     end
 
     % Calculate Target Bending Angles -----------------------------------------
-    if strcmpi(targetTheta, 'quasistatic')
-        % The unit normal vector for each face
-        % see https://www.cs.utexas.edu/users/evouga/uploads/4/5/6/8/45689883/turning.pdf
-        fN = faceNormal( triangulation(F, tarV) );
-
-        N1 = fN(edgeFace(:,1), :);
-        N2 = fN(edgeFace(:,2), :);
-
-        crossN = cross(N2, N1, 2);
-        dotN = dot(N1, N2, 2);
-
-        tarTheta = 2 .* atan2( dot(crossN, eij, 2), 1 + dotN );
-    else
+    if strcmpi(targetThetaStyle, 'quasistatic')
+        % % The unit normal vector for each face
+        % % see https://www.cs.utexas.edu/users/evouga/uploads/4/5/6/8/45689883/turning.pdf
+        % fN = faceNormal( triangulation(F, tarV) );
+        % 
+        % N1 = fN(edgeFace(:,1), :);
+        % N2 = fN(edgeFace(:,2), :);
+        % 
+        % crossN = cross(N2, N1, 2);
+        % dotN = dot(N1, N2, 2);
+        % 
+        % tarTheta = 2 .* atan2( dot(crossN, eij, 2), 1 + dotN );
+        % [~, tarTheta] = calculateEdgeLengthsAndAngles(F, V) ;
+        disp('tarTheta already computed for this timepoint')
+    elseif strcmpi(targetThetaStyle, 'plate')
         tarTheta = zeros(size(eL, 1), 1) ;
+    else
+        erorr(['Did not recognize targetTheta style: ' targetThetaStyle])
     end
+    
     
     %% Compute initial volume
     % The centroids of each face
@@ -526,77 +698,78 @@ for ii = 1:Ntotal
 
     targetVolume = abs(sum( dot(COM, ndirpts, 2) ) ./ 6 );
     
+    if fixCap
+        fixedIDx = capID(:) ;
+    else
+        fixedIDx = capID(1) ;
+    end
+    fixedX = V1(fixedIDx, :) ;
+    
+    %% Check magnitudes of energies
+    Eb0 = calculateBendEnergy(FF, VV, eL, tarTheta, poisson_ratio, thickness) ;
+    Efp0 = calculateFixedPointEnergy(FF, VV, fixedIDx, fixedX, Alpha) ;
+    Efv0 = calculateFixedVolumeEnergy(FF, VV, targetVolume, Beta) ;
+    Es0 = calculateStretchEnergy(FF, VV, eL, poisson_ratio) ;
+    % [Erg, projL, isValid] = calculateGrowthRestrictionEnergy(F, V, ...
+    %     growthVec, maxProjL, mu)
+
     %% Run Elastic Relaxation =============================================
     fn = fullfile(outdir, 'vertices', sprintf('vertices_%03d.mat', ii)) ;
     if exist(fn, 'file')
-        disp('time step already computed, loading...')
+        disp(['time step already computed, loading ' fn])
         tmp = load(fn) ;
         VV = tmp.VV ;
         FF = tmp.FF ;
     else
         tic
-        if fixBoundary && fixVolume && fixCap
-            VV = minimizeElasticEnergy( FF, V1, eL, ...
-                'TargetAngles', tarTheta, ...
-                'Thickness', thickness, ...
-                'Poisson', poisson_ratio, ...
-                'MaxIterations', 1000, ...
-                'iterDisplay', 1, ...
-                'Alpha', 1, ...
-                'Beta', 1, ...
-                'FixBoundary', ...
-                'targetVertices', capID(:), ...
-                'targetLocations', V1(capID(:), :), ...
-                'FixVolume', 'TargetVolume', targetVolume); 
-        elseif fixBoundary && fixCap
-            VV = minimizeElasticEnergy( FF, V1, eL, ...
-                'TargetAngles', tarTheta, ...
-                'Thickness', thickness, ...
-                'Poisson', poisson_ratio, ...
-                'MaxIterations', 1000, ...
-                'iterDisplay', 1, ...
-                'Alpha', 1, ...
-                'Beta', 1, ...
-                'targetVertices', capID(:), ...
-                'targetLocations', V1(capID(:), :), ...
-                'FixBoundary');    
-        elseif fixCap && fixVolume
-            VV = minimizeElasticEnergy( FF, V1, eL, ...
-                'TargetAngles', tarTheta, ...
-                'Thickness', thickness, ...
-                'Poisson', poisson_ratio, ...
-                'MaxIterations', 1000, ...
-                'iterDisplay', 1, ...
-                'Alpha', 1, ...
-                'Beta', 1, ...
-                'targetVertices', capID(:), ...
-                'targetLocations', V1(capID(:), :), ...
-                'FixVolume', 'TargetVolume', targetVolume);    
-        elseif fixBoundary 
-            VV = minimizeElasticEnergy( FF, V1, eL, ...
-                'TargetAngles', tarTheta, ...
-                'Thickness', thickness, ...
-                'Poisson', poisson_ratio, ...
-                'MaxIterations', 1000, ...
-                'iterDisplay', 1, ...
-                'Alpha', 1, ...
-                'Beta', 1, ...
-                'FixBoundary');    
-        elseif fixVolume
-            VV = minimizeElasticEnergy( FF, V1, eL, ...
-                'TargetAngles', tarTheta, ...
-                'Thickness', thickness, ...
-                'Poisson', poisson_ratio, ...
-                'MaxIterations', 1000, ...
-                'iterDisplay', 1, ...
-                'Alpha', 1, ...
-                'Beta', 1, ...
-                'FixVolume', ...
-                'targetVertices', capID(end-1), ...
-                'targetLocations', V1(capID(end-1), :)) ;
-        else
-            error('not fixing Volume or boundary?')
+        V4min = V1 ; 
+        for pp = 1:nsteps_per_timepoint 
+            if fixBoundary && fixVolume 
+                error('check params here')
+                V4min = minimizeElasticEnergy( FF, V4min, eL, ...
+                    'TargetAngles', tarTheta, ...
+                    'Thickness', thickness, ...
+                    'Poisson', poisson_ratio, ...
+                    'MaxIterations', 1000, ...
+                    'iterDisplay', 1, ...
+                    'Alpha', Alpha, ...
+                    'Beta', Beta, ...
+                    'FixBoundary', ...
+                    'targetVertices', capID(:), ...
+                    'targetLocations', V1(capID(:), :), ...
+                    'FixVolume', 'TargetVolume', targetVolume); 
+            elseif fixBoundary 
+                error('check params here')
+                V4min = minimizeElasticEnergy( FF, V4min, eL, ...
+                    'TargetAngles', tarTheta, ...
+                    'Thickness', thickness, ...
+                    'Poisson', poisson_ratio, ...
+                    'MaxIterations', 1000, ...
+                    'iterDisplay', 1, ...
+                    'Alpha', Alpha, ...
+                    'Beta', Beta, ...
+                    'targetVertices', capID(:), ...
+                    'targetLocations', V1(capID(:), :), ...
+                    'FixBoundary');    
+            elseif fixVolume
+                V4min = minimizeElasticEnergy( FF, V4min, eL, ...
+                    'TargetAngles', tarTheta, ...
+                    'Thickness', thickness, ...
+                    'Poisson', poisson_ratio, ...
+                    'MaxIterations', 1000, ...
+                    'Past', 500, 'Delta', 1e-7, ... % L-BFGS parameters
+                    'iterDisplay', 10, ...
+                    'Alpha', Alpha, ...             % fixed vertex coeff
+                    'Beta', Beta, ...               % fixed volume coeff
+                    'FixVolume', ...
+                    'TargetVolume', targetVolume, ...
+                    'targetVertices', capID(end-1), ...
+                    'targetLocations', V1(capID(end-1), :)) ;
+            else
+                error('not fixing Volume or boundary?')
+            end
         end
+        VV = V4min ;
         toc
 
         %% Check
@@ -606,8 +779,17 @@ for ii = 1:Ntotal
         % % Target edge lengths
         % eLp = sqrt( sum( eijp.^2, 2 ) );
 
+        %% New energies
+        Eb = calculateBendEnergy(FF, VV, eL, tarTheta, poisson_ratio, thickness) ;
+        Efp = calculateFixedPointEnergy(FF, VV, fixedIDx, fixedX, Alpha) ;
+        Efv = calculateFixedVolumeEnergy(FF, VV, targetVolume, Beta) ;
+        Es = calculateStretchEnergy(FF, VV, eL, poisson_ratio) ;
+        % [Erg, projL, isValid] = calculateGrowthRestrictionEnergy(F, V, ...
+        %     growthVec, maxProjL, mu)
+        
         %% Save vertices
-        save(fn, 'VV', 'FF')
+        save(fn, 'VV', 'FF', 'Eb', 'Efp', 'Efv', 'Es', ...
+            'Eb0', 'Efp0', 'Efv0', 'Es0') ;
     end
 
     % Area ratio for faces

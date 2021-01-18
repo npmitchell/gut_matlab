@@ -43,6 +43,8 @@ function [axs, cbs, meshHandles] = ...
 %       zlim values if xyzlims not provided
 %   view : length nfields cell array of length 2 arrays
 %       viewing angle for each panel
+%   style : 'diverging', 'positive', 'negative'
+%       color limit style for scalar fields
 %   
 %   
 % Returns
@@ -62,6 +64,10 @@ function [axs, cbs, meshHandles] = ...
 nfields = length(fields) ;
 axisOff = false ;
 visible = 'off' ;
+style = 'diverging' ;
+if nargin < 3
+    options = struct() ;
+end
 if isfield(options, 'visible')
     visible = options.visible ;
 end
@@ -94,6 +100,9 @@ if isfield(options, 'clim')
 end
 if isfield(options, 'clims')
     clims = options.clims ;
+end
+if isfield(options, 'style')
+    style = options.style ;
 end
 
 % Define xyzlims
@@ -292,8 +301,14 @@ for qq = 1:nfields
             else
                 error('clim provided has > 2 elements')
             end
-        else
+        elseif strcmpi(style, 'diverging')
             caxis([-max(abs(fields{qq})), max(abs(fields{qq}))])
+        elseif strcmpi(style, 'positive')
+            caxis([0, max(abs(fields{qq}))])
+        elseif strcmpi(style, 'negative')
+            caxis([-max(abs(fields{qq})), 0])
+        else
+            error(['unrecognized style=' style])
         end
         
         if makeCbar(qq) && isfield(options, 'cbarlabels')

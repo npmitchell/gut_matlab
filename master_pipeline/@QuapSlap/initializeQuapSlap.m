@@ -315,10 +315,11 @@ QS.dir.spcutMesh = sphiDir ;
 QS.dir.spcutMeshSm = sphiSmDir ;
 QS.dir.spcutMeshSmRS = sphiSmRSDir ;
 QS.dir.spcutMeshSmRSC = sphiSmRSCDir ;
-QS.dir.ricciMesh = ricciMeshDir ;
-QS.dir.ricciSolution = fullfile(ricciMeshDir, 'ricciSolutions') ;
-QS.dir.ricciMu = fullfile(ricciMeshDir, 'beltramiCoefficients') ;
-QS.fullFileBase.ricciMu = fullfile(QS.dir.ricciMu, 'ricciMesh_mus_%04diter_%06d.mat') ;
+QS.dir.ricci = struct() ;
+QS.dir.ricci.data = ricciMeshDir ;
+QS.dir.ricci.mesh = fullfile(ricciMeshDir, 'meshes') ;
+QS.dir.ricci.solution = fullfile(ricciMeshDir, 'ricciSolutions') ;
+QS.dir.ricci.mu = fullfile(ricciMeshDir, 'beltramiCoefficients') ;
 
 %% UVprime coordinates (twist-adjusted conformal maps of sp-smoothed meshes)
 QS.dir.uvpcutMesh = fullfile(uvDir, ['uvprime_cutMesh' shiftstr]) ;
@@ -328,9 +329,11 @@ QS.fullFileBase.uvpcutMesh = fullfile(QS.dir.uvpcutMesh, ...
 
 %% Ricci mesh coordinates (truly conformal via Ricci flow)
 QS.fileBase.ricciMesh = 'ricciMesh_%04diter_%06d.mat' ;
-QS.fullFileBase.ricciMesh = fullfile(QS.dir.ricciMesh, QS.fileBase.ricciMesh) ;
+QS.fullFileBase.ricciMesh = fullfile(QS.dir.ricci.mesh, QS.fileBase.ricciMesh) ;
 QS.fileBase.ricciSolution = 'ricciSolution_%04diter_%06d.mat' ;
-QS.fullFileBase.ricciSolution = fullfile(QS.dir.ricciSolution, QS.fileBase.ricciSolution) ;
+QS.fullFileBase.ricciSolution = fullfile(QS.dir.ricci.solution, QS.fileBase.ricciSolution) ;
+QS.fileBase.ricciMu = 'ricciMesh_mus_%04diter_%06d.mat' ;
+QS.fullFileBase.ricciMu = fullfile(QS.dir.ricci.mu, QS.fileBase.ricciMu) ;
 
 %% double resolution cutMeshes
 QS.dir.spcutMeshSm2x = sphiSmDir2x ;
@@ -514,7 +517,13 @@ QS.fileName.pathlines.fXY = fullfile(pdir, 'piv_pathlines_fXY.mat') ;
 QS.fileName.pathlines.f3 = fullfile(pdir, 'piv_pathlines_f3d.mat') ;
 QS.fileName.pathlines.refMesh = fullfile(pdir, 'refMesh.mat') ;
 % Ricci flow
-QS.dir.pathlines.quasiconformal = fullfile(pdir, 'quasiconformal') ;
+QS.dir.pathlines.quasiconformal = fullfile(pdir, 'quasiconformal') ;    % for ricci comparison to refMesh ricci pullback
+QS.dir.pathlines.ricci = struct() ;
+QS.dir.pathlines.ricci.data = fullfile(pdir, 'ricci') ;             % for ricci flow on advected vertices themselves
+QS.dir.pathlines.ricci.mu = fullfile(pdir, 'ricci', 'beltramiCoefficientsInstantaneous') ; 
+QS.dir.pathlines.ricci.quasiconformal = fullfile(pdir, 'ricci', 'beltramiCoefficientsMaterial') ; 
+QS.dir.pathlines.ricci.solution = fullfile(pdir, 'ricci', 'ricciSolutions') ; 
+QS.dir.pathlines.ricci.mesh = fullfile(pdir, 'ricci', 'ricciMeshes') ; 
 % Strain and indentation
 QS.dir.pathlines.radius = fullfile(pdir, 'images_radii_vertices') ;
 QS.dir.pathlines.indentation = fullfile(pdir, 'images_indentation') ;
@@ -537,6 +546,15 @@ QS.fileName.pathlines.kymographs.mu = ...
 QS.fileBase.strain = 'strain_%06d.mat' ;
 QS.fullFileBase.pathlines.strain = fullfile(QS.dir.pathlines.strain, ...
     QS.fileBase.strain) ; 
+
+QS.fullFileBase.pathlines.ricciQuasiconformal = fullfile(QS.dir.pathlines.ricci.quasiconformal, ...
+    'mu_%04diter_%06d_v2dv2d.mat') ;
+QS.fullFileBase.pathlines.ricciMesh = fullfile(QS.dir.pathlines.ricci.mesh, ...
+    QS.fileBase.ricciMesh) ;
+QS.fullFileBase.pathlines.ricciSolution = fullfile(QS.dir.pathlines.ricci.solution, ...
+    QS.fileBase.ricciSolution) ;
+QS.fullFileBase.pathlines.ricciMu = fullfile(QS.dir.pathlines.ricci.mu, ...
+    QS.fileBase.ricciMu) ;
 
 % pathline fundamental forms
 % fdir = QS.dir.pathlines.fundForms ;

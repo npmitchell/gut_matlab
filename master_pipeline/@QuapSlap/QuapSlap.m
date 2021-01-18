@@ -244,6 +244,28 @@ classdef QuapSlap < handle
             QS.xp.setTime(tt) ;
         end
         
+        function [tpTrue, timestr ] = trueTime(QS, tp, div60)
+            if nargin < 3
+                div60 = false ;
+            end
+            tpTrue = (tp - QS.t0set()) * QS.timeInterval ;
+            if div60
+                tpTrue = tpTrue / 60 ;
+            end
+            
+            if nargout > 1
+                if div60
+                    if contains(QS.timeUnits, 'min')
+                        timestr = [num2str(tpTrue) ' hr'] ;
+                    elseif contains(QS.timeUnits, 'sec')
+                        timestr = [num2str(tpTrue) ' min'] ;
+                    end
+                else
+                    timestr = [sprintf('%03d', tpTrue) ' ' QS.timeUnits] ;
+                end
+            end
+        end
+        
         function clearTime(QS)
             % clear current timepoint's data for QS instance
             QS.currentMesh.cylinderMesh = [] ;
@@ -865,6 +887,34 @@ classdef QuapSlap < handle
             QS.currentMesh.spcutMeshSmRSC = tmp.spcutMeshSmRSC ;
         end
         
+        % Radii in a coordsys
+        function [radii, radius_cline] = getRadii(QS, options)
+            % Load radii from disk in specified coordinate system
+            %
+            % Parameters
+            % ----------
+            % options : struct with fields
+            %   coordSys: str specifier for how to return radii
+            %       'spcutMeshSmRSC' --> return nU x (nV-1) array for radii
+            %       of vertices in spcutMeshSmRSC embedding
+            %       <add other options here>
+            if nargin < 2
+                options = struct() ;
+            end
+            if isfield(options, 'coordSys')
+                coordSys = options.coordSys ;
+            else
+                coordSys = 'spcutMeshSmRSC' ;
+            end
+            if strcmpi(coordSys, 'spcutMeshSmRSC')
+                QS.loadCurrentSPCutMeshSmRSC() ;
+                radii = QS.currentMesh.spcutMeshSmRSC.radius_um ;
+                radius_cline = mean(QS.currentMesh.spcutMeshSmRSC.radius_um, 2) ;
+            else
+                error(['Have not coded for this coord sys yet:' coordSys])
+            end
+        end
+        
         % t0_for_phi0 (uvprime cutMesh)
         function mesh = getCurrentUVPrimeCutMesh(QS)
             if isempty(QS.currentMesh.uvpcutMesh)
@@ -884,21 +934,30 @@ classdef QuapSlap < handle
         % Ricci flow for (r=log(rho), phi) coordinate system
         function mesh = getCurrentRicciMesh(QS)
             if isempty(QS.currentMesh.ricciMesh)
-                QS.loadCurrentRicciMesh() ;
+                try
+                    QS.loadCurrentRicciMesh() ;
+                    mesh = QS.currentMesh.ricciMesh ;
+                catch
+                    disp('Ricci mesh not on disk! Generating...')
+                    mesh = QS.generateRicciMeshTimePoint(QS.currentTime) ;
+                end
+            else
+                mesh = QS.currentMesh.ricciMesh ;
             end
-            mesh = QS.currentMesh.ricciMesh ;
         end
-        function loadCurrentRicciMesh(QS, maxIter)
+        function ricciMesh = loadCurrentRicciMesh(QS, maxIter)
             if nargin < 2
-                maxIter = 100 ;
+                maxIter = 200 ;
             end
-            ricciMeshfn = sprintf(QS.fullFileBase.ricciMesh, maxIter, QS.currentTime) ;
-            tmp = load(uvpcutMeshfn, 'ricciMesh') ;
-            QS.currentMesh.uvpcutMesh = tmp.uvpcutMesh ;
+            ricciMeshfn = sprintf(QS.fullFileBase.ricciMesh, ...
+                maxIter, QS.currentTime) ;
+            load(ricciMeshfn, 'ricciMesh') ;
+            QS.currentMesh.ricciMesh = ricciMesh ;
         end
         measureRPhiPathlines(QS, options)
-        % Note: measureBeltramiCoefficient() allows rphi coordSys
+        % Note: measureBeltramiCoefficient() allows ricci coordSys
         measureBeltramiCoefficient(QS, options)
+        measureBeltramiCoefficientPullbackToPullback(QS, options)
         
         % Radial indentation for pathlines
         function indentation = measurePathlineIndentation(QS, options)
@@ -1192,8 +1251,15 @@ classdef QuapSlap < handle
             disp(['done ensuring extended tiffs for ' imDir ' in ' imDir_e])
         end
         
-        % measure writhe
-        measureWrithe(QS, options)
+        % measure Length & Writhe
+        [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
+            measureWrithe(QS, options)
+        function Length_t = measureLength(QS, options)
+            if nargin < 2
+                options = struct() ;
+            end
+            [~,~,~, Length_t, ~] = QS.measureWrithe(options) ;
+        end
         
         % folds & lobes
         identifyFolds(QS, options)

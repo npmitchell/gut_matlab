@@ -1,6 +1,6 @@
-function measureWrithe(QS, options)
+function [Wr, Wr_density, dWr, Length_t, clines_resampled] = measureWrithe(QS, options)
 %MEASUREWRITHE(QS, OPTIONS)
-%   Compute the centerline writhe and save to disk
+%   Compute the centerline length and writhe and save to disk
 %
 % Parameters
 % ----------
@@ -83,9 +83,10 @@ else
 end
 
 %% First compute Writhe using the avgpts (DVhoop mean positions)
-disp('Computing/Loading writhe...')
 wrfn = QS.fileName.writhe ;
 if ~exist(wrfn, 'file') || overwrite
+    disp('Computing length and writhe...')
+
     [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
         aux_compute_writhe(clineDVhoopBase, timePoints, ...
         filter_curve, omit_endpts, flipy, preview) ;
@@ -93,6 +94,7 @@ if ~exist(wrfn, 'file') || overwrite
     % Save the fold locations as a mat file
     save(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
 else
+    disp('Loading length and writhe...')
     load(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
 end
 
@@ -109,3 +111,4 @@ if ~exist(tmpfn, 'file') || overwrite
 end
 
 % Done with measuring writhe
+disp('done measuring writhe')

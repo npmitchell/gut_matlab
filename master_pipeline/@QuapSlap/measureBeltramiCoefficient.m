@@ -150,8 +150,7 @@ if ~exist(fn, 'file') || overwrite
         
         [V2F, F2V] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
         mu_material_vtx = F2V * squeeze(mu_material(tidx, :))' ;
-        mu_material_vtx(nU*(nV-1)+1:nU*nV) = mu_material_vtx(1:nU) ;
-        mu_material_vtx = reshape(mu_material_vtx, [refMesh.nU, refMesh.nV]) ;
+        mu_material_vtx = reshape(mu_material_vtx, [refMesh.nU, refMesh.nV-1]) ;
         
         %% Check filtered image
         if first 
@@ -164,7 +163,7 @@ if ~exist(fn, 'file') || overwrite
                 muMVfilt_re = modeFilterQuasi1D(real(mu_material_vtx), options) ;
                 
                 subplot(nrows, 3, 1 + 3*(nmodes_ii-1))
-                imagesc(1:nU, 1:nV, real(mu_material_vtx)') ;
+                imagesc(1:nU, 1:nV-1, real(mu_material_vtx)') ;
                 axis equal; axis tight; axis off
                 caxis([-1,1])
                 colormap blueblackred
@@ -176,7 +175,7 @@ if ~exist(fn, 'file') || overwrite
                     set(gca, 'position', pos)
                 end
                 subplot(nrows, 3, 2 + 3*(nmodes_ii-1)) 
-                imagesc(1:nU, 1:nV, muMVfilt_re')
+                imagesc(1:nU, 1:nV-1, muMVfilt_re')
                 caxis([-1,1])
                 colormap blueblackred
                 axis equal; axis tight; axis off
@@ -188,7 +187,7 @@ if ~exist(fn, 'file') || overwrite
                     set(gca, 'position', pos)
                 end
                 subplot(nrows, 3, 3 + 3*(nmodes_ii-1)) 
-                imagesc(1:nU, 1:nV, muMVfilt_re'-real(mu_material_vtx)') ;
+                imagesc(1:nU, 1:nV-1, muMVfilt_re'-real(mu_material_vtx)') ;
                 caxis([-1,1])
                 colormap blueblackred
                 axis equal; axis tight; axis off
@@ -214,6 +213,10 @@ if ~exist(fn, 'file') || overwrite
         filterOptions.preview = false ;
         muMVfilt_re = modeFilterQuasi1D(real(mu_material_vtx), filterOptions) ;
         muMVfilt_im = modeFilterQuasi1D(imag(mu_material_vtx), filterOptions) ;
+        % Reshape into [nU, nV] by repeating seam
+        muMVfilt_re(:, nV) = muMVfilt_re(:, 1) ;
+        muMVfilt_im(:, nV) = muMVfilt_im(:, 1) ;
+        
         mu_material_filtered(tidx, :) = muMVfilt_re(:) + 1j * muMVfilt_im(:) ;
         
         if save_ims

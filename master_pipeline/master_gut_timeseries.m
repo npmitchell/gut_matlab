@@ -1678,6 +1678,33 @@ options.climit = 1 ;
 options.coordSys = 'ricci' ;
 QS.measureBeltramiCoefficient(options) ;
 
+%% Generate all Beltramis from all Riccis & plot aspect ratio over time
+% Note: this isn't really useful
+options = struct() ;
+QS.computeRicciMeshes(options)
+
+%% Generate all Beltramis from all Riccis & Plot aspect ratio for isothermal PB over time
+% Note: this really shouldn't be necessary, as we show in detail now
+options = struct() ;
+QS.measureBeltramiCoefficientPullbackToPullback(options) ;
+
+%% Check mu by computing for all times and get the same thing as 
+% embedding back to same Reference tp
+
+for tp = QS.xp.fileMeta.timePoints
+    disp(['t = ', num2str(tp)])
+    QS.setTime(tp)
+    try
+        rmesh = QS.loadCurrentRicciMesh() ;
+    catch
+        disp(['could not load Ricci mesh for t=' num2str(tp)])
+    end
+    
+    % Compute mu from mapping from PB(0) to PB(1)
+    
+end
+
+
 %% Compare to linearized description
 options = struct() ;
 options.overwrite = false ;
@@ -1794,7 +1821,6 @@ QS.measureDxDyStrainFiltered(options) ;
 %% Simulate this experiment
 options = struct() ;
 QS.simulateNES(options)
-
 
 %% Measure surface area growh of lobes and folds in Eulerian frame
 options = struct() ;

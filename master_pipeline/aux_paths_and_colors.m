@@ -11,11 +11,12 @@ addpath(fullfile(codepath, 'gut_matlab', 'addpath_recurse'))
 addpath('./plotting_functions')
 addpath_recurse(fullfile(codepath, 'gptoolbox'))
 addpath(fullfile(gutpath, 'master_pipeline'))
-addpath(fullfile(gutpath, 'data_handling'))
+addpath_recurse(fullfile(gutpath, 'data_handling'))
 addpath_recurse(fullfile(gutpath, 'mesh_handling'))
 addpath(fullfile(gutpath, 'basics'))
 addpath(fullfile(gutpath, 'distanceTransform'))
 addpath_recurse(fullfile(gutpath, 'plotting'))
+addpath_recurse(fullfile(gutpath, 'master_pipeline', 'nes_functions'))
 addpath(fullfile(gutpath, 'savgol'))
 addpath_recurse(fullfile(gutpath, 'toolbox_fast_marching/'));
 addpath(genpath(fullfile(gutpath, 'euclidean_orbifolds')));
@@ -31,6 +32,7 @@ addpath(fullfile(gutpath, 'savgol')) ;
 addpath(fullfile(codepath, 'DEC')) ;
 addpath(fullfile(codepath, 'TexturePatch_for_git', 'TexturePatch')) ;
 addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
+addpath('/mnt/data/code/RicciFlow_MATLAB/')
 % addpath(genpath('/mnt/crunch/djcislo/MATLAB/TexturePatch'));
 disp('done')
 

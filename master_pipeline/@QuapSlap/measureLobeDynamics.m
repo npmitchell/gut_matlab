@@ -23,10 +23,13 @@ function [length_lobes, area_lobes, volume_lobes] = measureLobeDynamics(QS, opti
 t0 = QS.t0set() ;
 
 %% Unpack options
+if nargin < 2
+    options = struct() ;
+end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 else
-    overwrite = true ;
+    overwrite = false ;
 end
 if isfield(options, 'save_ims') 
     save_ims = options.save_ims ;

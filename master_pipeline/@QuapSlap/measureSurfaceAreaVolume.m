@@ -143,7 +143,7 @@ end
 %% Save the image
 outfn_pdf = fullfile(outdir, 'area_volume_over_time_stab.pdf') ;
 outfn_png = fullfile(outdir, 'area_volume_over_time_stab.png') ;
-if ~exist(outfn_png, 'file') || overwrite || true
+if ~exist(outfn_png, 'file') || overwrite
     figh = figure();
     hold on;
     t0idx = QS.xp.tIdx(t0) ;
