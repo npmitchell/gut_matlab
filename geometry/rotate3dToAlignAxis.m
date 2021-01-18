@@ -1,5 +1,8 @@
 function [rot, rotx_rotz ] = rotate3dToAlignAxis(ax2alignx, varargin)
 % ROTATE3DTOALIGNAXIS(ax2align, varargin)
+%   find rotation matrix taking some unit vector direction to the x axis.
+%   If a second argument is supplied, a subsequent rotation can be applied
+%   so that the assigned vector is taken to the z axis instead, for ex.
 %
 % Parameters
 % ----------
@@ -33,7 +36,8 @@ ax2alignx = ax2alignx / norm(ax2alignx) ;
 rotx = RU(ax2alignx, xhat) ;
 
 if nargin > 1
-    % Rotate dorsal to the z axis
+    % Rotate second axis (dorsal, for ex) to the z axis, in addition to
+    % mapping the first argument to the x axis. 
     dvec = varargin{1} ;
     % Normalize the supplied vector
     dhat = dvec / norm(dvec) ;
