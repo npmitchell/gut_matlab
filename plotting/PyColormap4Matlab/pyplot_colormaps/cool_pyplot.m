@@ -1,4 +1,4 @@
-function cool = cool()
+function cool = cool_pyplot()
 cool = [ ... 
        0 1 1 
        3.921569e-03 9.960784e-01 1 

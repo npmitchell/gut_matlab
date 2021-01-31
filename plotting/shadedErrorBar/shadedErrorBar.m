@@ -1,6 +1,6 @@
 function varargout=shadedErrorBar(x,y,errBar,varargin)
 % generate continuous error bar area around a line plot. 
-% NPM added functionality to toggle on/off an edge border.
+% NPM added functionality to toggle on/off an edge border (off by default)
 %
 % function H=shadedErrorBar(x,y,errBar, ...)
 %

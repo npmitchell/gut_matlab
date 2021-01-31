@@ -36,7 +36,8 @@ overwrite = false ;
 if nargin < 2 
     options = struct() ;
 end
-climit = 1 ;
+climit_dmudt = 1 ;
+climit_dmudt = 0.03 ;
 [~, ~, ~, xyzlim ] = QS.getXYZLims() ; 
 
 %% Unpack options
@@ -56,6 +57,9 @@ if isfield(options, 'coordSys')
 end
 if isfield(options, 'climit')
     climit = options.climit ;
+end
+if isfield(options, 'climit_dmudt')
+    climit_dmudt = options.climit_dmudt ;
 end
 
 %% Make sure pathlines are on disk & load them
@@ -99,7 +103,8 @@ catch
 end
 
 %% 
-nTimePoints = length(QS.xp.fileMeta.timePoints) ;
+timePoints = QS.xp.fileMeta.timePoints ;
+nTimePoints = length(timePoints) ;
 
 if contains(coordSys, 'ricci')
     fn = sprintf(QS.fileName.pathlines.quasiconformal, t0Pathlines) ;
@@ -115,10 +120,13 @@ end
 
 mu_material = zeros(nTimePoints, size(refMesh.f, 1)) ;
 mu_material_filtered = zeros(nTimePoints, refMesh.nU * refMesh.nV) ;
+mu_material_vertices = mu_material_filtered ;
 % arelax = vP2d.affineRelaxFactors(vP2d.tIdx0) ;
 
-todo1 = [180, 1:10:nTimePoints] ;
-tidx2do = [todo1, setdiff(1:nTimePoints, todo1)] ;
+todo1 = [180, 181,182, 1:20:nTimePoints] ;
+todo2 = [todo1, setdiff(1:10:nTimePoints, todo1)] ;
+todo3 = [todo2, setdiff(1:4:nTimePoints, todo2)] ;
+tidx2do = [todo3, setdiff(1:nTimePoints, todo3)] ;
 
 first = true ;
 if ~exist(fn, 'file') || overwrite
@@ -216,11 +224,13 @@ if ~exist(fn, 'file') || overwrite
         % Reshape into [nU, nV] by repeating seam
         muMVfilt_re(:, nV) = muMVfilt_re(:, 1) ;
         muMVfilt_im(:, nV) = muMVfilt_im(:, 1) ;
-        
         mu_material_filtered(tidx, :) = muMVfilt_re(:) + 1j * muMVfilt_im(:) ;
         
-        if save_ims
+        % save raw on vertices
+        mu_material_vtx(:, nV) = mu_material_vtx(:, 1) ;
+        mu_material_vertices(tidx, :) = mu_material_vtx(:) ;
         
+        if save_ims && (~exist(imFn2d_material, 'file') || ~exist(imFn3d_material, 'file'))
             close all
             labels = {'$\Re \mu$', '$\Im \mu$'} ;
             
@@ -268,6 +278,7 @@ if ~exist(fn, 'file') || overwrite
             disp(['saving ' imFn2d_material])
             saveas(gcf, imFn2d_material)
             close all
+            
         end
         
         % No longer the first pass
@@ -276,8 +287,111 @@ if ~exist(fn, 'file') || overwrite
 
     % Save data as output
     disp(['saving ' fn])
-    save(fn, 'mu_material', 'mu_material_filtered', 'filterOptions') 
+    save(fn, 'mu_material', 'mu_material_filtered', 'mu_material_vertices', 'filterOptions') 
+else
+    load(fn, 'mu_material', 'mu_material_filtered', 'mu_material_vertices', 'filterOptions')
 end
 disp('done with measureBeltramiCoefficient')
 
 
+%% Plot d(mu)/dt images
+dtAvgWidth = 7 ;
+weights = 1:dtAvgWidth ;
+weights = [weights, fliplr(weights(1:end-1))] ;
+weights = weights / sum(weights) ;
+if save_ims
+    if ~exist(fullfile(imDir, 'dmudt'), 'dir')
+        mkdir(fullfile(imDir, 'dmudt'))
+    end
+    first = true ;
+    for tidx = min(tidx2do, max(tidx2do)-1)
+        tp = timePoints(tidx) ;
+        disp(['tidx = ' num2str(tidx)])
+        
+        % Average over tripulse with halfwidth dtAvgWidth
+        for qq = 1:length(weights)
+            nextId = max(1, min(tidx + 1 - dtAvgWidth + qq, nTimePoints)) ;
+            thisId = max(1, min(tidx - dtAvgWidth + qq, nTimePoints)) ;
+            if qq == 1
+                dmu = weights(qq) * (mu_material_filtered(nextId, :) - mu_material_filtered(thisId, :)) ;
+            else
+                dmu = dmu + weights(qq) * (mu_material_filtered(nextId, :) - mu_material_filtered(thisId, :)) ;
+            end
+        end
+        % Make in units of inverse time
+        dmu = dmu / ((timePoints(tidx+1) - tp) * QS.timeInterval) ;
+        % reshape dmu
+        nU = refMesh.nU ;
+        nV = refMesh.nV ;
+        dmu = reshape(dmu, [nU, nV]) ;
+        dmu = dmu(:, 1:end-1) ;
+        
+        % filter with filterOptions
+        filterOptions.preview = false ;
+        muMVfilt_re = modeFilterQuasi1D(real(dmu), filterOptions) ;
+        muMVfilt_im = modeFilterQuasi1D(imag(dmu), filterOptions) ;
+        % Reshape into [nU, nV] by repeating seam
+        muMVfilt_re(:, nV) = muMVfilt_re(:, 1) ;
+        muMVfilt_im(:, nV) = muMVfilt_im(:, 1) ;
+        dmu = muMVfilt_re(:) + 1j * muMVfilt_im(:) ;
+        
+
+        dtImFn_material = sprintf(fullfile(imDir, 'dmudt', 'dmu2d_material_%06d.png'), tp);
+        close all
+        labels = {'$\Re \mu$', '$\Im \mu$', '', ''} ;
+        options.labels = labels ;
+        options.clim = climit_dmudt ;
+
+        %% Plot mu_material in 3d/2d
+        if ~exist(dtImFn_material, 'file') || overwrite || true
+            
+            % 3d vertices
+            v3d = zeros(size(vP3d.vX, 2) * size(vP3d.vX, 3), 3) ;
+            v3d(:, 1) = reshape(squeeze(vP3d.vXrs(tidx, :, :)), [], 1) ;
+            v3d(:, 2) = reshape(squeeze(vP3d.vYrs(tidx, :, :)), [], 1) ;
+            v3d(:, 3) = reshape(squeeze(vP3d.vZrs(tidx, :, :)), [], 1) ;
+        
+            m3 = struct() ;
+            m3.f = refMesh.f ;
+            m3.v = v3d ;
+            m2 = struct() ;
+            m2.f = refMesh.f ;
+            m2.v = [refMesh.u(:, 1) / max(refMesh.u(:, 1)), ...
+                refMesh.u(:, 2), 0 * refMesh.u(:, 2)] ; 
+            options.makeCbar = [false, false, true, true];
+            options.axisOff = 'true' ;
+            options.view = {[0,0], [0,0],[0,90],[0,90]} ;
+            options.xyzlims = {xyzlim,xyzlim, [0,1;0,1;-1,1], [0,1;0,1;-1,1]} ;
+            [axs, cbs] = ...
+                nFieldsOnSurface({m3, m3, m2, m2}, ...
+                {real(dmu), imag(dmu), real(dmu), imag(dmu)}, options) ;
+            drawnow
+            if first
+                expandSecondAxesRow(axs, -0.05)
+                poses = {} ;
+                dmyk = 1 ;
+                for qq = (ceil(length(axs)*0.5) + 1):length(axs)
+                    set(gcf, 'currentAxes', axs{qq})
+                    poses{dmyk} = get(gca, 'position') ;
+                    dmyk = dmyk + 1 ;
+                end
+                first = false ;
+            else
+                % Apply the widths and x positions of axes to lower row
+                dmyk = 1 ;
+                for qq = (ceil(length(axs)*0.5) + 1):length(axs)
+                    set(gcf, 'currentAxes', axs{qq})
+                    set(gca, 'position', poses{dmyk}) ;
+                    dmyk = dmyk + 1 ;
+                end
+            end
+            sgtitle(['$\partial_t \mu($embedding, material frame$)$, $t = $', ...
+                sprintf('%03d', tp-t0), ' ', QS.timeUnits], ...
+                'interpreter', 'latex') 
+            disp(['saving ' dtImFn_material])
+            drawnow
+            saveas(gcf, dtImFn_material)
+            close all
+        end
+    end
+end

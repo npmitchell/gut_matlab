@@ -4,6 +4,9 @@
 % This is a pipeline to take the surface of the fixed Drosophila gut and
 % map to the plane
 
+% We start by clearing the memory and closing all figures
+clear; close all; clc;
+
 % temporary path def
 cd /mnt/data/antibodies_lightsheet/202002201800_w48YGal4klar_DAPI_abdA100_exp2_2mW_25x_1p4um_ms568/Time4views_60sec_1p4um_25x_2mW_exp2/data
 
@@ -13,11 +16,98 @@ cd /mnt/data/antibodies_lightsheet/202002201800_w48YGal4klar_DAPI_abdA100_exp2_2
 % Run setup
 % cd(projectDir)
 
-%% INITIALIZE ImSAnE PROJECT ==============================================
-%
-% We start by clearing the memory and closing all figures
-clear; close all; clc;
+%% PATHS ==================================================================
+origpath = matlab.desktop.editor.getActiveFilename;
+cd(fileparts(origpath))
+aux_paths_and_colors
+cd(dataDir)
 
+%% DEFINE NEW MASTER SETTINGS
+overwrite_masterSettings = true ;
+if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
+    % Metadata about the experiment
+    stackResolution = [.2619 .2619 .2619] ;
+    nChannels = 1 ;
+    channelsUsed = 1 ;
+    timePoints = 0 ;
+    ssfactor = 4 ;
+    % whether the data is stored inverted relative to real position
+    flipy = true ; 
+    timeInterval = 1 ;  % physical interval between timepoints
+    timeUnits = 'min' ; % physical unit of time between timepoints
+    scale = 0.02 ;      % scale for conversion to 16 bit
+    file32Base = 'TP%d_Ch1_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
+    % file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
+    fn = 'fixed_sample_c1';
+    spaceUnits = '$\mu$m';  % microns as $\mu$m
+    
+    set_preilastikaxisorder = 'xyzc' ;
+    masterSettings = struct('stackResolution', stackResolution, ...
+        'nChannels', nChannels, ...
+        'channelsUsed', channelsUsed, ...
+        'timePoints', timePoints, ...
+        'ssfactor', ssfactor, ...
+        'flipy', flipy, ...
+        'timeInterval', timeInterval, ...
+        'timeUnits', timeUnits, ...
+        'spaceUnits', spaceUnits, ...
+        'scale', scale, ...
+        'file32Base', file32Base, ...
+        'fn', fn,...
+        'set_preilastikaxisorder', set_preilastikaxisorder); 
+    disp('Saving masterSettings to ./masterSettings.mat')
+    if exist('./masterSettings.mat', 'file')
+        ui = input('This will overwrite the masterSettings. Proceed (Y/n)?', 's') ;
+        if ~isempty(ui) && (strcmp(ui(1), 'Y') || strcmp(ui(1), 'y'))
+            save('./masterSettings.mat', 'masterSettings')
+            loadMaster = false ;
+        else
+            disp('Loading masterSettings from disk instead of overwriting')
+            loadMaster = true ;
+        end
+    else
+        save('./masterSettings.mat', 'masterSettings')
+        loadMaster = false ;
+    end
+else
+    loadMaster = true ;
+end
+
+if loadMaster
+    % LOAD EXISTING MASTER SETTINGS
+    disp('Loading masterSettings from ./masterSettings.mat')
+    load('./masterSettings.mat', 'masterSettings')
+    % Unpack existing master settings
+    stackResolution = masterSettings.stackResolution ;
+    nChannels = masterSettings.nChannels ;
+    channelsUsed = masterSettings.channelsUsed ;
+    timePoints = masterSettings.timePoints ;
+    ssfactor = masterSettings.ssfactor ;
+    % whether the data is stored inverted relative to real position
+    flipy = masterSettings.flipy ; 
+    
+    % Try loading
+    timeInterval = masterSettings.timeInterval ;  % physical interval between timepoints
+    timeUnits = masterSettings.timeUnits ; % physical unit of time between timepoints        
+    spaceUnits = masterSettings.spaceUnits ;  % microns as $\mu$m
+    
+    
+    % Fill in
+    swapZT = masterSettings.swapZT ;
+    t0_for_phi0 = masterSettings.t0_for_phi0 ;
+    nU = masterSettings.nU ;
+    nV = masterSettings.nV ;
+
+
+    scale = masterSettings.scale ;      % scale for conversion to 16 bit
+    file32Base = masterSettings.file32Base ; 
+    fn = masterSettings.fn ;
+    fn_prestab = masterSettings.fn_prestab ;
+    set_preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
+end
+dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
+
+%% INITIALIZE ImSAnE PROJECT ==============================================
 % Setup a working directory for the project, where extracted surfaces,
 % metadata and debugging output will be stored.  Also specifiy the
 % directory containing the data.
@@ -25,12 +115,6 @@ clear; close all; clc;
 dataDir    =  cd; 
 projectDir = dataDir ;
 % [ projectDir, ~, ~ ] = fileparts(matlab.desktop.editor.getActiveFilename); 
-
-%% ADD PATHS
-addpath('/mnt/data/code/gut_matlab/addpath_recurse/')
-addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
-addpath_recurse('/mnt/data/code/gptoolbox/')
-addpath_recurse('/mnt/data/code/imsane_for_git/imsane/')
 
 %% CREATE EXPERIMENT
 % Start by creating an experiment object, optionally pass on the project
@@ -201,7 +285,7 @@ for channel_check = expMeta.channelsUsed
     elseif isfile(full16fn)
         % the data is already 16 bit, so we're good
         fullFileName = [sprintf(fn, channel_check) '.tif'] ;
-        disp([fullFileName ' has been converted.'])
+        disp([fullFileName ' has been converted to 16bit: ' full16fn ])
 
         fn = file16name ;
     else
@@ -216,49 +300,55 @@ xp.setFileMeta(fileMeta);
 xp.setExpMeta(expMeta);
 xp.initNew();
 
-%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Other options
-%%%%%%%%%%%%%%%%%%%%%%%%%
-mlxprogram = 'surface_rm_resample20k_reconstruct_LS3_1p2pc_ssfactor4.mlx';
-msls_axis_order = 'yxzc';
-% Mesh marching options
-normal_step = 10;
-
-% Define the surface detection parameters
-channel = 2;
-foreGroundChannel = 2;
-ssfactor = 2;
-niter = 50 ;
-niter0 = 50 ;
-ofn_smoothply = 'mesh_' ;
-ofn_ply = 'mesh_ms_' ; 
-ofn_ls = 'msls_' ;
-ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper' ;
-lambda1 = 1 ;
-lambda2 = 1 ;
-exit_thres = 0.00001 ;
-smoothing = 1 ;
-nu = 0.5 ;
-pre_nu = 2 ;
-pre_smoothing = 1 ;
-post_nu = 2;
-post_smoothing = 4 ;
-radius_guess = 10 ;
-center_guess = 'empty_string' ;
-
-% Name the output mesh directory ------------------------------------------
-if projectDir(end) ~= filesep
-    projectDir = [projectDir filesep];
-end
-mslsDir = fullfile(projectDir, 'msls_output');
-
 %% LOAD THE FIRST TIME POINT ==============================================
 xp.loadTime(xp.fileMeta.timePoints(first_tp));
 xp.rescaleStackToUnitAspect();
 
 %% DETECT THE SURFACE =====================================================
 % Surface detection parameters --------------------------------------------
-detectOptions = struct('channel', 1, ...
+% Must run this section for later functionality.
+% Mesh extraction options
+run_full_dataset = 'none' ;
+overwrite_detOpts = true ;
+
+mlxprogram = 'surface_rm_resample20k_reconstruct_LS3_1p2pc_ssfactor4.mlx';
+msls_axis_order = 'yxzc';
+% Mesh marching options
+normal_step = -10;
+
+% Load/define the surface detection parameters
+msls_detOpts_fn = fullfile(projectDir, 'msls_detectOpts.mat') ;
+if exist(msls_detOpts_fn, 'file') && ~overwrite_detOpts
+    load(msls_detOpts_fn, 'detectOptions')
+else
+    % Define the surface detection parameters
+    channel = 2;
+    foreGroundChannel = 2;
+    niter = 50 ;
+    niter0 = 50 ;
+    ofn_smoothply = 'mesh_' ;
+    ofn_ply = 'mesh_ms_' ; 
+    ofn_ls = 'msls_' ;
+    ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper' ;
+    lambda1 = 1 ;
+    lambda2 = 1 ;
+    exit_thres = 0.00001 ;
+    smoothing = 4 ;
+    nu = 0.5 ;
+    pre_nu = 2 ;
+    pre_smoothing = 1 ;
+    post_nu = 2;
+    post_smoothing = 8 ;
+    radius_guess = 10 ;
+    center_guess = 'empty_string' ;
+
+    % Name the output mesh directory ------------------------------------------
+    if projectDir(end) ~= filesep
+        projectDir = [projectDir filesep];
+    end
+    mslsDir = fullfile(projectDir, 'msls_output');
+
+    detectOptions = struct('channel', 1, ...
             'ssfactor', ssfactor,... % subsampling factor: downsampling of raw data
             'niter', niter, ... % how many iterations before exit if no convergence
             'niter0', niter0, ... % how many iterations before exit if no convergence for first timepoint
@@ -284,7 +374,7 @@ detectOptions = struct('channel', 1, ...
             'init_ls_fn', 'mesh_initguess', ... % the name of the initial level set to load, if any
             'run_full_dataset', false, ... % run MS on a time series, not just one file
             'radius_guess', radius_guess, ... % radius of the initial guess sphere
-            'dset_name', 'exported_data', ... % the name of the dataset to load from h5
+            'dset_name', 'exported_data', ... % the name of the dataset to load from h5        
             'save', true, ... % whether to save intermediate results
             'center_guess', 'empty_string', ... % xyz of the initial guess sphere ;
             'plot_mesh3d', false, ...  % if save is true, plot intermediate results in 3d 
@@ -292,10 +382,25 @@ detectOptions = struct('channel', 1, ...
             'mask', 'none', ... % filename for mask to apply before running MS
             'mesh_from_pointcloud', false, ... % use a pointcloud from the marching cubes algorithm rather than a mesh to create smoothed mesh
             'prob_searchstr', '_Probabilities.h5', ... % if dataset mode, what string to seek for loading all probabilities in data directory (glob datadir/*searchstr)
-            'imsaneaxisorder', 'xyzc', ... % axis order relative to mesh axis order by which to process the point cloud prediction. To keep as mesh coords, use xyzc
+            'physicalaxisorder', 'xyzc', ... % axis order relative to mesh axis order by which to process the point cloud prediction. To keep as mesh coords, use xyzc
             'preilastikaxisorder', 'xyzc', ... % axis order as output by ilastik probabilities h5. To keep as saved coords use xyzc
             'ilastikaxisorder', 'xyzc', ... % axis order as output by ilastik probabilities h5. To keep as saved coords use xyzc
-            'include_boundary_faces', true) ; % keep faces along the boundaries of the data volume if true
+            'include_boundary_faces', true,... % keep faces along the boundaries of the data volume if true
+            'smooth_with_matlab', -1) ;
+    
+    % save options
+    if exist(msls_detOpts_fn, 'file')
+        disp('Overwriting detectOptions --> renaming existing as backup')
+        backupfn1 = [msls_detOpts_fn '_backup1'] ;
+        if exist(backupfn1, 'file')
+            backupfn2 = [msls_detOpts_fn '_backup2'] ; 
+            system(['mv ' backupfn1 ' ' backupfn2])
+        end
+        system(['mv ' msls_detOpts_fn ' ' backupfn1])
+    end
+    disp('Saving detect Options to disk')
+    save(msls_detOpts_fn, 'detectOptions') ;
+end
 
 % Set detect options ------------------------------------------------------
 xp.setDetectOptions( detectOptions );
@@ -308,9 +413,10 @@ xp.setDetectOptions( detectOptions );
 
 %% CREATE THE SUBSAMPLED H5 FILE FOR INPUT TO ILASTIK =====================
 % skip if already done
+h5fn = fullfile(projectDir, [sprintf(sprintf(fn, t), c) '.h5']) ;
 for c = xp.expMeta.channelsUsed
     for t = xp.fileMeta.timePoints
-        if ~exist(fullfile(projectDir, [sprintf(sprintf(fn, t), c) '.h5']), 'file')
+        if ~exist(h5fn, 'file')
             disp(['Did not find file: ', fullfile(projectDir, [sprintf(fn, t) '.h5'])])
             
             % Only load and rescale if multiple timepoints/channels
@@ -331,12 +437,34 @@ for c = xp.expMeta.channelsUsed
 end    
 disp('Open with ilastik if not already done')
 
+
+
 %% TRAIN DATA IN ILASTIK TO IDENTIFY APICAL/YOLK ==========================
 % open ilastik, train until probabilities and uncertainty are satisfactory
 
 %% Create MorphoSnakesLevelSet from the Probabilities from ilastik ========
 xp.detectSurface();
 fileMeta = xp.fileMeta ;
+
+
+%%% Example python run
+% python /mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/run_morphsnakes.py \
+%  -i fixed_sample_c1_Probabilities.h5 -o \
+%  /mnt/data/antibodies_lightsheet/202002201800_w48YGal4klar_DAPI_abdA100_exp2_2mW_25x_1p4um_ms568/Time4views_60sec_1p4um_25x_2mW_exp2/data/msls_output \
+%  -prenu -8 -presmooth 1 -ofn_ply mesh_ms_000000.ply -ofn_ls msls_000000.h5 -l1 1 -l2 1 -nu 0.5 -postnu 1 -channel 1 -smooth 4 \
+%  -postsmooth 4 -exit 0.000001000 -channel 1 -dtype h5 -permute xyzc -ss 4 -include_boundary_faces -rad0 10 \
+%  -init_ls /mnt/data/antibodies_lightsheet/202002201800_w48YGal4klar_DAPI_abdA100_exp2_2mW_25x_1p4um_ms568/Time4views_60sec_1p4um_25x_2mW_exp2/data/msls_output/mesh_initguess.h5 \
+%  -n 20 -save
+ 
+ python /mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/run_morphsnakes.py \
+    -i fixed_sample_c1_Probabilities.h5 -o  \
+    /mnt/data/antibodies_lightsheet/202002201800_w48YGal4klar_DAPI_abdA100_exp2_2mW_25x_1p4um_ms568/Time4views_60sec_1p4um_25x_2mW_exp2/data/msls_output \
+    -prenu -6 -presmooth 1 -ofn_ply msls_ms_000000.ply -ofn_ls msls_000000.h5  \
+    -l1 1 -l2 1 -nu 0.5 -postnu 2 -channel 1 -smooth 4  -postsmooth 20 \
+    -exit 0.000001000 -channel 1 -dtype h5 -permute xyzc \
+    -ss 4 -include_boundary_faces -rad0 10  \
+    -init_ls /mnt/data/antibodies_lightsheet/202002201800_w48YGal4klar_DAPI_abdA100_exp2_2mW_25x_1p4um_ms568/Time4views_60sec_1p4um_25x_2mW_exp2/data/msls_output/mesh_initguess.h5 \
+    -n 15
 
 %% Overwriting/Computing clean cylinderMesh
 % Load the cylinder mesh

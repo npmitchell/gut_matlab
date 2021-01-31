@@ -53,9 +53,16 @@ function [axs, cbs, meshHandles] = ...
 %
 % Example usage
 % -------------
-% labels = {'$\Re \mu$', '$\rho/2$', '$\Re\mu - \rho/2$'} ;
-% options.labels = labels ;
-% twoScalarFieldsOnSurface(meshes, sf1, sf2, sf3, options)
+% options.labels = {'$\Re \mu$', '$\rho/2$', '', ''} ;
+% options.makeCbar = [false, false, true, true];
+% options.axisOff = 'true' ;
+% options.view = {[0,0], [0,0],[0,90],[0,90]} ;
+% xyzlim = [ -22.4450, 260.0300 ;  -76.5010, 65.4510 ; -59.8050, 80.7680];
+% options.xyzlims = {xyzlim,xyzlim, [0,1;0,1;-1,1], [0,1;0,1;-1,1]} ;
+% [axs, cbs] = ...
+%     nFieldsOnSurface({m3, m3, m2, m2}, ...
+%     {real(mu), imag(mu), real(mu), imag(mu)}, options) ;
+% expandSecondAxesRow(axs, -0.05)
 % sgtitle('deformation at t=0')  
 %
 % NPMitchell 2020
@@ -145,7 +152,7 @@ end
 if isfield(options, 'xyzlims')
     if isa(options.xyzlims, 'cell')
         try
-            assert(numel(options.xyzlim) == nfields)
+            assert(numel(options.xyzlims) == nfields)
         catch
             error('number of elements in options.xyzlim ~= nfields')
         end

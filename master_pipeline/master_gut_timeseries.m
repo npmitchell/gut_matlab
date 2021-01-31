@@ -955,6 +955,7 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     Options.Rotation = QS.APDV.rot ;
     Options.Translation = QS.APDV.trans ;
     Options.Dilation = QS.APDV.resolution ;
+    % outward, inward --> reasonable values are ~[3,3]
     Options.numLayers = [1, -5];  % at layerSpacing 2, 2 marches ~0.5 um 
     Options.layerSpacing = 2 ;
     

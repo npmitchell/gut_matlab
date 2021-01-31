@@ -1,5 +1,6 @@
 %% Example for using Ricci flow to conformally map a tube 
-% Generates utilde, vtilde pullbacks
+% Generates utilde, vtilde pullbacks for a gut mesh
+% Example usage demonstration NPMitchell 2021
 
 % Add path if not already done
 addpath('../../RicciFlow_MATLAB/')

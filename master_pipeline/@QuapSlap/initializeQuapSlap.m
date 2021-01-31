@@ -367,6 +367,7 @@ QS.dir.im_r_sm = imFolder_rsm ;
 QS.dir.im_r_sme = imFolder_rsme ;
 QS.dir.im_r_sme_stack = imFolder_rsme_stack ;
 QS.dir.cellProbabilities = fullfile(QS.dir.im_r_sme, 'cellProbabilities') ;
+QS.dir.segmentation = fullfile(QS.dir.mesh, 'cellSegmentation') ;
 QS.dir.cellID = fullfile(QS.dir.im_r_sme, 'cellID') ;
 QS.dir.lobe = lobeDir ;
 QS.dir.foldHoopIm = foldHoopImDir ;
@@ -462,6 +463,17 @@ QS.fileBase.im_r_uvprime = [QS.fileBase.name, '_pbruvprime.tif'] ;
 QS.fullFileBase.im_r_uvprime = fullfile(QS.dir.im_r_uvprime, QS.fileBase.im_r_uvprime) ;
 
 %% Cells segmentation / nuclei
+QS.fullFileBase.segmentation = ...
+     fullfile(QS.dir.segmentation, ...
+     [QS.fileBase.name, '_Probabilities.h5']) ;
+QS.fileBase.segmentation2d = [QS.fileBase.name, '_segmentation2d'] ;
+QS.fileBase.segmentation3d = [QS.fileBase.name, '_segmentation3d'] ;
+QS.fullFileBase.segmentation2d = fullfile(QS.dir.segmentation, 'seg2d', ...
+     [QS.fileBase.segmentation2d '.mat']) ;
+QS.fullFileBase.segmentation3d = fullfile(QS.dir.segmentation, 'seg3d', ...
+     [QS.fileBase.segmentation3d '.mat']) ;
+ 
+% nuclei only for voronoi measurement (could be ID'd through membrane training)
 QS.fullFileBase.cellProbabilities = ...
      fullfile(QS.dir.cellProbabilities, ...
      [QS.fileBase.name, '_pbrsme_Probabilities.h5']) ;

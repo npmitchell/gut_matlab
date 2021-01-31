@@ -127,7 +127,9 @@ classdef QuapSlap < handle
             'dcom_rs', [])
         apdvCOMOptions
         currentTime
-        currentMesh = struct('cylinderMesh', [], ...
+        currentMesh = struct('rawMesh', [], ...
+            'alignedMesh', [], ...     % APDV rotated and scaled mesh         
+            'cylinderMesh', [], ...
             'cylinderMeshClean', [], ...
             'cutMesh', [], ...
             'cutPath', [], ...
@@ -146,6 +148,10 @@ classdef QuapSlap < handle
             'adjusthigh', 0 )           % image intensity data in 3d and scaling
         currentVelocity = struct('piv3d', struct(), ...
             'piv3d2x', struct()) ;     
+        currentSegmentation = struct(...
+            'coordSys', 'spsme', ...    % pullback coordinate system in which segmentation is performed
+            'seg2d', [], ...            % 2d pullback segmentation
+            'seg3d', []) ;              % segmentation pushed forward into 3d
         piv = struct( ...
             'imCoords', 'sp_sme', ...   % image coord system for measuring PIV / optical flow) ;
             'Lx', [], ...               % width of image, in pixels (x coordinate)
@@ -268,6 +274,8 @@ classdef QuapSlap < handle
         
         function clearTime(QS)
             % clear current timepoint's data for QS instance
+            QS.currentMesh.rawMesh = [] ;
+            QS.currentMesh.rawMeshRS = [] ;
             QS.currentMesh.cylinderMesh = [] ;
             QS.currentMesh.cylinderMeshClean = [] ;
             QS.currentMesh.cutMesh = [] ;
@@ -284,6 +292,8 @@ classdef QuapSlap < handle
             QS.currentData.adjusthigh = 0 ;
             QS.currentVelocity.piv3d = struct() ;
             QS.currentVelocity.piv3d2x = struct() ;
+            QS.currentSegmentation.seg2d = [] ;
+            QS.currentSegmentation.seg3d = [] ;
         end
         
         function t0 = t0set(QS, t0)
@@ -333,7 +343,7 @@ classdef QuapSlap < handle
                     imwrite(im, imfn,'tiff','Compression','none')
                 end
             end
-
+            disp('done making mips')
         end
         
         function im = mip(QS, tp, dim, pages, adjustIV)
@@ -582,12 +592,12 @@ classdef QuapSlap < handle
             QS.data.adjusthigh = adjusthigh ;
         end
         
-        function getCurrentData(QS, adjustIV)
+        function IV = getCurrentData(QS, adjustIV)
             if nargin < 2
                 adjustIV = true ;
             end
             if isempty(QS.currentTime)
-                error('No currentTime set. Use QuapSlap.setTime()')
+                error('No currentTime set. Use QuapSlap.setTime(timePoint)')
             end
             if isempty(QS.currentData.IV)
                 % Load 3D data for coloring mesh pullback
@@ -601,6 +611,9 @@ classdef QuapSlap < handle
                 else
                     QS.currentData.IV = IV ;
                 end
+            end
+            if nargout > 0
+                IV = QS.currentData.IV ;
             end
         end
         
@@ -755,9 +768,24 @@ classdef QuapSlap < handle
         [rot, trans, xyzlim_raw, xyzlim, xyzlim_um, xyzlim_um_buff] = ...
             alignMeshesAPDV(QS, alignAPDVOpts) 
         
+        % Load raw mesh or rawMeshRS (rotated & scaled to APDV)
+        function rawMesh = loadCurrentRawMesh(QS)
+            meshfn = sprintf(QS.fullFileBase.mesh, QS.currentTime) ;
+            rawMesh = read_ply_mod(meshfn) ;
+            QS.currentMesh.rawMesh = rawMesh ;
+        end
+        function alignedMesh = loadCurrentAlignedMesh(QS)
+            meshfn = sprintf(QS.fullFileBase.alignedMesh, QS.currentTime) ;
+            alignedMesh = read_ply_mod(meshfn) ;
+            QS.currentMesh.alignedMesh = alignedMesh ;
+        end
+        
         % Masked Data
         generateMaskedData(QS)
         alignMaskedDataAPDV(QS)
+        
+        % TexturePatch and demo mesh visualization
+        visualizeMeshEvolution(QS, options)
         plotSeriesOnSurfaceTexturePatch(QS, overwrite, metadat, ...
                                         TexturePatchOptions)
         
@@ -1353,6 +1381,42 @@ classdef QuapSlap < handle
         
         % Mean & Gaussian curvature videos
         measureCurvatures(QS, options)
+        
+        % Cell segmentation
+        generateCellSegmentation2D(QS, options)
+        generateCellSegmentation3D(QS, options)
+        function seg2d = getCurrentSegmentation2D(QS, options)
+            % Obtain the cell segmentation in 3D pullback space
+            if isempty(QS.currentSegmentation.seg2d)
+                try
+                    seg2d = load(sprintf(QS.fullFileBase.seg2d, QS.currentTime)) ;
+                catch
+                    options.timePoints = [QS.currentTime] ;
+                    QS.generateCellSegmentation2D(options) ;
+                end
+            end
+            % if requested, return segmentation as output
+            if nargout > 0
+                seg2d = QS.currentSegmentation.seg2d ;
+            end
+        end
+        function seg3d = getCurrentSegmentation3D(QS, options)
+            % Obtain the cell segmentation in 3D pushforward space
+            if isempty(QS.currentSegmentation.seg3d)
+                try
+                    seg3d = load(sprintf(QS.fullFileBase.seg3d, QS.currentTime)) ;
+                catch
+                    options.timePoints = [QS.currentTime] ;
+                    QS.generateCellSegmentation3D(options) ;
+                end    
+            end
+            % if requested, return segmentation as output
+            if nargout > 0
+                seg3d = QS.currentSegmentation.seg3d ;
+            end
+
+        end
+        measureCellAnisotropy(QS, options)
         
         % density of cells -- nuclei or membrane based
         measureCellDensity(QS, nuclei_or_membrane, options)
@@ -2031,6 +2095,7 @@ classdef QuapSlap < handle
         end
        
         function invRot = invertRotation(rot)
+            % Obtain rotation matrix that undoes the APDV rotation 
             rotM = [rot(1, :), 0; rot(2,:), 0; rot(3,:), 0; 0,0,0,1] ;
             tform = affine3d(rotM) ;
             invtform = invert(tform) ;

@@ -1,6 +1,13 @@
 %__________________________________________________________________________
 % violin.m - Simple violin plot using matlab default kernel density estimation
-% Last update: 10/2015
+% Last update: 10/2015 before NPM
+% Last update: 2021 by NPM
+% NPMitchell notes: use this instead of distribution plot.
+% Example usage
+% -------------
+%     violin(mus,'x',log10(maxCircIters), ...
+%         'facecolor',colors(1:length(maxCircIters), :),'edgecolor','none',...
+%         'bw',1e-3, 'mc',[],'medc', [])
 %__________________________________________________________________________
 % This function creates violin plots based on kernel density estimation
 % using ksdensity with default settings. Please be careful when comparing pdfs
@@ -21,10 +28,11 @@
 %
 % Y:     Data to be plotted, being either
 %        a) n x m matrix. A 'violin' is plotted for each column m, OR
-%        b) 1 x m Cellarry with elements being numerical colums of nx1 length.
+%        b) 1 x m Cell array with elements being numerical columns of nx1 length.
 %
 % varargin:
 % xlabel:    xlabel. Set either [] or in the form {'txt1','txt2','txt3',...}
+% x:         x coordinates for each violin
 % facecolor: FaceColor. (default [1 0.5 0]); Specify abbrev. or m x 3 matrix (e.g. [1 0 0])
 % edgecolor: LineColor. (default 'k'); Specify abbrev. (e.g. 'k' for black); set either [],'' or 'none' if the mean should not be plotted
 % facealpha: Alpha value (transparency). default: 0.5
@@ -228,13 +236,13 @@ for i=i:size(Y,2)
 end
 
 %% Add legend if requested
-if plotlegend==1 & plotmean==1 | plotlegend==1 & plotmedian==1
+if plotlegend==1 && plotmean==1 || plotlegend==1 && plotmedian==1
     
-    if plotmean==1 & plotmedian==1
+    if plotmean==1 && plotmedian==1
         L=legend([p(1) p(2)],'Mean','Median');
-    elseif plotmean==0 & plotmedian==1
+    elseif plotmean==0 && plotmedian==1
         L=legend([p(2)],'Median');
-    elseif plotmean==1 & plotmedian==0
+    elseif plotmean==1 && plotmedian==0
         L=legend([p(1)],'Mean');
     end
     

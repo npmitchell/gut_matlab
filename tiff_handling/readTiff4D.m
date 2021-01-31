@@ -1,5 +1,6 @@
 function im = readTiff4D(fn, ncolors, dimOrder)
-% wrapper for fast loadtiff, with handling of multicolors
+% wrapper for fast loadtiff, with handling of multicolors. 
+% This is a good one -NPM.
 %
 % NPMitchell 2020
 
