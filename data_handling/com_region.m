@@ -102,8 +102,8 @@ function com = com_region(probability_grid, thres, varargin)
             biggest(bwcc.PixelIdxList{indexOfMax}) = 1;
             bwccOk = true ;
         catch
-            disp('Could not segment big region, decrease threshold')
             thresIter = thresIter * 0.9 ;
+            disp(['Could not segment big region, decreasing threshold to ' num2str(thresIter)])
             if thresIter < 0.01
                 error('Threshold of 0.01 still did not yield a connected component')
             end

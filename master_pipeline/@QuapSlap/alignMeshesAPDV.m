@@ -438,7 +438,7 @@ for tidx = 1:length(timePoints)
         assert(all(abs(pcom_rs_new - pcom_rs) < 1e-6))
         assert(all(abs(dcom_rs_new - dcom_rs) < 1e-6))
     catch
-        disp('Rotated & Scaled APD COMS do not exist')
+        disp('Rotated & Scaled APD COMS do not exist or are different on disk')
         apdcoms_rs_exist = false ;
     end
     

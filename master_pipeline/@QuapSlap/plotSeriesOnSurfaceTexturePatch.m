@@ -62,7 +62,7 @@ meshFileBase = QS.fullFileBase.mesh ;
 figoutdir = QS.dir.texturePatchIm ;
 normal_shift = QS.normalShift ;
 flipy = QS.flipy ;
-texture_axis_order = QS.data.axisOrder ;
+% texture_axis_order = QS.data.axisOrder ;
 
 try
     t0 = QS.t0set() ;
@@ -121,6 +121,7 @@ end
 options.normal_shift = metadat.normal_shift ;
 options.xyzlim = metadat.xyzlim ;
 options.texture_axis_order = metadat.texture_axis_order ;
+texture_axis_order = options.texture_axis_order ;
 options.reorient_faces = metadat.reorient_faces ;
 
 %% Name output directories
@@ -224,7 +225,13 @@ for tidx = tidx_todo
         disp(['creating texture patch ' num2str(tp, '%06d')])
 
         % Allow for axis swapping
+        disp(['texture axis order: [', ...
+            num2str(texture_axis_order(1)), ...
+            ' ', num2str(texture_axis_order(2)), ...
+            ' ', num2str(texture_axis_order(3)) ']'])
         TV = mesh.v(:, texture_axis_order) ;
+        
+        
         % Allow for overall flip
         % --> apply rotation and translation and dilation BEFORE flipping
         VV = mesh.v ;
@@ -292,18 +299,23 @@ for tidx = tidx_todo
             if plot_view(ii)
                 if ii == 1
                     % dorsal
+                    disp('saving dorsal image...')
                     view(0, 90)
                 elseif ii == 2
                     % ventral
+                    disp('saving ventral image...')
                     view(0, 270)
                 elseif ii == 3
                     % Lateral views
+                    disp('saving lateral image...')
                     view(0, 0)
                 elseif ii == 4
                     % lateral view 2
+                    disp('saving second lateral image...')
                     view(0, 180)
                 elseif ii == 5
                     % perspective view
+                    disp('saving perspective image...')
                     view(-20, 20)
                 else
                     error(['Exhausted DorsalVentralLeftRight indices. ',...

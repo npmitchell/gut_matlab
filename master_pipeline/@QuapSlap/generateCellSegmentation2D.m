@@ -29,16 +29,36 @@ function generateCellSegmentation2D(QS, options)
 % d0 and d1 are matrices that take derivatives 
 
 %% Parameters
+overwrite = false ;
+overwriteImages = false ;
 % timepoints to process
 timePoints = QS.xp.fileMeta.timePoints ;
 % how far in pixels is too far to connect two cell vertices
-very_far = 150 ;
+very_far = 250 ;
 % which coordinate system to use for segmentation
 coordSys = QS.currentSegmentation.coordSys ; 
 % Toggle for iLastik version control -- zero for newer version
 iLastikVersion = 0;
+cellSize = 50 ;
+strelRadius = 0 ;
+gaussKernel = 1 ;
+heightMinimum = 3.5 ;
+
 
 %% unpack options
+if nargin < 2 
+    options = struct() ;
+end
+
+if isfield(options, 'overwrite') 
+    overwrite = options.overwrite ;
+end
+if isfield(options, 'overwriteImages') 
+    overwriteImages = options.overwriteImages ;
+end
+if isfield(options, 'timePoints') 
+    timePoints = options.timePoints ;
+end
 if isfield(options, 'very_far') 
     very_far = options.very_far ;
 end
@@ -50,7 +70,14 @@ if isfield(options, 'iLastikVersion')
 end
 
 %% Load in h5 from ilastik.
-if strcmpi(coordSys, 'spsme')
+if strcmpi(erase(coordSys, '_'), 'spsme') 
+    Folder = [QS.dir.im_sp_sme, '_pixelClassification'] ;
+    if ~exist(Folder, 'dir')
+        mkdir(Folder)
+        error(['Populate ' Folder ' with pixelClassification on pullbacks with coordSys ' coordSys])
+    end
+    filebase = [QS.fileBase.im_sp_sme(1:end-4) '_Probabilities.h5'] ;
+elseif strcmpi(erase(coordSys, '_'), 'sp_rsme')
     Folder = [QS.dir.im_r_sme, '_pixelClassification'] ;
     if ~exist(Folder, 'dir')
         mkdir(Folder)
@@ -63,47 +90,169 @@ end
 
 for tp = timePoints
     
-    % Define path to this timePoint's hdf5 probabilities file
-    h5fn = fullfile(Folder, sprintf(filebase, tp)) ;
-    [ mem ] = load.ilastikh5Single( h5fn, iLastikVersion );
-
-    %% Segment the membrane.
-    L = seg.memWS(mem, 50, 0, 1, 3.5);
-    % Set bond=0 and clear_border = 1
-    [L, Struct] = seg.generate_structs(L, 0, 1, 0, very_far);
-    % Bad cells are bubble cells, which is a segmentation that forked and
-    % reconnected.
-    % ToDo: Should we do this? Can we skip it or does that lead to issues?
-    L = seg.removeBadCells(Struct, L);
-    disp('done removing bad cells')
-    % Now change label matrix after removing bad cells
-    L = seg.relabelL(L);
-    % Now also synchronize Struct after removing bad cells
-    [L,Struct] = seg.generate_structs(L, 0, 0, 0, very_far);
-    disp('done with segmentation')
-
-    %% Prepare data structure for inverse (optional? Does this improve segmentation?)
-    % % put a parameter in the cdat of Struct, a boolean of whether every vertex
-    % % is 3-fold.
-    % Struct = seg.threefold_cell(Struct);
-    % % generate the bdat structure in Struct
-    % Struct = seg.recordBonds(Struct, L);
-    % disp('generated the bond structure')
-    % % Segment the curvature of each bond
-    % Struct = seg.curvature(Struct, size(L));
-    % disp('segmented the curvature of each bond')
-    % % Remove all fourfold vertices, recursively if there are z>4
-    % Struct = seg.removeFourFold(Struct);
-    % disp('removed fourfold vertices')
-    % % The inverse is ill-posed if we have convex cells, so hack those to be
-    % % convex
-    % Struct = seg.makeConvexArray(Struct);
-    % disp('done with data preparation')
-    
-    %% Consider converting segmentation to simpler struct
-    seg2d.v2d = [] ;
-    
-    %% Save the segmentation to disk
     outfn = sprintf(QS.fullFileBase.segmentation2d, tp) ;
-    save(outfn, seg2d)
+    if ~exist(outfn, 'file') || overwrite
+
+        % Define path to this timePoint's hdf5 probabilities file
+        h5fn = fullfile(Folder, sprintf(filebase, tp)) ;
+        [ mem ] = load.ilastikh5Single( h5fn, iLastikVersion );
+
+        %% Segment the membrane.
+        % cellSize : int (default=200)
+        %   kernel size for laplacian of Gaussian : set to scale of curvature
+        %   picking out, around a cell size or higher, in units of area (pix^2)
+        % strelRadius : int (default=1)
+        %   strel disk radius for dilation of segmented image
+        % gaussKernel : float (default=2)
+        %   kernel size for Gaussian filter. Set to a couple pixels. 
+        %   Has units of length (pix).
+        % heightMinimum : float (default=3.5)
+        %   height of any local minima to merge, to reduce noise at rugged
+        %   minima
+        L = seg.memWS(mem, cellSize, strelRadius, gaussKernel, heightMinimum);
+        % Set bond=0 and clear_border = 1
+        [L, Struct] = seg.generate_structs(L, 0, 1, 0, very_far);
+        % Bad cells are bubble cells, which is a segmentation that forked and
+        % reconnected.
+        % ToDo: Should we do this? Can we skip it or does that lead to issues?
+        disp('removing bad cells')
+        L = seg.removeBadCells(Struct, L);
+        % Now change label matrix after removing bad cells
+        disp('relabelling cells')
+        L = seg.relabelL(L);
+        % Now also synchronize Struct after removing bad cells
+        [segIm, seg2d] = seg.generate_structs(L, 0, 0, 0, very_far);
+        disp('done with segmentation')
+
+        %% Prepare data structure for inverse (optional? Does this improve segmentation?)
+        % % put a parameter in the cdat of Struct, a boolean of whether every vertex
+        % % is 3-fold.
+        % Struct = seg.threefold_cell(Struct);
+        % % generate the bdat structure in Struct
+        % Struct = seg.recordBonds(Struct, L);
+        % disp('generated the bond structure')
+        % % Segment the curvature of each bond
+        % Struct = seg.curvature(Struct, size(L));
+        % disp('segmented the curvature of each bond')
+        % % Remove all fourfold vertices, recursively if there are z>4
+        % Struct = seg.removeFourFold(Struct);
+        % disp('removed fourfold vertices')
+        % % The inverse is ill-posed if we have convex cells, so hack those to be
+        % % convex
+        % Struct = seg.makeConvexArray(Struct);
+        % disp('done with data preparation')
+
+        %% Convert to simpler format
+        disp('Constructing vdat')
+        vdat = struct() ;
+        vdat.v = zeros(length(seg2d.Vdat), 2) ;
+        vdat.NL = zeros(length(seg2d.Vdat), 4) ;
+        vdat.fourfold = false(length(seg2d.Vdat), 1) ;
+        for qq = 1:length(seg2d.Vdat)
+            vdat.v(qq, :) = [seg2d.Vdat(qq).vertxcoord, seg2d.Vdat(qq).vertycoord] ;
+            nv = length(seg2d.Vdat(qq).nverts) ;
+            try
+                vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
+            catch
+                % Increase the size of NL to accomodate more neighbors
+                disp('Increasing NL size (dim 2)')
+                swap = vdat.NL ;
+                vdat.NL = zeros(length(seg2d.Vdat), nv) ;
+                vdat.NL(1:qq, 1:size(swap, 2)) = swap(1:qq, :) ;
+                vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
+            end
+            vdat.fourfold(qq) = ~isempty(seg2d.Vdat(qq).fourfold) ;
+        end    
+        
+        disp('generating bond list')
+        BL = Vdat2BL(seg2d.Vdat) ;
+        vdat.BL = BL ;
+        
+        % Assign polygons to vdat
+        NL = vdat.NL ;
+        polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL) ; 
+        vdat.polygons = polygons ;
+        seg2d.vdat = vdat ;
+        
+        %% Save the segmentation to disk
+        if ~exist(fullfile(QS.dir.segmentation, 'seg2d'), 'dir')
+            mkdir(fullfile(QS.dir.segmentation, 'seg2d'))
+        end
+
+        coordSys = lower(erase(coordSys, '_')) ;
+        save(outfn, 'seg2d', 'segIm', 'coordSys')
+    else
+        disp(['already on disk: ' outfn])
+        
+        % %% Convert to simpler format
+        load(outfn, 'seg2d', 'segIm', 'coordSys')
+        
+        if ~isfield(seg2d, 'vdat')
+            disp('Constructing vdat')
+            vdat = struct() ;
+            vdat.v = zeros(length(seg2d.Vdat), 2) ;
+            vdat.NL = zeros(length(seg2d.Vdat), 4) ;
+            vdat.fourfold = false(length(seg2d.Vdat), 1) ;
+            for qq = 1:length(seg2d.Vdat)
+                vdat.v(qq, :) = [seg2d.Vdat(qq).vertxcoord, seg2d.Vdat(qq).vertycoord] ;
+                nv = length(seg2d.Vdat(qq).nverts) ;
+                try
+                    vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
+                catch
+                    % Increase the size of NL to accomodate more neighbors
+                    disp('Increasing NL size (dim 2)')
+                    swap = vdat.NL ;
+                    vdat.NL = zeros(length(seg2d.Vdat), nv) ;
+                    vdat.NL(1:qq, 1:size(swap, 2)) = swap(1:qq, :) ;
+                    vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
+                end
+                vdat.fourfold(qq) = ~isempty(seg2d.Vdat(qq).fourfold) ;
+            end    
+
+            disp('generating bond list')
+            BL = Vdat2BL(seg2d.Vdat) ;
+            vdat.BL = BL ;
+
+            % Assign polygons to vdat
+            NL = vdat.NL ;
+            polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL) ; 
+            vdat.polygons = polygons ;
+
+            % Assign vdat to segmentation
+            seg2d.vdat = vdat ;
+            save(outfn, 'seg2d', 'segIm', 'coordSys')
+        end
+        
+    end
+    
+    %% Save image of the segmentation
+    imfn = [outfn(1:end-3) 'png'] ;
+    if ~exist(imfn, 'file') || overwrite || overwriteImages
+        
+        imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
+        im = imread(imageFn)
+        
+        clf
+        Xs = zeros(size(BL, 1), 1) ;
+        Ys = Xs ;
+        Us = Xs ;
+        Vs = Xs ;
+        dmyk = 1 ;
+        for qq = 1:length(seg2d.Vdat)
+            for id = seg2d.Vdat(qq).nverts
+                Xs(dmyk) = seg2d.vdat.v(qq, 1) ;
+                Ys(dmyk) = seg2d.vdat.v(qq, 2) ; 
+                Us(dmyk) = seg2d.vdat.v(id, 1) - seg2d.vdat.v(qq, 1) ;
+                Vs(dmyk) = seg2d.vdat.v(id, 2) - seg2d.vdat.v(qq, 2) ; 
+                dmyk = dmyk + 1 ;
+            end
+        end
+        % plot(seg2d.vdat.v(:, 1), seg2d.vdat.v(:, 2), '.')
+        imshow(im) ;
+        hold on;
+        q = quiver(Xs,Ys, Us, Vs, 0, 'color', [ 0.8500    0.3250    0.0980]);
+        axis equal
+        q.ShowArrowHead = 'off';
+        saveas(gcf, imfn)
+    end
 end

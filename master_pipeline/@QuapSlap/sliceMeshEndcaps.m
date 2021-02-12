@@ -149,7 +149,7 @@ xwidth = 16 ; % cm
 ywidth = 10 ; % cm
 
 % subsampling factor for the h5s used to train for mesh/acom/pcom/dcom
-ssfactor = QS.xp.detector.options.ssfactor ; 
+ssfactor = QS.ssfactor ; 
 [~, ~, xyzlim_um] = QS.getXYZLims() ;
 
 % Name output directory

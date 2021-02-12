@@ -415,7 +415,7 @@ clearvars lgd ax
 
 
 %% Define correspondence pairs like in dynamicAtlas
-
+graydist()
 
 
 

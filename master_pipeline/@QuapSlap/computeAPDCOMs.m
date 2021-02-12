@@ -1,6 +1,20 @@
 function [acom_sm, pcom_sm, dcom] = computeAPDCOMs(QS, opts)
 %[acom_sm, pcom_sm, dcom] = COMPUTEAPDCOMS(opts)
 % Compute the anterior, posterior, and dorsal centers of mass from training
+% for CENTERLINE computation. Note that these can be different than the
+% APD points for ALIGNMENT computation. In particular, the posterior point
+% might be a point which does NOT form an AP axis  with the anteriormost 
+% point, as in the illustration of the midgut below:
+% 
+%         P for centerline
+%        _x_         Dorsal
+%       /  /     ___x_
+%      /  /    /      \  Anterior
+%     /  /____/        \x
+%    |  xP for APDV     |
+%     \________________/
+%    (ventral here, unlabeled)
+%
 %
 % Parameters
 % ----------
@@ -37,18 +51,22 @@ function [acom_sm, pcom_sm, dcom] = computeAPDCOMs(QS, opts)
 timePoints = QS.xp.fileMeta.timePoints ;
 apdvoutdir = QS.dir.cntrline ;
 meshDir = QS.dir.mesh ;
-axorder = QS.data.axisOrder ;
+% axorder = QS.data.axisOrder ; % NOTE: axisorder for texture_axis_order
+                                % invoked upon loading IV into QS.currentData.IV
 ilastikOutputAxisOrder = QS.data.ilastikOutputAxisOrder ;
 
 if isfield(opts, 'aProbFileName')
     aProbFileName = opts.aProbFileName ;
 else
-    aProbFileName = QS.fullFileBase.apdProb ;
+    aProbFileName = QS.fullFileBase.apCenterlineProb ;
 end
 if isfield(opts, 'pProbFileName')
     pProbFileName = opts.pProbFileName ;
 else
-    pProbFileName = QS.fullFileBase.apdProb ;
+    pProbFileName = QS.fullFileBase.apCenterlineProb ;
+end
+if isfield(opts, 'ilastikOutputAxisOrder')
+    ilastikOutputAxisOrder = opts.ilastikOutputAxisOrder ;
 end
 
 % Default options
@@ -162,16 +180,28 @@ if ~load_from_disk || overwrite
                 pdatM = adatM ;
             end
 
-            % rawfn = fullfile(rootdir, ['Time_' timestr '_c1_stab.h5' ]);
-            % rawdat = h5read(rawfn, '/inputData');
-            if strcmpi(ilastikOutputAxisOrder, 'cxyz')
+            % Load the training for anterior and posterior positions
+            if strcmpi(ilastikOutputAxisOrder(1), 'c')
                 adat = squeeze(adatM(anteriorChannel,:,:,:)) ;
                 pdat = squeeze(pdatM(posteriorChannel,:,:,:)) ;
-            elseif strcmpi(ilastikOutputAxisOrder, 'xyzc')
+            elseif strcmpi(ilastikOutputAxisOrder(4), 'c')
                 adat = squeeze(adatM(:,:,:,anteriorChannel)) ;
                 pdat = squeeze(pdatM(:,:,:,posteriorChannel)) ;
             else
                 error('Did not recognize ilastikAxisOrder. Code here')
+            end
+            
+            if contains(lower(ilastikOutputAxisOrder), 'xyz')
+                disp('no permutation necessary')
+                % adat = permute(adat, [1,2,3]);
+            elseif contains(lower(ilastikOutputAxisOrder), 'yxz')
+                disp('permuting yxz')
+                adat = permute(adat, [2,1,3]);
+                pdat = permute(pdat, [2,1,3]);
+            elseif contains(lower(ilastikOutputAxisOrder), 'zyx')
+                disp('permuting zyx')
+                adat = permute(adat, [3,2,1]);
+                pdat = permute(pdat, [3,2,1]);
             end
             
             % define axis order: 
@@ -179,8 +209,11 @@ if ~load_from_disk || overwrite
             % if 1, 3, 2: axes will be yzx
             % if 2, 1, 3: axes will be xyz (ie first second third axes, ie --> 
             % so that bright spot at im(1,2,3) gives com=[1,2,3]
-            adat = permute(adat, axorder) ;
-            pdat = permute(pdat, axorder) ;
+            
+            % Note that axisOrder is applying upon invoking getCurrentData()
+            % adat = permute(adat, axorder) ;
+            % pdat = permute(pdat, axorder) ;
+            
             options.check = preview_com ;
             disp('Extracting acom')
             options.color = 'red' ;
@@ -224,7 +257,7 @@ if ~load_from_disk || overwrite
                     elseif ii == 2
                         view(90, 0)
                     else
-                        view(0, 270)
+                        view(180, 0)
                     end
                 end
                 sgtitle('APD COMs for APDV coordinates')
@@ -241,17 +274,22 @@ if ~load_from_disk || overwrite
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Smooth the acom and pcom data
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    disp('Smoothing acom and pcom...')
-    acom_sm = 0 * acoms ;
-    pcom_sm = 0 * acoms ;
-    % fraction of data for smoothing window
-    smfrac = smwindow / double(length(timePoints)) ;  
-    acom_sm(:, 1) = smooth(timePoints, acoms(:, 1), smfrac, 'rloess');
-    pcom_sm(:, 1) = smooth(timePoints, pcoms(:, 1), smfrac, 'rloess');
-    acom_sm(:, 2) = smooth(timePoints, acoms(:, 2), smfrac, 'rloess');
-    pcom_sm(:, 2) = smooth(timePoints, pcoms(:, 2), smfrac, 'rloess');
-    acom_sm(:, 3) = smooth(timePoints, acoms(:, 3), smfrac, 'rloess');
-    pcom_sm(:, 3) = smooth(timePoints, pcoms(:, 3), smfrac, 'rloess');
+    if length(timePoints) > 2
+        disp('Smoothing acom and pcom...')
+        acom_sm = 0 * acoms ;
+        pcom_sm = 0 * acoms ;
+        % fraction of data for smoothing window
+        smfrac = smwindow / double(length(timePoints)) ;  
+        acom_sm(:, 1) = smooth(timePoints, acoms(:, 1), smfrac, 'rloess');
+        pcom_sm(:, 1) = smooth(timePoints, pcoms(:, 1), smfrac, 'rloess');
+        acom_sm(:, 2) = smooth(timePoints, acoms(:, 2), smfrac, 'rloess');
+        pcom_sm(:, 2) = smooth(timePoints, pcoms(:, 2), smfrac, 'rloess');
+        acom_sm(:, 3) = smooth(timePoints, acoms(:, 3), smfrac, 'rloess');
+        pcom_sm(:, 3) = smooth(timePoints, pcoms(:, 3), smfrac, 'rloess');
+    else
+        acom_sm = acoms ;
+        pcom_sm = pcoms ;
+    end
     
     if preview
         plot(timePoints, acoms - mean(acoms,1), '.')
@@ -259,7 +297,6 @@ if ~load_from_disk || overwrite
         plot(timePoints, acom_sm - mean(acoms, 1), '-')
         sgtitle('Smoothed COMs for AP')
     end
-    clear acom pcom
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Save smoothed anterior and posterior centers of mass ===============
@@ -288,7 +325,6 @@ if ~load_from_disk || overwrite
     h5write(rawapdvname, '/pcom', pcoms) ;
     h5write(rawapdvname, '/acom_sm', acom_sm) ;
     h5write(rawapdvname, '/pcom_sm', pcom_sm) ;
-    clear acoms pcoms
 else
     disp('Skipping, since already loaded acom_sm and pcom_sm')
     if preview

@@ -26,12 +26,13 @@ map = containers.Map() ;
 
 %% Read all the labeltype folders from txt file
 fid = fopen(lookupMetaFn, 'r');
-dat = textscan(fid, '%s%d%d%s', 'HeaderLines',1) ;
+dat = textscan(fid, '%d%s%d%d%s', 'HeaderLines',1) ;
 fclose(fid) ;
-markers = dat{1} ;
-channels = dat{2} ;
-nch = dat{3} ;
-dirs = dat{4} ;
+ids = dat{1} ;
+markers = dat{2} ;
+channels = dat{3} ;
+nch = dat{4} ;
+dirs = dat{5} ;
 %% Obtain all markers
 allMarkers = unique(markers) ;
 
@@ -47,6 +48,7 @@ for mii = 1:length(allMarkers)
                 substruct.folders = {dirs{qq}} ;
                 substruct.channels = [channels(qq)] ;
                 substruct.nchannels = [nch(qq)] ;
+                substruct.ids = [ids(qq)] ;
                 % Load low-RAM data about the dataset here, like volume,
                 % sa, centerline, etc        
                 fn = fullfile(dirs{qq}, 'surfacearea_volume_stab.mat') ;
@@ -64,6 +66,7 @@ for mii = 1:length(allMarkers)
                 substruct.folders{length(substruct.folders) + 1} = dirs{qq} ;
                 substruct.channels(length(substruct.channels) + 1) = channels(qq) ;
                 substruct.nchannels(length(substruct.nchannels) + 1) = nch(qq) ;
+                substruct.ids(length(substruct.ids)+1) =  ids(qq) ;
                 
                 % Load low-RAM data about the dataset here, like volume,
                 % sa, centerline, etc

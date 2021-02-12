@@ -1,6 +1,15 @@
 function [acom,pcom,dcom, rot,trans] = computeAPDVCoords(QS, opts)
+%[acom,pcom,dcom, rot,trans] = computeAPDVCoords(QS, opts)
+% Compute the APDV coordinate system, defined WRT the data coordSys by a
+% rotation, translation, and resolution. This is done by identifying a 
+% dorsal point, so that z dim in APDV points from the AP axis to dorsal
+% along the shortest linesegment emanating from the AP axis to the dorsal
+% point. 
+%
 % Todo: back-save acom_for_rot and pcom_for_rot for datasets already
 % processed, inferred from rot and trans
+%
+% Note that axisOrder is applying upon invoking getCurrentData()
 
 
 %% Default options
@@ -8,7 +17,8 @@ anteriorMethod = 'InsideOrNearestVertex' ;  % default is to use COM if COM
                             % is inside the mesh polyhedron, otherwise 
                             % project onto nearest mes vertex
 normal_step = 1/QS.ssfactor ;
-axorder = QS.data.axisOrder ;
+% Note that axisOrder is applying upon invoking getCurrentData()
+% axorder = QS.data.axisOrder ;
 ilastikOutputAxisOrder = QS.data.ilastikOutputAxisOrder ;
 thres = 0.5 ;
 ssfactor = QS.ssfactor ;
@@ -29,6 +39,9 @@ if isfield(opts, 'dProbFileName')
 else
     dProbFileName = QS.fullFileBase.apdProb ;
 end
+if isfield(opts, 'ilastikOutputAxisOrder')
+    ilastikOutputAxisOrder = opts.ilastikOutputAxisOrder ;
+end
 if isfield(opts, 'normal_step')
     normal_step = opts.normal_step ;
 end
@@ -39,6 +52,9 @@ end
 if isfield(opts, 'tref')
     trefIDx = find(QS.xp.fileMeta.timePoints == opts.tref) ;
     tt = opts.tref ;
+    if isempty(trefIDx)
+        error(['could not find match trefIDx to opts.tref=' num2str(opts.tref)])
+    end
 else
     % by default use first timepoint
     trefIDx = 1 ;
@@ -110,12 +126,28 @@ if redo_rot_calc || overwrite
 
     % Obtain just the dorsal channel from probabilities
     if strcmpi(ilastikOutputAxisOrder, 'cxyz')
-        ddat = permute(squeeze(ddatM(dorsalChannel, :, :, :)), axorder) ;
+        ddat = squeeze(ddatM(dorsalChannel, :, :, :)) ;
     elseif strcmpi(ilastikOutputAxisOrder, 'xyzc')
-        ddat = permute(squeeze(ddatM(:, :, :, dorsalChannel)), axorder) ;
+        ddat = squeeze(ddatM(:, :, :, dorsalChannel)) ;
+    elseif strcmpi(ilastikOutputAxisOrder, 'czyx')
+        ddat = squeeze(ddatM(dorsalChannel, :, :, :)) ;
+        ddat = permute(ddat, [3, 2, 1]) ;
+    elseif strcmpi(ilastikOutputAxisOrder, 'cyxz')
+        ddat = squeeze(ddatM(dorsalChannel, :, :, :)) ;
+        ddat = permute(ddat, [2, 1, 3]) ;
+    elseif strcmpi(ilastikOutputAxisOrder, 'zyxc')
+        ddat = squeeze(ddatM(:, :, :, dorsalChannel)) ;
+        ddat = permute(ddat, [3, 2, 1]) ;
+    elseif strcmpi(ilastikOutputAxisOrder, 'yxzc')
+        ddat = squeeze(ddatM(:, :, :, dorsalChannel)) ;
+        ddat = permute(ddat, [2, 1, 3]) ;
     else
         error('Did not recognize ilastikOutputAxisOrder')
     end
+    
+    % Convert from xyz to the mesh / QS class axis order, if not xyz
+    % Note that axisOrder is applying upon invoking getCurrentData()
+    % ddat = permute(ddat, axorder) ;
 
     options.check = preview ; 
     options.check_slices = check_slices ; 
@@ -136,7 +168,7 @@ if redo_rot_calc || overwrite
         else
             disp('Computing dorsal COM for the first time')
         end
-        cont = input('APD COMS not on disk -- Compute them? [Y/n]', 's') ;
+        cont = input('APD COMS not on disk -- Compute them? [N/y]', 's') ;
         if ~contains(lower(cont), 'y')
             error('exiting to stop APD COM computation')
         end
@@ -147,18 +179,16 @@ if redo_rot_calc || overwrite
         tmp_dorsal_thres = dorsal_thres ;
         while search4com 
             try
-                msg = 'Finding com region of dorsal data: ' ;
+                msg = 'Finding com region of dorsal data of size ' ;
+                msg = [msg '(' num2str(size(ddat, 1)) ', ' ] ;
+                msg = [msg num2str(size(ddat, 2)) ', '] ;
+                msg = [msg num2str(size(ddat, 3)) ')'] ;
                 disp([msg 'thres=' num2str(tmp_dorsal_thres)])
                 close all
                 dcom = com_region(ddat, tmp_dorsal_thres, options) ;
                 search4com = false ;
             catch
-                disp('no region found, lowering dorsal threshold for prob cloud') ;
-                tmp_dorsal_thres = 0.9 * tmp_dorsal_thres ;
-            end
-
-            if tmp_dorsal_thres < 1e-9
-                msg = 'Could not find any dorsal signal within 1e-9' ;
+                msg = 'Could not find any dorsal signal within 1% probability' ;
                 disp(msg)
                 disp('Showing dorsal signal volume, leaf by leaf')
                 clf; set(gcf, 'visible', 'on')
@@ -177,14 +207,14 @@ if redo_rot_calc || overwrite
             mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, tt)) ;
             trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
             hold on;
-            plot3(dcom(1) * QS.ssfactor, dcom(2) * QS.ssfactor, dcom(3) * QS.ssfactor, 'o')
+            plot3(dcom(1) * ssfactor, dcom(2) * ssfactor, dcom(3) * ssfactor, 'o')
             axis equal
             if ii == 1
                 view(0, 90)
             elseif ii == 2
                 view(90, 0)
             else
-                view(0, 270)
+                view(180, 0)
             end
             xlabel('x')
             ylabel('y')
@@ -199,10 +229,10 @@ if redo_rot_calc || overwrite
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %% Compute and save anterior and posterior points to use as definition of 
         % AP axis and for translation offset to put anterior at the origin
-        if strcmpi(ilastikOutputAxisOrder, 'cxyz')
+        if strcmpi(ilastikOutputAxisOrder(1), 'c')
             adat = squeeze(adatM(anteriorChannel,:,:,:)) ;
             pdat = squeeze(pdatM(posteriorChannel,:,:,:)) ;
-        elseif strcmpi(ilastikOutputAxisOrder, 'xyzc')
+        elseif strcmpi(ilastikOutputAxisOrder(4), 'c')
             adat = squeeze(adatM(:,:,:,anteriorChannel)) ;
             pdat = squeeze(pdatM(:,:,:,posteriorChannel)) ;
         else
@@ -214,8 +244,10 @@ if redo_rot_calc || overwrite
         % if 1, 3, 2: axes will be yzx
         % if 2, 1, 3: axes will be xyz (ie first second third axes, ie --> 
         % so that bright spot at im(1,2,3) gives com=[1,2,3]
-        adat = permute(adat, axorder) ;
-        pdat = permute(pdat, axorder) ;
+        % Note that axisOrder is applying upon invoking getCurrentData()
+        % adat = permute(adat, axorder) ;
+        % pdat = permute(pdat, axorder) ;
+
         options.check = preview ;
         disp('Extracting acom')
         options.color = 'red' ;
@@ -226,13 +258,22 @@ if redo_rot_calc || overwrite
         clearvars options
         % [~, acom] = match_training_to_vertex(adat, thres, vertices, options) ;
         % [~, pcom] = match_training_to_vertex(pdat, thres, vertices, options) ;
-        acoms(trefIDx, :) = acom ;
-        pcoms(trefIDx, :) = pcom ;
+        
+        switch lower(ilastikOutputAxisOrder)
+            case 'cxyz'
+                disp('no permuting necessary')
+            case 'czyx'
+                acom = [acom(3) acom(2) acom(1)];
+                pcom = [pcom(3) pcom(2) pcom(1)];
+            otherwise
+                error('did not recognize ilastikOutputAxisOrder')   
+        end
+        
         if preview
             disp('acom = ')
-            acoms(trefIDx, :)
+            acom
             disp('pcom = ')
-            pcoms(trefIDx, :)
+            pcom
         end
 
         % PLOT APD points on mesh
@@ -243,16 +284,16 @@ if redo_rot_calc || overwrite
             mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, tt)) ;
             trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
             hold on;
-            plot3(acom(1) * QS.ssfactor, acom(2) * QS.ssfactor, acom(3) * QS.ssfactor, 'o')
-            plot3(pcom(1) * QS.ssfactor, pcom(2) * QS.ssfactor, pcom(3) * QS.ssfactor, 'o')
-            plot3(dcom(1) * QS.ssfactor, dcom(2) * QS.ssfactor, dcom(3) * QS.ssfactor, 'o')
+            plot3(acom(1) * ssfactor, acom(2) * ssfactor, acom(3) * ssfactor, 'o')
+            plot3(pcom(1) * ssfactor, pcom(2) * ssfactor, pcom(3) * ssfactor, 'o')
+            plot3(dcom(1) * ssfactor, dcom(2) * ssfactor, dcom(3) * ssfactor, 'o')
             axis equal
             if ii == 1
                 view(0, 90)
             elseif ii == 2
                 view(90, 0)
             else
-                view(0, 270)
+                view(180, 0)
             end
         end
         sgtitle('APD COMs for APDV coordinates')
@@ -264,7 +305,7 @@ if redo_rot_calc || overwrite
             meshfn = sprintf(QS.fullFileBase.mesh, QS.xp.fileMeta.timePoints(1)) ;
             disp(['Loading mesh ' meshfn])
             mesh = read_ply_mod(meshfn );
-            vtx_sub = mesh.v / QS.ssfactor ;
+            vtx_sub = mesh.v / ssfactor ;
             vn = mesh.vn ;
             fvsub = struct('faces', mesh.f, 'vertices', vtx_sub, 'normals', vn) ;
             % Check if acom is inside mesh. If so, use that as starting point.
@@ -422,16 +463,19 @@ for ii = 1:3
     subplot(1, 3, ii)
     trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
     hold on;
-    plot3(acom(1) * QS.ssfactor, acom(2) * QS.ssfactor, acom(3) * QS.ssfactor, 'o')
-    plot3(pcom(1) * QS.ssfactor, pcom(2) * QS.ssfactor, pcom(3) * QS.ssfactor, 'o')
-    plot3(dcom(1) * QS.ssfactor, dcom(2) * QS.ssfactor, dcom(3) * QS.ssfactor, 'o')
+    plot3(acom(1) * ssfactor, acom(2) * ssfactor, acom(3) * ssfactor, 'o')
+    plot3(pcom(1) * ssfactor, pcom(2) * ssfactor, pcom(3) * ssfactor, 'o')
+    plot3(dcom(1) * ssfactor, dcom(2) * ssfactor, dcom(3) * ssfactor, 'o')
     axis equal
+    xlabel('x [pix]')
+    ylabel('y [pix]')
+    zlabel('z [pix]')
     if ii == 1
         view(0, 90)
     elseif ii == 2
         view(90, 0)
     else
-        view(0, 270)
+        view(180, 0)
     end
 end
 sgtitle('APD COMs for APDV coordinates')

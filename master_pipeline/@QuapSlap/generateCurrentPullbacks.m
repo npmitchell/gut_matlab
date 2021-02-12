@@ -160,7 +160,8 @@ a_fixed = QS.a_fixed ;
 % imFolder_up = QS.dir.im_up ;
 % imFolder_spsm = QS.dir.im_sp_sm ;
 % imFolder_rsm = QS.dir.im_r_sm ;
-axisorder = QS.data.axisOrder ;
+axisorder = [1 2 3 ];   % Note: we should NOT use QS.data.axisOrder here, 
+                        % since that is invoked upon loading IV instead of applying in post
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('Checking whether to create pullback \n');
@@ -172,16 +173,23 @@ imfn_uv = sprintf( QS.fullFileBase.im_uv, tt);
 imfn_r = sprintf( QS.fullFileBase.im_r, tt) ;
 imfn_sp = sprintf( QS.fullFileBase.im_sp, tt) ;
 imfn_up = sprintf( QS.fullFileBase.im_up, tt) ;
-imfn_spsm = sprintf( QS.fullFileBase.im_sp_sm, tt) ;
-imfn_rsm = sprintf( QS.fullFileBase.im_r_sm, tt) ;
+if QS.dynamic
+    imfn_spsm = sprintf( QS.fullFileBase.im_sp_sm, tt) ;
+    imfn_rsm = sprintf( QS.fullFileBase.im_r_sm, tt) ;
+end
 imfn_uvprime = sprintf( QS.fullFileBase.im_uvprime, tt) ;
 imfn_ruvprime = sprintf( QS.fullFileBase.im_r_uvprime, tt) ;
 do_pb1 = ~exist(imfn_uv, 'file') && generate_uv ;
 do_pb2 = ~exist(imfn_r, 'file') && generate_relaxed ;
 do_pb3 = ~exist(imfn_sp, 'file') && generate_sphi ;
 do_pb4 = ~exist(imfn_up, 'file') && generate_uphi ;
-do_pb5 = ~exist(imfn_spsm, 'file') && generate_spsm ;
-do_pb6 = ~exist(imfn_rsm, 'file') && generate_rsm ;
+if QS.dynamic
+    do_pb5 = ~exist(imfn_spsm, 'file') && generate_spsm ;
+    do_pb6 = ~exist(imfn_rsm, 'file') && generate_rsm ;
+else
+    do_pb5 = false ;
+    do_pb6 = false ;
+end
 do_pb7 = ~exist(imfn_uvprime, 'file') && generate_uvprime ;
 do_pb8 = ~exist(imfn_ruvprime, 'file') && generate_ruvprime ;
 
@@ -282,30 +290,34 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Save smoothed sp image
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-if (~exist(imfn_spsm, 'file') || overwrite) && generate_spsm
-    disp('Generating image for smoothed sphi coords...')
-    aux_generate_orbifold(spcutMeshSm, a_fixed, IV, imfn_spsm, ...
-        pbOptions, axisorder, save_as_stack)
-else
-    disp('Skipping SPSm pullback image generation ')
+if QS.dynamic
+    if generate_spsm && (~exist(imfn_spsm, 'file') || overwrite) 
+        disp('Generating image for smoothed sphi coords...')
+        aux_generate_orbifold(spcutMeshSm, a_fixed, IV, imfn_spsm, ...
+            pbOptions, axisorder, save_as_stack)
+    else
+        disp('Skipping SPSm pullback image generation ')
+    end
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Save smoothed relaxed image
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-if (~exist(imfn_rsm, 'file') || overwrite) && generate_rsm
-    disp('Generating relaxed image for sphi coords...')
-    if ~isfield(spcutMeshSm, 'ar')
-        % Compute relaxed aspect ratio
-        tmp = spcutMeshSm.u ;
-        tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
-        arspsm = minimizeIsoarealAffineEnergy( spcutMeshSm.f, spcutMeshSm.v, tmp );
-        spcutMeshSm.ar = arspsm ;
+if QS.dynamic
+    if (~exist(imfn_rsm, 'file') || overwrite) && generate_rsm
+        disp('Generating relaxed image for sphi coords...')
+        if ~isfield(spcutMeshSm, 'ar')
+            % Compute relaxed aspect ratio
+            tmp = spcutMeshSm.u ;
+            tmp(:, 1) = tmp(:, 1) / max(tmp(:, 1)) ;
+            arspsm = minimizeIsoarealAffineEnergy( spcutMeshSm.f, spcutMeshSm.v, tmp );
+            spcutMeshSm.ar = arspsm ;
+        end
+        aux_generate_orbifold(spcutMeshSm, spcutMeshSm.ar, IV, imfn_rsm, ...
+            pbOptions, axisorder, save_as_stack)
+    else
+        disp('Skipping relaxed SPSm pullback image generation ')
     end
-    aux_generate_orbifold(spcutMeshSm, spcutMeshSm.ar, IV, imfn_rsm, ...
-        pbOptions, axisorder, save_as_stack)
-else
-    disp('Skipping relaxed SPSm pullback image generation ')
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -474,6 +474,8 @@ for tt = timePoints
         % should ALREADY have the correct y values (mirrored XZ)
         if flipy
             tri = mesh.f(:, [1 3 2]) ;
+        else
+            tri = mesh.f ;
         end
         % else
         %     xyzrs = ((rot * mesh.v')' + trans) * resolution ;
@@ -538,4 +540,5 @@ for tt = timePoints
         saveas(fig, sprintf(fig3outname, tt))
         close all
     end
+    
 end

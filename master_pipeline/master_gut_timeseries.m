@@ -20,6 +20,20 @@
 % Typically, ilasik puts the channel at the start in MATLAB (end in python)
 % Therefore, set axisorder = 'cxyz' since MATLAB probability h5s are saved 
 % as cxyz.
+% Note: on 2021-01-30, I set physical = preilastik = ilastik = xyzc, and 
+% I get flipy=0 and texture_axis_order = [3 2 1] ; Is this true in general?
+%
+%
+% THIS WORKS BETTER:
+% ------------------
+% set_preilastikaxisorder = 'xyzc' ;
+% preilastikaxisorder= set_preilastikaxisorder; ... % axis order in input to ilastik as h5s. To keep as saved coords use xyzc
+% ilastikaxisorder= 'cxyz'; ... % axis order as output by ilastik probabilities h5
+% imsaneaxisorder = 'xyzc'; ... % axis order relative to mesh axis order by which to process the point cloud prediction. To keep as mesh coords, use xyzc
+%
+%    'preilastikaxisorder', preilastikaxisorder, ... 
+%    'ilastikaxisorder', ilastikaxisorder, ... 
+%    'physicalaxisorder', imsaneaxisorder, ... 
 %
 % Meshes from integralDetector are stored with normals 'outward'/basal.
 % It is important to preserve the triangle orientation for texturepatch,
@@ -36,7 +50,7 @@ clear; close all; clc;
 % cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1.5_2/data
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data
 % .=========.
 % |  VIP10  |
 % .=========.
@@ -1021,6 +1035,7 @@ cntrlineOpts.dilation = 0 ;              % how many voxels to dilate the segment
 QS.extractCenterlineSeries(cntrlineOpts)
 disp('done with centerlines')
 
+
 %% Fix flip in Y for centerlines
 % aux_fix_flip
 
@@ -1196,6 +1211,10 @@ options.overwrite = true ;
 QS.measureWrithe(options)
 disp('done')
 
+%% Plot fancy "cross-section" view of centerlines
+options = struct() ;
+QS.plotClineXSections(options)
+
 %% Compute surface area and volume for each compartment ===================
 % Skip if already done
 options = struct() ;
@@ -1318,7 +1337,7 @@ for tt = QS.xp.fileMeta.timePoints(1:end)
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
 end
 
-% TILE/EXTEND SMOOTHED IMAGES IN Y AND RESAVE =======================================
+%% TILE/EXTEND SMOOTHED IMAGES IN Y AND RESAVE =======================================
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
@@ -1397,6 +1416,13 @@ QS.plotMetric(options) ;
 %         pause(0.0001)
 %     end
 % end
+
+%% Cell Segmentation
+options = struct() ;
+options.timePoints = [93:15:263] ;
+QS.generateCellSegmentation2D(options) 
+QS.generateCellSegmentation3D(options) 
+
 
 %% Measure Cell density
 % Skip if already done

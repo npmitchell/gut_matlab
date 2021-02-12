@@ -26,6 +26,8 @@ y0 = 20 ;                   % y value for orthogonal slice
 z0 = -5 ;                   % z value for orthogonal slice
 viewAngles = [-0.75, -1.0, 0.7] ;  % viewing angles for perspective
 ambientStrength = 0.5 ;     % intrinsic (isotropic) brightess for orthosections
+ambientStrength_meshOrtho = 1.0 ; 
+forcetrue = false ;
 
 % texturepatch options
 meshFileBase = QS.fullFileBase.mesh ;
@@ -456,7 +458,7 @@ if plot_evolution
         fn_texture2P = fullfile(outdirP, 'texture_orthoviews', [sprintf(QS.fileBase.name, tp) '.png']) ;
         fn_texture2F = fullfile(outdirF, 'texture_orthoviews', [sprintf(QS.fileBase.name, tp) '.png']) ;
         
-        if ~exist(fnP, 'file') || ~exist(fn_textureP, 'file') || overwrite || true
+        if ~exist(fnP, 'file') || ~exist(fn_textureP, 'file') || overwrite || forcetrue
             % Plot with h5
             ploth5 = false ;
             if ploth5
@@ -473,19 +475,12 @@ if plot_evolution
             end
 
             % Raw and APDV aligned Meshes
-            rmesh = QS.loadCurrentRawMesh() ;
             amesh = QS.loadCurrentAlignedMesh() ;
 
             % scaled mesh vertices
             xa = amesh.v(:, 1)  ;
             ya = amesh.v(:, 2)  ;
             za = amesh.v(:, 3)  ;
-            
-            % raw shifted mesh vertices            
-            rmesh.v = rmesh.v + QS.normalShift * rmesh.vn ;
-            xr = rmesh.v(:, 1) ;
-            yr = rmesh.v(:, 2) ;
-            zr = rmesh.v(:, 3) ;
 
             % shift scaled mesh vertices
             if flipy 
@@ -601,26 +596,26 @@ if plot_evolution
         end
         
         %% Plot in APDV
-        if ~exist(fnP, 'file') || overwrite 
+        if ~exist(fnP, 'file') || overwrite || forcetrue
             clf            
             hold on;
             surface(x2, -y2, z2, iy, 'FaceColor','texturemap', ...
                 'EdgeColor','none','CDataMapping','direct', ...
-                                'AmbientStrength', ambientStrength)
+                                'AmbientStrength', ambientStrength_meshOrtho)
             hold on;
             
             % Plot X slice (optional)
             if ~faceon && plotXslice                
                 surface(x1, -y1, z1, ix, 'FaceColor','texturemap', ...
                     'EdgeColor','none','CDataMapping','direct',...
-                                'AmbientStrength', ambientStrength)
+                                'AmbientStrength', ambientStrength_meshOrtho)
             end
             
             % Plot Z slice (if not looking laterally)
             if ~faceon
                 surface(x3, -y3, z3,  iz, 'FaceColor','texturemap', ...
                    'EdgeColor','none','CDataMapping','direct',...
-                                'AmbientStrength', ambientStrength)
+                                'AmbientStrength', ambientStrength_meshOrtho)
                 hold on;
             end
             colormap bone
@@ -669,7 +664,15 @@ if plot_evolution
         end     
         
         %% Create matching Texturepatch Image
-        if ~exist(fn_textureP, 'file') ||  ~exist(fn_textureF, 'file') || true || overwrite
+        if ~exist(fn_textureP, 'file') ||  ~exist(fn_textureF, 'file') || overwrite
+            
+            % raw shifted mesh vertices  
+            rmesh = QS.loadCurrentRawMesh() ;          
+            rmesh.v = rmesh.v + QS.normalShift * rmesh.vn ;
+            xr = rmesh.v(:, 1) ;
+            yr = rmesh.v(:, 2) ;
+            zr = rmesh.v(:, 3) ;
+            
             % Psize is the linear dimension of the grid drawn on each triangular face
             Options = struct() ;
             Options.PSize = 8;
@@ -678,10 +681,9 @@ if plot_evolution
             %Options.Translation = trans ;
             %Options.Dilation = resolution ;
             % OUTWARD, INWARD layers
-            Options.numLayers = [5, 4];  
+            Options.numLayers = [5, 2];  
             % Note: [2, 2] marches ~0.524 um in either dir if layer spacing is 1.0
-            % 
-            Options.layerSpacing = 0.75 ;
+            Options.layerSpacing = 1 ;
             
             fig = figure('Visible', 'Off') ;
             disp(['creating texture patch ' num2str(tp, '%06d')])

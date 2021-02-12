@@ -2,7 +2,9 @@ function [rot, rotx_rotz ] = rotate3dToAlignAxis(ax2alignx, varargin)
 % ROTATE3DTOALIGNAXIS(ax2align, varargin)
 %   find rotation matrix taking some unit vector direction to the x axis.
 %   If a second argument is supplied, a subsequent rotation can be applied
-%   so that the assigned vector is taken to the z axis instead, for ex.
+%   so that the second supplied vector is taken to the z axis in the new 
+%   frame. This fixes the "gauge" of polar angle of the transformed "xy" 
+%   plane (which could be any plane).
 %
 % Parameters
 % ----------
@@ -18,8 +20,14 @@ function [rot, rotx_rotz ] = rotate3dToAlignAxis(ax2alignx, varargin)
 %   ax2alignz to the z axis if supplied
 % rotx_rotz : length 2 cell array of 3x3 float arrays
 %   individual rotation matrices such that rot = rotz * rotx
-%   ax2alignz must be supplied for this output to be returned.
-% 
+%   varargin must be supplied for this output to be returned.
+%
+% Example usage
+% -------------
+% apaxis = [0, 0, 1] ;
+% dorsal = [0, 1, 0] ;
+% rot2APDV = rotate3dToAlignAxis(apaxis, dorsal)
+%
 % NPMitchell 2020
  
 
@@ -40,8 +48,16 @@ if nargin > 1
     % mapping the first argument to the x axis. 
     dvec = varargin{1} ;
     % Normalize the supplied vector
-    dhat = dvec / norm(dvec) ;
-    rotz = RU(dhat, zhat) ;
+    dhat = dvec(:)' / norm(dvec) ;
+    
+    try 
+        assert(any(abs(dhat - zhat) > eps))
+        % Rotate other vector (dhat, like dorsal vec) to the z axis
+        rotz = RU(dhat, zhat) ;
+    catch
+        disp('WARNING: second axis given was zhat direction, but zhat is already pointing along z!')
+        rotz = [1,0,0; 0, 1,0; 0, 0, 1]; 
+    end
     rot = rotz * rotx  ;
     
     if nargout > 1

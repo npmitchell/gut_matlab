@@ -21,6 +21,15 @@ classdef QuapSlap < handle
     % uvprime : (conformal map
     %       [same as uvprime_sm, since uvprime is currently computed via
     %       sphi_sm coordinates]
+    % r/spr/sphir :  (proper length x rectified azimuthal coordinate)
+    %       same as sphi but with aspect ratio relaxed to minimize isoareal
+    %       energy cost --> makes triangles more similar in area by scaling
+    %       the s axis (longitudinal axis) by a scalar factor.
+    %
+    % iLastik's coordinate systems : I recommend using cxyz as the axis 
+    %       when outputting from iLastik. For our setup, this will mean
+    %       that the meshes are mirrored with respect to the lab frame, so
+    %       QS.flipy = true.
     % 
     % PIV measurements fall into two classes: 
     %   - 'piv': principal surface-Lagrangian-frame PIV (sp_sme or up_sme)
@@ -74,8 +83,38 @@ classdef QuapSlap < handle
     %   v2dsmMum : (#timePoints-1) x (nX*nY) x 2 float array
     %       2d velocities at PIV evaluation coordinates in scaled pix/min, but 
     %       proportional to um/min (scaled by dilation of map)
+    %
+    % APDV coordinate system and Centerline specification
+    % ---------------------------------------------------
+    % QuapSlap allows the user to designate the AP axis, a DV axis, and a
+    % centerline for the segmented object. 
+    % To designate APDV coordinate system, use iLastik training on the
+    % timepoint t0 (which is an attribute of QS). In particular, train on
+    % anterior (A), posterior (P), background (B), and dorsal (D) location 
+    % in different iLastik channels. Small blobs of high probability near
+    % the anterior end for A, somewhere along the posterior end for P, and 
+    % anywhere along dorsal for D are best. Then the centers of mass of
+    % thresholded contiguous high probability are computed for each to
+    % define the coordinate system. By default, the ilastik results are
+    % read as ch1=A, ch2=P, ch3=B, ch4=D, but anteriorChannel, 
+    % posteriorChannel, and dorsalChannel specify the iLastik
+    % training channel that is used for each specification.
+    % Name the h5 file output from iLastik as 
+    % ..._Probabilities_APDVcoords.h5
+    % For example, dorsal for the gut was chosen at the fused site where 
+    % additional 48YGAL4-expressing muscle-like cells form a seam.
+    % Posterior is at the rear of the yolk, where the endoderm closes, for 
+    % apical surface training. Anterior is at the junction of the midgut 
+    % with the foregut.
+    % Separately, define the AP points for centerline extraction. For most gut
+    % data, the posterior point is different in centerline than it is for AP
+    % centerline specification, so we use a different ILP to train for A and P
+    % for all timepoints of dynamic data. 
+    %
+    % 
     properties
         xp                      % ImSAnE experiment class instance
+        dynamic                 % true if multiple timepoints, false if fixed
         timeInterval = 1        % increment in time between timepoints with 
                                 % indices differing by 1. For example, if
                                 % timePoints are [0,1,2,4] and these are 
@@ -139,6 +178,9 @@ classdef QuapSlap < handle
             'spcutMeshSmRSC', [], ...   % rectilinear cutMesh as closed cylinder (topological annulus), in (s,phi) with rotated scaled embedding
             'ricciMesh', [], ...        % ricci flow result pullback mesh, topological annulus
             'uvpcutMesh', [])           % rectilinear cutMesh in (u,v) from Dirichlet map result to rectangle 
+        currentCline = struct('mss', [], ...
+            'mcline', [], ...
+            'avgpts', []) ;
         data = struct('adjustlow', 0, ...
             'adjusthigh', 0, ...
             'axisOrder', [1 2 3], ...
@@ -371,7 +413,7 @@ classdef QuapSlap < handle
             try
                 acom_sm = h5read(QS.fileName.apdv, '/acom_sm') ;
                 pcom_sm = h5read(QS.fileName.apdv, '/pcom_sm') ;
-                assert(length(acom_sm) == length(QS.xp.fileMeta.timePoints))
+                assert(size(acom_sm, 1) == length(QS.xp.fileMeta.timePoints))
             catch
                 opts = load(QS.fileName.apdv_options) ;
                 [acom_sm, pcom_sm] = QS.computeAPDCOMs(opts.apdvOpts) ;
@@ -593,6 +635,26 @@ classdef QuapSlap < handle
         end
         
         function IV = getCurrentData(QS, adjustIV)
+            % IV = getCurrentData(QS, adjustIV)
+            % Load/return volumetric intensity data for current timepoint
+            % Note: axis order permutation is applied here upon loading and
+            % assignment to self (current QS instance). 
+            % 
+            % Parameters
+            % ----------
+            % QS : QS class instance (self)
+            % adjustIV : bool (default=true)
+            %   apply the intensity adjustment stored in
+            %   QS.data.adjustlow/high
+            %
+            % Returns
+            % -------
+            % IV : X*Y*Z intensities 
+            %   volumetric intensity data of current timepoint
+            %   Note this is also assigned to self as QS.currentData.IV, so
+            %   avoiding a duplicate copy in RAM is useful for large data
+            %   by not returning an argument and instead calling
+            %   QS.currentData.IV when needed.
             if nargin < 2
                 adjustIV = true ;
             end
@@ -607,9 +669,20 @@ classdef QuapSlap < handle
                 if adjustIV
                     adjustlow = QS.data.adjustlow ;
                     adjusthigh = QS.data.adjusthigh ;
-                    QS.currentData.IV = QS.adjustIV(IV, adjustlow, adjusthigh) ;
+                    IVtmp = QS.adjustIV(IV, adjustlow, adjusthigh) ;
+                    if ~all(QS.data.axisOrder == [1 2 3])
+                        for ch = 1:length(IVtmp)
+                            QS.currentData.IV{ch} = permute(IVtmp{ch}, QS.data.axisOrder) ;
+                        end
+                    end
                 else
-                    QS.currentData.IV = IV ;
+                    if ~all(QS.data.axisOrder == [1 2 3])
+                        for ch = 1:length(IV)
+                            QS.currentData.IV{ch} = permute(IV{ch}, QS.data.axisOrder) ;
+                        end
+                    else                   
+                        QS.currentData.IV = IV  ;
+                    end
                 end
             end
             if nargout > 0
@@ -1234,6 +1307,13 @@ classdef QuapSlap < handle
                         imDir_e = QS.dir.im_uvprime_e ;
                         fn0 = QS.fileBase.im_uvprime ;
                         ofn = QS.fileBase.im_uvprime_e ;
+                    elseif strcmp(coordsys, 'r') || strcmp(coordsys, 'spr') || strcmp(coordsys, 'sphir') || strcmp(coordsys, 'rsp')
+                        imDir = QS.dir.im_r ;
+                        imDir_e = QS.dir.im_re ;
+                        fn0 = QS.fileBase.im_r ;
+                        ofn = QS.fileBase.im_re ;
+                    else
+                        error(['did not recognize coordsys: ' coordsys])
                     end
                 else
                     % Default value of coordsys = 'sp' ;
@@ -1279,7 +1359,27 @@ classdef QuapSlap < handle
             disp(['done ensuring extended tiffs for ' imDir ' in ' imDir_e])
         end
         
-        % measure Length & Writhe
+        % measure mean hoop centerline, Length, & Writhe of curve
+        function [mss, mcline, avgpts] = getCurrentClineDVhoop(QS)
+            clineDVhoopBase = QS.fullFileBase.clineDVhoop ;
+            % load the centerline for this timepoint
+            if isempty(QS.currentTime)
+                error('Please first set currentTime')
+            end
+            fn = sprintf(clineDVhoopBase, QS.currentTime) ;
+            disp(['Loading DVhoop centerline from ' fn])
+            load(fn, 'mss', 'mcline', 'avgpts')
+            
+            % Is this needed here? Yes!
+            if QS.flipy
+                mcline(:, 2) = -mcline(:, 2) ;
+                avgpts(:, 2) = -avgpts(:, 2) ;
+            end
+            QS.currentCline.mss = mss ;
+            QS.currentCline.mcline = mcline ;
+            QS.currentCline.avgpts = avgpts ;
+        end
+
         [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
             measureWrithe(QS, options)
         function Length_t = measureLength(QS, options)
@@ -1389,10 +1489,11 @@ classdef QuapSlap < handle
             % Obtain the cell segmentation in 3D pullback space
             if isempty(QS.currentSegmentation.seg2d)
                 try
-                    seg2d = load(sprintf(QS.fullFileBase.seg2d, QS.currentTime)) ;
+                    QS.currentSegmentation.seg2d = load(sprintf(QS.fullFileBase.segmentation2d, QS.currentTime)) ;
                 catch
                     options.timePoints = [QS.currentTime] ;
                     QS.generateCellSegmentation2D(options) ;
+                    QS.currentSegmentation.seg2d = load(sprintf(QS.fullFileBase.segmentation2d, QS.currentTime)) ;
                 end
             end
             % if requested, return segmentation as output
@@ -1429,6 +1530,11 @@ classdef QuapSlap < handle
         end
         plotCellDensity(QS, options)
         plotCellDensityKymograph(QS, options)
+        
+        % spcutMeshStack 
+        %   --> similar to spcutMeshSmStack, but no smoothing
+        %   --> this is useful for fixed data
+        generateSPCutMeshStack(QS, spcutMeshStackOptions)
         
         % spcutMeshSmStack
         generateSPCutMeshSmStack(QS, spcutMeshSmStackOptions)
@@ -1874,7 +1980,7 @@ classdef QuapSlap < handle
             %
             % Parameters
             % ----------
-            % im : NxM numeric array or 2 ints
+            % im : NxM numeric array or 2 ints for size
             %   image in which pixel coordinates are defined or dimensions
             %   of the image (pullback image in pixels)
             % XY : Qx2 numeric array
