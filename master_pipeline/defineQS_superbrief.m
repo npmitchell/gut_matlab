@@ -213,3 +213,11 @@ opts.lambda_err = 0 ;
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
+
+%% Cell Segmentation
+options = struct() ;
+options.timePoints = [93:15:263] ;
+QS.generateCellSegmentation2D(options) 
+options.overwrite = false ;
+QS.generateCellSegmentation3D(options) 
+

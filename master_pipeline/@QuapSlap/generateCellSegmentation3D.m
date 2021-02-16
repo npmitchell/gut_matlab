@@ -110,13 +110,13 @@ for tp = timePoints
 
         %% Get aspect ratios of polygons 
         % rotate to 2d plane, with x along zeta, and y along phi
-        areas = NaN * ones(nCells, 1) ;
-        perim = NaN * ones(nCells, 1) ;
-        moment1 = NaN * ones(nCells, 1) ;
-        ang1 = NaN * ones(nCells, 1) ;
-        moment2 = NaN * ones(nCells, 1) ;
-        ang2 = NaN * ones(nCells, 1) ;
-        moinertia = NaN * ones(nCells, 2, 2) ;
+        areas = nan(nCells, 1) ;
+        perim = nan(nCells, 1) ;
+        moment1 = nan(nCells, 1) ;
+        ang1 = nan(nCells, 1) ;
+        moment2 = nan(nCells, 1) ;
+        ang2 = nan(nCells, 1) ;
+        moinertia = nan(nCells, 2, 2) ;
         cellQ2d = {} ;
 
         for cid = 1:nCells
