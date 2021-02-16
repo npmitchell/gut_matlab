@@ -35,7 +35,7 @@ function [ geom, iner, cpmo ] = polygeom( x, y )
 % begin function POLYGEOM
  
 % check if inputs are same size
-if ~isequal( size(x), size(y) ),
+if ~isequal( size(x), size(y) )
   error( 'X and Y must be the same size');
 end
  
@@ -62,7 +62,7 @@ dy = yp - y;
 P = sum( sqrt( dx.*dx +dy.*dy ) );
  
 % check for CCW versus CW boundary
-if A < 0,
+if A < 0
   A = -A;
   Ixx = -Ixx;
   Iyy = -Iyy;

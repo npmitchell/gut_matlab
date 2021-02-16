@@ -1,18 +1,37 @@
 function polygons = Cdat2polygons(Cdat, xy, BL, NL, options)
 % Convert a struct Cdat of cell information to a list of polygons with
 % ordered vertices, one for each cell.
-% Todo: handle double-edged sword -- there are both cyclic components to
-% the graph of bonds AND we want to find the LONGEST path of connected
-% nodes around each cell. Could use bellmanFordShortestPaths() to find
-% negative cycles of a digraph, then prune? Could find all possible paths
-% and take the longest?
+%
+% Note that this is, in the general case, an NP hard problem. 
+% If there are both cyclic components (ie triangles) to
+% the graph of bonds, then we can't used a mixed-sign weight of shortest
+% path in a graph. Could use bellmanFordShortestPaths() to find
+% negative cycles of a digraph, but here I find all possible paths
+% and take the longest. 
+%
 % Todo: in walking method, initially choose bond direction that has largest
-% angle of all possibilities
+% angle of all possibilities. Handle case where the initial bond direction
+% is wrong (is that possible?) so that we always pick the right angle,
+% whether max or min.
+% Todo: Consider removing bond self-intersections before proceeding.
 %
 % Parameters
 % ----------
-% 
-% 
+% Cdat : cell data struct with fields
+% xy : #vertices x 2 numeric array of vertex positions
+% BL : #bonds x 2 int array
+% options : optional struct with optional fields
+%   method : 'graph' or 'walking' (string specifier, default='graph')
+%       method to use to extract polygons
+%   debug : bool (default=false)
+%       debug the current function acting on inputs (more visualization &
+%       output)
+%   maxNumEdges : int (default=20)
+%       maximum number of edges a valid cell can have
+%   pausetime : numeric value (default=0.3) ;   
+%       pausing time in seconds for viewing badly behaved cell polygons
+%
+%
 % Returns
 % -------
 % polygons : #cells x 1 struct of cells
@@ -23,14 +42,24 @@ function polygons = Cdat2polygons(Cdat, xy, BL, NL, options)
 
 % Default options & unpacking
 method = 'graph' ;  % 'walking' or 'graph'
-debug = false ;
-maxNumEdges = 20 ;
+debug = false ;     % whether to debug the algorithm
+maxNumEdges = 20 ;  % maximum number of edges a valid cell can have
+pausetime = 0.3 ;   % pausing time in seconds for viewing badly behaved cell polygons
 if nargin < 5
     options = struct() ;
 end
 
+if isfield(options, 'method')
+    method = options.method ;
+end
 if isfield(options, 'debug')
     debug = options.debug ;
+end
+if isfield(options, 'maxNumEdges')
+    maxNumEdges = options.maxNumEdges ;
+end
+if isfield(options, 'pausetime')
+    pausetime = options.pausetime ;
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -166,9 +195,12 @@ for cid = 1:length(Cdat)
             % G1 = digraph([pairs(:, 1); pairs(:, 2)], [pairs(:, 2); pairs(:, 1)], [weights; weights]) ;
             % Subplot each graph: one should be ring-like, one should be
             % arc-like
-            plot(G0); hold on;
-            plot(G1) ; %, 'EdgeLabel', G1.Edges.Weight)
-
+            if debug
+                plot(G0); hold on;
+                plot(G1) ; %, 'EdgeLabel', G1.Edges.Weight)
+                waitfor(gcf)
+            end
+            
             startpt = bond2sever(1) ;
             endpt = bond2sever(2) ;        
             % pg0 = shortestpath(G1, startpt, endpt) ;
@@ -184,8 +216,11 @@ for cid = 1:length(Cdat)
             pth = pathbetweennodes(adj, startpt, endpt) ;
 
             % convert back to vertex ids
-            if length(pth) == 1
+            if isempty(pth)
+                skipCell = true ;
+            elseif length(pth) == 1
                 pg0 = pth{1} ;
+                skipCell = false ;
             else
                 % Sum up pathlengths
                 % Consider each path
@@ -209,32 +244,46 @@ for cid = 1:length(Cdat)
                 end
                 % Choose the longest path
                 [~, maxID] = max(plens) ;
-                pg0 = pth{maxID} ;
+                try
+                    % longest length path
+                    pg0 = pth{maxID} ;
+                    % success! this is a good cell
+                    skipCell = false ;
+                catch
+                    error('what went wrong with choosing max length path?')
+                end
             end
             
             % Convert back to vertex indices
-            try
-                pg = uniqueV(pg0)' ;
-                
-                skipCell = false ;
-            catch
-                disp('found path but could not index...')
-                
-                clf
-                plotBonds(xy, BL)
-                hold on;
-                plot(xy(ci, 1), xy(ci, 2), '.')
-                plot(xy(pairsV(:), 1), xy(pairsV(:), 2), '^')
-                
-                for tid = 1:length(pairsV)
-                    plot([xy(pairsV(tid, 1), 1), xy(pairsV(tid, 2), 1)], ...
-                        [xy(pairsV(tid, 1), 2), xy(pairsV(tid, 2), 2)], 'k--') ;
-                    pause(1)
-                    xlim([min(xy(pairsV(:), 1)) - 1, max(xy(pairsV(:), 1)) + 1])
-                    ylim([min(xy(pairsV(:), 2)) - 1, max(xy(pairsV(:), 2)) + 1])
+            % If we have a path, then re-index original vertices for this
+            % path
+            if ~skipCell
+                % we have a path
+                try
+                    % re-index with original vertex indices rather than
+                    % simplified N indices for an N-gon
+                    pg = uniqueV(pg0)' ;
+                    % This is a good cell
+                    skipCell = false ;
+                catch
+                    disp('found path but could not index...')
+
+                    clf
+                    plotBonds(xy, BL)
+                    hold on;
+                    plot(xy(ci, 1), xy(ci, 2), '.')
+                    plot(xy(pairsV(:), 1), xy(pairsV(:), 2), '^')
+
+                    for tid = 1:length(pairsV)
+                        plot([xy(pairsV(tid, 1), 1), xy(pairsV(tid, 2), 1)], ...
+                            [xy(pairsV(tid, 1), 2), xy(pairsV(tid, 2), 2)], 'k--') ;
+                        pause(pausetime)
+                        xlim([min(xy(pairsV(:), 1)) - 1, max(xy(pairsV(:), 1)) + 1])
+                        ylim([min(xy(pairsV(:), 2)) - 1, max(xy(pairsV(:), 2)) + 1])
+                    end
+                    disp('Ignoring this cell')
+                    skipCell = true ;
                 end
-                disp('Ignoring this cell')
-                skipCell = true ;
             end
         end
 
@@ -277,7 +326,7 @@ for cid = 1:length(Cdat)
                     plot(xy(pg(tempid), 1), xy(pg(tempid), 2), '^')
                     xlim([min(xy(pg, 1)) - 1, max(xy(pg, 1)) + 1])
                     ylim([min(xy(pg, 2)) - 1, max(xy(pg, 2)) + 1])
-                    pause(1)
+                    pause(pausetime)
                 end
                 skipCell = true ;
                 disp('polygon does not seem to be closed!')

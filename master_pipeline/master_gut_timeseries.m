@@ -1421,8 +1421,9 @@ QS.plotMetric(options) ;
 options = struct() ;
 options.timePoints = [93:15:263] ;
 QS.generateCellSegmentation2D(options) 
+options.overwrite = false ;
 QS.generateCellSegmentation3D(options) 
-
+QS.estimateIntercalationRate(options)
 
 %% Measure Cell density
 % Skip if already done

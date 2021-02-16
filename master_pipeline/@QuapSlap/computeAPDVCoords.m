@@ -373,6 +373,7 @@ if redo_rot_calc || overwrite
         apaxis = pcom(:) - origin(:) ;
         aphat = reshape(apaxis(:) / norm(apaxis), [1, 3]) ;
 
+        % SEE rotate3dToAlignAxis()
         % compute rotation matrix using this procedure: 
         % https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
         xhat = [1, 0, 0] ;
@@ -387,6 +388,7 @@ if redo_rot_calc || overwrite
         % find component of dorsal vector from acom perpendicular to AP
         dcom = reshape(dcom, [1, 3]) ;
         origin = reshape(origin, [1, 3]) ;
+        % Get perpendicular component of the dorsal vector wrt AP axis
         dvec = rotx * (dcom - origin)' - rotx * (dot(dcom - origin, aphat) * aphat)' ;
         dhat = dvec / norm(dvec) ;
         rotz = RU(dhat, zhat) ;

@@ -1505,7 +1505,7 @@ classdef QuapSlap < handle
             % Obtain the cell segmentation in 3D pushforward space
             if isempty(QS.currentSegmentation.seg3d)
                 try
-                    seg3d = load(sprintf(QS.fullFileBase.seg3d, QS.currentTime)) ;
+                    seg3d = QS.loadCurrentSegmentation3D() ;
                 catch
                     options.timePoints = [QS.currentTime] ;
                     QS.generateCellSegmentation3D(options) ;
@@ -1515,9 +1515,12 @@ classdef QuapSlap < handle
             if nargout > 0
                 seg3d = QS.currentSegmentation.seg3d ;
             end
-
         end
-        measureCellAnisotropy(QS, options)
+        function seg3d = loadCurrentSegmentation3D(QS) 
+           seg3d = load(sprintf(QS.fullFileBase.segmentation3d, QS.currentTime)) ;
+        end
+        % Note: anisotropy is stored in seg3d.quality
+        % measureCellAnisotropy(QS, options)
         
         % density of cells -- nuclei or membrane based
         measureCellDensity(QS, nuclei_or_membrane, options)

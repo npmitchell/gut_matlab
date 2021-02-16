@@ -171,8 +171,9 @@ for tp = timePoints
         % Assign polygons to vdat
         NL = vdat.NL ;
         polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL) ; 
-        vdat.polygons = polygons ;
-        seg2d.vdat = vdat ;
+
+        seg2d.cdat = struct() ;
+        seg2d.cdat.polygons = polygons ;
         
         %% Save the segmentation to disk
         if ~exist(fullfile(QS.dir.segmentation, 'seg2d'), 'dir')
@@ -187,42 +188,57 @@ for tp = timePoints
         % %% Convert to simpler format
         load(outfn, 'seg2d', 'segIm', 'coordSys')
         
-        if ~isfield(seg2d, 'vdat')
-            disp('Constructing vdat')
-            vdat = struct() ;
-            vdat.v = zeros(length(seg2d.Vdat), 2) ;
-            vdat.NL = zeros(length(seg2d.Vdat), 4) ;
-            vdat.fourfold = false(length(seg2d.Vdat), 1) ;
-            for qq = 1:length(seg2d.Vdat)
-                vdat.v(qq, :) = [seg2d.Vdat(qq).vertxcoord, seg2d.Vdat(qq).vertycoord] ;
-                nv = length(seg2d.Vdat(qq).nverts) ;
-                try
-                    vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
-                catch
-                    % Increase the size of NL to accomodate more neighbors
-                    disp('Increasing NL size (dim 2)')
-                    swap = vdat.NL ;
-                    vdat.NL = zeros(length(seg2d.Vdat), nv) ;
-                    vdat.NL(1:qq, 1:size(swap, 2)) = swap(1:qq, :) ;
-                    vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
-                end
-                vdat.fourfold(qq) = ~isempty(seg2d.Vdat(qq).fourfold) ;
-            end    
-
-            disp('generating bond list')
-            BL = Vdat2BL(seg2d.Vdat) ;
-            vdat.BL = BL ;
-
-            % Assign polygons to vdat
-            NL = vdat.NL ;
-            polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL) ; 
-            vdat.polygons = polygons ;
-
-            % Assign vdat to segmentation
-            seg2d.vdat = vdat ;
-            save(outfn, 'seg2d', 'segIm', 'coordSys')
-        end
-        
+        % if ~isfield(seg2d, 'vdat')
+        %     disp('Constructing vdat')
+        %     vdat = struct() ;
+        %     vdat.v = zeros(length(seg2d.Vdat), 2) ;
+        %     vdat.NL = zeros(length(seg2d.Vdat), 4) ;
+        %     vdat.fourfold = false(length(seg2d.Vdat), 1) ;
+        %     for qq = 1:length(seg2d.Vdat)
+        %         vdat.v(qq, :) = [seg2d.Vdat(qq).vertxcoord, seg2d.Vdat(qq).vertycoord] ;
+        %         nv = length(seg2d.Vdat(qq).nverts) ;
+        %         try
+        %             vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
+        %         catch
+        %             % Increase the size of NL to accomodate more neighbors
+        %             disp('Increasing NL size (dim 2)')
+        %             swap = vdat.NL ;
+        %             vdat.NL = zeros(length(seg2d.Vdat), nv) ;
+        %             vdat.NL(1:qq, 1:size(swap, 2)) = swap(1:qq, :) ;
+        %             vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
+        %         end
+        %         vdat.fourfold(qq) = ~isempty(seg2d.Vdat(qq).fourfold) ;
+        %     end    
+        % 
+        %     disp('generating bond list')
+        %     BL = Vdat2BL(seg2d.Vdat) ;
+        %     vdat.BL = BL ;
+        % 
+        %     % Assign polygons to vdat
+        %     NL = vdat.NL ;
+        %     polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL) ; 
+        % 
+        %     seg2d.cdat = struct() ;
+        %     seg2d.cdat.polygons = polygons ;
+        % 
+        %     % Assign vdat to segmentation
+        %     seg2d.vdat = vdat ;
+        %     save(outfn, 'seg2d', 'segIm', 'coordSys')
+        % end
+        % 
+        % % CLEANUP
+        % if isfield(seg2d.vdat, 'polygons') || isfield(seg2d, 'polygons')
+        %     if isfield(seg2d.vdat, 'polygons')
+        %         pgs = seg2d.vdat.polygons ;
+        %         seg2d.cdat = struct() ;
+        %         seg2d.cdat.polygons = pgs ;            
+        %         seg2d.vdat = rmfield(seg2d.vdat, 'polygons') ;
+        %     end
+        %     if isfield(seg2d, 'polygons')
+        %         seg2d = rmfield(seg2d, 'polygons') ;
+        %     end
+        %     save(outfn, 'seg2d', 'segIm', 'coordSys')
+        % end
     end
     
     %% Save image of the segmentation
@@ -230,10 +246,10 @@ for tp = timePoints
     if ~exist(imfn, 'file') || overwrite || overwriteImages
         
         imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
-        im = imread(imageFn)
+        im = imread(imageFn) ;
         
         clf
-        Xs = zeros(size(BL, 1), 1) ;
+        Xs = zeros(size(seg2d.vdat.BL, 1), 1) ;
         Ys = Xs ;
         Us = Xs ;
         Vs = Xs ;

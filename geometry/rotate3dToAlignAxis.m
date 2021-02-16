@@ -1,17 +1,23 @@
-function [rot, rotx_rotz ] = rotate3dToAlignAxis(ax2alignx, varargin)
+function [rot, rotx_rotz ] = rotate3dToAlignAxis(ax2alignx, ...
+    ax2alignz, zax_given_in_original_space)
 % ROTATE3DTOALIGNAXIS(ax2align, varargin)
 %   find rotation matrix taking some unit vector direction to the x axis.
-%   If a second argument is supplied, a subsequent rotation can be applied
-%   so that the second supplied vector is taken to the z axis in the new 
-%   frame. This fixes the "gauge" of polar angle of the transformed "xy" 
+%   If a second argument is supplied, a subsequent rotation (rotz) to the 
+%   first (rotx) so that the second supplied vector is taken to the z axis 
+%   in the new frame and the first is taken to the x axis. 
+%   This fixes the "gauge" of polar angle of the transformed "xy" 
 %   plane (which could be any plane).
 %
 % Parameters
 % ----------
 % ax2alignx : 1x3 float array
 %   axis to rotate to the x axis
-% varargin : optional, ax2alignz
-%   axis to rotate to the z axis
+% ax2alignz : optional 1x3 float array
+%   axis in original space to rotate to the z axis 
+%   If ax2alignz is supplied, the second axis is provided in original 3d 
+%   space as a linearly independent vector of the first axis. 
+%   Any other choicedoesn't make much sense since we don't know how the
+%   rotation will come out. 
 %
 % Returns 
 % -------
@@ -30,6 +36,10 @@ function [rot, rotx_rotz ] = rotate3dToAlignAxis(ax2alignx, varargin)
 %
 % NPMitchell 2020
  
+ax2alignx = reshape(ax2alignx, [1, 3]) ;
+if nargin > 1
+    ax2alignz = reshape(ax2alignz, [1, 3]) ;
+end
 
 % compute rotation matrix using this procedure: 
 % https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
@@ -46,14 +56,21 @@ rotx = RU(ax2alignx, xhat) ;
 if nargin > 1
     % Rotate second axis (dorsal, for ex) to the z axis, in addition to
     % mapping the first argument to the x axis. 
-    dvec = varargin{1} ;
     % Normalize the supplied vector
-    dhat = dvec(:)' / norm(dvec) ;
+    dvec = rotx * (ax2alignz(:)) - rotx * (dot(ax2alignz(:), ax2alignx(:)) * ax2alignx)' ;    
+    dhat = reshape(dvec, [1, 3]) / norm(dvec) ;
+    
+    % Now, dvec should be perpendicular to [1, 0, 0]
+    assert(dot(dvec, [1, 0, 0]) < 1e-7)
     
     try 
+        % Check that supplied vector was not already zhat direction, since
+        % we cannot rotate a vector to itself
         assert(any(abs(dhat - zhat) > eps))
         % Rotate other vector (dhat, like dorsal vec) to the z axis
         rotz = RU(dhat, zhat) ;
+        % Note: rotz should leave x axis alone, so rotz(1, 1) = 1 and 
+        % rotz(1, 2:3) = rotz(2:3, 1) = 0. 
     catch
         disp('WARNING: second axis given was zhat direction, but zhat is already pointing along z!')
         rotz = [1,0,0; 0, 1,0; 0, 0, 1]; 

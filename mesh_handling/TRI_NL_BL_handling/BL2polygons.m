@@ -4,6 +4,7 @@ function BL2polygons(xy, BL, NL, KL, PVx, PVy, PVxydict, viewmethod, check)
 % This allows correct indexing for PVxydict keys, if supplied.
 % This code fails if a site is its own NNN.
 % adapted from extract_polygons() from NPMitchell's python lepm library.
+% UNFINISHED: used Cdat2polygons() for now!
 %
 % Parameters
 % ----------
