@@ -175,6 +175,7 @@ for cid = 1:length(Cdat)
             G0 = graph(pairs0(:, 1), pairs0(:, 2), 1) ;
             bID = 1 ;
             severed  = false ;
+            clearvars pairs
             while ~severed 
                 if bID > size(pairs0, 1)
                     error('did not find a pair of degree 2. Cannot be a polygon')
@@ -184,73 +185,84 @@ for cid = 1:length(Cdat)
                     keep = setdiff(1:size(pairs0, 1), bID) ;
                     pairs = pairs0(keep, :) ;
                     weights = weights0(keep) ;
+                    severed = true ;
                 else
                     disp('skipping bond since not deg=2')
                     bID = bID + 1 ;
                 end
-                severed = true ;
-            end
-            % Severed graph (one bond cut
-            G1 = graph(pairs(:, 1), pairs(:, 2), weights) ;
-            % G1 = digraph([pairs(:, 1); pairs(:, 2)], [pairs(:, 2); pairs(:, 1)], [weights; weights]) ;
-            % Subplot each graph: one should be ring-like, one should be
-            % arc-like
-            if debug
-                plot(G0); hold on;
-                plot(G1) ; %, 'EdgeLabel', G1.Edges.Weight)
-                waitfor(gcf)
             end
             
-            startpt = bond2sever(1) ;
-            endpt = bond2sever(2) ;        
-            % pg0 = shortestpath(G1, startpt, endpt) ;
-
-            % Find all paths between nodes with pathbetweennodes
-            % refs: 
-            % https://www.mathworks.com/matlabcentral/answers/12283-all-simple-paths-problem
-            % https://github.com/kakearney/pathbetweennodes-pkg
-            nnode = max(pairs(:));
-            nedge = 2*size(pairs, 1);
-            adj = sparse([pairs(:, 1); pairs(:, 2)], ...
-                [pairs(:, 2); pairs(:, 1)], ones(nedge,1), nnode, nnode);
-            pth = pathbetweennodes(adj, startpt, endpt) ;
-
-            % convert back to vertex ids
-            if isempty(pth)
-                skipCell = true ;
-            elseif length(pth) == 1
-                pg0 = pth{1} ;
-                skipCell = false ;
-            else
-                % Sum up pathlengths
-                % Consider each path
-                plens = zeros(length(pth), 1) ;
-                for pathID = 1:length(pth)
-                    ppath = pth{pathID} ;
-                    plen = 0 ;
-                    Vpath = uniqueV(ppath)' ;
-                    % Consider each step in the path, add up Euclidean length
-                    for ss = 1:length(ppath)
-                        if ss < length(ppath)
-                            step = Vpath(ss:ss+1) ;
-                        elseif ss == length(ppath)
-                            step = [Vpath(ss) Vpath(1)] ;   
-                        else
-                            error('Path cannot be longer than itself!')
-                        end
-                        plen = plen + vecnorm(xy(step(2), :) - xy(step(1), :), 2, 2) ;
-                    end
-                    plens(pathID) = plen ;
+            % Severed graph (one bond cut)
+            if exist('pairs', 'var')
+                G1 = graph(pairs(:, 1), pairs(:, 2), weights) ;
+                % G1 = digraph([pairs(:, 1); pairs(:, 2)], [pairs(:, 2); pairs(:, 1)], [weights; weights]) ;
+                % Subplot each graph: one should be ring-like, one should be
+                % arc-like
+                if debug
+                    plot(G0); hold on;
+                    plot(G1) ; %, 'EdgeLabel', G1.Edges.Weight)
+                    waitfor(gcf)
                 end
-                % Choose the longest path
-                [~, maxID] = max(plens) ;
-                try
-                    % longest length path
-                    pg0 = pth{maxID} ;
-                    % success! this is a good cell
+
+                startpt = bond2sever(1) ;
+                endpt = bond2sever(2) ;        
+                % pg0 = shortestpath(G1, startpt, endpt) ;
+
+                % Find all paths between nodes with pathbetweennodes
+                % refs: 
+                % https://www.mathworks.com/matlabcentral/answers/12283-all-simple-paths-problem
+                % https://github.com/kakearney/pathbetweennodes-pkg
+                nnode = max(pairs(:));
+                nedge = 2*size(pairs, 1);
+                adj = sparse([pairs(:, 1); pairs(:, 2)], ...
+                    [pairs(:, 2); pairs(:, 1)], ones(nedge,1), nnode, nnode);
+                pth = pathbetweennodes(adj, startpt, endpt) ;
+
+                % convert back to vertex ids
+                if isempty(pth)
+                    skipCell = true ;
+                elseif length(pth) == 1
+                    pg0 = pth{1} ;
                     skipCell = false ;
+                else
+                    % Sum up pathlengths
+                    % Consider each path
+                    plens = zeros(length(pth), 1) ;
+                    for pathID = 1:length(pth)
+                        ppath = pth{pathID} ;
+                        plen = 0 ;
+                        Vpath = uniqueV(ppath)' ;
+                        % Consider each step in the path, add up Euclidean length
+                        for ss = 1:length(ppath)
+                            if ss < length(ppath)
+                                step = Vpath(ss:ss+1) ;
+                            elseif ss == length(ppath)
+                                step = [Vpath(ss) Vpath(1)] ;   
+                            else
+                                error('Path cannot be longer than itself!')
+                            end
+                            plen = plen + vecnorm(xy(step(2), :) - xy(step(1), :), 2, 2) ;
+                        end
+                        plens(pathID) = plen ;
+                    end
+                    % Choose the longest path
+                    [~, maxID] = max(plens) ;
+                    try
+                        % longest length path
+                        pg0 = pth{maxID} ;
+                        % success! this is a good cell
+                        skipCell = false ;
+                    catch
+                        error('what went wrong with choosing max length path?')
+                    end
+                end
+            else
+                try 
+                    assert(degree(G0, pairs0(:, 1)) > 2)
+                    disp('Could not cut a bond -- all vertices are deg>2')
+                    skipCell = true ;
                 catch
-                    error('what went wrong with choosing max length path?')
+                    error('Unclear what is failing. Debug here.')
                 end
             end
             
