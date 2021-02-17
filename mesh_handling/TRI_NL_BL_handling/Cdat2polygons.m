@@ -178,7 +178,8 @@ for cid = 1:length(Cdat)
             clearvars pairs
             while ~severed 
                 if bID > size(pairs0, 1)
-                    error('did not find a pair of degree 2. Cannot be a polygon')
+                    disp('WARNING: did not find a pair of degree 2. Cannot be a polygon')
+                    severed = true ;
                 end
                 bond2sever = pairs0(bID, :) ;
                 if degree(G0, bond2sever(1)) == 2

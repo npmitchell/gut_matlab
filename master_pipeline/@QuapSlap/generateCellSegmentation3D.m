@@ -33,9 +33,13 @@ if ~exist(imdir, 'dir')
 end
 
 % Setting the current timepoint clears non-timepoint segmentations
-medop = [] ;
-op_low = [] ;
-op_high = [] ;
+close all
+medc2t = [] ;
+meds2t = [] ;
+c2t_low = [] ;
+c2t_high = [] ;
+s2t_low = [] ;
+s2t_high = [] ;
 mean_mratio = [] ;
 mratio_low = [] ;
 mratio_high = [] ;
@@ -45,7 +49,7 @@ for tp = timePoints
     tidx = QS.xp.tIdx(tp) ;
     
     outfn = sprintf(QS.fullFileBase.segmentation3d, QS.currentTime) ;
-    if ~exist(outfn, 'file') || overwrite || true
+    if ~exist(outfn, 'file') || overwrite 
 
         % Obtain the segmentation in 2d 
         seg2d = QS.getCurrentSegmentation2D(options) ;
@@ -229,35 +233,7 @@ for tp = timePoints
                 disp(['bad cell: ' num2str(cid)])
             end
         end
-        
-        %% Compute cell statistics
-        keep = find(~isnan(ang1) & (areas < maxCellSize) & ...
-            moment1 > 0 & moment2 > 0) ;
-        mratio_principal = mratio(keep) ;
-        c1 = sqrt(mratio_principal(:)) .* cos(2 * ang1(keep)) ;
-        s1 = sqrt(mratio_principal(:)) .* sin(2 * ang1(keep)) ;
-        ar = vecnorm([mean(c1), mean(s1)]) ;
-        theta = 0.5 * atan2(mean(s1), mean(c1)) ;
-        thetas = 0.5 * atan2(s1, c1) ;
-        
-        %% Cell statistics weighted by area
-        % Weight the mean by cell area
-        weight = areas(keep) ;
-        weights = weight ./ nansum(weight) ;
-        c2 = weights .* c1(:) ;
-        s2 = weights .* s1(:) ;
-        ar_weighted = vecnorm([sum(c2), sum(s2)]) ;
-        theta_weighted = 0.5 * atan2(sum(s2), sum(c2)) ;
-        
-        %% Cell statistics weighted by bounded area
-        weight = areas(keep) ;
-        weight(weight > 0.5 * maxCellSize) = maxCellSize - weight(weight > 0.5 * maxCellSize) ;
-        weights = weight ./ nansum(weight) ;
-        c3 = weights .* c1(:) ;
-        s3 = weights .* s1(:) ;
-        ar_weighted_bounded = vecnorm([sum(c3), sum(s3)]) ;
-        theta_weighted_bounded = 0.5 * atan2(sum(s3), sum(c3)) ;
-        
+                
         %% Save results stored in struct
         seg2d = QS.currentSegmentation.seg2d ;
         seg3d = struct('vdat', struct(), 'cdat', struct(), ...
@@ -311,26 +287,11 @@ for tp = timePoints
                     'to be along x axis']) ;
             
         % cell statistics 
+        % find which are "good" cells to consider
+        keep = find(~isnan(ang1) & (areas < maxCellSize) & ...
+            moment1 > 0 & moment2 > 0) ;
         seg3d.statistics.keep = keep ;
         seg3d.statistics.maxCellSize = maxCellSize ;
-        seg3d.statistics.meanAspect = ar ;
-        seg3d.statistics.meanTheta = theta ;
-        seg3d.statistics.meanAspectWeighted = ar_weighted ;
-        seg3d.statistics.meanThetaWeighted = theta_weighted ;
-        seg3d.statistics.meanAspectBoundedWeight = ar_weighted_bounded ;
-        seg3d.statistics.meanThetaBoundedWeight = theta_weighted_bounded ;
-        %     seg3d.statistics.aspectWeighted25 = prctile(ar_weighted, 25.0) ;
-        %     seg3d.statistics.aspectWeighted75 = prctile(ar_weighted, 75.0) ;
-        %     seg3d.statistics.thetaWeighted25 = prctile(theta_weighted, 25.0) ;
-        %     seg3d.statistics.thetaWeighted75 = prctile(theta_weighted, 75.0) ;
-        %     seg3d.statistics.aspectBoundedWeight25 = prctile(ar_weighted_bounded, 25.0) ;
-        %     seg3d.statistics.aspectBoundedWeight75 = prctile(ar_weighted_bounded, 75.0) ;
-        %     seg3d.statistics.thetaBoundedWeight25 = prctile(theta_weighted_bounded, 25.0) ;
-        %     seg3d.statistics.thetaBoundedWeight75 = prctile(theta_weighted_bounded, 75.0) ;
-    	seg3d.statistics.aspect25 = prctile(sqrt(mratio_principal(:)), 25.0) ;
-    	seg3d.statistics.aspect75 = prctile(sqrt(mratio_principal(:)), 75.0) ;
-    	seg3d.statistics.theta25 = prctile(thetas, 25.0) ;
-    	seg3d.statistics.theta75 = prctile(thetas, 75.0) ;
         
         % which coordinate system has been used for segmentation
         coordSys = seg2d.coordSys ;
@@ -338,46 +299,185 @@ for tp = timePoints
     else
         seg3d = QS.loadCurrentSegmentation3D() ;
         seg3d = seg3d.seg3d ;
-        areas = seg3d.qualities.areas ; 
-        ang1 = seg3d.qualities.ang1 ; 
-        ang2 = seg3d.qualities.ang2 ; 
-        mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
-        moinertia = seg3d.qualities.mInertia ;
-        c3d = seg3d.vdat.xyzrs ;
-        cellCntrd = seg3d.cdat.centroids_3d ;
-        mAvg = seg3d.statistics.meanAspectBoundedWeight ;
-        thetaAvg = seg3d.statistics.meanThetaBoundedWeight ;
-        m25 = seg3d.statistics.aspectWeighted25 ;
-        m75 = seg3d.statistics.aspectWeighted75 ;
-        m25 = seg3d.statistics.thetaWeighted25 ;
-        m75 = seg3d.statistics.thetaWeighted75 ;
-        keep = seg3d.statistics.keep ;
     end
     
     %% Medians of orientation and moment ratio over TIME
-    % find which are "good" cells to consider
-    op_low = [op_low, seg3d.statistics.theta25] ;
-    op_high = [op_high, seg3d.statistics.theta75] ;
-    medop = [medop, seg3d.statistics.meanThetaBoundedWeight] ;
+
+    %% Compute cell statistics
+    mratio_principal = mratio(keep) ;
+    c1 = sqrt(mratio_principal(:)) .* cos(2 * ang1(keep)) ;
+    s1 = sqrt(mratio_principal(:)) .* sin(2 * ang1(keep)) ;
+
+    ar = vecnorm([mean(c1), mean(s1)]) ;
+    ars = sqrt(mratio_principal(:)) ;
+    theta = 0.5 * atan2(mean(s1), mean(c1)) ;
+    cos2thetas = cos(2 * ang1(keep)) ;
+    sin2thetas = sin(2 * ang1(keep)) ;
+
+    %% Cell statistics weighted by area
+    % Weight the mean by cell area
+    weight = areas(keep) ;
+    weights = weight ./ nansum(weight) ;
+    c2 = weights .* c1(:) ;
+    s2 = weights .* s1(:) ;
+    ar_weighted = vecnorm([sum(c2), sum(s2)]) ;
+    theta_weighted = 0.5 * atan2(sum(s2), sum(c2)) ;
+
+    %% Cell statistics weighted by bounded area
+    weight = areas(keep) ;
+    weight(weight > 0.5 * maxCellSize) = maxCellSize - weight(weight > 0.5 * maxCellSize) ;
+    weights = weight ./ nansum(weight) ;
+    c3 = weights .* c1(:) ;
+    s3 = weights .* s1(:) ;
+    ar_weighted_bounded = vecnorm([sum(c3), sum(s3)]) ;
+    theta_weighted_bounded = 0.5 * atan2(sum(s3), sum(c3)) ;
     
-    % Moment ratio
-    % Iuu = moinertia(:, 1, 1) ;
-    % Ivv = moinertia(:, 2, 2) ;
+    % seg3d.statistics.meanAspect = ar ;
+    % seg3d.statistics.meanCos2Theta =  ;
+    % seg3d.statistics.meanSin2Theta = sin(2*theta) ;
+    % seg3d.statistics.meanAspectWeighted = ar_weighted ;
+    % seg3d.statistics.meanThetaWeighted = theta_weighted ;
+    % seg3d.statistics.meanAspectBoundedWeight = ar_weighted_bounded ;
+    % seg3d.statistics.meanThetaBoundedWeight = theta_weighted_bounded ;
     % 
-    % mratio_sp = sqrt(Ivv(keep) ./ Iuu(keep)) ;
-    % mratio_splow = [mratio_low, prctile(mratio_sp, 25.0)] ;
-    % mratio_sphigh = [mratio_high, prctile(mratio_sp, 75.0)] ;
+    % seg3d.statistics.aspect25 = prctile(ars, 25.0) ;
+    % seg3d.statistics.aspect75 = prctile(ars, 75.0) ;
+    % seg3d.statistics.cos2theta25 = prctile(cos2thetas, 25.0) ;
+    % seg3d.statistics.cos2theta75 = prctile(cos2thetas, 75.0) ;
+    % seg3d.statistics.sin2theta25 = prctile(sin2thetas, 25.0) ;
+    % seg3d.statistics.sin2theta75 = prctile(sin2thetas, 75.0) ;
+
+    c2t_low = [c2t_low, prctile(cos2thetas, 75.0)] ;
+    c2t_high = [c2t_high, prctile(cos2thetas, 75.0)] ;
+    s2t_low = [s2t_low, prctile(sin2thetas, 25.0)] ;
+    s2t_high = [s2t_high, prctile(sin2thetas, 75.0)] ;
+    medc2t = [medc2t, cos(2*theta)] ;
+    meds2t = [meds2t, sin(2*theta)] ;
     
-    mean_mratio = [mean_mratio, seg3d.statistics.meanAspectBoundedWeight ] ;
-    mratio_low = [mratio_low, seg3d.statistics.aspect25 ] ;
-    mratio_high = [mratio_high, seg3d.statistics.aspect75] ;
+    mean_mratio = [mean_mratio, ar_weighted_bounded ] ;
+    mratio_low = [mratio_low, prctile(ars, 25.0)] ;
+    mratio_high = [mratio_high, prctile(ars, 75.0) ] ;
     
+    %% Plot this timepoint's segmentation in 3d
+    plotCells(QS, tp, seg3d, imdir, overwrite)
+end
+
+%% Define some colors
+colors = define_colors() ;
+bluecol = colors(1, :) ;
+redcol = colors(2, :) ;
+yelcol = colors(3, :) ;
+
+%% Plot mean +/- pctile over time
+imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy.png') ;
+clf
+% shade(timePoints - t0, bndlow, timePoints, bndhigh)
+x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
+fill(x2, [mratio_low, fliplr(mratio_high)], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
+hold on;
+plot(timePoints - t0, mean_mratio, '.-')
+yyaxis right
+fill(x2, [c2t_low, fliplr(c2t_high)], redcol, 'facealpha', 0.3, 'edgecolor', 'none');
+hold on;
+fill(x2, [s2t_low, fliplr(s2t_high)], yelcol, 'facealpha', 0.3, 'edgecolor', 'none');
+hold on;
+% shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
+plot(timePoints - t0, medc2t, '.-')
+plot(timePoints - t0, meds2t, '.-')
+xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+yyaxis right
+ylabel('aspect ratio $\sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
+yyaxis right
+ylabel('nematic orientation $\cos 2\theta$',   'interpreter', 'latex')
+title('endoderm orientation over time', 'interpreter', 'latex')
+saveas(gcf, imfn)
+
+
+
+%% Plot mean +/- pctile over time
+imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_mratio_log.png') ;
+clf
+% shade(timePoints - t0, bndlow, timePoints, bndhigh)
+x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
+fill(x2, [mratio_low, fliplr(mratio_high)], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
+hold on;
+% shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
+plot(timePoints - t0, mean_mratio, '.-')
+
+xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+ylabel('$\log_{10} \sqrt{I_{\phi\phi}/I_{\zeta\zeta}}$',   'interpreter', 'latex')
+title('endoderm orientation over time', 'interpreter', 'latex')
+saveas(gcf, imfn)
+
+imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_mratio.png') ;
+clf
+colors = define_colors() ;
+bluecol = colors(1, :) ;
+% shade(timePoints - t0, bndlow, timePoints, bndhigh)
+x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
+fill(x2, [10.^(mratio_low), fliplr(10.^(mratio_high))], ...
+    bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
+hold on;
+% shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
+plot(timePoints - t0, 10.^(mean_mratio), '.-')
+
+xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+ylabel('$\sqrt{I_{\phi\phi}/I_{\zeta\zeta}}$',   'interpreter', 'latex')
+title('endoderm orientation over time', 'interpreter', 'latex')
+saveas(gcf, imfn)
+
+
+%% Testing for shape characterization
+% % Is the result dependent on the distribution of vertices? No! yay.
+% xx = 2 * [0, 1, 1, 1, 1, 0];
+% yy = [0, 0, 0.5, 2, 3, 1];
+% [ geom, iner, cpmo ] = polygeom( xx, yy ) ;
+% plot([xx xx(1)], [yy yy(1)], '.-')
+% axis equal; hold on;
+% 
+% 
+% xx2 = 2 * [0, 1, 1, 0];
+% yy2 = [0, 0, 3, 1];
+% [ geom2, iner2, cpmo2 ] = polygeom( xx2, yy2 ) ;
+% plot([xx2 xx2(1)], [yy2 yy2(1)], 'o--')
+% axis equal
+% 
+% moi = [iner(4) -iner(6); -iner(6) iner(5)]
+% [tmp, tmp2] = eig(moi)
+%
+% areas(cid) = geom(1) ;
+% perim(cid) = geom(4) ;
+% pcentroid(cid) = geom(2:3) ;
+% moment1(cid) = cpmo(1) ;
+% ang1(cid) = cpmo(2) ;
+% moment2(cid) = cpmo(3) ;
+% ang2(cid) = cpmo(4) ;
+% mratio(cid) = moment2(cid) / moment1(cid) ;
+% moinertia(cid, :) = [iner(4) iner(6) iner(5)] ;
+
+end
+
+function plotCells(QS, tp, seg3d, imdir, overwrite)
+
     %% Draw cells colored by area
+    t0 = QS.t0() ;
     titlestr = ['$t=$' sprintf('%03d', tp-t0) ' ' QS.timeUnits] ;
     
     % Easiest way is to triangulate all polygons using centroids
     % This is fine if the cells are all convex
     faces = seg3d.cdat.polygons ;
+    keep = seg3d.statistics.keep ;
+    
+    areas = seg3d.qualities.areas ; 
+    ang1 = seg3d.qualities.ang1 ; 
+    ang2 = seg3d.qualities.ang2 ; 
+    mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
+    moinertia = seg3d.qualities.mInertia ;
+    c3d = seg3d.vdat.xyzrs ;
+    cellCntrd = seg3d.cdat.centroids_3d ;
+    keep = seg3d.statistics.keep ;
+    
+    
     nCells = length(faces) ;
     nVertices = size(seg3d.vdat.uv, 1) ;
     dmyk = 1 ;
@@ -555,90 +655,3 @@ for tp = timePoints
     end
 end
 
-%% Plot mean +/- pctile over time
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy.png') ;
-clf
-colors = define_colors() ;
-bluecol = colors(1, :) ;
-% shade(timePoints - t0, bndlow, timePoints, bndhigh)
-x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
-fill(x2, [mratio_low, fliplr(mratio_high)], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
-hold on;
-plot(timePoints - t0, mean_mratio, '.-')
-yyaxis right
-fill(x2, [op_low, fliplr(op_high)], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
-hold on;
-% shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
-plot(timePoints - t0, medop, '.-')
-xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-yyaxis right
-ylabel('aspect ratio $\sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
-yyaxis right
-ylabel('nematic orientation $\cos 2\theta$',   'interpreter', 'latex')
-title('endoderm orientation over time', 'interpreter', 'latex')
-saveas(gcf, imfn)
-
-
-
-%% Plot mean +/- pctile over time
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_mratio_log.png') ;
-clf
-colors = define_colors() ;
-bluecol = colors(1, :) ;
-% shade(timePoints - t0, bndlow, timePoints, bndhigh)
-x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
-fill(x2, [mratio_low, fliplr(mratio_high)], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
-hold on;
-% shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
-plot(timePoints - t0, mean_mratio, '.-')
-
-xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('$\log_{10} \sqrt{I_{\phi\phi}/I_{\zeta\zeta}}$',   'interpreter', 'latex')
-title('endoderm orientation over time', 'interpreter', 'latex')
-saveas(gcf, imfn)
-
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_mratio.png') ;
-clf
-colors = define_colors() ;
-bluecol = colors(1, :) ;
-% shade(timePoints - t0, bndlow, timePoints, bndhigh)
-x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
-fill(x2, [10.^(mratio_low), fliplr(10.^(mratio_high))], ...
-    bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
-hold on;
-% shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
-plot(timePoints - t0, 10.^(mean_mratio), '.-')
-
-xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('$\sqrt{I_{\phi\phi}/I_{\zeta\zeta}}$',   'interpreter', 'latex')
-title('endoderm orientation over time', 'interpreter', 'latex')
-saveas(gcf, imfn)
-
-
-%% Testing for shape characterization
-% % Is the result dependent on the distribution of vertices? No! yay.
-% xx = 2 * [0, 1, 1, 1, 1, 0];
-% yy = [0, 0, 0.5, 2, 3, 1];
-% [ geom, iner, cpmo ] = polygeom( xx, yy ) ;
-% plot([xx xx(1)], [yy yy(1)], '.-')
-% axis equal; hold on;
-% 
-% 
-% xx2 = 2 * [0, 1, 1, 0];
-% yy2 = [0, 0, 3, 1];
-% [ geom2, iner2, cpmo2 ] = polygeom( xx2, yy2 ) ;
-% plot([xx2 xx2(1)], [yy2 yy2(1)], 'o--')
-% axis equal
-% 
-% moi = [iner(4) -iner(6); -iner(6) iner(5)]
-% [tmp, tmp2] = eig(moi)
-%
-% areas(cid) = geom(1) ;
-% perim(cid) = geom(4) ;
-% pcentroid(cid) = geom(2:3) ;
-% moment1(cid) = cpmo(1) ;
-% ang1(cid) = cpmo(2) ;
-% moment2(cid) = cpmo(3) ;
-% ang2(cid) = cpmo(4) ;
-% mratio(cid) = moment2(cid) / moment1(cid) ;
-% moinertia(cid, :) = [iner(4) iner(6) iner(5)] ;
