@@ -289,7 +289,10 @@ classdef QuapSlap < handle
                 QS.clearTime() ;
             end
             QS.currentTime = tt ;
-            QS.xp.setTime(tt) ;
+            if ~isa(QS.xp, 'struct')
+                disp('WARNING: QS.xp is interpreted as a struct rather than imsane Experiment() class instance')
+                QS.xp.setTime(tt) ;
+            end
         end
         
         function [tpTrue, timestr ] = trueTime(QS, tp, div60)

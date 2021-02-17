@@ -33,8 +33,8 @@ addpath(fullfile(gutpath, 'graph_handling')) ;
 addpath(fullfile(codepath, 'DEC')) ;
 addpath(fullfile(codepath, 'TexturePatch_for_git', 'TexturePatch')) ;
 addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
-addpath('/mnt/data/code/RicciFlow_MATLAB/')
-addpath(fullfile(gutpath, 'tissueAnalysisSuite'))
+addpath(fullfile(codepath, 'RicciFlow_MATLAB'))
+addpath(fullfile(codepath, 'tissueAnalysisSuite'))
 % addpath(genpath('/mnt/crunch/djcislo/MATLAB/TexturePatch'));
 disp('done')
 
