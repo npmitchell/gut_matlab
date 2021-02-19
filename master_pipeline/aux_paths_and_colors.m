@@ -29,7 +29,7 @@ addpath_recurse(fullfile(gutpath, 'geometry')) ;
 addpath_recurse(fullfile(gutpath, 'curve_functions')) ;
 addpath(fullfile(gutpath, ['ExtPhaseCorrelation' filesep])) ;
 addpath(fullfile(gutpath, 'savgol')) ;
-addpath(fullfile(gutpath, 'graph_handling')) ;
+addpath_recurse(fullfile(gutpath, 'graph_handling')) ;
 addpath(fullfile(codepath, 'DEC')) ;
 addpath(fullfile(codepath, 'TexturePatch_for_git', 'TexturePatch')) ;
 addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
