@@ -170,23 +170,38 @@ for tp = timePoints
         
         % Assign polygons to vdat
         NL = vdat.NL ;
-        polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL) ; 
+        coordSys = lower(erase(coordSys, '_')) ;
+        if strcmpi(coordSys, 'spsme')
+            % provide ROI in [minx, maxx; miny, maxy]
+            ROI = [-eps, size(segIm, 2) + eps; round([0.25, 0.75] * size(segIm, 2))] ;
+        else
+            error('Handle this coordSys here')
+        end
+        opts = struct() ;
+        opts.roi = ROI ;
+        polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL, opts) ;
 
+        seg2d.vdat = vdat ;
         seg2d.cdat = struct() ;
         seg2d.cdat.polygons = polygons ;
+        seg2d.cdat.centroid = zeros(length(seg2d.Cdat), 2) ;
+        for cid = 1:length(seg2d.Cdat)
+            seg2d.cdat.centroid(cid, :) = seg2d.Cdat(cid).centroid.coord ;
+        end
         
         %% Save the segmentation to disk
         if ~exist(fullfile(QS.dir.segmentation, 'seg2d'), 'dir')
             mkdir(fullfile(QS.dir.segmentation, 'seg2d'))
         end
 
-        coordSys = lower(erase(coordSys, '_')) ;
         save(outfn, 'seg2d', 'segIm', 'coordSys')
     else
         disp(['already on disk: ' outfn])
         
         % %% Convert to simpler format
         load(outfn, 'seg2d', 'segIm', 'coordSys')
+        
+        
         
         % if ~isfield(seg2d, 'vdat')
         %     disp('Constructing vdat')
@@ -239,6 +254,11 @@ for tp = timePoints
         %     end
         %     save(outfn, 'seg2d', 'segIm', 'coordSys')
         % end
+        seg2d.cdat.centroid = zeros(length(seg2d.Cdat), 2) ;
+        for cid = 1:length(seg2d.Cdat)
+            seg2d.cdat.centroid(cid, :) = seg2d.Cdat(cid).centroid.coord ;
+        end
+        save(outfn, 'seg2d', 'segIm', 'coordSys')
     end
     
     %% Save image of the segmentation
@@ -268,7 +288,55 @@ for tp = timePoints
         hold on;
         q = quiver(Xs,Ys, Us, Vs, 0, 'color', [ 0.8500    0.3250    0.0980]);
         axis equal
+        t0 = QS.t0set() ;
+        title(['t = ' sprintf('%03d', tp - t0) ' ' QS.timeUnits])
         q.ShowArrowHead = 'off';
+        saveas(gcf, imfn)
+    end
+    
+    
+    %% Save image of the polygons
+    imfn = [outfn(1:end-4) '_polygons.png'] ;
+    if ~exist(imfn, 'file') || overwrite || overwriteImages
+        
+        imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
+        im = imread(imageFn) ;
+        
+        opts = struct() ;
+        [ff, vv] = polygons2triangulation(seg2d.cdat.polygons, ...
+            seg2d.vdat.v, seg2d.cdat.centroid, opts) ;
+
+        % vertex is part of input vertices in polygons or not
+        colorV = zeros(size(vv, 1), 1) ;
+        colorV(length(seg2d.vdat.v):end) = 255 ;
+        
+        clf
+        imshow(cat(3, im, im, im)) ;
+        hold on;
+        Xs = zeros(size(seg2d.vdat.BL, 1), 1) ;
+        Ys = Xs ;
+        Us = Xs ;
+        Vs = Xs ;
+        dmyk = 1 ;
+        for qq = 1:length(seg2d.Vdat)
+            for id = seg2d.Vdat(qq).nverts
+                Xs(dmyk) = seg2d.vdat.v(qq, 1) ;
+                Ys(dmyk) = seg2d.vdat.v(qq, 2) ; 
+                Us(dmyk) = seg2d.vdat.v(id, 1) - seg2d.vdat.v(qq, 1) ;
+                Vs(dmyk) = seg2d.vdat.v(id, 2) - seg2d.vdat.v(qq, 2) ; 
+                dmyk = dmyk + 1 ;
+            end
+        end
+        q = quiver(Xs,Ys, Us, Vs, 0, 'color', [ 0.8500    0.3250    0.0980]);
+        axis equal
+        hh = trisurf(ff, vv(:, 1), vv(:, 2), 0*vv(:, 2), ...
+            'edgeColor', 'none', 'facealpha', 0.5) ;
+        set(hh,'FaceColor','interp',...
+           'FaceVertexCData',colorV,...
+           'CDataMapping','scaled');
+        t0 = QS.t0set() ;
+        title(['t = ' sprintf('%03d', tp - t0) ' ' QS.timeUnits])
+        colormap parula
         saveas(gcf, imfn)
     end
 end

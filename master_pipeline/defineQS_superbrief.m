@@ -17,7 +17,7 @@ cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
 dataDir = cd ;
-meshDir = fullfile(dataDir, 'msls_output')
+meshDir = fullfile(dataDir, 'deconvolved_16bit', 'msls_output') ;
 
 % PATHS ==================================================================
 origpath = matlab.desktop.editor.getActiveFilename;
@@ -162,6 +162,7 @@ expMeta.fitterType          = 'surfaceFitting.meshWrapper';
 % Now set the meta data in the experiment.
 xp.fileMeta = fileMeta;
 xp.expMeta = expMeta;
+xp.tIdx(timePoints) = 1:length(timePoints) ;
 
 clear fileMeta expMeta
  

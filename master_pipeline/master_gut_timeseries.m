@@ -1419,9 +1419,13 @@ QS.plotMetric(options) ;
 
 %% Cell Segmentation
 options = struct() ;
-options.timePoints = [93:15:263] ;
+options.overwrite = true ;
+options.overwriteImages = true;
+options.timePoints = [138:15:263] ;
 QS.generateCellSegmentation2D(options) 
+options.timePoints = [93:15:263] ;
 options.overwrite = false ;
+options.overwriteImages = false ;
 QS.generateCellSegmentation3D(options) 
 QS.estimateIntercalationRate(options)
 

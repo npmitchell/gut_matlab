@@ -21,6 +21,8 @@ function polygons = Cdat2polygons(Cdat, xy, BL, NL, options)
 % xy : #vertices x 2 numeric array of vertex positions
 % BL : #bonds x 2 int array
 % options : optional struct with optional fields
+%   roi : [xmin, xmax; ymin, ymax] or polygonal region
+%       region of interest in which to accept cell centroids
 %   method : 'graph' or 'walking' (string specifier, default='graph')
 %       method to use to extract polygons
 %   debug : bool (default=false)
@@ -61,6 +63,9 @@ end
 if isfield(options, 'pausetime')
     pausetime = options.pausetime ;
 end
+if isfield(options, 'roi')
+    roi = options.roi ;
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % plot it to check
@@ -87,8 +92,17 @@ for cid = 1:length(Cdat)
     %     plot(xy(ci, 1), xy(ci, 2), '.')
     % end
     
+    if numel(roi) == 4
+        inROI = Cdat(cid).centroid.coord(1) > roi(1, 1) & ...
+            Cdat(cid).centroid.coord(1) < roi(1, 2) & ...
+            Cdat(cid).centroid.coord(2) > roi(2,1) & ...
+            Cdat(cid).centroid.coord(2) < roi(2,2) ;  
+    else
+        error('handle more general roi here')
+    end
+    
     % Get path along connections    
-    if length(ci) < maxNumEdges && length(ci) > 2
+    if length(ci) < maxNumEdges && length(ci) > 2 && inROI
         if strcmpi(method, 'walking')
             % start with the first one
             [rows, cols] = find(BL == ci(1)) ;
@@ -180,20 +194,22 @@ for cid = 1:length(Cdat)
                 if bID > size(pairs0, 1)
                     disp('WARNING: did not find a pair of degree 2. Cannot be a polygon')
                     severed = true ;
-                end
-                bond2sever = pairs0(bID, :) ;
-                if degree(G0, bond2sever(1)) == 2
-                    keep = setdiff(1:size(pairs0, 1), bID) ;
-                    pairs = pairs0(keep, :) ;
-                    weights = weights0(keep) ;
-                    severed = true ;
                 else
-                    disp('skipping bond since not deg=2')
-                    bID = bID + 1 ;
+                    bond2sever = pairs0(bID, :) ;
+                    if degree(G0, bond2sever(1)) == 2
+                        keep = setdiff(1:size(pairs0, 1), bID) ;
+                        pairs = pairs0(keep, :) ;
+                        weights = weights0(keep) ;
+                        severed = true ;
+                    else
+                        disp('skipping bond since not deg=2')
+                        bID = bID + 1 ;
+                    end
                 end
             end
             
-            % Severed graph (one bond cut)
+            % Severed graph (one bond cut) --> if pairs exist, then we have
+            % a good graph with one cut
             if exist('pairs', 'var')
                 G1 = graph(pairs(:, 1), pairs(:, 2), weights) ;
                 % G1 = digraph([pairs(:, 1); pairs(:, 2)], [pairs(:, 2); pairs(:, 1)], [weights; weights]) ;
@@ -259,7 +275,7 @@ for cid = 1:length(Cdat)
                 end
             else
                 try 
-                    assert(degree(G0, pairs0(:, 1)) > 2)
+                    assert(all(degree(G0, pairs0(:, 1)) > 2))
                     disp('Could not cut a bond -- all vertices are deg>2')
                     skipCell = true ;
                 catch
@@ -374,7 +390,11 @@ for cid = 1:length(Cdat)
         
         
     else
-        disp(['Cell has either < 3 vertices or more than ' num2str(maxNumEdges)])
+        if ~inROI
+            disp('Cell not in ROI')    
+        else
+            disp(['Cell has either < 3 vertices or more than ' num2str(maxNumEdges)])
+        end
         polygons{cid} = [] ;
     end
     

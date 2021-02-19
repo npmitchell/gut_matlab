@@ -9,12 +9,16 @@ function generateCellSegmentation3D(QS, options)
 timePoints = QS.xp.fileMeta.timePoints ;
 maxCellSize = 200 ;  % maximum size allowed to include a cell
 overwrite = false ;
+overwriteImages = false ;
 debug = false ;
 [~, ~, ~, xyzlims] = QS.getXYZLims() ;
 t0 = QS.t0set() ;
 
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
+end
+if isfield(options, 'overwriteImages')
+    overwriteImages = options.overwriteImages ;
 end
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
@@ -34,8 +38,8 @@ end
 
 % Setting the current timepoint clears non-timepoint segmentations
 close all
-medc2t = [] ;
-meds2t = [] ;
+mc2t = [] ;
+ms2t = [] ;
 c2t_low = [] ;
 c2t_high = [] ;
 s2t_low = [] ;
@@ -304,13 +308,17 @@ for tp = timePoints
     %% Medians of orientation and moment ratio over TIME
 
     %% Compute cell statistics
+    mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
+    keep = seg3d.statistics.keep ;
+    ang1 = seg3d.qualities.ang1 ;
+    areas = seg3d.qualities.areas ;
     mratio_principal = mratio(keep) ;
     c1 = sqrt(mratio_principal(:)) .* cos(2 * ang1(keep)) ;
     s1 = sqrt(mratio_principal(:)) .* sin(2 * ang1(keep)) ;
 
     ar = vecnorm([mean(c1), mean(s1)]) ;
     ars = sqrt(mratio_principal(:)) ;
-    theta = 0.5 * atan2(mean(s1), mean(c1)) ;
+    theta = 0.5 * atan2(nanmean(s1), nanmean(c1)) ;
     cos2thetas = cos(2 * ang1(keep)) ;
     sin2thetas = sin(2 * ang1(keep)) ;
 
@@ -347,19 +355,19 @@ for tp = timePoints
     % seg3d.statistics.sin2theta25 = prctile(sin2thetas, 25.0) ;
     % seg3d.statistics.sin2theta75 = prctile(sin2thetas, 75.0) ;
 
-    c2t_low = [c2t_low, prctile(cos2thetas, 75.0)] ;
+    c2t_low = [c2t_low, prctile(cos2thetas, 25.0)] ;
     c2t_high = [c2t_high, prctile(cos2thetas, 75.0)] ;
     s2t_low = [s2t_low, prctile(sin2thetas, 25.0)] ;
     s2t_high = [s2t_high, prctile(sin2thetas, 75.0)] ;
-    medc2t = [medc2t, cos(2*theta)] ;
-    meds2t = [meds2t, sin(2*theta)] ;
+    mc2t = [mc2t, cos(2*theta_weighted_bounded)] ;
+    ms2t = [ms2t, sin(2*theta_weighted_bounded)] ;
     
     mean_mratio = [mean_mratio, ar_weighted_bounded ] ;
     mratio_low = [mratio_low, prctile(ars, 25.0)] ;
     mratio_high = [mratio_high, prctile(ars, 75.0) ] ;
     
     %% Plot this timepoint's segmentation in 3d
-    plotCells(QS, tp, seg3d, imdir, overwrite)
+    plotCells(QS, tp, seg3d, imdir, overwrite || overwriteImages, xyzlims)
 end
 
 %% Define some colors
@@ -373,24 +381,31 @@ imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy.png') ;
 clf
 % shade(timePoints - t0, bndlow, timePoints, bndhigh)
 x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
+yyaxis left
 fill(x2, [mratio_low, fliplr(mratio_high)], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
 hold on;
-plot(timePoints - t0, mean_mratio, '.-')
+plot(timePoints - t0, mean_mratio, '.-', 'color', bluecol)
 yyaxis right
 fill(x2, [c2t_low, fliplr(c2t_high)], redcol, 'facealpha', 0.3, 'edgecolor', 'none');
 hold on;
-fill(x2, [s2t_low, fliplr(s2t_high)], yelcol, 'facealpha', 0.3, 'edgecolor', 'none');
-hold on;
 % shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
-plot(timePoints - t0, medc2t, '.-')
-plot(timePoints - t0, meds2t, '.-')
+plot(timePoints - t0, mc2t, '.-', 'color', redcol)
+% addaxis(timePoints - t0, ms2t, '.-', 'color', yelcol)
+hold on;
+fill(x2, [s2t_low, fliplr(s2t_high)], yelcol, 'facealpha', 0.3, 'edgecolor', 'none');
+
 xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-yyaxis right
+yyaxis left
 ylabel('aspect ratio $\sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
 yyaxis right
-ylabel('nematic orientation $\cos 2\theta$',   'interpreter', 'latex')
+ylabel('nematic orientation $\cos 2\theta$, $\sin2\theta$',   'interpreter', 'latex')
 title('endoderm orientation over time', 'interpreter', 'latex')
 saveas(gcf, imfn)
+
+%% Plot as histogram
+
+
+%% Plot each lobe
 
 
 
@@ -399,30 +414,31 @@ imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_mratio_log.png') 
 clf
 % shade(timePoints - t0, bndlow, timePoints, bndhigh)
 x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
-fill(x2, [mratio_low, fliplr(mratio_high)], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
+fill(x2, [log10(mratio_low), fliplr(log10(mratio_high))], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
 hold on;
 % shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
-plot(timePoints - t0, mean_mratio, '.-')
+plot(timePoints - t0, log10(mean_mratio), '.-')
 
 xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('$\log_{10} \sqrt{I_{\phi\phi}/I_{\zeta\zeta}}$',   'interpreter', 'latex')
+ylabel('$\log_{10} \sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
 title('endoderm orientation over time', 'interpreter', 'latex')
 saveas(gcf, imfn)
 
+%% LINEAR version
 imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_mratio.png') ;
 clf
 colors = define_colors() ;
 bluecol = colors(1, :) ;
 % shade(timePoints - t0, bndlow, timePoints, bndhigh)
 x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
-fill(x2, [10.^(mratio_low), fliplr(10.^(mratio_high))], ...
+fill(x2, [mratio_low, fliplr(mratio_high)], ...
     bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
 hold on;
 % shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
-plot(timePoints - t0, 10.^(mean_mratio), '.-')
+plot(timePoints - t0, mean_mratio, '.-')
 
 xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('$\sqrt{I_{\phi\phi}/I_{\zeta\zeta}}$',   'interpreter', 'latex')
+ylabel('$\sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
 title('endoderm orientation over time', 'interpreter', 'latex')
 saveas(gcf, imfn)
 
@@ -457,7 +473,7 @@ saveas(gcf, imfn)
 
 end
 
-function plotCells(QS, tp, seg3d, imdir, overwrite)
+function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims)
 
     %% Draw cells colored by area
     t0 = QS.t0() ;
@@ -477,10 +493,10 @@ function plotCells(QS, tp, seg3d, imdir, overwrite)
     cellCntrd = seg3d.cdat.centroids_3d ;
     keep = seg3d.statistics.keep ;
     
-    
     nCells = length(faces) ;
     nVertices = size(seg3d.vdat.uv, 1) ;
     dmyk = 1 ;
+    ff = zeros(nCells * 7, 3) ;
     areaV = NaN * zeros(nCells * 7, 1) ;
     ang1V = areaV ;
     mratioV = areaV ;
@@ -488,7 +504,6 @@ function plotCells(QS, tp, seg3d, imdir, overwrite)
     IxxV = areaV ;
     IxyV = areaV ;
     IyyV = areaV ;
-    ff = zeros(nCells * 7, 3) ;
     for cid = 1:nCells
         if ismember(cid, keep)
             face = faces{cid} ;

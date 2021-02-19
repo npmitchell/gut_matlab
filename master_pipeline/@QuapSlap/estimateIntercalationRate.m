@@ -1,0 +1,2 @@
+function estimateIntercalationRate(QS, options)
+
