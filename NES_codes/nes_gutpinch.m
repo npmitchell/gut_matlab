@@ -2,6 +2,7 @@
 % This is a script to exhibit the basic functionality of the
 % (N)on-(E)uclidean (S)hell (S)imulator (NESS) using a cylindrical geometry
 % which is pinched along its midline.
+% THis version is abandoned --> see QS.simulateNES() instead
 
 clear; close all; clc;
 distribution = 'experiment' ;
@@ -82,7 +83,11 @@ cd(outdir)
 % parameterization
 %--------------------------------------------------------------------------
 % % Load from file
-path = fullfile(NESpath, '../NES_Examples', 'gut_48YGal4UASRFP_201904031830_spcMSmRSC_000032.mat') ;
+path = fullfile(NESpath, '../NES_Examples', ...
+    'gut_48YGal4UASRFP_201904031830_spcutMeshSm_000032.mat') ;
+% path = fullfile(NESpath, '../NES_Examples', ...
+%     'gut_48YGal4UASRFP_201904031830_spcMSmRSC_000032.mat') ;
+
 % mesh = read_ply_mod(fullfile(path, 'tube_simple_h1p00_R0p00_w1p00.ply')) ;
 % rmID = [length(mesh.v)-1, length(mesh.v)] ;
 % [F, V] = remove_vertex_from_mesh(mesh.f, mesh.v, rmID) ;
@@ -92,6 +97,8 @@ path = fullfile(NESpath, '../NES_Examples', 'gut_48YGal4UASRFP_201904031830_spcM
 tmp = load(path, 'spcutMeshSm') ;
 cutM = tmp.spcutMeshSm ;
 mesh = glueCylinderCutMeshSeam(cutM) ;
+FF = cutM.f ;
+VV = cutM.v ;
 
 tri = triangulation(FF, VV) ;
 
@@ -100,7 +107,8 @@ tri = triangulation(FF, VV) ;
 
 % Check that closed (chi for sphere = 2) 
 chi = size(VV, 1) - size(eIDx, 1) + size(FF, 1) ;
-assert(chi == 2)
+% assert(chi == 2)
+
 
 % Save initial closed mesh
 FF = [FF(:, 2), FF(:, 1), FF(:, 3)] ;

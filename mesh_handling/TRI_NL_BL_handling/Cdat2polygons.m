@@ -18,6 +18,7 @@ function polygons = Cdat2polygons(Cdat, xy, BL, NL, options)
 % Parameters
 % ----------
 % Cdat : cell data struct with fields
+%   
 % xy : #vertices x 2 numeric array of vertex positions
 % BL : #bonds x 2 int array
 % options : optional struct with optional fields

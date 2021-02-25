@@ -328,6 +328,7 @@ for tp = timePoints
             end
         end
         q = quiver(Xs,Ys, Us, Vs, 0, 'color', [ 0.8500    0.3250    0.0980]);
+        q.ShowArrowHead = 'off';
         axis equal
         hh = trisurf(ff, vv(:, 1), vv(:, 2), 0*vv(:, 2), ...
             'edgeColor', 'none', 'facealpha', 0.5) ;

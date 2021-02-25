@@ -1,9 +1,15 @@
-function [ TF, TV2D, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount )
+function [ TF, TV2D, TV3D, TVN3D, TQ ] = tileAnnularCutMesh( cutMesh, tileCount )
 %TILEANNULARCUTMESH This function vertically tiles the orbifold pullback of
 %an annular cutMesh and returns the parameters of a single triangulation
 %   INPUT PARAMETERS:
-%       - cutMesh:          A struct defining the cut 3D annulus.
-%                           See 'cylinderCutMesh.m'.
+%       - cutMesh:          A struct defining the cut 3D annulus with
+%                           fields (See 'cylinderCutMesh.m'):
+%                               f : #faces x 3 int array
+%                               u : #vertices x 2 float array 
+%                               v : # vertices x D numeric array
+%                           and optional fields
+%                               vn : #vertices x D numeric array
+%                               quality : #faces x QDim numeric array
 %
 %       - tileCount:        The vertical tiling parameters.
 %                           tileCount(1) tiles above the basic tile.
@@ -17,8 +23,9 @@ function [ TF, TV2D, TV3D, TVN3D ] = tileAnnularCutMesh( cutMesh, tileCount )
 %       - TV3D:             #Vx3 3D embedding coordinate list of the
 %                           combined triangulation.
 %       - TNV3D:            #Vx3 3D normal vectors of embedding coords
+%       - TQ:               #FxQDim face quality array for tiled mesh
 %
-% by Dillon Cislo, additions by NPMitchell 2019
+% by Dillon Cislo, additions by NPMitchell 2019-2021
 
 %==========================================================================
 % THE GEOMETRY OF THE CUT MESH:
@@ -55,9 +62,15 @@ if nargin < 2
 end
 
 if nargout > 3
-    compute_normals = true ;
+    compute_normals = isfield(cutMesh, 'vn') ;
 else
     compute_normals = false ;
+end
+
+if nargout > 4
+    compute_face_quality = isfield(cutMesh, 'quality') ;
+else
+    compute_face_quality = false ;
 end
 
 % Verify input cut mesh
@@ -80,6 +93,9 @@ TV2D = cutMesh.u;
 TV3D = cutMesh.v;
 if compute_normals
     TVN3D = cutMesh.vn ;
+end
+if compute_face_quality 
+    TQ = cutMesh.quality ;
 end
 
 % Find the vertical shift between tiles (should just be 1)
@@ -128,6 +144,12 @@ for i = 1:sum(abs(tileCount))
         VN3D = cutMesh.vn;
         VN3D( pathPairs(:,2), : ) = [];
         TVN3D = [ TVN3D; VN3D ]; 
+    end
+    
+    % Face quality is simply concatenated since physical face list is
+    % unaltered, simply translated and reindexed along seams
+    if compute_face_quality
+        TQ = [TQ; face_quality] ;
     end
     
 end

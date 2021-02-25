@@ -1,10 +1,15 @@
 function [outGrid, modeData] = modeFilterQuasi1D(gridData, options)
-%[ynew, fft_output] = modeFilter(yy, nmodes, preview)
+%[ynew, fft_output] = modeFilter(yy, options)
 % FFT reconstruction of lowest nmodes of 1d periodic signal with evenly
-% spaced sampling in "time" or other presumably cyclic coordinate.
-% Brute force low-pass filter without any fancy Nyquist handling, passband
-% ripples, etc. Just select lowest n modes and rebuilt signal from those 
-% alone. 
+% spaced sampling in "time" or other cyclic coordinate, evaluated on a grid
+% or field with another dimension (for ex space).
+% This is appropriate to bandpass filter the circumferential direction of a
+% field living on cylinder with evenly spaced sampling along phi and 
+% lines of longitude connected in rows of yy.
+%
+% Method is a brute force low-pass filter without any fancy Nyquist 
+% handling, or passband ripples, or etc. Just select lowest n modes 
+% and rebuilt signal from those alone. 
 %
 % For reference, FFT scalings are:
 %     Scale by dt for the FFT, and by Fs for the IFFT
@@ -21,10 +26,12 @@ function [outGrid, modeData] = modeFilterQuasi1D(gridData, options)
 % options : struct with fields
 %   nmodesY or nmodes : int (default=5)
 %       number of modes (including DC offset/average) to use in reconstruction 
-%   widthX or Xwidth or Zwidth: int
+%   widthX or Xwidth or Zwidth: int (default=3)
 %       half width of pulse filter along first dimension
 %       for ex, if widthX=3, then filter=[0,0.11,0.22,0.33,0.22,0.11,0]
 %   extrapolationMethod : 'nearest', 'periodic', 'reflect'
+%       (default='nearest')
+%       How to handle
 %   preview : bool (default=false)
 %       preview the results in figure form
 %
@@ -55,7 +62,8 @@ function [outGrid, modeData] = modeFilterQuasi1D(gridData, options)
 % nV = 100 ; % note that period T=1
 % tt = linspace(0, (nV-1) / nV, nV-1) ;
 % yy = sin(6 * pi * tt) + 0.5 * cos(2 * pi * tt + pi/4) + 0.3 * rand(1, nV-1) ;
-% modeFilter(yy, 5, true)
+% opts = struct('nModes', 5, 'preview', true) ;
+% modeFilter(yy, opts)
 %
 % NPMitchell 2020
 
@@ -68,6 +76,8 @@ extrapolationMethod = 'nearest' ;
 %% Unpack options
 if isfield(options, 'nmodesY')
     nmodesY = options.nmodesY ;
+elseif isfield(options, 'nModesY')
+    nmodesY = options.nModesY ;
 elseif isfield(options, 'nmodesy')
     nmodesY = options.nmodesy ;
 elseif isfield(options, 'nmodes')

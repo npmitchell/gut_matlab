@@ -2,21 +2,24 @@ function simulateNES(QS, options)
 
 %% Default options
 strainstyle = 'hoopCompression' ;  % 'axial' 'hoop' 'hoopCompression' 'ring' 'line'
-targetThetaStyle = 'plate' ; % either 'plate' or 'quasistatic'
+targetThetaStyle = 'quasistatic' ; % either 'plate' or 'quasistatic'
 Alpha = 1 ;
 Beta = 1 ;
 fixVolume = true ;
 fixBoundary = false ;
 fixCap = false ;
+restrictGrowth = false ;
 poisson_ratio = 0.5 ;
-thickness = 2 ;
+thickness = 0.1 ;
 eL_allow = 0.1 ;
+maxIter = 500 ;
 nU = QS.nU ;
 nV = QS.nV ;
 t0Pathlines = QS.t0set() ;
 preview = false ;
 Dt = 10 ;
-nsteps_per_timepoint = 10 ;
+% nsteps_per_timepoint = 10 ;
+niter_per_Dt = 1 ;
 Ntotal = 155 ;
 plot_faces = true ;
 plot_dfaces = true ;
@@ -31,8 +34,15 @@ cmax = 1.05 ;
 climit_div = 0.1 ;
 
 %% Unpack options
+% Method Options
 if isfield(options, 'strainstyle')
     strainstyle = options.strainstyle ;
+end
+if isfield(options, 'targetThetaStyle')
+    targetThetaStyle = options.targetThetaStyle ;
+end
+if isfield(options, 'restrictGrowth')
+    restrictGrowth = options.restrictGrowth ;
 end
 if isfield(options, 'fixVolume')
     fixVolume = options.fixVolume ;
@@ -47,6 +57,21 @@ if isfield(options, 'preview')
     preview = options.preview ;
 end
 
+% Parameters
+if isfield(options, 'thickness')
+    thickness = options.thickness ;
+end
+if isfield(options, 'poisson_ratio')
+    poisson_ratio = options.poisson_ratio ;
+end
+if isfield(options, 'Dt')
+    Dt = options.Dt ;
+end
+if isfield(options, 'maxIter')
+    maxIter = options.maxIter ;
+end
+
+
 %% Add path (todo: make this automatic by putting NES code in gut_matlabl)
 NESpath = '/mnt/data/code/NonEuclideanShells/NES/' ;
 addpath_recurse(NESpath)
@@ -56,6 +81,9 @@ outRoot = fullfile(sprintf(QS.dir.pathlines.data, t0Pathlines), 'simulation') ;
 exten = sprintf('_Dt%03d_nu%0.2f_t%0.2f_%03dx%03d', ...
     Dt, poisson_ratio, thickness, nU, nV) ;
 exten = strrep(exten, '.', 'p') ;
+if restrictGrowth
+    exten = ['_rGrowth' exten ] ;
+end
 if fixBoundary
     exten = ['_fixB' exten ] ;
 end
@@ -256,7 +284,7 @@ save(fullfile(outdir, 'simulation_parameters.mat'), ...
     'fixBoundary', 'fixVolume', 'fixCap', 'V0', ...
     'thickness', 'poisson_ratio', 'capID', 'xyzlim', 'cutM', ...
     'eIDx2d', 'eIDx2dGlued', 'i3d', 'i2d', 'ghostBonds2d', 'Dt', ...
-    'nsteps_per_timepoint', 'Alpha', 'Beta', 'eL_allow') ;
+    'niter_per_Dt', 'Alpha', 'Beta', 'eL_allow') ;
 
 %% Assign strain magnitudes based on 2d bond centers
 midx = 0.5 * (V2d(eIDx2d(:, 1), 1) + V2d(eIDx2d(:, 2), 1)) ;
@@ -411,8 +439,9 @@ for ii = 1:Ntotal
     % hack for now --> go back and repeat with reflected boundaries
     dxs(:, nV) = dxs(:, 1) ; 
     dys(:, nV) = dys(:, 1) ; 
-    dxs = dxs / nsteps_per_timepoint ;
-    dys = dys / nsteps_per_timepoint ;
+    dxs = dxs / Dt ;
+    dys = dys / Dt ;
+        
     
     %% Roll off the deformation to zero at anterior and posterior ends
     % make something like a tukey window and apply to deformation
@@ -420,8 +449,13 @@ for ii = 1:Ntotal
     twinPosterior = tukeywin(nU, 0.25) ;
     twin = twinAnterior ;
     twin(round(nU*0.5):end) = twinPosterior(round(nU*0.5:end)) ;
-    dxsClip = twin .* dxs ;
-    dysClip = twin .* dys ;
+    dxs = twin .* dxs ;
+    dys = twin .* dys ;
+    
+    % Smooth dx field with modeFilter
+    opt = struct('nModesY', 4) ;
+    dxs = modeFilterQuasi1D(dxs, opt) ;
+    dys = modeFilterQuasi1D(dys, opt) ;
 
     % prep for interpolation
     rux = refMesh.u(:, 1) / max(refMesh.u(:, 1)) ;
@@ -429,10 +463,10 @@ for ii = 1:Ntotal
     rux = reshape(rux, [nU, nV]) ;
     ruy = reshape(ruy, [nU, nV]) ;
     if preview
-        tmplim = max(max(dysClip(:)), max(dxsClip(:))) ;
+        tmplim = max(max(dys(:)), max(dxs(:))) ;
         close all
         subplot(1, 2, 1)
-        imagesc(linspace(0,1,nU), linspace(0,1,nV), dxsClip')
+        imagesc(linspace(0,1,nU), linspace(0,1,nV), dxs')
         xlabel('$\zeta$','interpreter', 'latex')
         ylabel('$\phi$','interpreter', 'latex')
         title('$\delta \zeta$', 'interpreter', 'latex')
@@ -440,7 +474,7 @@ for ii = 1:Ntotal
         colormap bwr
         colorbar('location', 'southoutside')
         subplot(1, 2, 2)
-        imagesc(linspace(0,1,nU), linspace(0,1,nV), dysClip')
+        imagesc(linspace(0,1,nU), linspace(0,1,nV), dys')
         xlabel('$\zeta$','interpreter', 'latex')
         ylabel('$\phi$','interpreter', 'latex')
         title('$\delta \phi$', 'interpreter', 'latex')
@@ -471,7 +505,7 @@ for ii = 1:Ntotal
     end
     if any(contains(lower(strainstyle), {'all', 'hoop', 'ring'}))
         % Interpolation
-        dyinterp = griddedInterpolant(rux, ruy, dysClip, 'linear') ;
+        dyinterp = griddedInterpolant(rux, ruy, dys, 'linear') ;
         dyi = dyinterp(bxy2dg(:, 1), bxy2dg(:, 2)) ;
         dymag = zeros(size(bbeta)) ;
         dymag(i3d) = dyi ;
@@ -574,7 +608,7 @@ for ii = 1:Ntotal
             % which faces violate the triangle inequality?
             fails = find(any(feL - circshift(feL, 1, 2) - circshift(feL, 2, 2) > 0, 2)) ;
             nfails = length(fails) ;
-            disp(['triangle inequality is not satisfied in ' num2str(nfails) 'triangles'])
+            disp(['triangle inequality is not satisfied in ' num2str(nfails) ' triangles'])
 
             % Find unique edges to fix
             [badtri, nodes] = find(feL - circshift(feL, 1, 2) - circshift(feL, 2, 2) > 0) ;
@@ -587,22 +621,33 @@ for ii = 1:Ntotal
             
             % preview the failures
             clf
+            colormap cividis
             for axid = 1:4
-                subplot(3, 2, axid)
+                subplot(4, 2, axid)
                 trisurf(FF, VV(:, 1), VV(:, 2), VV(:, 3), ...
                     sum(sign(feL - circshift(feL, 1, 2) - circshift(feL, 2, 2)), 2), ...
                     'edgecolor', 'none')
                 axis equal
                 colormap(reds)
                 view(0, (axid-1) * 90)
+                ylabel('lateral position', 'interpreter', 'latex')
+                zlabel('dv position', 'interpreter', 'latex')
+                xlabel('ap position', 'interpreter', 'latex')
             end
-            subplot(3, 2, 5)
+            subplot(4, 2, 5)
             % Plot eL / eL0 
             histogram(eL ./ eL1)
-            subplot(3, 2, 6)
+            title('$e_L / e_L^0$', 'interpreter', 'latex')
+            subplot(4, 2, 6)
             histogram(eL(edges2relax) ./ eL1(edges2relax))
+            title('$e_L($select$) / e_L^0($select$)$', ...
+                'interpreter', 'latex')
             
-            sgtitle(['pass ' num2str(dmyk)])
+            sgtitle(['pass ' num2str(dmyk)], 'interpreter', 'latex')
+            
+            % Also plot all strains post-correction
+            
+            
             pause(1)
             clf
             
@@ -610,18 +655,20 @@ for ii = 1:Ntotal
             eL(edges2relax) = eL_allow * eL1(edges2relax) + ...
                  (1-eL_allow) * eL(edges2relax) ;
              
+            % If we have been updating this bad bond for too many
+            % iterations, just give it the previous bond length
             if dmyk > 50
                 eL(edges2relax) = eL1(edges2relax) ;
             end
             
             % Reassign face edge lengths based on new definition of eL
             feL = eL(feIDx) ;
-        
+            % Re-check the triangle inequality now with relaxed bonds
             bonds_ok = all(all(feL - circshift(feL, 1, 2) - circshift(feL, 2, 2) < 0)) ;
             dmyk = dmyk + 1 ;
         end
     end
-
+    
     %% check for negative target edgelengths
     assert(all(eL ./ eL0 > 0))
     
@@ -710,8 +757,21 @@ for ii = 1:Ntotal
     Efp0 = calculateFixedPointEnergy(FF, VV, fixedIDx, fixedX, Alpha) ;
     Efv0 = calculateFixedVolumeEnergy(FF, VV, targetVolume, Beta) ;
     Es0 = calculateStretchEnergy(FF, VV, eL, poisson_ratio) ;
-    % [Erg, projL, isValid] = calculateGrowthRestrictionEnergy(F, V, ...
-    %     growthVec, maxProjL, mu)
+
+    % Compute per-face energies
+    Eb0_faces = calculateBendEnergyFaces(FF, VV, eL, tarTheta, ...
+        poisson_ratio, thickness) ;
+    Es0_faces = calculateStretchEnergyFaces(FF, VV, eL, poisson_ratio) ;
+    if restrictGrowth
+        [Egr0, projL, isValid] = calculateGrowthRestrictionEnergy(F, V, ...
+            growthVec, maxProjL, mu) ;
+        Egr0_faces = calculateGrowthRestrictionEnergy(F, V, ...
+            growthVec, maxProjL, mu) ;
+    else
+        Egr0 = 0 ;
+        Egr0_faces = 0 ;
+    end
+
 
     %% Run Elastic Relaxation =============================================
     fn = fullfile(outdir, 'vertices', sprintf('vertices_%03d.mat', ii)) ;
@@ -720,55 +780,63 @@ for ii = 1:Ntotal
         tmp = load(fn) ;
         VV = tmp.VV ;
         FF = tmp.FF ;
+        Eb = tmp.Eb ;
+        Efp = tmp.Efp ;
+        Efv = tmp.Efv ;
+        Es = tmp.Es ;
+        Eb0 = tmp.Eb0 ;
+        Efp0 = tmp.Efp0 ;
+        Efv0 = tmp.Efv0;
+        Es0 = tmp.Es0 ;
     else
         tic
         V4min = V1 ; 
-        for pp = 1:nsteps_per_timepoint 
-            if fixBoundary && fixVolume 
-                error('check params here')
-                V4min = minimizeElasticEnergy( FF, V4min, eL, ...
-                    'TargetAngles', tarTheta, ...
-                    'Thickness', thickness, ...
-                    'Poisson', poisson_ratio, ...
-                    'MaxIterations', 1000, ...
-                    'iterDisplay', 1, ...
-                    'Alpha', Alpha, ...
-                    'Beta', Beta, ...
-                    'FixBoundary', ...
-                    'targetVertices', capID(:), ...
-                    'targetLocations', V1(capID(:), :), ...
-                    'FixVolume', 'TargetVolume', targetVolume); 
-            elseif fixBoundary 
-                error('check params here')
-                V4min = minimizeElasticEnergy( FF, V4min, eL, ...
-                    'TargetAngles', tarTheta, ...
-                    'Thickness', thickness, ...
-                    'Poisson', poisson_ratio, ...
-                    'MaxIterations', 1000, ...
-                    'iterDisplay', 1, ...
-                    'Alpha', Alpha, ...
-                    'Beta', Beta, ...
-                    'targetVertices', capID(:), ...
-                    'targetLocations', V1(capID(:), :), ...
-                    'FixBoundary');    
-            elseif fixVolume
-                V4min = minimizeElasticEnergy( FF, V4min, eL, ...
-                    'TargetAngles', tarTheta, ...
-                    'Thickness', thickness, ...
-                    'Poisson', poisson_ratio, ...
-                    'MaxIterations', 1000, ...
-                    'Past', 500, 'Delta', 1e-7, ... % L-BFGS parameters
-                    'iterDisplay', 10, ...
-                    'Alpha', Alpha, ...             % fixed vertex coeff
-                    'Beta', Beta, ...               % fixed volume coeff
-                    'FixVolume', ...
-                    'TargetVolume', targetVolume, ...
-                    'targetVertices', capID(end-1), ...
-                    'targetLocations', V1(capID(end-1), :)) ;
-            else
-                error('not fixing Volume or boundary?')
-            end
+        % for pp = 1:nsteps_per_timepoint 
+        if fixBoundary && fixVolume 
+            error('check params here')
+            V4min = minimizeElasticEnergy( FF, V4min, eL, ...
+                'TargetAngles', tarTheta, ...
+                'Thickness', thickness, ...
+                'Poisson', poisson_ratio, ...
+                'MaxIterations', maxIter, ...
+                'iterDisplay', 1, ...
+                'Alpha', Alpha, ...
+                'Beta', Beta, ...
+                'FixBoundary', ...
+                'targetVertices', capID(:), ...
+                'targetLocations', V1(capID(:), :), ...
+                'FixVolume', 'TargetVolume', targetVolume); 
+        elseif fixBoundary 
+            error('check params here')
+            V4min = minimizeElasticEnergy( FF, V4min, eL, ...
+                'TargetAngles', tarTheta, ...
+                'Thickness', thickness, ...
+                'Poisson', poisson_ratio, ...
+                'MaxIterations', maxIter, ...
+                'iterDisplay', 1, ...
+                'Alpha', Alpha, ...
+                'Beta', Beta, ...
+                'targetVertices', capID(:), ...
+                'targetLocations', V1(capID(:), :), ...
+                'FixBoundary');    
+        elseif fixVolume
+            V4min = minimizeElasticEnergy( FF, V4min, eL, ...
+                'TargetAngles', tarTheta, ...
+                'Thickness', thickness, ...
+                'Poisson', poisson_ratio, ...
+                'MaxIterations', maxIter, ...
+                'Past', 500, 'Delta', 1e-7, ... % L-BFGS parameters
+                'iterDisplay', 10, ...
+                'Alpha', Alpha, ...             % fixed vertex coeff
+                'Beta', Beta, ...               % fixed volume coeff
+                'FixVolume', ...
+                'TargetVolume', targetVolume, ...
+                'targetVertices', capID(end-1), ...
+                'targetLocations', V1(capID(end-1), :)) ;
+        else
+            error('not fixing Volume or boundary?')
         end
+        % end
         VV = V4min ;
         toc
 
@@ -784,12 +852,26 @@ for ii = 1:Ntotal
         Efp = calculateFixedPointEnergy(FF, VV, fixedIDx, fixedX, Alpha) ;
         Efv = calculateFixedVolumeEnergy(FF, VV, targetVolume, Beta) ;
         Es = calculateStretchEnergy(FF, VV, eL, poisson_ratio) ;
-        % [Erg, projL, isValid] = calculateGrowthRestrictionEnergy(F, V, ...
-        %     growthVec, maxProjL, mu)
+        
+        % Compute per-face energies
+        Eb_faces = calculateBendEnergyFaces(FF, VV, eL, tarTheta, poisson_ratio, thickness) ;
+        Es_faces = calculateStretchEnergyFaces(FF, VV, eL, poisson_ratio) ;
+        if restrictGrowth
+            [Egr, projL, isValid] = calculateGrowthRestrictionEnergy(F, V, ...
+                growthVec, maxProjL, mu) ;
+            Egr_faces = calculateGrowthRestrictionEnergy(F, V, ...
+                growthVec, maxProjL, mu) ;
+        else
+            Egr = 0 ;
+            Egr_faces = 0 ;
+        end
+        
         
         %% Save vertices
-        save(fn, 'VV', 'FF', 'Eb', 'Efp', 'Efv', 'Es', ...
-            'Eb0', 'Efp0', 'Efv0', 'Es0') ;
+        save(fn, 'VV', 'FF', 'Eb', 'Efp', 'Efv', 'Es', 'Egr',...
+            'Eb0', 'Efp0', 'Efv0', 'Es0', 'Egr0', ...
+            'Eb0_faces', 'Es0_faces', 'Egr0_faces', ...
+            'Eb_faces', 'Es_faces', 'Egr_faces') ;
     end
 
     % Area ratio for faces
@@ -879,6 +961,29 @@ for ii = 1:Ntotal
     if ~exist(bfn, 'file') || ~exist(bifn, 'file')
         aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, ii*Dt, bfn, bifn)
     end
+    
+    %% Store energies as we go
+    EbV(ii) = Eb ;
+    EfpV(ii) = Efp ;
+    EfvV(ii) = Efv ;
+    EsV(ii) = Es ;
+    Eb0V(ii) = Eb0 ;
+    Efp0V(ii) = Efp0 ;
+    Efv0V(ii) = Efv0;
+    Es0V(ii) = Es0 ;
+    
+    % Plot the energies so far
+    clf
+    plot(EbV, '.-') ;
+    hold on;
+    plot(EfpV, '.-') ;
+    plot(EfvV, '.-') ;
+    plot(EsV, '.-') ;
+    legend({'bending', 'point', 'volumetric', 'stretching'})
+    pause(0.1)
+    %waitfor(gcf)
+    
+    
     % Prepare for next timepoint
     V1 = VV ;
 end

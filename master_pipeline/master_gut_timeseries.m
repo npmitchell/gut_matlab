@@ -1421,12 +1421,15 @@ QS.plotMetric(options) ;
 options = struct() ;
 options.overwrite = true ;
 options.overwriteImages = true;
-options.timePoints = [138:15:263] ;
+options.timePoints = [258:15:263] ;
 QS.generateCellSegmentation2D(options) 
 options.timePoints = [93:15:263] ;
 options.overwrite = false ;
 options.overwriteImages = false ;
 QS.generateCellSegmentation3D(options) 
+%%
+QS.plotSegmentationStatisticsLobes(options)
+%%
 QS.estimateIntercalationRate(options)
 
 %% Measure Cell density

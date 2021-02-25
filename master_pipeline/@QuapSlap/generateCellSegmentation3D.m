@@ -36,6 +36,11 @@ if ~exist(imdir, 'dir')
     mkdir(imdir)
 end
 
+% Prep for dicing data by lobes
+features = QS.getFeatures() ;
+folds = features.folds ;
+nLobes = size(folds, 2) + 1 ;
+
 % Setting the current timepoint clears non-timepoint segmentations
 close all
 mc2t = [] ;
@@ -45,8 +50,20 @@ c2t_high = [] ;
 s2t_low = [] ;
 s2t_high = [] ;
 mean_mratio = [] ;
+mean_moiratio = [] ;
+median_moiratio = [] ;
 mratio_low = [] ;
 mratio_high = [] ;
+dmy = 1 ;
+cos2thetaM = zeros(99, 1) ;
+sin2thetaM = cos2thetaM ;
+aspectM = cos2thetaM ;
+nAPBins = 20 ;
+mean_c2ts = zeros(length(timePoints), nAPBins) ;
+mean_s2ts = zeros(length(timePoints), nAPBins) ;
+meanQLobeAspects = zeros(nLobes, length(timePoints)) ;
+meanQLobeAspectStds = zeros(nLobes, length(timePoints)) ;
+meanQLobeThetas = zeros(nLobes, length(timePoints)) ;
 for tp = timePoints
     sprintf(['t = ' num2str(tp)])
     QS.setTime(tp)
@@ -302,43 +319,142 @@ for tp = timePoints
         save(outfn, 'seg3d', 'coordSys')
     else
         seg3d = QS.loadCurrentSegmentation3D() ;
+        coordSys = seg3d.coordSys ;
         seg3d = seg3d.seg3d ;
+        
     end
     
-    %% Medians of orientation and moment ratio over TIME
-
-    %% Compute cell statistics
-    mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
+    %% Medians of orientation and moment ratio over TIME    
+    % Compute cell statistics
+    nCells = length(seg3d.qualities.areas) ;
     keep = seg3d.statistics.keep ;
-    ang1 = seg3d.qualities.ang1 ;
     areas = seg3d.qualities.areas ;
-    mratio_principal = mratio(keep) ;
-    c1 = sqrt(mratio_principal(:)) .* cos(2 * ang1(keep)) ;
-    s1 = sqrt(mratio_principal(:)) .* sin(2 * ang1(keep)) ;
-
-    ar = vecnorm([mean(c1), mean(s1)]) ;
-    ars = sqrt(mratio_principal(:)) ;
-    theta = 0.5 * atan2(nanmean(s1), nanmean(c1)) ;
-    cos2thetas = cos(2 * ang1(keep)) ;
-    sin2thetas = sin(2 * ang1(keep)) ;
-
-    %% Cell statistics weighted by area
-    % Weight the mean by cell area
+    
+    % Compute mean MOI
+    iuu = nanmean(seg3d.qualities.mInertia(keep, 1, 1)) ;
+    iuv = - nanmean(seg3d.qualities.mInertia(keep, 1, 2)) ;
+    ivv = nanmean(seg3d.qualities.mInertia(keep, 2, 2)) ;
+    iii = [ iuu  -iuv ;
+         -iuv   ivv ];
+    [ eig_vec, eig_val ] = eig(iii);
+    meanMoI = iii ;
+    meanMoment1 = eig_val(1,1);
+    meanMoment2 = eig_val(2,2);
+    meanAng1 = atan2( eig_vec(2,1), eig_vec(1,1) );
+    meanAng2 = atan2( eig_vec(2,2), eig_vec(1,2) );
+        
+    % Compute mean MOI, area-weighted 
+    % --> isn't MOI already area-weighted? No, it's weighted oddly. 
     weight = areas(keep) ;
     weights = weight ./ nansum(weight) ;
-    c2 = weights .* c1(:) ;
-    s2 = weights .* s1(:) ;
-    ar_weighted = vecnorm([sum(c2), sum(s2)]) ;
-    theta_weighted = 0.5 * atan2(sum(s2), sum(c2)) ;
-
-    %% Cell statistics weighted by bounded area
-    weight = areas(keep) ;
+    
+    % Could rescale MOIs by sqrt(determinant) so each is nematic tensor 
+    %   with unit 'size'. How to do this properly? Define Q tensor for each
+    %   by Q =  q (n^T n - II/2), where q = (sqrt(I_1/I_2) - 1) is the
+    %   magnitude of the anisotropy
+    
+    % Compute nematic tensor for each
+    mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
+    strength = zeros(nCells, 1) ;
+    QQ = zeros(nCells, 2, 2) ;
+    for qq = 1:nCells
+        if ~isempty(intersect(keep, qq))
+            tt = mod(seg3d.qualities.ang1(qq), pi) ;
+            nn = [cos(tt), sin(tt)] ;
+            % Create traceless symmetric matrix using unit vec
+            strength(qq) = abs(sqrt(mratio(qq))) - 1 ;
+            QQ(qq, :, :) = nn' * nn - 0.5 * [1, 0; 0, 1] ;
+        end
+    end
+    % Take mean shape from nematic tensor
+    meanQ = squeeze(mean(strength .* QQ, 1)) ;
+    [ eig_vec, eig_val ] = eig(meanQ) ;
+    meanQMoment1 = eig_val(1,1);
+    meanQMoment2 = eig_val(2,2);
+    meanQTheta = atan2( eig_vec(2,2), eig_vec(1,2) );
+    
+    % Weight by areas
+    meanQW = squeeze(sum(weights .* strength(keep) .* QQ(keep, :, :), 1)) ;
+    [ eig_vec, eig_val ] = eig(meanQW) ;
+    meanQMoment1Weighted = eig_val(1,1);
+    meanQMoment2Weighted = eig_val(2,2);
+    meanQThetaWeighted = atan2( eig_vec(2,2), eig_vec(1,2) );
+    
+    % STORE NEMATIC INFO IN QUALITIES
+    seg3d.qualities.nematicTensor = QQ ;
+    seg3d.qualities.nematicStrength = strength ;
+    
+    % This is not helpful.
+    % i11 = seg3d.qualities.mInertia(keep, 1, 1) ;
+    % i12 = seg3d.qualities.mInertia(keep, 1, 2) ;
+    % i22 = seg3d.qualities.mInertia(keep, 2, 2) ;
+    % sqrtdet = zeros(length(keep), 1) ;
+    % for qq = 1:length(keep)
+    %     sqrtdet(qq) = sqrt(abs(det([i11(qq), -i12(qq); -i12(qq), i22(qq)]))) ;
+    % end
+    % iuu = nansum(weights .* i11 ./ sqrtdet) ;
+    % iuv = -nansum(weights .* i12 ./ sqrtdet) ;
+    % ivv = nansum(weights .* i22 ./ sqrtdet) ;
+    % iiiW = [ iuu  -iuv ;
+    %      -iuv   ivv ];
+    % [ eig_vec, eig_val ] = eig(iiiW);
+    % meanMoIWeighted = iiiW ;
+    % meanMoment1Weighted = eig_val(1,1);
+    % meanMoment2Weighted = eig_val(2,2);
+    % meanAng1Weighted = atan2( eig_vec(2,1), eig_vec(1,1) );
+    % meanAng2Weighted = atan2( eig_vec(2,2), eig_vec(1,2) );
+    
+    % Compute mean MOI, area-weighted, roll off weights for largest cells
     weight(weight > 0.5 * maxCellSize) = maxCellSize - weight(weight > 0.5 * maxCellSize) ;
     weights = weight ./ nansum(weight) ;
-    c3 = weights .* c1(:) ;
-    s3 = weights .* s1(:) ;
-    ar_weighted_bounded = vecnorm([sum(c3), sum(s3)]) ;
-    theta_weighted_bounded = 0.5 * atan2(sum(s3), sum(c3)) ;
+    
+    meanQWB = squeeze(sum(weights .* strength(keep) .* QQ(keep, :, :), 1)) ;
+    [ eig_vec, eig_val ] = eig(meanQWB) ;
+    meanQMoment1WeightBounded = eig_val(1,1);
+    meanQMoment2WeightBounded = eig_val(2,2);
+    meanQThetaWeightBounded = atan2( eig_vec(2,2), eig_vec(1,2) );
+    
+    % iuu = nansum(weights .* i11 ./ sqrtdet) ;
+    % iuv = -nansum(weights .* i12 ./ sqrtdet) ;
+    % ivv = nansum(weights .* i22 ./ sqrtdet) ;
+    % iii = [ iuu  -iuv ;
+    %      -iuv   ivv ];
+    % [ eig_vec, eig_val ] = eig(iii);
+    % meanMoIWeightBounded = iii ;
+    % meanMoment1WeightBounded = eig_val(1,1) ;
+    % meanMoment2WeightBounded = eig_val(2,2) ;
+    % meanAng1WeightBounded = atan2( eig_vec(2,1), eig_vec(1,1) );
+    % meanAng2WeightBounded = atan2( eig_vec(2,2), eig_vec(1,2) );
+    
+    % Other measures
+    ang1 = seg3d.qualities.ang1 ;
+    mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
+    mratio_principal = mratio(keep) ;
+    % c1 = sqrt(mratio_principal(:)) .* cos(2 * ang1(keep)) ;
+    % s1 = sqrt(mratio_principal(:)) .* sin(2 * ang1(keep)) ;
+    % ar = vecnorm([mean(c1), mean(s1)]) ;
+    % theta = 0.5 * atan2(nanmean(s1), nanmean(c1)) ;
+    ars = sqrt(mratio_principal(:)) ;
+    cos2thetas = cos(2 * ang1(keep)) ;
+    sin2thetas = sin(2 * ang1(keep)) ;
+    
+    % %% Cell statistics weighted by area
+    % % Weight the mean by cell area
+    % weight = areas(keep) ;
+    % weights = weight ./ nansum(weight) ;
+    % c2 = weights .* c1(:) ;
+    % s2 = weights .* s1(:) ;
+    % ar_weighted = vecnorm([sum(c2), sum(s2)]) ;
+    % theta_weighted = 0.5 * atan2(sum(s2), sum(c2)) ;
+    % 
+    % %% Cell statistics weighted by bounded area
+    % weight = areas(keep) ;
+    % weight(weight > 0.5 * maxCellSize) = maxCellSize - weight(weight > 0.5 * maxCellSize) ;
+    % weights = weight ./ nansum(weight) ;
+    % c3 = weights .* c1(:) ;
+    % s3 = weights .* s1(:) ;
+    % ar_weighted_bounded = vecnorm([sum(c3), sum(s3)]) ;
+    % theta_weighted_bounded = 0.5 * atan2(sum(s3), sum(c3)) ;
     
     % seg3d.statistics.meanAspect = ar ;
     % seg3d.statistics.meanCos2Theta =  ;
@@ -359,15 +475,158 @@ for tp = timePoints
     c2t_high = [c2t_high, prctile(cos2thetas, 75.0)] ;
     s2t_low = [s2t_low, prctile(sin2thetas, 25.0)] ;
     s2t_high = [s2t_high, prctile(sin2thetas, 75.0)] ;
-    mc2t = [mc2t, cos(2*theta_weighted_bounded)] ;
-    ms2t = [ms2t, sin(2*theta_weighted_bounded)] ;
+    mc2t = [mc2t, cos(2*meanQThetaWeightBounded)] ;
+    ms2t = [ms2t, sin(2*meanQThetaWeightBounded)] ;
     
-    mean_mratio = [mean_mratio, ar_weighted_bounded ] ;
+    % The aspect ratio is related to the meanQ 
+    % For perfectly aligned cells, meanQ would have a norm(Q) = 0.5, so
+    % abs(norm(meanQ)) * 2 = |ar| - 1
+    try
+        assert(abs(sqrt(abs(4 * det(meanQ))) - 2 * norm(meanQ)) < 1e-7)
+    catch
+        error('here')
+    end
+    mean_mratio = [mean_mratio, norm(meanQW) * 2 + 1 ] ;
+    median_moiratio = [median_moiratio, median(ars)] ;
+    mean_moiratio = [mean_moiratio, ...
+        sqrt(meanMoment2/meanMoment1) ] ;
     mratio_low = [mratio_low, prctile(ars, 25.0)] ;
     mratio_high = [mratio_high, prctile(ars, 75.0) ] ;
     
+    % Statistics by AP position
+    ap_pos = seg3d.cdat.centroids_uv(keep, 1) ;
+    xedges = linspace(0, 1, nAPBins + 1) ;
+    [mid_ap, mean_c2t, std_c2t] = ...
+        binDataMeanStdWeighted(ap_pos, mratio_principal .* cos2thetas, ...
+            xedges, weights) ;
+    [mid_ap, mean_s2t, std_s2t] = ...
+        binDataMeanStdWeighted(ap_pos, mratio_principal .* sin2thetas, ...
+            xedges, weights) ;
+    
+    
+    %% Statistics by Lobe (between features.folds)
+    nU = QS.nU ;
+    fold0 = double(folds(tidx, :)) / double(nU) ;
+    nLobes = length(fold0(:)) + 1 ;
+    foldt = [0; fold0(:); 1] ;
+    ap_pos = seg3d.cdat.centroids_uv(keep, 1) ;
+    [~, lobes_Q11, lobes_std_Q11] = binDataMeanStdWeighted(ap_pos, ...
+        strength(keep) .* squeeze(QQ(keep, 1, 1)), foldt, weights) ;
+    [~, lobes_Q12, lobes_std_Q12] = binDataMeanStdWeighted(ap_pos, ...
+        strength(keep) .* squeeze(QQ(keep, 1, 2)), foldt, weights) ;
+    [~, lobes_Q21, lobes_std_Q21] = binDataMeanStdWeighted(ap_pos, ...
+        strength(keep) .* squeeze(QQ(keep, 2, 1)), foldt, weights) ;
+    [~, lobes_Q22, lobes_std_Q22] = binDataMeanStdWeighted(ap_pos, ...
+        strength(keep) .* squeeze(QQ(keep, 2, 2)), foldt, weights) ;
+    % Check that result is still traceless and symmetric
+    assert(all(abs(lobes_Q11 + lobes_Q22) < 1e-7))
+    assert(all(abs(lobes_Q12 - lobes_Q12) < 1e-7))
+    
+    % Collate lobe information
+    meanQLobeAspect = zeros(nLobes, 1) ;
+    meanQLobeTheta = zeros(nLobes, 1) ;
+    meanQLobeAspectStd = zeros(nLobes, 1) ;
+    for lobe = 1:nLobes
+        meanQ_lobes{lobe} = [lobes_Q11(lobe), lobes_Q12(lobe); ...
+            lobes_Q21(lobe), lobes_Q22(lobe)] ;
+        stdQ_lobes{lobe} = [lobes_std_Q11(lobe), lobes_std_Q12(lobe); ...
+            lobes_std_Q21(lobe), lobes_std_Q22(lobe)] ;
+        
+        % diagonalize this lobeQ
+        [ eig_vec, eig_val ] = eig(meanQ_lobes{lobe});
+        try
+            assert(abs(abs(eig_val(2,2)) - abs(eig_val(1,1))) < 1e-7)
+        catch
+            error('Something is wrong with traceless or symmetry')
+        end
+        meanQLobeAspect(lobe) = norm(meanQ_lobes{lobe}) * 2 + 1 ;
+        meanQLobeTheta(lobe) = atan2( eig_vec(2,2), eig_vec(1,2) );
+        
+        % Uncertainty in average is given by error propagation
+        % lambda = 0.5 * [trace +/- sqrt(tr^2 - 4*det)] 
+        % Now, the trace is guaranteed to be zero, but not sure that means
+        % unc_trace = 0. If not, then we would propagate errors to be
+        
+        unc_tr = sqrt(2 * lobes_std_Q11(lobe).^2) ;
+        unc_det = sqrt(2 * (lobes_Q11(lobe) * lobes_std_Q11(lobe)).^2 ...
+            + 2 * (lobes_Q12(lobe) * lobes_std_Q12(lobe)).^2) ;
+        determ = abs(det(meanQ_lobes{lobe})) ;
+        unc_lambda = 0.5 * sqrt(unc_tr.^2 + unc_det.^2 / (determ)) ; 
+    
+        % NOTE: |eigenvalue| of symm traceless matrix == norm(matrix)
+        meanQLobeAspectStd(lobe) = 2 * unc_lambda ;
+        
+    end
+    
+    % Store for later plotting
+    meanQLobeAspects(:, dmy) = meanQLobeAspect ;
+    meanQLobeAspectStds(:, dmy) = meanQLobeAspectStd ;
+    meanQLobeThetas(:, dmy) = meanQLobeTheta ;
+    mean_c2ts(dmy, :) = mean_c2t ;
+    mean_s2ts(dmy, :) = mean_s2t ;
+    
+    %% Save 
+    tmp = seg3d.statistics ;
+    seg3d.statistics = struct() ;
+    seg3d.statistics.keep = tmp.keep ;
+    seg3d.statistics.maxCellSize = tmp.maxCellSize ;
+    % Mean tensor stats
+    seg3d.statistics.meanMoI = meanMoI ;
+    seg3d.statistics.meanQ = meanQ ;
+    seg3d.statistics.meanQWeighted = meanQW ;
+    seg3d.statistics.meanQWeightBounded = meanQWB ;
+    seg3d.statistics.meanMoment1 = meanMoment1 ;
+    seg3d.statistics.meanMoment2 = meanMoment2 ;
+    seg3d.statistics.meanQMoment1 = meanQMoment1 ;
+    seg3d.statistics.meanQMoment2 = meanQMoment2 ;
+    seg3d.statistics.meanQMoment1Weighted = meanQMoment1Weighted ;
+    seg3d.statistics.meanQMoment2Weighted = meanQMoment2Weighted ;
+    seg3d.statistics.meanQMoment1WeightBounded = meanQMoment1WeightBounded ;
+    seg3d.statistics.meanQMoment2WeightBounded = meanQMoment2WeightBounded ;
+  
+    % mean tensor angles
+    seg3d.statistics.meanAng1 = meanAng1 ;
+    seg3d.statistics.meanQTheta = meanQTheta ;
+    seg3d.statistics.meanQThetaWeighted = meanQThetaWeighted ;
+    seg3d.statistics.meanQThetaWeightBounded = meanQThetaWeightBounded ;
+    
+    % Mean Q tensor (weightedBounded) for each lobe
+    seg3d.statistics.lobes = struct() ;
+    seg3d.statistics.lobes.meanQLobes = meanQ_lobes ;
+    seg3d.statistics.lobes.stdQLobes = stdQ_lobes ;
+    seg3d.statistics.lobes.meanQLobeAspect = meanQLobeAspect ;
+    seg3d.statistics.lobes.meanQLobeAspectStd = meanQLobeAspectStd ;
+    seg3d.statistics.lobes.meanQLobeTheta = meanQLobeTheta ;
+    
+    % Raw distributions
+    seg3d.statistics.aspect25 = prctile(ars, 25.0) ;
+    seg3d.statistics.aspect75 = prctile(ars, 75.0) ;
+    seg3d.statistics.cos2theta25 = prctile(cos2thetas, 25.0) ;
+    seg3d.statistics.cos2theta75 = prctile(cos2thetas, 75.0) ;
+    seg3d.statistics.sin2theta25 = prctile(sin2thetas, 25.0) ;
+    seg3d.statistics.sin2theta75 = prctile(sin2thetas, 75.0) ;
+    
+    % AP averaging
+    seg3d.statistics.apBins = mid_ap ;
+    seg3d.statistics.apCos2Theta = mean_c2t ;
+    seg3d.statistics.apSin2Theta = mean_s2t ;
+    seg3d.statistics.apCos2ThetaStd = std_c2t ;
+    seg3d.statistics.apSin2ThetaStd = std_s2t ;
+    save(outfn, 'seg3d', 'coordSys')
+    
     %% Plot this timepoint's segmentation in 3d
-    plotCells(QS, tp, seg3d, imdir, overwrite || overwriteImages, xyzlims)
+    plotCells(QS, tp, seg3d, imdir, overwriteImages, xyzlims)
+    
+    %% Plot as histogram
+    edges = linspace(-1, 1, 100) ;
+    edgesAR = linspace(1, 5, 100) ;
+    tmp = histcounts(cos(2* seg3d.qualities.ang1), edges) ;
+    cos2thetaM(:, dmy) = tmp / sum(tmp) ;
+    tmp = histcounts(sin(2* seg3d.qualities.ang1), edges) ;
+    sin2thetaM(:, dmy) = tmp / sum(tmp) ;
+    tmp = histcounts(ars, edgesAR) ;
+    aspectM(:, dmy) = tmp / sum(tmp) ;
+    dmy = dmy + 1 ;
 end
 
 %% Define some colors
@@ -393,6 +652,7 @@ plot(timePoints - t0, mc2t, '.-', 'color', redcol)
 % addaxis(timePoints - t0, ms2t, '.-', 'color', yelcol)
 hold on;
 fill(x2, [s2t_low, fliplr(s2t_high)], yelcol, 'facealpha', 0.3, 'edgecolor', 'none');
+plot(timePoints - t0, ms2t, '.-', 'color', yelcol)
 
 xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
 yyaxis left
@@ -402,29 +662,123 @@ ylabel('nematic orientation $\cos 2\theta$, $\sin2\theta$',   'interpreter', 'la
 title('endoderm orientation over time', 'interpreter', 'latex')
 saveas(gcf, imfn)
 
-%% Plot as histogram
 
-
-%% Plot each lobe
-
-
-
-%% Plot mean +/- pctile over time
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_mratio_log.png') ;
+%% Plot nematic strength and direction for each lobe 
+imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_lobes.png') ;
 clf
-% shade(timePoints - t0, bndlow, timePoints, bndhigh)
-x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
-fill(x2, [log10(mratio_low), fliplr(log10(mratio_high))], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
-hold on;
-% shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
-plot(timePoints - t0, log10(mean_mratio), '.-')
-
-xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('$\log_{10} \sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
-title('endoderm orientation over time', 'interpreter', 'latex')
+for lobe = 1:nLobes
+    subplot(ceil(nLobes * 0.5), 2, lobe)
+    midline = squeeze(meanQLobeAspects(lobe, :)) ;
+    uncs = squeeze(meanQLobeAspectStds(lobe, :)) ;
+    timestamps = timePoints - t0 ;
+    if contains(QS.timeUnits, 'min')
+        timestamps = timestamps / 60 ;
+    end
+    x2 = [timestamps, fliplr(timestamps)] ;
+    fill(x2,[midline-uncs, fliplr(midline+uncs)], ...
+        bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
+    hold on;
+    plot(timestamps, midline, '.-', 'color', bluecol)
+    ylim([1, Inf])
+    
+    yyaxis right
+    % fill(x2, [c2t_low, fliplr(c2t_high)], redcol, 'facealpha', 0.3, 'edgecolor', 'none');
+    hold on;
+    plot(timestamps, mod(meanQLobeThetas(lobe, :), pi)/pi, '.-')
+    % plot(timestamps, sin(2*meanQLobeThetas(lobe, :)), '.-')
+    % 'color', redcol)
+    ylim([0, 1])
+    
+    if mod(lobe, 2) == 1 
+        yyaxis left
+        ylabel('aspect ratio, $a=2||Q|| + 1$',   'interpreter', 'latex')
+    else
+        yyaxis right
+        ylabel('nematic orientation $\theta/\pi$',   'interpreter', 'latex')
+    end
+    
+    % Time label
+    if lobe > nLobes - 2
+        if contains(QS.timeUnits, 'min')
+            xlabel('time [hr]', 'interpreter', 'latex')  
+        else
+            xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')  
+        end
+    end
+end
+sgtitle('endoderm orientation over time', 'interpreter', 'latex')
 saveas(gcf, imfn)
 
-%% LINEAR version
+%% Plot nematic strength and direction for each lobe 
+imfn = fullfile(QS.dir.segmentation, 'seg3d', ...
+    'cell_anisotropy_lobes_signed.png') ;
+clf
+for lobe = 1:nLobes
+    % subplot(ceil(nLobes * 0.5), 2, lobe)
+    c2t = cos(2*meanQLobeThetas(lobe, :))  ;
+    midline = c2t .* (squeeze(meanQLobeAspects(lobe, :)) - 1) ;
+    uncs = c2t .* (squeeze(meanQLobeAspectStds(lobe, :)) - 1) ;
+    timestamps = timePoints - t0 ;
+    if contains(QS.timeUnits, 'min')
+        timestamps = timestamps / 60 ;
+    end
+    x2 = [timestamps, fliplr(timestamps)] ;
+    fill(x2,[midline-abs(uncs), fliplr(midline+abs(uncs))], ...
+        colors(lobe, :), 'facealpha', 0.3, 'edgecolor', 'none', ...
+        'HandleVisibility', 'off');
+    hold on;
+    hs{lobe} = plot(timestamps, midline, '.-', 'color', colors(lobe, :)) ;
+    
+    legendentries{lobe} = ['chamber ' num2str(lobe)] ;
+end
+ylims = ylim() ;
+ylim([-max(abs(ylims)), max(abs(ylims))])
+
+% Mark zero line
+plot(timestamps, 0*timestamps, 'k--', 'HandleVisibility','off')
+% Labels
+legend(legendentries, 'interpreter', 'latex', 'location', 'northwest')
+ylabel('elongation, $2||Q|| \cos 2\theta$',   'interpreter', 'latex')
+if contains(QS.timeUnits, 'min')
+    xlabel('time [hr]', 'interpreter', 'latex')  
+else
+    xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')  
+end
+sgtitle('endoderm orientation over time', 'interpreter', 'latex')
+saveas(gcf, imfn)
+saveas(gcf, [imfn(1:end-3), 'pdf'])
+
+
+%% Plot histograms
+imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_hist.png') ;
+clf
+colormap(cividis)
+subplot(2, 2, 1)
+imagesc(timePoints - t0, edges, cos2thetaM)
+set(gca,'YDir','normal')
+caxis([0, 0.05])
+xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+ylabel('nematic orientation $\cos2\theta$',   'interpreter', 'latex')
+subplot(2, 2, 2)
+imagesc(timePoints - t0, edges, sin2thetaM)
+set(gca,'YDir','normal')
+caxis([0, 0.05])
+xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+ylabel('nematic orientation $\sin2\theta$',   'interpreter', 'latex')
+subplot(2, 2, 3)
+imagesc(timePoints - t0, edgesAR, aspectM)
+set(gca,'YDir','normal')
+caxis([0, 0.05])
+xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+ylabel('aspect ratio $\sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
+subplot(4, 2, 6)
+cb = colorbar('location', 'south') ;
+ylabel(cb, 'probability', 'interpreter', 'latex')
+caxis([0, 0.05])
+axis off
+saveas(gcf, imfn) 
+
+%% Aspect ratio distributions, variation of mean shape aspect
 imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_mratio.png') ;
 clf
 colors = define_colors() ;
@@ -435,11 +789,69 @@ fill(x2, [mratio_low, fliplr(mratio_high)], ...
     bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
 hold on;
 % shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
+plot(timePoints - t0, median_moiratio, '.-')
+plot(timePoints - t0, mean_moiratio, '.-')
 plot(timePoints - t0, mean_mratio, '.-')
+legend({'25-75\%', 'median $\sqrt{I_1/I_2}$', ...
+    '$\sqrt{\lambda_1^{\langle I \rangle}/\lambda_2^{\langle I \rangle}}$', ...
+    '$2||\langle Q\rangle|| + 1$'}, 'interpreter', 'latex')
 
 xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('$\sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
+ylabel('aspect ratio',   'interpreter', 'latex')
 title('endoderm orientation over time', 'interpreter', 'latex')
+saveas(gcf, imfn)
+
+
+
+%% Plot as a function of AP position and time (kymograph)
+imfn = fullfile(QS.dir.segmentation, 'seg3d', 'ap_kymographs_c2t_s2t.png') ;
+clf
+subplot(1, 2, 1)
+imagesc(mid_ap, timePoints-t0, medfilt2(mean_c2ts, [3, 1])) ;
+caxis([-10, 10])
+colormap(blueblackred)
+xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
+ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+cb = colorbar('location', 'southOutside') ;
+ylabel(cb, '$\sqrt{\lambda_1/\lambda_2}\cos 2\theta$', ...
+    'interpreter', 'latex')
+subplot(1, 2, 2)
+imagesc(mid_ap, timePoints-t0, medfilt2(mean_s2ts, [3, 1])) ;
+caxis([-10, 10])
+colormap(blueblackred)
+xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
+ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+cb = colorbar('location', 'southOutside') ;
+ylabel(cb, '$\sqrt{\lambda_1/\lambda_2}\sin 2\theta$', ...
+    'interpreter', 'latex')
+sgtitle('cell anisotropy kymographs', 'interpreter', 'latex')
+saveas(gcf, imfn)
+
+%% Time derivative of filtered image AP position
+imfn = fullfile(QS.dir.segmentation, 'seg3d', 'ap_kymographs_dc2t_ds2t.png') ;
+clf
+cfiltered = medfilt2(mean_c2ts, [3, 1]) ;
+[~, dc2t] = gradient(cfiltered) ;
+sfiltered = medfilt2(mean_s2ts, [3, 1]) ;
+[~, ds2t] = gradient(sfiltered) ;
+subplot(1, 2, 1)
+imagesc(mid_ap, timePoints-t0, imgaussfilt(medfilt2(dc2t, [3, 1]), 0.5)) ;
+caxis([-3, 3])
+xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
+ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+colormap(blueblackred)
+cb = colorbar('location', 'southOutside') ;
+ylabel(cb, '$\partial_t\left(\sqrt{\lambda_1/\lambda_2} \cos 2\theta\right)$', ...
+    'interpreter', 'latex')
+subplot(1, 2, 2)
+imagesc(mid_ap, timePoints-t0, imgaussfilt(medfilt2(ds2t, [3, 1]), 0.5)) ;
+caxis([-3, 3])
+xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
+ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+cb = colorbar('location', 'southOutside') ;
+ylabel(cb, '$\partial_t\left(\sqrt{\lambda_1/\lambda_2} \sin 2\theta\right)$', ...
+    'interpreter', 'latex')
+sgtitle('cell anisotropy kymographs', 'interpreter', 'latex')
 saveas(gcf, imfn)
 
 
@@ -667,6 +1079,46 @@ function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims)
             saveas(gcf, imfn) 
             clf
         end
+    end
+    
+    %% Statistics
+    statsfn = fullfile(imdir, sprintf('stats_%06d.png', tp)) ;
+    if ~exist(statsfn, 'file') || overwrite || true
+        clf
+        % plot(sqrt(i11), areas(keep), '.') ; hold on;
+        % plot(sqrt(i22), areas(keep), '.') ; hold on;
+        subplot(2, 1, 1)
+        plot(areas(keep), sqrt(seg3d.qualities.moment2(keep)), '.') ; hold on;
+        plot(areas(keep), sqrt(seg3d.qualities.moment1(keep)), '.') ; 
+        xlabel(['area [' QS.spaceUnits '$^2$]'], 'interpreter', 'latex')
+        ylabel('$\sqrt{\lambda_2}, \sqrt{\lambda_1}$', 'interpreter', 'latex')
+        subplot(2, 2, 3)
+        ars_tmp = sqrt(seg3d.qualities.moment2(keep)./seg3d.qualities.moment1(keep)) ;
+        plot(areas(keep), ars_tmp, '.') ; 
+        xlabel(['area [' QS.spaceUnits '$^2$]'], 'interpreter', 'latex')
+        ylabel('$\sqrt{\lambda_2 / \lambda_1}$', 'interpreter', 'latex')
+        % Fit to line to see if there is variation
+        [cc, SS] = polyfit(areas(keep), ars_tmp, 1) ;
+        uncs = sqrt(abs(SS.R)) / SS.df ;
+        title(['$\sqrt{\lambda_2 / \lambda_1} = ($' ...
+            num2str(round(cc(1), 1, 'significant')) '$\pm$' ...
+            num2str(round(uncs(1,1), 1, 'significant')) '$)A + $' ...
+            num2str(round(cc(2), 3, 'significant')) '$\pm$' ...
+            num2str(round(uncs(2,2), 1, 'significant'))], ...
+            'interpreter', 'latex')
+        
+        subplot(2, 2, 4)
+        plot(areas(keep), ars_tmp, '.') ;
+        corrs = corrcoef(areas(keep), ars_tmp) ; 
+        title(['correlation = ' ...
+            num2str(round(corrs(1, 2), 2, 'significant'))], ...
+            'interpreter', 'latex')
+        
+        ylim([0.5, 5])
+        xlabel(['area [' QS.spaceUnits '$^2$]'], 'interpreter', 'latex')
+        ylabel('$\sqrt{\lambda_2 / \lambda_1}$', 'interpreter', 'latex')
+        sgtitle(titlestr, 'interpreter', 'latex')
+        saveas(gcf, statsfn)
     end
 end
 

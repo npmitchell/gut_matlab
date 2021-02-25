@@ -6,9 +6,15 @@ function [midx, meany, stdy] = binDataMeanStd(x, y, xedges)
 %
 % Parameters
 % ----------
+% x : values for binning into xedges
+% y : data values to take stats of
+% xedges : bin edges for binning x values and grouping y values
 %
 % Returns
 % -------
+% midx : middle value of each bin (average between adjacent xedges)
+% meany : mean y value in each bin
+% stdy : standard deviations of y values in each bin
 %
 % NPMitchell 2021
 

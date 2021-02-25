@@ -238,13 +238,19 @@ classdef QuapSlap < handle
             'nmodes', 7, ...                % number of low freq modes to keep per DV hoop
             'zwidth', 1) ;                  % half-width of tripulse filter applied along zeta/z/s/u direction in pullback space, in units of du/dz/ds/dzeta
         pathlines = struct('t0', [], ...    % timestamp (not an index) at which pathlines form regular grid in space
+            'refMesh', [], ...              % reference mesh for pathline advection
             'piv', [], ...                  % Lagrangian pathlines from piv coords
             'vertices', [], ...             % Lagrangian pathlines from mesh vertices
             'faces', [], ...                % Lagrangian pathlines from mesh face barycenters
             'featureIDs', struct(...        % struct with features in pathline coords
                 'vertices', [], ...         % longitudinal position of features from pathlines threaded through pullback mesh vertices at t=t0Pathline
                 'piv', [], ...              % longitudinal position of features from pathlines threaded through PIV evaluation coordinates at t=t0Pathline
-                'faces', []));              % longitudinal position of features from pathlines threaded through pullback mesh face barycenters at t=t0Pathline
+                'faces', []), ...           % longitudinal position of features from pathlines threaded through pullback mesh face barycenters at t=t0Pathline
+            'beltrami', ...                 % beltrami coefficient evaluated along pathlines
+                struct('mu_material', [], ...
+                'mu_material_filtered', [], ...
+                'mu_material_vertices', [], ...
+                'fitlerOptions', []));     
         pathlines_uvprime = struct('t0', [], ...    % timestamp (not an index) at which pathlines form regular grid in space
             'piv', [], ...                  % Lagrangian pathlines from piv coords
             'vertices', [], ...             % Lagrangian pathlines from mesh vertices
@@ -253,6 +259,11 @@ classdef QuapSlap < handle
                 'vertices', [], ...         % longitudinal position of features from pathlines threaded through pullback mesh vertices at t=t0Pathline
                 'piv', [], ...              % longitudinal position of features from pathlines threaded through PIV evaluation coordinates at t=t0Pathline
                 'faces', []));              % longitudinal position of features from pathlines threaded through pullback mesh face barycenters at t=t0Pathline
+        currentStrain = struct(...
+            'pathline', ...                 % strain from pathlines
+                struct('t0Pathlines', [], ...   % t=0 timepoint for pathlines in question
+                'strain', [], ...               % strain evaluated along pathlines
+                'beltrami', [])) ;              % beltrami coefficient for pathlines
     end
     
     % Some methods are hidden from public view. These are used internally
@@ -507,7 +518,7 @@ classdef QuapSlap < handle
             end
         end
         
-        function getFeatures(QS, varargin)
+        function features = getFeatures(QS, varargin)
             %GETFEATURES(QS, varargin)
             %   Load features of the QS object (those specied, or all of 
             %   them). Features include {'folds', 'fold_onset', 'ssmax', 
@@ -521,6 +532,9 @@ classdef QuapSlap < handle
                 end
             else
                 QS.loadFeatures() ;
+            end
+            if nargout > 0
+                features = QS.features ; 
             end
         end
         function loadFeatures(QS, varargin)
@@ -1061,9 +1075,38 @@ classdef QuapSlap < handle
         measureRPhiPathlines(QS, options)
         % Note: measureBeltramiCoefficient() allows ricci coordSys
         measureBeltramiCoefficient(QS, options)
+        function beltrami = getBeltramiCoefficient(QS, options)
+            if nargin < 2
+                options = struct() ;
+            end
+            if isempty(QS.pathlines.beltrami)
+                QS.pathlines.beltrami = QS.loadBeltramiCoefficient(options) ;
+            end
+            if nargout > 0 
+                beltrami = QS.pathlines.beltrami ;
+            end
+        end
+        function beltrami = loadBeltramiCoefficient(QS, options)    
+            if isfield(options, 't0Pathlines')
+                t0Pathlines = options.t0Pathlines ;
+            else
+                t0Pathlines = QS.t0set() ;
+            end
+            fn = sprintf(QS.fileName.pathlines.quasiconformal, t0Pathlines) ;
+            QS.pathlines.beltrami = load(fn)  ;
+            if nargout > 0 
+                beltrami = QS.pathlines.beltrami ;
+            end
+        end
         measureBeltramiCoefficientPullbackToPullback(QS, options)
         
         % Radial indentation for pathlines
+        function indentation = getPathlineIndentation(QS, options)
+            if nargin < 2
+                options = struct() ;
+            end
+            indentation = measurePathlineIndentation(QS, options) ;
+        end
         function indentation = measurePathlineIndentation(QS, options)
             overwrite = false ;
             t0p = QS.t0set() ;
@@ -1508,10 +1551,11 @@ classdef QuapSlap < handle
             % Obtain the cell segmentation in 3D pushforward space
             if isempty(QS.currentSegmentation.seg3d)
                 try
-                    seg3d = QS.loadCurrentSegmentation3D() ;
+                    QS.loadCurrentSegmentation3D() ;
                 catch
                     options.timePoints = [QS.currentTime] ;
                     QS.generateCellSegmentation3D(options) ;
+                    QS.loadCurrentSegmentation3D() ;
                 end    
             end
             % if requested, return segmentation as output
@@ -1520,10 +1564,15 @@ classdef QuapSlap < handle
             end
         end
         function seg3d = loadCurrentSegmentation3D(QS) 
-           seg3d = load(sprintf(QS.fullFileBase.segmentation3d, QS.currentTime)) ;
+            QS.currentSegmentation.seg3d = load(sprintf(QS.fullFileBase.segmentation3d, QS.currentTime)) ;
+            if nargout > 0
+                seg3d = QS.currentSegmentation.seg3d ;
+            end
         end
         % Note: anisotropy is stored in seg3d.quality
-        % measureCellAnisotropy(QS, options)
+        % no need for: measureCellAnisotropy(QS, options)
+        plotSegmentationStatisticsLobes(QS, options)
+        estimateIntercalationRate(QS, options)
         
         % density of cells -- nuclei or membrane based
         measureCellDensity(QS, nuclei_or_membrane, options)
@@ -1615,8 +1664,9 @@ classdef QuapSlap < handle
         
         %% Pathlines
         measurePullbackPathlines(QS, options)
-        function getPullbackPathlines(QS, t0, varargin)
+        function pathlines = getPullbackPathlines(QS, t0, varargin)
             % Discern if we must load pathlines or if already loaded
+            doneLoading = false ;
             if nargin > 1 
                 if QS.pathlines.t0 ~= t0
                     % The timestamp at which pathlines form grid that is 
@@ -1629,16 +1679,18 @@ classdef QuapSlap < handle
                     else
                         QS.loadPullbackPathlines(t0)
                     end
+                    doneLoading = true ;
                 end
-            else
-                % No t0 supplied, assume t0 is the same as what is stored
+            end
+            if ~doneLoading
+                % No t0 supplied or t0 is the same as what is stored
                 % in QS.pathlines.t0, if any is already stored (ie if any
                 % pathlines are already loaded)
                 if isempty(QS.pathlines.t0)
                     % no pathlines loaded. Load here
                     if nargin > 2
                         QS.loadPullbackPathlines(t0, varargin)
-                    elseif narargin > 1
+                    elseif nargin > 1
                         QS.loadPullbackPathlines(t0)
                     else
                         QS.loadPullbackPathlines()
@@ -1648,19 +1700,35 @@ classdef QuapSlap < handle
                     % requested here in varargin? First check if varargin 
                     % is empty or not  
                     if nargin > 2            
-                        if any(contains(varargin, 'pivPathlines'))
+                        if any(contains(varargin, 'pivPathlines')) || ...
+                                any(contains(varargin, 'piv'))
                             if isempty(QS.pathlines.piv)
+                                disp('Loading pivPathlines') 
                                 QS.loadPullbackPathlines(t0, 'pivPathlines')
                             end          
                         end
-                        if any(contains(varargin, 'vertexPathlines'))
+                        if any(contains(varargin, 'vertexPathlines')) || ...
+                                any(contains(varargin, 'vertex')) || ...
+                                any(contains(varargin, 'vertices'))
                             if isempty(QS.pathlines.vertices)
+                                disp('Loading vertexPathlines') 
                                 QS.loadPullbackPathlines(t0, 'vertexPathlines')
                             end            
                         end            
-                        if any(contains(varargin, 'facePathlines'))
+                        if any(contains(varargin, 'facePathlines')) || ...
+                                any(contains(varargin, 'face')) || ...
+                                any(contains(varargin, 'faces'))
+                            disp('Loading facePathlines') 
                             if isempty(QS.pathlines.faces)
                                 QS.loadPullbackPathlines(t0, 'facePathlines')
+                            end
+                        end
+                        if any(contains(varargin, 'vertexPathlines3d')) || ...
+                                any(contains(varargin, 'vertex3d')) || ...
+                                any(contains(varargin, 'vertices3d'))
+                            disp('Loading vertexPathlines3d') 
+                            if isempty(QS.pathlines.vertices3d)
+                                QS.loadPullbackPathlines(t0, 'vertexPathlines3d')
                             end
                         end
                     else
@@ -1671,18 +1739,26 @@ classdef QuapSlap < handle
                             t0 = QS.t0set() ;
                         end
                         if isempty(QS.pathlines.piv)
+                            disp('Loading pivPathlines') 
                             QS.loadPullbackPathlines(t0, 'pivPathlines')
                         end            
                         if isempty(QS.pathlines.vertices)
+                            disp('Loading vertexPathlines') 
                             QS.loadPullbackPathlines(t0, 'vertexPathlines')
                         end            
                         if isempty(QS.pathlines.faces)
+                            disp('Loading facePathlines') 
                             QS.loadPullbackPathlines(t0, 'facePathlines')
+                        end  
+                        if isempty(QS.pathlines.vertices3d)
+                            disp('Loading vertexPathlines3d') 
+                            QS.loadPullbackPathlines(t0, 'vertexPathlines3d')
                         end
                     end
                 end
-                        
-                    
+            end
+            if nargout > 0
+                pathlines = QS.pathlines ;
             end
         end
         function loadPullbackPathlines(QS, t0, varargin)
@@ -1699,6 +1775,10 @@ classdef QuapSlap < handle
             end
             % assign t0 as the pathline t0
             QS.pathlines.t0 = t0 ;
+            tmp = load(sprintf(QS.fileName.pathlines.refMesh, t0), ...
+                'refMesh') ;
+            QS.pathlines.refMesh = tmp.refMesh ;
+            
             if nargin < 3
                 varargin = {'pivPathlines', 'vertexPathlines', ...
                     'facePathlines'} ;
@@ -1714,6 +1794,11 @@ classdef QuapSlap < handle
             if any(contains(varargin, 'facePathlines'))
                 load(sprintf(QS.fileName.pathlines.fXY, t0), 'facePathlines')
                 QS.pathlines.faces = facePathlines ;
+            end
+            if any(contains(varargin, 'vertexPathlines3d'))
+                tmp = load(sprintf(QS.fileName.pathlines.v3d, t0)) ;
+                QS.pathlines.vertices3d = tmp.v3dPathlines ;
+                QS.pathlines.vertices3d.smoothing_sigma = tmp.smoothing_sigma ;
             end
         end
         featureIDs = measurePathlineFeatureIDs(QS, pathlineType, options)
@@ -1945,7 +2030,7 @@ classdef QuapSlap < handle
         measurePathlineMetricKinematics(QS, options)
         plotPathlineMetricKinematics(QS, options)
         
-        %% 
+        %% Strain RATE
         measureMetricStrainRate(QS, options)
         measureStrainRate(QS, options)
         plotStrainRate(QS, options)
@@ -1953,11 +2038,77 @@ classdef QuapSlap < handle
         measurePathlineStrainRate(QS, options)
         measureDxDyStrainFiltered(QS, options)
         % Also makes fund forms in regularlized (zeta, phi) t0 Lagrangian frame
-        measurePathlineStrain(QS, options)
+        
+        % strain RATE along pathlines
         plotPathlineStrainRate(QS, options)
+        
+        % Strain by following flow lines
+        function strain = getCurrentPathlineStrain(QS, t0Pathlines, varargin)
+            %
+            % Parameters
+            % ----------
+            % QS : current class instance
+            % t0Pathlines : int or empty
+            %   reference timepoint. If empty, set to QS.t0set()
+            % varargin : strings ('strain', 'beltrami')
+            %   which strain measures to load from disk and attribute to
+            %   self
+            % 
+            % Returns
+            % -------
+            % strain : QS.currentStrain.pathline
+            
+            if isempty(QS.currentTime)
+                error('Must first set time with QS.setTime()')
+            end
+            if nargin < 2 
+                t0Pathlines = QS.t0set() ;
+            else
+                if isempty(t0Pathlines)
+                    t0Pathlines = QS.t0set() ;
+                end
+                if nargin < 3
+                    varargin = {'strain', 'beltrami'} ;
+                end
+            end
+            
+            QS.currentStrain.pathline.t0Pathlines = t0Pathlines ;
+            if any(contains(varargin, 'strain'))
+                ffn = sprintf(QS.fullFileBase.pathlines.strain, t0Pathlines, QS.currentTime) ;
+                QS.currentStrain.pathline.strain = load(ffn) ;
+            end
+
+            % Grab all beltramis and assign to self since stored as single
+            % file on disk
+            if any(contains(varargin, 'beltrami'))
+                tidx = QS.xp.tIdx(QS.currentTime) ;
+                % stores beltramis 
+                QS.getBeltramiCoefficient() ;
+                QS.currentStrain.pathline.beltrami.mu_material = ...
+                    QS.pathlines.beltrami.mu_material(tidx, :);
+                QS.currentStrain.pathline.beltrami.mu_material_filtered = ...
+                    QS.pathlines.beltrami.mu_material_filtered(tidx, :);
+                QS.currentStrain.pathline.beltrami.mu_material_vertices = ...
+                    QS.pathlines.beltrami.mu_material_vertices(tidx, :);
+                QS.currentStrain.pathline.beltrami.filterOptions = ...
+                    QS.pathlines.beltrami.filterOptions ;
+            end
+            if nargout > 0
+                strain = QS.currentStrain.pathline ;
+            end
+        end
+        measurePathlineStrain(QS, options)
+        function getPathlineStrain(QS, options)
+            for tidx = 1:length(QS.xp.fileMeta.timePoints)
+                tp = QS.xp.fileMeta.timePoints(tidx) ;
+                ffn = sprintf(QS.fullFileBase.pathlines.strain, t0Pathlines, tp) ;
+                strains(tidx, :) = load(ffn) ;
+            end
+            QS.pathlines.strains = strains ;
+        end
         plotPathlineStrain(QS, options)
         
-        % 
+        % DEPRICATED -- could integrate rates
         measurePathlineIntegratedStrain(QS, options)
         plotPathlineIntegratedStrain(QS, options)
         
