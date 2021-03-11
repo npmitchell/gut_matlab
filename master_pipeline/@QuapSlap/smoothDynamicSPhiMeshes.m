@@ -121,7 +121,7 @@ if redo_meshsmooth
         smfn = sprintf(spcutMeshSmBase, tt) ;
         smrsfn = sprintf(spcutMeshSmRSBase, tt) ;
         smrscfn = sprintf(spcutMeshSmRSCBase, tt) ;
-        if ~exist(smfn, 'file') || ~exist(smrsfn, 'file') || ~exist(smrscfn, 'file') || overwrite_spcutMeshSm
+        if ~exist(smfn, 'file') || ~exist(smrsfn, 'file') || ~exist(smrscfn, 'file') || overwrite
             vqq = squeeze(v3dsmM(qq, :, :)) ;
             nqq = squeeze(nsmM(qq, :, :)) ;
             nsmM(qq, :, :) = nqq ./ vecnorm(nqq, 2, 2) ;

@@ -84,7 +84,8 @@ if ~exist(datfn, 'file') || overwrite
     for ii = 1:length(timePoints)
         tp = timePoints(ii) ;
 
-        % Load the mesh
+        % Load the mesh -- note we load the aligned mesh, before cutting
+        % into cylinder
         meshfn = sprintf(QS.fullFileBase.alignedMesh, tp) ;
         disp(['analyzing ', meshfn])
         [tri, pts] = ply_read(meshfn, 'tri') ;

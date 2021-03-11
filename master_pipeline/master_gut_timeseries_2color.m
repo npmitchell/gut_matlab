@@ -37,12 +37,14 @@ clear; close all; clc;
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
 % cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
+cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
+
 % .=========.
 % |  VIP10  |
 % .=========.
 % cd /mnt/crunch/gut/48YGal4UasLifeActRuby/201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
-cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
+% cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
 dataDir = cd ;
 
 %% PATHS ==================================================================
@@ -663,7 +665,7 @@ for tp = xp.fileMeta.timePoints(1:end)
     % Load the mesh
     meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;     
     mesh = read_ply_mod(meshfn) ; 
-    assert(length(mesh.v) > 0)
+    assert(~isempty(mesh.v))
     % Plot the mesh in 3d. Color here by Y coordinate
     trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
         mesh.v(:, 3), 'edgecolor', 'none', 'Facealpha', 0.5)
@@ -1157,7 +1159,7 @@ washout2d = 0.5 ;
 %% Iterate Through Time Points to Create Pullbacks ========================
 % Skip if already done
 % outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
-for tt = xp.fileMeta.timePoints(141:end)
+for tt = xp.fileMeta.timePoints(1:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
     
@@ -1194,6 +1196,7 @@ for tt = xp.fileMeta.timePoints(141:end)
         end
     end
 end
+
 %%
 for tt = xp.fileMeta.timePoints(1:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
@@ -1330,7 +1333,7 @@ options.preview = true ;
 options.first_tp_allowed = [42, 14, 63] ;  % enforce that no folds before this tp
 options.guess123 = [0.15, 0.4, 0.56] ;
 options.maxDistsFromGuess = 0.05 * [1,1,1] ;
-options.max_wander = 10 ;
+options.max_wander = 4 ;
 options.wander_units = 'pcAP' ;
 QS.identifyFolds(options)
 disp('done')
@@ -1347,14 +1350,14 @@ disp('done')
 %% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
 % Skip if already done
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 QS.measureWrithe(options)
 disp('done')
 
 %% Compute surface area and volume for each compartment ===================
 % Skip if already done
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 QS.measureLobeDynamics(options) ;
 
 % plot length, area, and volume for each lobe ============================
@@ -1532,7 +1535,6 @@ clearvars dumpfn
 disp('Loading PIV results...')
 tmp = load(fullfile(QS.dir.piv, 'piv_results.mat')) ;
 
-
 %% Measure velocities =============================================
 disp('Making map from pixel to xyz to compute velocities in 3d for smoothed meshes...')
 options = struct() ;
@@ -1540,8 +1542,28 @@ options.overwrite = true ;
 options.preview = false ;
 options.show_v3d_on_data = false ;
 options.save_ims = true ;
-QS.measurePIV3d(options) ;
+options.rgbChannels = [1 2] ;
+QS.measurePIV3dMultiChannel(options) ;
 
+% options = struct() ;
+% QS.timeAverageMultiChannelVelocities()
+
+%% Measure relative motion between layers
+% 1. Split the pullbacks into two channels in Fiji.
+% 2. Run PIV on each channel
+QS.clearTime()
+options = struct() ;
+options.overwrite = false ;
+options.overwriteImages = false ;
+QS.measureRelativeMotion(options)
+
+%% Get cross-section MIPS near folds
+options = struct() ;
+QS.generateFoldCrossSections(options)
+%% Measure the cross-section dynamics
+options = struct() ;
+options.overwrite = false ;
+QS.measureFoldCrossSectionDynamics(options)
 
 %% AUTOCORRELATIONS
 % overwrite_autocorrelations = false ;

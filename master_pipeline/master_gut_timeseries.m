@@ -901,9 +901,6 @@ else
         axis equal
         title(['t = ', num2str(tp)]) 
         pause(0.01)
-        if tp > 135
-            pause(1)
-        end
     end
     disp('Already done')
 end
@@ -1301,7 +1298,7 @@ QS.measureCurvatures(options)
 % Skip if already done
 disp('Create pullback using S,Phi coords with time-averaged Meshes')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-for tt = QS.xp.fileMeta.timePoints(1:end)
+for tt = QS.xp.fileMeta.timePoints
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = QS.xp.tIdx(tt);
     
@@ -1326,7 +1323,7 @@ for tt = QS.xp.fileMeta.timePoints(1:end)
     % Establish custom Options for MIP
     pbOptions = struct() ;
     pbOptions.overwrite = false ;
-    pbOptions.numLayers = [7, 7] ;  % previously [5,5]
+    pbOptions.numLayers = [0 0] ; % previously [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
     pbOptions.generate_rsm = true ;
     pbOptions.generate_spsm = true ;
@@ -1419,18 +1416,21 @@ QS.plotMetric(options) ;
 
 %% Cell Segmentation
 options = struct() ;
-options.overwrite = true ;
-options.overwriteImages = true;
-options.timePoints = [258:15:263] ;
+options.overwrite = false ;
+options.overwriteImages = false;
+options.timePoints = [93:15:263] ;
 QS.generateCellSegmentation2D(options) 
 options.timePoints = [93:15:263] ;
 options.overwrite = false ;
 options.overwriteImages = false ;
 QS.generateCellSegmentation3D(options) 
-%%
 QS.plotSegmentationStatisticsLobes(options)
 %%
-QS.estimateIntercalationRate(options)
+options = struct() ;
+options.timePoints = [93:15:263] ;
+options.overwrite = false ;
+QS.generateCellSegmentationPathlines3D(options)
+% QS.estimateIntercalationRate(options)
 
 %% Measure Cell density
 % Skip if already done
@@ -1633,7 +1633,7 @@ QS.helmholtzHodge(options) ;
 
 %% Compressibility & kinematics for Lagrangian
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.samplingResolution = '1x'; 
 options.lambda_mesh = 0 ;
 options.lambda_err = 0 ;

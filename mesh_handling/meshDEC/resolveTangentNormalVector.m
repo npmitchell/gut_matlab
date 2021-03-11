@@ -2,7 +2,8 @@ function [v0n, v0t, facenormals] = ...
     resolveTangentNormalVector(faces, vertices, vectors, varargin)
 %resolveTangentNormalVector(faces, vertices, vectors, varargin)
 % Resolve a 3d vector field into the tangential and normal components of
-% mesh faces.
+% mesh faces. Similar to resolveTangentNormalVelocities, but with fewer
+% outputs.
 %
 % Parameters
 % ----------
@@ -15,7 +16,7 @@ function [v0n, v0t, facenormals] = ...
 %   fieldfaces, or by faces in order supplied if varargin 'fieldfaces' not
 %   supplied.
 % varargin : optional keyword arguments
-%   'fieldfaces' : N x 1 int array, optional
+%   'fieldfaces' : N x 1 int array, optional (default=1:nFaces)
 %       indices into faces in which velocities v0 are evaluated
 %   'facenormals' : #faces x 3 float array
 %       normal vectors for each face 

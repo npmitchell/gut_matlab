@@ -190,6 +190,8 @@ classdef QuapSlap < handle
             'adjusthigh', 0 )           % image intensity data in 3d and scaling
         currentVelocity = struct('piv3d', struct(), ...
             'piv3d2x', struct()) ;     
+        currentVelocityMultiChannel = struct('piv3d', cell(1), ...
+            'piv3d2x', cell(1)) ;     
         currentSegmentation = struct(...
             'coordSys', 'spsme', ...    % pullback coordinate system in which segmentation is performed
             'seg2d', [], ...            % 2d pullback segmentation
@@ -200,6 +202,13 @@ classdef QuapSlap < handle
             'Ly', [], ...               % height of image, in pixels (y coordinate)
             'raw', struct(), ...        % raw PIV results from disk/PIVLab
             'smoothed', struct(), ...   % smoothed PIV results after gaussian blur
+            'smoothing_sigma', 1 ) ;    % sigma of gaussian smoothing on PIV, in units of PIV sampling grid pixels
+        pivMultiChannel = struct( ...   % Multi-channel PIV: one measurement for each image channel (for relative motion)
+            'imCoords', 'sp_sme', ...   % image coord system for measuring PIV / optical flow) ;
+            'Lx', [], ...               % width of image, in pixels (x coordinate)
+            'Ly', [], ...               % height of image, in pixels (y coordinate)
+            'raw', cell(1), ...         % raw PIV results from disk/PIVLab
+            'smoothed', cell(1), ...    % smoothed PIV results after gaussian blur
             'smoothing_sigma', 1 ) ;    % sigma of gaussian smoothing on PIV, in units of PIV sampling grid pixels
         velocityAverage = struct(...
             'v3d', [], ...              % 3D velocities in embedding space [pix/dt]
@@ -230,7 +239,8 @@ classdef QuapSlap < handle
             'vf', [], ...       
             'vv', []) ;                 % velocity field after in-place (uv) avg
         cleanCntrlines          % centerlines in embedding space after temporal averaging
-        pivPullback = 'sp_sme'; % coordinate system used for velocimetry
+        % pivPullback = 'sp_sme'; % coordinate system used for velocimetry
+        %  ---> instead use QS.piv.imCoords
         smoothing = struct(...
             'lambda', 0.002, ...            % diffusion const for field smoothing on mesh
             'lambda_mesh', 0.001, ...       % diffusion const for vertex smoothing of mesh itself
@@ -241,6 +251,7 @@ classdef QuapSlap < handle
             'refMesh', [], ...              % reference mesh for pathline advection
             'piv', [], ...                  % Lagrangian pathlines from piv coords
             'vertices', [], ...             % Lagrangian pathlines from mesh vertices
+            'vertices3d', [], ...           % Lagrangian pathlines from mesh vertices
             'faces', [], ...                % Lagrangian pathlines from mesh face barycenters
             'featureIDs', struct(...        % struct with features in pathline coords
                 'vertices', [], ...         % longitudinal position of features from pathlines threaded through pullback mesh vertices at t=t0Pathline
@@ -348,6 +359,10 @@ classdef QuapSlap < handle
             QS.currentData.adjusthigh = 0 ;
             QS.currentVelocity.piv3d = struct() ;
             QS.currentVelocity.piv3d2x = struct() ;
+            QS.currentVelocityMultiChannel.piv3d = ...
+                cell(length(QS.xp.expMeta.channelsUsed), 1) ;
+            QS.currentVelocityMultiChannel.piv3d2x = ...
+                cell(length(QS.xp.expMeta.channelsUsed), 1);
             QS.currentSegmentation.seg2d = [] ;
             QS.currentSegmentation.seg3d = [] ;
         end
@@ -796,6 +811,52 @@ classdef QuapSlap < handle
             end
         end
         
+        function vel = getCurrentVelocityMultiChannel(QS, varargin)
+            % By default, load 1x resolution piv3d for each channel
+            if isempty(QS.currentTime)
+                error('No currentTime set. Use QuapSlap.setTime()')
+            end
+            if isempty(varargin) 
+                varargin = 'piv3d' ;
+                do_all = false ;
+            else
+                do_all = false ;
+            end
+            
+            no_piv3d = isempty(QS.currentVelocityMultiChannel.piv3d) ;
+            if ~no_piv3d
+                for qq = 1:length(QS.xp.expMeta.channelsUsed)
+                    no_piv3d = no_piv3d || ...
+                        isempty(QS.currentVelocityMultiChannel.piv3d{qq}) ;
+                end
+            end
+            if (do_all || contains(varargin, 'piv3d')) && no_piv3d
+                % Load 3D data for piv results
+                piv3dfn = sprintf(QS.fullFileBase.pivMultiChannel.v3d, QS.currentTime) ;
+                load(piv3dfn, 'piv3dstruct') ;
+                QS.currentVelocityMultiChannel.piv3d = piv3dstruct ;
+            end
+            
+            no_piv3d2x = isempty(QS.currentVelocityMultiChannel.piv3d2x) ;
+            if ~no_piv3d2x
+                for qq = 1:length(QS.xp.expMeta.channelsUsed)
+                    no_piv3d2x = no_piv3d2x || ...
+                        isempty(QS.currentVelocityMultiChannel.piv3d2x{qq}) || ...  
+                        isempty(fieldnames(QS.currentVelocityMultiChannel.piv3d{qq})) ;
+                end
+            end
+            if (do_all || contains(varargin, 'piv3d2x')) && no_piv3d2x
+                % Load 3D data for piv results
+                piv3d2xfn = QS.fullFileBase.pivMultiChannel.v3d2x ;
+                load(sprintf(piv3d2xfn, QS.currentTime), 'piv3dstruct') ;
+                QS.currentVelocityMultiChannel.piv3d2x = piv3dstruct ;
+            end
+            
+            if nargout
+                vel = QS.currentVelocityMultiChannel ;
+            end
+        end
+        
         % APDV methods
         [acom_sm, pcom_sm] = computeAPDCOMs(QS, opts)
         function ars = xyz2APDV(QS, a)
@@ -945,6 +1006,17 @@ classdef QuapSlap < handle
         
         % spcutMesh
         generateCurrentSPCutMesh(QS, cutMesh, overwrite)
+        function spcutMesh = getCurrentSPCutMesh(QS)
+            if isempty(QS.currentTime)
+                error('First set currentTime')
+            end
+            if isempty(QS.currentMesh.spcutMesh)
+                QS.loadCurrentSPCutMesh() ;
+            end
+            if nargout > 0
+                spcutMesh = QS.currentMesh.spcutMesh ;
+            end
+        end
         function spcutMesh = loadCurrentSPCutMesh(QS)
             if isempty(QS.currentTime)
                 error('First set currentTime')
@@ -1465,6 +1537,8 @@ classdef QuapSlap < handle
                 QS.normalShift, QS.APDV.rot, QS.APDV.trans, QS.APDV.resolution, ...
                 QS.plotting.colors, QS.plotting.xyzlim_um_buff, QS.flipy)
         end
+        generateFoldCrossSections(QS, options)
+        measureFoldCrossSectionDynamics(QS, options)
         
         % Smooth meshes in time
         [v3dsmM, nsmM] = smoothDynamicSPhiMeshes(QS, options) ;
@@ -1531,6 +1605,7 @@ classdef QuapSlap < handle
         % Cell segmentation
         generateCellSegmentation2D(QS, options)
         generateCellSegmentation3D(QS, options)
+        generateCellSegmentationPathlines3D(QS, options)
         function seg2d = getCurrentSegmentation2D(QS, options)
             % Obtain the cell segmentation in 3D pullback space
             if isempty(QS.currentSegmentation.seg2d)
@@ -1636,7 +1711,7 @@ classdef QuapSlap < handle
             end
             
         end
-        function loadPIV(QS, options)
+        function piv = loadPIV(QS, options)
             % Load PIV results from disk and store in QS.piv
             if ~isempty(fieldnames(QS.piv.raw)) && isempty(QS.piv.Lx) ...
                     && isempty(QS.piv.Lx) 
@@ -1653,8 +1728,86 @@ classdef QuapSlap < handle
             else
                 error(['Unrecognized imCoords: ' QS.piv.imCoords])
             end
+            if nargout > 0
+                piv = QS.piv ;
+            end
         end
         measurePIV3d(QS, options)
+        
+        % Multi-channel PIV --> one struct for each channel
+        function piv = getPIVMultiChannel(QS, options)
+            % Load PIV results and store in QS.piv if not already loaded
+            do_load = false ;
+            for qq = 1:length(QS.xp.expMeta.channelsUsed)
+                ch = QS.xp.expMeta.channelsUsed(qq) ;
+                if isempty(QS.pivMultiChannel.raw) || ...
+                        isempty(fieldnames(QS.pivMultiChannel.raw{qq})) || ...
+                        isempty(QS.pivMultiChannel.Lx) || ...
+                        isempty(QS.pivMultiChannel.Ly) 
+                    do_load = do_load || true ;
+                    disp(['ch = ' num2str(ch)])
+                end
+            end
+            if do_load
+                % Load raw PIV results
+                if nargin > 1
+                    QS.loadPIVMultiChannel(options)
+                else
+                    QS.loadPIVMultiChannel() 
+                end
+            end
+            
+            if isempty(QS.pivMultiChannel.smoothed) || ...
+                    isempty(fieldnames(QS.pivMultiChannel.smoothed{1})) 
+                for qq = 1:length(QS.xp.expMeta.channelsUsed)
+                    % Additionally smooth the piv output by sigma
+                    if QS.pivMultiChannel.smoothing_sigma > 0
+                        piv = QS.pivMultiChannel.raw{qq} ;
+                        disp(['Smoothing piv output with sigma=' num2str(QS.piv.smoothing_sigma)])
+                        for tidx = 1:length(QS.xp.fileMeta.timePoints)-1
+                            velx = piv.u_filtered{tidx} ;
+                            vely = piv.v_filtered{tidx} ;
+                            piv.u_filtered{tidx} = imgaussfilt(velx, QS.piv.smoothing_sigma) ;
+                            piv.v_filtered{tidx} = imgaussfilt(vely, QS.piv.smoothing_sigma) ;
+                        end
+                        disp('done smoothing')
+                        QS.pivMultiChannel.smoothed{qq} = piv ;
+                    end
+                end
+            end
+            if nargout > 0 
+                piv = QS.pivMultiChannel ;
+            end
+        end
+        function piv = loadPIVMultiChannel(QS, options)
+            % Load PIV results from disk and store in QS.piv
+            if ~isempty(QS.pivMultiChannel.raw)
+                if ~isempty(fieldnames(QS.pivMultiChannel.raw{1})) && ...
+                    isempty(QS.pivMultiChannel.Lx) ...
+                    && isempty(QS.pivMultiChannel.Ly) 
+                    
+                    disp("WARNING: Overwriting QS.pivMultiChannel with results from disk")
+                end
+            end
+            for ch = QS.xp.expMeta.channelsUsed
+                QS.pivMultiChannel.raw{ch} = ...
+                    load(sprintf(QS.fileName.pivRawMultiChannel.raw, ch)) ;  
+            end
+            timePoints = QS.xp.fileMeta.timePoints ;
+            if strcmp(QS.pivMultiChannel.imCoords, 'sp_sme')
+                im0 = imread(sprintf(QS.fullFileBase.im_sp_sme, ...
+                    timePoints(1))) ;
+                % for now assume all images are the same size
+                QS.pivMultiChannel.Lx = size(im0, 1) * ones(length(timePoints), 1) ;
+                QS.pivMultiChannel.Ly = size(im0, 2) * ones(length(timePoints), 1) ;
+            else
+                error(['Unrecognized imCoords: ' QS.pivMultiChannel.imCoords])
+            end
+            if nargout > 0
+                piv = QS.pivMultiChannel ;
+            end
+        end
+        measurePIV3dMultiChannel(QS, options)
         measurePIV3dDoubleResolution(QS, options)
         % Note: To timeAverage Velocities at Double resolution, pass
         % options.doubleResolution == true
@@ -1663,6 +1816,147 @@ classdef QuapSlap < handle
         plotMetric(QS, options) 
         
         %% Pathlines
+        function [p2d, p3d] = samplePullbackPathlines(QS, XY0, options)
+            %
+            % start at XY0, folow flow using barycentric coordinates of PIV
+            % pullback pathlines.
+            
+            % default options
+            t0 = QS.t0set() ;
+            preview = false ;
+            
+            % unpack options
+            if nargin < 3
+                options = struct() ;
+            end
+            if isfield(options, 't0')
+                t0 = options.t0 ;
+            end
+            if isfield(options, 'preview')
+                preview = options.preview ;
+            end
+            
+            tidx0 = QS.xp.tIdx(t0) ;
+            timePoints = QS.xp.fileMeta.timePoints ;
+            
+            % get image size if we push to 3d
+            if nargout > 1
+                if strcmp(QS.piv.imCoords, 'sp_sme')
+                    im = imread(sprintf(QS.fullFileBase.im_sp_sme, t0)) ;
+                end
+            end
+            
+            pathlines = getPullbackPathlines(QS, t0, 'vertexPathlines', ...
+                'vertexPathlines3D') ;
+            XX = squeeze(pathlines.vertices.vX(tidx0, :, :)) ;
+            YY = squeeze(pathlines.vertices.vY(tidx0, :, :)) ;
+            nX = length(unique(XX(:))) ;
+            nY = length(unique(YY(:))) ;
+            % pivfaces = defineFacesRectilinearGrid(XYgrid, nX, nY) ;
+            faces = pathlines.refMesh.f ;
+            XY = [XX(:), YY(:)] ;
+            cmesh = struct('f', faces, 'u', XY, ...
+                'pathPairs', pathlines.refMesh.pathPairs) ;
+            [faces, XY] = tileAnnularCutMesh2D(cmesh, [1, 1]) ;
+            
+            % Note: the following is an exerpt from barycentricMap2d(faces, v2d, vmap, uv)
+            % tr0 = triangulation(pivfaces, XY) ;
+            % [fieldfaces, baryc0] = pointLocation(tr0, XY0) ; 
+            
+            p2d = zeros(length(timePoints), size(XY0, 1), 2) ;
+            if nargout > 1
+                p3d = zeros(length(timePoints), size(XY0, 1), 3) ;
+            end
+            for tidx = 1:length(timePoints)
+                tp = timePoints(tidx) ;
+                if mod(tidx, 10) == 0
+                    disp(['t=' num2str(tp)])
+                end
+                % X1 = squeeze(pathlines.piv.XX(tidx, :, :))' ;
+                % Y1 = squeeze(pathlines.piv.YY(tidx, :, :))' ;
+                X1 = squeeze(pathlines.vertices.vX(tidx, :, :)) ;
+                Y1 = squeeze(pathlines.vertices.vY(tidx, :, :)) ;
+                XY1 = [X1(:), Y1(:)] ;
+                
+                
+                if nargout > 1
+                    % tile current mesh in 2d and 3d
+                    v3d1x = squeeze(pathlines.vertices3d.vXrs(tidx, :, :)) ;
+                    v3d1y = squeeze(pathlines.vertices3d.vYrs(tidx, :, :)) ;
+                    v3d1z = squeeze(pathlines.vertices3d.vZrs(tidx, :, :)) ;
+                    
+                    cmesh = struct('f', faces, 'u', XY1, ...
+                        'v', [v3d1x(:), v3d1y(:), v3d1z(:)], ...
+                        'pathPairs', pathlines.refMesh.pathPairs) ;
+                    [~, XY1, XYZ1] = tileAnnularCutMesh(cmesh, [1, 1]) ;
+                    p2d(tidx, :, :) = barycentricMap2d(faces, XY, XY1, XY0) ;
+                    p3d(tidx, :, :) = barycentricMap2d(faces, XY, XYZ1, XY0) ;
+                    assert(~any(isnan(p2d(:))))
+                                        
+                    if preview && mod(tidx, 10) == 0
+                        clf
+                        subplot(1, 2, 1)
+                        plot(p2d(tidx, :, 1), p2d(tidx, :, 2), '.')
+                        axis equal
+                        title(['t=' num2str(tp)])
+                        subplot(1, 2, 2)
+                        plot3(p3d(tidx, :, 1), p3d(tidx, :, 2), ...
+                            p3d(tidx, :, 3), '.')
+                        axis equal
+                        pause(0.1)
+                    end
+                else
+                    % tile current mesh
+                    cmesh = struct('f', faces, 'u', XY1, ...
+                        'pathPairs', pathlines.refMesh.pathPairs) ;
+                    [~, XY1] = tileAnnularCutMesh2D(cmesh, [1, 1]) ;
+                    p2d(tidx, :, :) = barycentricMap2d(faces, XY, XY1, XY0) ;
+                    assert(~any(isnan(p2d(:))))
+                end
+                
+                % if nargout > 1
+                %     QS.setTime(tp)
+                %     if strcmp(QS.piv.imCoords, 'sp_sme')
+                %         mesh = QS.getCurrentSPCutMeshSmRS() ;
+                %         umax = max(mesh.u(:, 1)) ;
+                %         vmax = 1.0 ;
+                %         doubleCovered = true ;
+                %         uv = QS.XY2uv(im, squeeze(p2d(tidx, :, :)), ...
+                %             doubleCovered, umax, vmax) ;
+                %     else
+                %         error('Handle this 3d mapping coordSys here')
+                %     end
+                %     p3d(tidx, :, :) = interpolate2Dpts_3Dmesh(mesh.f, mesh.u, ...
+                %         mesh.v, uv) ;
+                % 
+                %     if preview && mod(tidx, 10) == 0
+                %         clf
+                %         subplot(1, 2, 1)
+                %         plot(p2d(tidx, :, 1), p2d(tidx, :, 2), '.')
+                %         axis equal
+                %         title(['t=' num2str(tp)])
+                %         subplot(1, 2, 2)
+                %         plot3(p3d(tidx, :, 1), p3d(tidx, :, 2), ...
+                %             p3d(tidx, :, 3), '.')
+                %         axis equal
+                %         pause(0.1)
+                %     end
+                % else
+                %     if preview && mod(tidx, 10) == 0
+                %         clf
+                %         plot(p2d(tidx, :, 1), p2d(tidx, :, 2), '.')
+                %         axis equal
+                %         title(['t=' num2str(tp)])
+                %         pause(0.1)
+                %     end
+                % end
+            end
+            
+            if nargout > 1
+                QS.clearTime() ;
+            end
+        end
+        
         measurePullbackPathlines(QS, options)
         function pathlines = getPullbackPathlines(QS, t0, varargin)
             % Discern if we must load pathlines or if already loaded

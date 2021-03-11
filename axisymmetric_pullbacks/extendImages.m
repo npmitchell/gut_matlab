@@ -80,16 +80,37 @@ for tp=timePoints
         % [     im(1)        ]
         % [     ...          ]
         % [  im(halfsize)    ]
-        im2 = uint8(zeros(size(im, 1) + 2 * halfsize, size(im, 2))) ;
-        im2(1:halfsize, :) = im(end-halfsize + 1:end, :);
-        im2(halfsize + 1:halfsize + size(im, 1), :) = im ;
-        im2(halfsize + size(im, 1) + 1:end, :) = im(1:halfsize, :);
         
-        % Histogram equilize (LUT tiled into bits)
-        if histeq
-            im2 = adapthisteq(im2, 'NumTiles', ...
-                [round(options.a_fixed * options.ntiles), round(2 * options.ntiles)]) ;
+        is2d = length(size(im)) == 2 || ...
+            (length(size(im))==3 && size(im, 3)==1) ;
+        
+        if is2d
+            im2 = uint8(zeros(size(im, 1) + 2 * halfsize, size(im, 2))) ;
+            im2(1:halfsize, :) = im(end-halfsize + 1:end, :);
+            im2(halfsize + 1:halfsize + size(im, 1), :) = im ;
+            im2(halfsize + size(im, 1) + 1:end, :) = im(1:halfsize, :);
+       
+            % Histogram equilize (LUT tiled into bits)
+            if histeq
+                im2 = adapthisteq(im2, 'NumTiles', ...
+                    [round(options.a_fixed * options.ntiles), round(2 * options.ntiles)]) ;
+            end
+        elseif length(size(im))==3
+            im2 = uint8(zeros(size(im, 1) + 2 * halfsize, size(im, 2), 3)) ;
+            im2(1:halfsize, :, :) = im(end-halfsize + 1:end, :, :);
+            im2(halfsize + 1:halfsize + size(im, 1), :, :) = im ;
+            im2(halfsize + size(im, 1) + 1:end, :, :) = im(1:halfsize, :, :);
+       
+            % Histogram equilize (LUT tiled into bits)
+            if histeq
+                error('check that adaptive histogram works on RGB images')
+                im2 = adapthisteq(im2, 'NumTiles', ...
+                    [round(options.a_fixed * options.ntiles), round(2 * options.ntiles)]) ;
+            end
+        else
+            error('Could not identify image as RGB or grayscale. Is it 3d?')
         end
+        
         imwrite( im2, outfn, 'TIFF' );
     else
         disp(['already exists: ' outfn])

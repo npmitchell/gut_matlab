@@ -276,7 +276,8 @@ for cid = 1:length(Cdat)
                 end
             else
                 try 
-                    assert(all(degree(G0, pairs0(:, 1)) > 2))
+                    assert(all(degree(G0, pairs0(:, 1)) > 2) || ...
+                        all(degree(G0, pairs0(:, 1)) == 1))
                     disp('Could not cut a bond -- all vertices are deg>2')
                     skipCell = true ;
                 catch

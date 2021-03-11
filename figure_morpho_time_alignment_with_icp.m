@@ -12,16 +12,26 @@
 % Note: Previously this code had run over reftime, then ctime. Now ctime
 % then reftime, so minddssr and other objects have been effectively
 % 'transposed'.
+%
+% ICPt(cc, ii) is the reference dataset timepoint match of dataset cc's
+% iith timepoint.
 
 %% Clean MATLAB and add paths
 clear
 close all
 clc
-addpath('/mnt/data/code/')
-addpath('/mnt/data/code/gut_matlab/')
-addpath('/mnt/data/code/gut_matlab/curve_functions/')
-addpath('/mnt/data/code/gut_matlab/plotting')
-addpath('/mnt/data/code/imsaneV1.2.3/generalfunctions')
+codeDir = '/mnt/data/code/' ;
+gutDir = fullfile(codeDir, 'gut_matlab') ;
+
+addpath(codeDir)
+addpath(gutDir)
+addpath(fullfile(gutDir, 'addpath_recurse'))
+addpath(fullfile(gutDir, 'curve_functions'))
+addpath_recurse(fullfile(gutDir, 'plotting'))
+addpath(fullfile(gutDir, 'generalfunctions'))
+addpath(fullfile(gutDir, 'data_handling'))
+addpath_recurse(fullfile(gutDir, 'toolbox_fast_marching'))
+addpath(fullfile(codeDir, 'imsaneV1.2.3', 'generalfunctions'))
 
 outdir = '/mnt/data/analysis/' ;
 cd(outdir)
@@ -30,6 +40,7 @@ if ~exist(icpDir, 'dir')
     mkdir(icpDir) ;
 end
 %% Global options
+sigmaTime = 5 ;
 ssample_factor = 40 ;   % subsampling of point clouds for ICP
 rsubsampling = 1 ;     % subsampling of timepoints for reference dataset
 csubsampling = 1 ;     % subsampling of timepoints for matched dataset
@@ -47,12 +58,13 @@ end
 % Plotting
 figWidth = 12 ;
 figHeight = 9 ;
-%% Create Cell Array with Mesh Metadata
 
+%% Create Cell Array with Mesh Metadata
 dmap = buildLookupMap('/mnt/data/analysis/lookupMeta.txt'); % build the map that contains all data and its metadata
 mca = {} ; % initiate mesh cell array
 
 %% Iterate over each marker
+timestamps = [] ;
 for mi = 1:length(keys(dmap))
     labels = keys(dmap) ;
     label = labels{mi} ;
@@ -75,10 +87,15 @@ for mi = 1:length(keys(dmap))
         % Write each mesh to the cell array mca
         for kk = 1:length(meshes)
             mca{col+jj-1, kk} = meshes(kk);
+            
+            % Get timestamp of this mesh
+            tmp = strsplit(mca{col+jj-1, kk}.name, '_0') ;
+            tmp = strsplit(tmp{2}, '_APDV') ;
+            timestamps(col+jj-1, kk) = str2double(tmp{1});
         end
     end
 end
-disp('done building mca')
+disp('done building mca & timestamps')
 clearvars kk jj
 
 % Define maximum number of timepoints
@@ -112,6 +129,7 @@ for kk = 1:length(dkeys)
         areas{dmyk} = dmap(key).area{jj} ;
         fluors{dmyk} = key ;
         datestamps{dmyk} = datestamp ; 
+        
         % update the labels index
         dmyk = dmyk + 1 ;
     end
@@ -133,13 +151,15 @@ else
 end
 % Note that c=1 is the reference dataset, so cycle through all others
 % starting with index=2
+corrPaths = {} ;
+refID = 1 ;
 if strcmp(answer, 'Yes')
     % Ensure the output directory for the plots
     ssrDir = fullfile(icpDir, 'ssr') ;
     if ~exist(ssrDir, 'dir')
         mkdir(ssrDir)
     end
-    for cc = 2:ndatasets
+    for cc = 1:ndatasets
         
         % define the SSR directory for this dataset
         ssrccDir = fullfile(ssrDir, sprintf(['dataset_' fluors{cc} '_' datestamps{cc}])) ;
@@ -152,22 +172,26 @@ if strcmp(answer, 'Yes')
         area = areas{cc} ;
         lastTP = ntps(cc) ;
         assert(length(area) == lastTP)
+        ssrM = [] ;
         
         % Consider each dataset TP (t_c) and match to reference mesh
         for ii = clist(clist < (lastTP + 1)) % index of dataset thats being parsed against CAAX
+            
             % Consider the mesh only if mca{i,c} is populated with
             % struct that has field 'name'.
             if isfield(mca{cc, ii}, 'name') == 1
                 
                 % Check if SSR(cc, ii, rlist) has already been saved
-                ssrii_fn = fullfile(ssrccDir, sprintf('ssr_tp%04d_rsub%03d_ptsub%03d.mat', ii, rsubsampling, ssample_factor)) ;
+                ssrii_fn = fullfile(ssrccDir, ...
+                    sprintf('ssr_tp%04d_rsub%03d_ptsub%03d.mat',...
+                    ii, rsubsampling, ssample_factor)) ;
                 
                 % Assume that we must redo calculation unless proven
                 % that otherwise if file exists and overwrite == false
                 % ---------------------------------------------------
                 redoii = true ;
                 if exist(ssrii_fn, 'file') && ~overwrite
-                    tmp = load(ssrii_fn, 'rlist', 'ssr') ;
+                    tmp = load(ssrii_fn, 'rlist', 'ssr', 'numpts1_cc', 'numpts2_cc') ;
                     % Check that the rlist is indeed the same
                     if length(tmp.rlist) == length(rlist)
                         if all(tmp.rlist == rlist)
@@ -175,6 +199,8 @@ if strcmp(answer, 'Yes')
                             redoii = false ;
                             % assign ssr for this cc, ii
                             ssr = tmp.ssr ;
+                            numpts1(cc,:) = numpts1_cc ;
+                            numpts2(cc,:) = numpts2_cc ;
                         end
                     end
                 end
@@ -193,9 +219,11 @@ if strcmp(answer, 'Yes')
                     % Use dummy index qq to allow subsampled rlist
                     for qq = 1:length(rlist)
                         rr = rlist(qq) ;
-                        disp(['c=',sprintf('%d',cc), ...
-                            ' r=',sprintf('%d',rr), ...
-                            ' i=',sprintf('%d',ii)])
+                        if mod(qq, 50) == 0 || qq == 1
+                            disp(['dataset_c=',sprintf('%d',cc), ...
+                                ' timepoint_i=',sprintf('%d',ii), ...
+                                ' against refTP_r=',sprintf('%d',rr)])
+                        end
                         
                         % Load the CAAX mesh used for comparison
                         refCloud = pcread(fullfile(mca{1, rr}.folder, mca{1, rr}.name));
@@ -220,13 +248,22 @@ if strcmp(answer, 'Yes')
                         % correspondence points
                         ssr1 = sum(sum((cxyztrans(indx1,:)-refxyz).^2,2)) / length(indx1) ;
                         ssr2 = sum(sum((refxyz(indx2,:)-cxyztrans).^2,2)) / length(indx2) ;
+                        % Geometric mean of the two SSRs
                         ssr(qq) = sqrt(ssr1*ssr2);
                         tforms(qq, :, :) = tform.T ;
                     end
                     
                     % save matching curve for this cc tp == ii
-                    save(ssrii_fn, 'rlist', 'ssr', 'tforms')
+                    disp(['saving tforms: ' ssrii_fn])
+                    numpts1_cc = numpts1(cc, :) ;
+                    numpts2_cc = numpts2(cc, :) ;
+                    save(ssrii_fn, 'rlist', 'ssr', 'tforms', 'numpts1_cc', 'numpts2_cc')
                 end
+                
+                ssrM(ii, :) = ssr ;                
+                
+                % -------------------------------------------------
+                % 1D FITTING TO SSR CURVE AS FUNCTION OF REFTIME
                 % -------------------------------------------------
                 % Apply median filter if we have a fine enough sampling
                 if rsubsampling < ssfactorMedianThres
@@ -249,6 +286,9 @@ if strcmp(answer, 'Yes')
                 elseif ix + fitrange > length(rlist)
                     xpoly = rlist(length(rlist)-2*fitrange:end) ;
                     ypoly = ssr(length(rlist)-2*fitrange:end) ;
+                elseif ix == fitrange && (ix + fitrange) <= length(rlist)
+                    xpoly = rlist(ix-fitrange+1:endmax) ;
+                    ypoly = ssr(ix-fitrange+1:endmax) ;
                 else
                     error('could not assign xpoly & ypoly')
                 end
@@ -301,9 +341,85 @@ if strcmp(answer, 'Yes')
                 end
             end
         end
+        
+        % Now ssrM is fully filled in
+        corrPathFn = fullfile(ssrDir, ...
+            sprintf('correspondencePath_c%02dr%02d.mat', cc, refID)) ;
+        
+        if ~exist(corrPathFn, 'file') || overwrite 
+            clf
+            imagesc(timestamps(cc, 1:ntps(cc))/60, timestamps(1, :)/60, ssrM') ;
+            axis equal
+            axis tight
+            cb = colorbar() ;
+            ylabel(cb, '$\sqrt{\langle \sigma_{ij} \rangle \langle \sigma_{ji} \rangle}$', ...
+                'interpreter', 'latex')
+            xlabel(['time dataset ' num2str(cc) ' [hr]'], 'interpreter', 'latex')
+            ylabel(['time dataset ' num2str(1) ' [hr]'], 'interpreter', 'latex')
+            saveas(gcf, fullfile( ssrDir, sprintf('ssr_heatmap_c%02dr%02d.png', cc, refID)))
+            save(fullfile( ssrDir, sprintf('ssr_c%02dr%02d.mat', cc, refID)), ...
+                'ssrM')
+
+
+            % Get shortest path
+            % Define correspondence pairs like in dynamicAtlas
+            ssr4path = imgaussfilt(-ssrM, sigmaTime / rsubsampling) ;
+            ssr4path = ssr4path - min(ssr4path(:)) ;
+            pathOpts = struct('exponent', 2) ;
+            corrPath = shortestPathInImage(ssr4path, pathOpts) ;
+
+            % Save corrPaths and save image
+            corrRaw = minddssr(cc, 1:ntps(cc)) ;
+            corrError = movmean(minerror(cc, 1:ntps(cc)), 5) ;
+            % Check if we need to truncate the correpondence path at start
+            % or end
+            if length(corrPath) < length(corrRaw)
+                if corrPath(1, 1) == 1
+                    rawID = 1:length(corrPath) ;
+                    corrRaw = corrRaw(rawID) ;
+                    corrError = corrError(rawID) ;
+                else
+                    rawID = (length(corrRaw)-length(corrPath)):length(corrRaw) ;
+                    corrRaw = corrRaw(rawID) ;
+                    corrError = corrError(rawID) ;
+                end
+            else
+                rawID = 1:length(corrRaw) ;
+            end
+            
+            % Visualization
+            clf
+            imagesc(ssrM.^2)
+            hold on;
+            plot(corrPath(:, 2), corrPath(:, 1), 'o') ;
+            plot(corrRaw, rawID, 'k.') 
+            plot(corrPath(:, 2) -corrError', corrPath(:, 1), 'k-')
+            plot(corrPath(:, 2) +corrError', corrPath(:, 1), 'k-')
+            cb = colorbar() ;
+            ylabel(cb, '$\langle \sigma_{ij} \rangle \langle \sigma_{ji} \rangle$', ...
+                'interpreter', 'latex')  
+            colormap(viridis_r)
+            axis equal 
+            axis tight
+            xlabel(['timepoints, dataset ' num2str(1) ' [min]'], 'interpreter', 'latex')
+            ylabel(['timepoints, dataset ' num2str(cc) ' [min]'], 'interpreter', 'latex')
+            corrPathFigFn = fullfile(ssrDir, ...
+                sprintf('correspondencePath_c%02dr%02d.pdf', cc, refID)) ;
+            saveas(gcf, corrPathFigFn)
+            
+            % SAVE DATA RESULT
+            save(corrPathFn, 'corrPath', 'corrRaw', 'corrError') ;
+        else
+            load(corrPathFn, 'corrPath', 'corrRaw', 'corrError') ;
+        end
+        corrPaths{cc} = corrPath ;
+        corrErrors{cc} = corrError ;
+        
     end
     
+    disp('Saving minddssr, minname, minweights, minerror, numpts')
     ssStr = sprintf('_rsub%03d', rsubsampling) ;
+    save(fullfile(icpDir, ['corrPaths' ssStr]), 'corrPaths', 'corrErrors') ;
     save(fullfile(icpDir, ['minddssr' ssStr]), 'minddssr');
     save(fullfile(icpDir, ['minname' ssStr]), 'minname');
     save(fullfile(icpDir, ['minweights' ssStr]), 'minweights');
@@ -320,10 +436,10 @@ end
 %     [186 64 204]/255, [217 54 104]/255};
 close all
 figure('visible', 'off')
-load(fullfile(icpDir, 'minddssr')) ;
-load(fullfile(icpDir, 'minerror')) ;
-load(fullfile(icpDir, 'minname')) ;
-load(fullfile(icpDir, 'minweights')) ;
+load(fullfile(icpDir, sprintf('minddssr_rsub%03d', rsubsampling))) ;
+load(fullfile(icpDir, sprintf('minerror_rsub%03d', rsubsampling))) ;
+load(fullfile(icpDir, sprintf('minname_rsub%03d', rsubsampling))) ;
+load(fullfile(icpDir, sprintf('minweights_rsub%03d', rsubsampling))) ;
 shape = define_markers(ndatasets) ;
 % note: previously defined markers by hand
 % shape = {'o', 'square', '^', 'V', 'd', 'p'} ;
@@ -331,18 +447,15 @@ shape = define_markers(ndatasets) ;
 % Plot the curves
 hold on
 leg = {};
-plot(rlist-t0ref, rlist-t0ref, 'k-');
-leg{1} = labels{1};
-lgd = legend(leg, 'Location', 'NorthEastOutside');
 % Blanket zero-valued minddssr as NaN
 minddssr(minddssr<1e-5) = nan;
 pss = 1 ; % plot subsampling
 % Plot each dataset's correspondence times
 ICPt = zeros(length(ndatasets), length(mca)) ;
-for cc = 2:ndatasets
+for cc = 1:ndatasets
     % reference times -- note most ctimes are NaN if subsampled
     % Here this is really just a long list of indices
-    rr = linspace(1, max_ntp, max_ntp);
+    rr = 1:max_ntp ;
     ctime = minddssr(cc, :);
     % now, rr becomes just the current dataset's time (cc's timepoints)
     rr = rr(~isnan(ctime));
@@ -385,6 +498,7 @@ for cc = 2:ndatasets
         if any(tt>pfit) && any(tt<pfit)
             [~, ix] = min(abs(tt-pfit)) ;
             ICPt(cc,tt) = ix ;
+            % plot(1:length(rlist), pfit)
         end
     end
     xlim([min(rlist)-ignoreFirst, max(rlist)-t0ref-ignoreLast]) ;
@@ -392,6 +506,7 @@ for cc = 2:ndatasets
 end
 clearvars y r p yy ii cc
 
+lgd = legend(leg, 'Location', 'NorthEastOutside');
 ax.XDir = 'normal' ;
 ax.YDir = 'normal' ;
 set(gcf, 'PaperUnits', 'centimeters');
@@ -414,18 +529,326 @@ clearvars lgd ax
 
 
 
-%% Define correspondence pairs like in dynamicAtlas
-graydist()
+%% Plotting "metabolism" (relative development rates) using ICP corrPaths
+[color, colornames] = define_colors() ;
+% note: previously defined colors by hand
+% color = {[217 54 104]/255, [144 115 50]/255, [76 133 50]/255,...
+%     [54 131 123]/255, [59 125 171]/255, ...
+%     [186 64 204]/255, [217 54 104]/255};
+close all
+figure('visible', 'off')
+ssStr = sprintf('_rsub%03d', rsubsampling) ;
+save(fullfile(icpDir, ['corrPaths' ssStr]), 'corrPaths', 'corrErrors') ;
+shape = define_markers(ndatasets) ;
+% note: previously defined markers by hand
+% shape = {'o', 'square', '^', 'V', 'd', 'p'} ;
+
+% Plot the curves
+hold on
+leg = {};
+% Blanket zero-valued minddssr as NaN
+minddssr(minddssr<1e-5) = nan;
+pss = 1 ; % plot subsampling
+% Plot each dataset's correspondence times
+ICPt = zeros(length(ndatasets), length(mca)) ;
+for cc = 1:ndatasets
+    % Load correspondences
+    ctime = corrPaths{cc} ;
+    % now, rr becomes just the current dataset's time (cc's timepoints)
+    rr = ctime(:, 1) ;
+    y = ctime(:, 2);
+    yerror = corrErrors{cc} ;
+    
+    % if rsubsampling < ssfactorMedianThres
+    %     y = movmedian(y,3) ;
+    % end
+    
+    % Truncate first few and last few timepoints if any timematches 
+    % are before t=ignoreFirst or after t=ignoreLast in units of reference
+    % timepoints.
+    % Get LAST timepoint that hits min for domain of fit
+    [~, fitmin] = min(abs(ignoreFirst - flipud(y(:)))) ;
+    fitmin = numel(y) - fitmin + 1 ;
+    % Get FIRST timepoint that hits max for domain of fit
+    [~, fitmax] = min(abs(max(rlist)-ignoreLast-y(:))) ;
+    
+    % Plot weighted fit
+    w = minweights(cc, :) ;
+    w = w(~isnan(ctime(:, 1))) ;
+    w = w(:) ;
+    linfun = @(a,rr) a(1).*rr + a(2) ;
+    p = nlinfit(rr(fitmin:fitmax) - t0ref, ...
+        y(fitmin:fitmax) - t0ref, linfun, [0 0],...
+        'Weights', w(fitmin:fitmax)) ;
+    pfit = p(1)*(rr-t0ref)+p(2);
+    xshift = p(2)/p(1) ;
+    rr = rr + xshift ;
+    
+    % Option 1: use spline for intercept offset
+    % tref_c = interp1(y-t0ref, rr, 0, 'linear', 'extrap');
+    % sh = shadedErrorBar((rr(1:pss:end)-tref_c) / 60,...
+    %     (y(1:pss:end)- t0ref)/60, ...
+    %     yerror(1:pss:end) / 60,...
+    %     'lineprops', '-', 'lineprops', {'color', color(cc,:)}) ;
+    
+    % Option 2: use fit for intercept offset
+    tref_c = interp1(pfit, rr, 0, 'linear', 'extrap');
+    sh = shadedErrorBar((rr(1:pss:end)-tref_c) / 60,...
+        (y(1:pss:end)- t0ref)/60, ...
+        yerror(1:pss:end) / 60,...
+        'lineprops', '-', 'lineprops', {'color', color(cc,:)}) ;
+    
+    % Plot fit
+    plot((rr-t0ref)/60, pfit / 60, '--', 'Color', color(cc,:));
+    
+    
+    leg{length(leg)+1} = labels{cc} ;
+    % Fit to a quadratic profile
+    leg{length(leg)+1} = ['Slope = ', num2str(p(1),'%10.2f')];
+    for tt = 1:length(rlist)
+        if any(tt>pfit) && any(tt<pfit)
+            [~, ix] = min(abs(tt-pfit)) ;
+            ICPt(cc,tt) = ix ;
+            % plot(1:length(rlist), pfit)
+        end
+    end
+    xlim([(min(rlist)-ignoreFirst)/60, (max(rlist)-t0ref-ignoreLast)/60]) ;
+    ylim([(min(rlist)-ignoreFirst)/60, (max(rlist)-t0ref-ignoreLast)/60]) ;
+end
+clearvars y r p yy ii cc
+
+lgd = legend(leg, 'Location', 'NorthEastOutside');
+ax.XDir = 'normal' ;
+ax.YDir = 'normal' ;
+set(gcf, 'PaperUnits', 'centimeters');
+set(gcf, 'PaperPosition', [0 0 20 20]);
+title('Relative Rate of Development', 'fontsize', fs, 'Interpreter', 'Latex')
+xlabel('time [hr]', 'fontsize', fs, 'Interpreter', 'Latex');
+ylabel('morphological time [hr]', 'fontsize', fs, 'Interpreter', 'Latex');
+pbaspect([1,1,1])
+axis equal
+lgd.FontSize=fs;
+% Save to disk
+set(gcf, 'PaperUnits', 'centimeters');
+set(gcf, 'PaperPosition', [0 0 figWidth figHeight]); 
+figfn = fullfile(icpDir, 'rate_of_development_corrPaths') ;
+disp(['Saving figure: ' figfn])
+saveas(gcf, [figfn '.png']) ;
+saveas(gcf, [figfn '.pdf']) ;
+clearvars lgd ax
 
 
 
 
+%% Plotting Overlays using Morphological Time Plot with corrPaths
+close all
 
+% TODO: make it clear which ttype is which (ie what is ttype == 3)
+mintransDir = fullfile(icpDir, 'MinTransformCorrPath') ;
+tp1transDir = fullfile(icpDir, 'FirstTPTransformCorrPath') ;
+tavgtransDir = fullfile(icpDir, 'TimeAvgTransformCorrPath') ;
+vartransDir = fullfile(icpDir, 'VariableTransformCorrPath') ;
+quatDir = fullfile(icpDir, 'QuaternionTransformCorrPath') ;
+% make all directories if they don't exist
+dirs = {mintransDir, tp1transDir, tavgtransDir, vartransDir, quatDir} ;
+for ii = 1:length(dirs)
+    if ~exist(dirs{ii}, 'dir')
+        mkdir(dirs{ii})
+    end
+end
 
+transform_meshes = true ;
+ttypes = {'pcregistericp', '', '', '', 'quaternion'} ;
+for ttype = 1
+    if ttype == 5 %quaternion method
+        clear tform
+        Q = [] ; % initiate matrix of quaternions
+        % Load timevals
+        load(fullfile(icpDir, 'tvals.mat')) ;
+        for cc = 1:ndatasets
+            for rr = 1:max_ntp
+                clear x; clear y; clear z; clear w;
+                syms x y z w ;
+                % linearly index each tform value into an equation to solve
+                eqn1 = 1 - 2*y^2 - 2*z^2 == tvals(cc,rr,1,1) ;
+                eqn2 = 2*x*y + 2*z*w == tvals(cc,rr,2,1) ;
+                eqn3 = 2*x*z - 2*y*w == tvals(cc,rr,3,1) ;
+                eqn4 = 2*x*y-2*z*w == tvals(cc,rr,1,2) ;
+                % eqn5 = 1 - 2*x^2 - 2*z^2 == tvals(cc,rr,2,2) ;
+                % eqn6 = 2*y*z + 2*x*w == tvals(cc,rr,3,2) ;
+                % eqn7 = 2*z*x + 2*y*w == tvals(cc,rr,1,3) ;
+                % eqn8 = 2*y*z - 2*x*w == tvals(cc,rr,2,3) ;
+                % eqn9 = 1 - 2*x^2 - 2*y^2 == tvals(cc,rr,3,3) ;
+                % solve for components of the quaternion for c and r
+                sols = solve(eqn1, eqn2, eqn3, eqn4) ;
+                % build matrix of quaternions
+                Q(1,rr) = sols.w(1) ;
+                Q(2,rr) = sols.x(1) ;
+                Q(3,rr) = sols.y(1) ;
+                Q(4,rr) = sols.z(1) ;
+            end
+            Q2 = Q*Q' ; % multiply Q by its transpose
+            [V,D] = eig(Q2) ; % find all eigenvalues of Q2 and their corresponding eigenvectors
+            linind = find(D == max(D,[],'all')) ; % find linear index of max eigenvalue
+            [m,n] = ind2sub([size(D,1) size(D,2)], linind) ; % turn that linear index into a 2d index
+            maxev = V(:,n) ; % use column of max eigenvalue to find corresponding eigenvector
+            q = maxev/norm(maxev) ; % normalize the averaged quaternion
+            % assign component values and rebuild rotation matrix
+            tformq(1,1,cc) = 1 - 2*q(3)^2 - 2*q(4)^2 ;
+            tformq(1,2,cc) = 2*q(2)*q(3) + 2*q(4)*q(1) ;
+            tformq(1,3,cc) = 2*q(2)*q(4) - 2*q(3)*q(4) ;
+            tformq(2,1,cc) = 2*q(2)*q(3)-2*q(4)*q(1) ;
+            tformq(2,2,cc) = 1 - 2*q(2)^2 - 2*q(4)^2 ;
+            tformq(2,3,cc) = 2*q(3)*q(4) + 2*q(2)*q(1) ;
+            tformq(3,1,cc) = 2*q(4)*q(2) + 2*q(3)*q(1) ;
+            tformq(3,2,cc) = 2*q(3)*q(4) - 2*q(2)*q(1) ;
+            tformq(3,3,cc) = 1 - 2*q(2)^2 - 2*q(3)^2 ;
+            % finally, take mean of translation vector!
+            tformq(4,1,cc) = mean(tvals(cc,:,4,1),2) ;
+            tformq(4,2,cc) = mean(tvals(cc,:,4,2),2) ;
+            tformq(4,3,cc) = mean(tvals(cc,:,4,3),2) ;
+            tformq(:,4,cc) = 0 ;
+            tformq(4,4,cc) = 1 ;
+        end
+    end
+    
+    % Consider all reference timepoints that have been matched. Plot this
+    % rr reference mesh and all other meshes matched to this reference time
+    rr2do = 1:20:size(mca, 2) ;
+    rr2do = [rr2do, setdiff(1:size(mca, 2), rr2do)] ;
+    for rr = rr2do
+        disp(['rr = ' num2str(rr)])
+        leg = {};
+        leg{1} = labels{1};
+        close all
+        fig = figure('visible', 'off') ;
+        
+        hold on
+        % First plot the reference mesh (c==1)
+        refCloud = pcread(fullfile(mca{1, rr}.folder, mca{1, rr}.name));
+        refxyz = refCloud.Location;
+        refxoff = min(refxyz(:,1)) ;
+        refxyz(:,1) = refxyz(:,1) - refxoff ;
+        %refMesh = read_ply_mod(fullfile(mca{1, rr}.folder, mca{1, rr}.name)) ;
+        
+        drefxy = double(refxyz(:,1:2));
+        %aShape = alphaShape(drefxy,5);
+        %bnd = boundaryFacets(aShape) ;
+        %bnd = [bnd(:, 1); bnd(1,1)] ;
+        
+        % Note: the third argument is the tightness parameter (S=1 is 100%
+        % tight, while S=0 is convex hull)
+        bnd = boundary(drefxy(:,1),drefxy(:,2), 1) ;
+        plot(drefxy(bnd, 1), drefxy(bnd,2)) ;
+        
+        %trisurf(refMesh.f, refMesh.v(:, 1), refMesh.v(:, 2), refMesh.v(:, 3), ...
+        %   'FaceColor', color{c}, 'FaceAlpha', 0.2, 'EdgeColor', 'none')
+        
+        % Now consider all datasets (c~=1) and find matches to this
+        % reference time rr
+        found_any_match = false ;
+        for cc = 2:ndatasets
+            
+            % Load correspondences
+            ctime = corrPaths{cc} ;
+            % ctime(:, 1) is just the current dataset's time (cc's timepoints)
+            yy = ctime(:, 2);
+            [minDT, matchID] = min(abs(yy - rr)) ;
+            yerror = corrErrors{cc} ;
 
+            % If closest match is within uncertainty, plot it!
+            if minDT < max(1, yerror(matchID))
+                found_any_match = true ;
+                matchnum = round(matchID) ;
+                cCloud = pcread(fullfile(mca{cc, matchnum}.folder, mca{cc, matchnum}.name));
+                cxyz = cCloud.Location ;
+                
+                % CHANGE THE WAY YOU TRANSFORM GIVEN 'ttype'
+                % ------------------------------------------
+                if ttype == 1
+                    clear tform
+                    tform1 = pcregistericp(cCloud,refCloud,'Extrapolate',true); % extracting the 4x4 transform from cmesh to refmesh
+                    tvals(cc,rr,:,:) = tform1.T;
+                    tform = tform1.T ;
+                    pn = fullfile(mintransDir, ['Compare_TP',sprintf('%d',rr),'_MinTransform.png']) ;
+                    pn_pdf = fullfile(mintransDir, ['Compare_TP',sprintf('%d',rr),'_MinTransform.pdf']) ;
+                    
+                    % Save the time matching here
+                    save(fullfile(icpDir, 'tvals'), 'tvals');
+                    
+                elseif ttype == 2
+                    clear tform
+                    load '/mnt/data/analysis/ICP_Plots/tvals.mat';
+                    tform = squeeze(tvals(cc,1,:,:)); % 4x4 transform corresponding to first TP
+                    pn = fullfile(tp1transDir, ['Compare_TP',sprintf('%d',rr),'_FirstTPTransform.png']) ;
+                elseif ttype == 3
+                    clear tform
+                    load '/mnt/data/analysis/ICP_Plots/tvals.mat';
+                    for m = 1:4
+                        for n = 1:4
+                            tform(m,n) = squeeze(mean(tvals(cc,:,m,n), 2)); % 4x4 transform corresponding to (elementwise) average of all time for a certain c
+                        end
+                    end
+                    pn = fullfile(tavgtransDir, ['Compare_TP',sprintf('%d',rr),'_TimeAvgTransform.png']) ;
+                elseif ttype == 4
+                    clear tform
+                    load '/mnt/data/analysis/ICP_Plots/tvals.mat';
+                    TP = 60;
+                    tform = squeeze(tvals(cc,TP,:,:)); % 4x4 transform corresponding to TP (change TP above to alter)
+                    pn = fullfile(vartransDir, ['Compare_TP',sprintf('%d',rr),'_TP', sprintf('%d',TP), 'Transform.png']) ;
+                elseif ttype == 5
+                    tform = tformq(:,:,cc) ;
+                    pn = fullfile(quatDir, ['Compare_TP',sprintf('%d',rr),'_QuaternionTransform.png']) ;
+                end
+                %--------------------------------------------------------------------------------------------------------------------
+                
+                if transform_meshes
+                    cxyz = horzcat(cxyz, ones(length(cxyz),1)); % pad the 4th dim with ones to apply tform
+                    cxyz = cxyz*tform; % apply the transform
+                    cxyz = cxyz(:,1:3);
+                end
+                % AP offset
+                % cxoff = min(cxyz(:,1)) ;
+                % cxyz(:,1) = (cxyz(:,1)-cxoff) ;
+                
+                
+                % Plot the transformed mesh surface
+                dcxy = double(cxyz(:,1:2));
+                %aShape = alphaShape(dcxy,5);
+                %bnd = boundaryFacets(aShape) ;
+                %bnd = [bnd(:, 1); bnd(1,1)] ;
+                bnd = boundary(dcxy(:,1),dcxy(:,2), 1) ;
+                plot(dcxy(bnd, 1), dcxy(bnd,2))
+                %trisurf(cMesh.f, cxyz(:, 1), cxyz(:, 2), cxyz(:, 3), ...
+                %  'FaceColor', color{c}, 'FaceAlpha', 0.2, 'EdgeColor', 'none')
+                
+                leg{length(leg)+1} = labels{cc};
+            end
+        end
 
+        % If there was at least one other mesh that matched in time, save
+        % plot
+        if found_any_match
+            xlim([-30, 280])
+            xlabel('AP position [$\mu$m]', 'Interpreter', 'latex')
+            ylabel('lateral position [$\mu$m]', 'Interpreter', 'latex')
+            axis equal
+            ylim([-80, 80])
+            lgd = legend(leg, 'Location', 'NorthEastOutside');
+            set(gca, 'Position', [0.12 0.21 0.6 0.6]) 
+            lgd.FontSize=8;
+            title(['$t_\textrm{ref}=$', sprintf('%d',rr-t0ref), ' min'], 'Interpreter', 'Latex');
+            disp(['Saving overlay figure to ', pn])
+            saveas(fig,pn);
+            saveas(fig,pn_pdf);
+            clf
+            hold off
+        end
+    end
+end
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+error('all done')
 
 
 
@@ -642,6 +1065,7 @@ lgd.FontSize=10;
 clearvars lgd ax
 
 
+
 %% Plotting Overlays using Morphological Time Plot
 close all
 
@@ -659,7 +1083,7 @@ for ii = 1:length(dirs)
     end
 end
 
-
+ttypes = {'pcregistericp', '', '', '', 'quaternion'} ;
 for ttype = 1
     if ttype == 5 %quaternion method
         clear tform
@@ -715,7 +1139,9 @@ for ttype = 1
     
     % Consider all reference timepoints that have been matched. Plot this
     % rr reference mesh and all other meshes matched to this reference time
-    for rr = 1:120
+    rr2do = 1:20:size(mca, 2) ;
+    rr2do = [rr2do, setdiff(1:size(mca, 2), rr2do)] ;
+    for rr = rr2do
         disp(['rr = ' num2str(rr)])
         leg = {};
         leg{1} = labels{1};
@@ -811,19 +1237,19 @@ for ttype = 1
                 leg{length(leg)+1} = labels{cc};
             end
         end
-                
-                xlim([-30, 280])
-                xlabel('AP position [$\mu$m]', 'Interpreter', 'latex')
-                ylabel('lateral position [$\mu$m]', 'Interpreter', 'latex')
-                axis equal
-                ylim([-80, 80])
-                lgd = legend(leg, 'Location', 'NorthEastOutside');
-                set(gca, 'Position', [0.12 0.21 0.6 0.6]) 
-                lgd.FontSize=8;
-                title(['$t_\textrm{ref}=$', sprintf('%d',rr), ' min'], 'Interpreter', 'Latex');
-                disp(['Saving overlay figure to ', pn])
-                saveas(fig,pn);
-                clf
-                hold off
+
+        xlim([-30, 280])
+        xlabel('AP position [$\mu$m]', 'Interpreter', 'latex')
+        ylabel('lateral position [$\mu$m]', 'Interpreter', 'latex')
+        axis equal
+        ylim([-80, 80])
+        lgd = legend(leg, 'Location', 'NorthEastOutside');
+        set(gca, 'Position', [0.12 0.21 0.6 0.6]) 
+        lgd.FontSize=8;
+        title(['$t_\textrm{ref}=$', sprintf('%d',rr), ' min'], 'Interpreter', 'Latex');
+        disp(['Saving overlay figure to ', pn])
+        saveas(fig,pn);
+        clf
+        hold off
     end
 end

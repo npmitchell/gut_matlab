@@ -9,13 +9,15 @@ clear; close all; clc;
 % cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
+cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data
+% cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202007151930_1p4um_0p5msexp/
+
 % .=========.
 % |  VIP10  |
 % .=========.
 % cd /mnt/crunch/gut/48YGal4UasLifeActRuby/201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
-cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
+% cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
 dataDir = cd ;
 
 %% PATHS ==================================================================
@@ -239,6 +241,9 @@ end
 msls_detOpts_fn = fullfile(projectDir, 'msls_detectOpts.mat') ;
 if exist(msls_detOpts_fn, 'file') && ~overwrite_detOpts
     load(msls_detOpts_fn, 'detectOptions')
+    
+    % detectOptions.mslsDir = '/mnt/data/mef2GAL4klarUASCAAXmChHiFP/202007151930_1p4um_0p5msexp/deconvolved_16bit/msls_output/'
+    
 else
     channel = 1;
     foreGroundChannel = 1;

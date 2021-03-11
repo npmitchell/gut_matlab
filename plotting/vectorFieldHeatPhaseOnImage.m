@@ -13,7 +13,8 @@ function [h1, h2, h3, ax, cax, ax3] = vectorFieldHeatPhaseOnImage(im, ...
 %   y : Mx1 or (N*M)x1 or NxM float array (required if no field v)
 %       y coordinates of vector field
 %   v : (N*M)x2 float array (required if no fields x,y)
-%       x and y coordinates of vector field
+%       x and y coordinates of vertices for vector field or mesh with
+%       face-wise vector field
 %   f : optional #faces x 3 int array
 %       connectivity list of the mesh to color over the image, use only if
 %       data is not in 
@@ -86,6 +87,9 @@ subsamplingMethod = 'farthestPoint' ;  % ('farthestPoint' 'random' 'custom')
 qscale = 5 ;
 quiver_vecfield = [] ;
 visibility = 'off' ;
+axPosition = [0 0.11 0.85 0.8] ;
+cbPosition = [.9 .3 .02 .3] ;
+pbPosition = [0.87, 0.7, 0.1, 0.1] ;
 
 % Unpack options
 if nargin > 5
@@ -114,7 +118,7 @@ if nargin > 5
         end
     end
     if isfield(options, 'fig')
-        figure(options.fig)
+        fig = set(0, 'CurrentFigure', options.fig) ;
     else
         close all
         fig = figure('units', 'normalized', ...
@@ -122,6 +126,17 @@ if nargin > 5
     end
     if isfield(options, 'subsamplingMethod')
         subsamplingMethod = options.subsamplingMethod ;
+    end
+    
+    % Positions of axes and color/phase bars
+    if isfield(options, 'axPosition') 
+        axPosition = options.axPosition ;
+    end
+    if isfield(options, 'cbPosition') 
+        cbPosition = options.cbPosition ;
+    end    
+    if isfield(options, 'pbPosition') 
+        pbPosition = options.pbPosition ;
     end
 else
     options = struct() ;
@@ -169,13 +184,17 @@ elseif isfield(xyfstruct, 'f') || isfield(xyfstruct, 'faces')
     elseif isfield(xyfstruct, 'faces')
         ff = xyfstruct.faces ;
     end
-    if numel(speed) == numel(xx)
+    if numel(speed) == numel(xx) 
         h2 = patch( 'Faces', ff, 'Vertices', [xx(:), yy(:)], ...
             'FaceVertexCData', vangle, 'FaceColor', 'flat', ...
             'EdgeColor', 'none', 'FaceVertexAlphaData', speed / vscale, ...
             'FaceAlpha', 'interp') ;
     elseif length(speed) == size(ff, 1) 
-        error('Consider case of speeds defined on faces instead of vertices')
+        h2 = patch( 'Faces', ff, 'Vertices', [xx(:), yy(:)], ...
+            'FaceVertexCData', vangle, 'FaceColor', 'flat', ...
+            'EdgeColor', 'none', 'FaceVertexAlphaData', speed / vscale, ...
+            'faceAlpha', 'flat') ;
+            
     else
         error('Vector field size does not match coordinates')
     end
@@ -209,8 +228,7 @@ else
     error('Could not identify data input orientation')
 end
 
-ax = gca() ;
-
+ax = get(fig, 'CurrentAxes') ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % QUIVER 
@@ -292,29 +310,38 @@ end
 if isfield(options, 'title')
     title(options.title, 'Interpreter', 'Latex')
 end
-set(gca, 'Position', [0 0.11 0.85 0.8]) ;
+if ~isempty(axPosition)
+    set(gca, 'Position', axPosition) ;
+end
+
 % Add phasebar
-phasebar('location', [0.87, 0.7, 0.1, 0.1]) ;
-ax2 = gca() ;
+if ~isempty(pbPosition)
+    phasebar('location', pbPosition) ;
+end
+
 % Add colorbar
-cax = axes('Position',[.9 .3 .02 .3]) ;
-[~, yyq] = meshgrid(0:4, 0:100) ;
-imshow(fliplr(double(yyq)/double(max(yyq(:))))) ;
-axis on
-yyaxis right
-ylabel(labelstr, 'color', 'k', 'Interpreter', 'Latex') ;
-yticks([0 1])
-yticklabels({'0', num2str(vscale)})
-xticks([])
-yyaxis left
-yticks([])
-cax.YAxis(1).Color = 'k';
-cax.YAxis(2).Color = 'k';
+if ~isempty(cbPosition)
+    cax = axes('Position', cbPosition) ;
+    [~, yyq] = meshgrid(0:4, 0:100) ;
+    imshow(fliplr(double(yyq)/double(max(yyq(:))))) ;
+    axis on
+    yyaxis right
+    ylabel(labelstr, 'color', 'k', 'Interpreter', 'Latex') ;
+    yticks([0 1])
+    yticklabels({'0', num2str(vscale)})
+    xticks([])
+    yyaxis left
+    yticks([])
+    cax.YAxis(1).Color = 'k';
+    cax.YAxis(2).Color = 'k';
+end
 
 % folds
 % plot([foldx; foldx], [0, 0, 0; yesz, yesz, yesz], 'k--')
 if isfield(options, 'outfn')
-    disp(['Saving figure: ', options.outfn])
-    saveas(fig, options.outfn) ;   
-    close all
+    if ~isempty(options.outfn)
+        disp(['Saving figure: ', options.outfn])
+        saveas(fig, options.outfn) ;   
+        close all
+    end
 end

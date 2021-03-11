@@ -1,9 +1,10 @@
-function [pts, fieldfaces, tr0] = ...
+function [pts, fieldfaces, tr0, baryc0] = ...
     barycentricMap2d(faces, v2d, vmap, uv)
 %BARYCENTRICMAP2D Map points in 2D to another mesh space using mesh faces  
 %   Map points in 2D space living in 2D representation of a mesh to another
-%   space living on the other (possibly 3D) representation of the same 
-%   mesh, using barycentric coordinates. 
+%   space living on the other (possibly 2D or 3D) representation of the 
+%   "same" mesh (topologically identical mesh), using barycentric 
+%   coordinates. 
 %
 % Parameters
 % ----------
@@ -31,7 +32,8 @@ function [pts, fieldfaces, tr0] = ...
 % --------
 % interpolate2Dpts_3Dmesh(faces, v2d, v3d, uv) -- essentially the same
 % function
-%  
+% gptoolbox: B = barycentric_coordinates(P,varargin) 
+% 
 % NPMitchell 2019
 
 if nargin < 4

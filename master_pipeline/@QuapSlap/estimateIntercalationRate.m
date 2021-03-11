@@ -1,5 +1,7 @@
 function estimateIntercalationRate(QS, options)
 % estimateIntercalationRate(QS, options)
+% TODO: use lagrangian pathlines of cell semgentation to estimate
+% contribution from flow only
 %
 % Parameters
 % ----------
@@ -43,7 +45,13 @@ end
 %% Plot each lobe
 features = QS.getFeatures() ;
 folds = features.folds ;
-tidxs = QS.xp.tIdx(timePoints) ;
+try
+    tidxs = QS.xp.tIdx(timePoints) ;
+catch
+    for qq = 1:length(timePoints)
+        tidxs(qq) = QS.xp.tIdx(timePoints(qq)) ;
+    end
+end
 nLobes = size(folds, 2) + 1 ;
 
 % Colors
@@ -78,6 +86,27 @@ s2t_mcell = earr ;
 
 % Ensure that pullback pathlines are loaded
 QS.getPullbackPathlines(t0, 'vertexPathlines', 'vertexPathlines3d') ;
+
+%% Create synthetic pathlines for cells from t=0
+% synethetic cell vertex pathlines in pullback space
+if ~exist(fullfile(QS.dir.segmentation, 'pathlines'), 'dir')
+    mkdir(fullfile(QS.dir.segmentation, 'pathlines'))
+end
+cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
+    sprintf('cellVertexPathlines_%06t0.mat', t0)) ;
+if ~exist(cellVertexPathlineFn, 'file') || overwrite 
+    QS.setTime(t0) ;
+    seg2d = getCurrentSegmentation2D(QS) ;
+    cellV0 = seg2d.seg2d.vdat.v ;
+    opts = struct('preview', true) ;
+    [segVertexPathlines2D, segVertexPathlines3D] = ...
+        QS.samplePullbackPathlines(cellV0, opts) ;
+    save(cellVertexPathlineFn, 'segVertexPathlines2D', ...
+        'segVertexPathlines3D')
+else
+    load(cellVertexPathlineFn, 'segVertexPathlines2D', ...
+        'segVertexPathlines3D')
+end
 
 meanQLobeAspects_cell = zeros(nLobes, length(timePoints)) ;
 meanQLobeAspectStds_cell = zeros(nLobes, length(timePoints)) ;

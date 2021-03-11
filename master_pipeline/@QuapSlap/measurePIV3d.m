@@ -114,7 +114,7 @@ ntps = length(timePoints) ;
 resolution = QS.APDV.resolution ; 
 [~, ~, ~, xyzlim_APDV] = QS.getXYZLims() ;
 axis_order = QS.data.axisOrder ;
-pivOutDir = QS.dir.piv3d ;
+pivOutDir = QS.dir.piv.v3d ;
 blue = QS.plotting.colors(1, :) ;
 red = QS.plotting.colors(2, :) ;
 green = QS.plotting.colors(4, :) ;
@@ -764,8 +764,8 @@ else
         end
         
         %% Draw 2D flows
-        vtdir2d = QS.dir.pivt2d ;
-        vndir2d = QS.dir.pivn2d ;
+        vtdir2d = QS.dir.piv.vt2d ;
+        vndir2d = QS.dir.piv.vn2d ;
         if ~exist(vtdir2d, 'dir')
             mkdir(vtdir2d)
         end
@@ -884,7 +884,7 @@ else
         end
 
         % Save dilation field as image
-        dilfn = fullfile(QS.dir.pivdilation, [sprintf('%04d', tp) '.png']) ;
+        dilfn = fullfile(QS.dir.piv.dilation, [sprintf('%04d', tp) '.png']) ;
         if save_ims && (~exist(dilfn, 'file') || overwrite)
             close all
             fig = figure('units', 'normalized', ...
