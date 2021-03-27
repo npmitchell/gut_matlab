@@ -62,6 +62,7 @@ generate_uv      = false ;  % generate a (u,v) coord system pullback
 generate_uphi    = false ;  % generate a (u, phi) coord system pullback
 generate_spsm    = false ;  % generate an (s, phi) coord system smoothed mesh pullback
 generate_rsm     = false ;  % generate a relaxed (s, phi) coord system smoothed mesh pullback
+generate_ricci   = false ;  % generate a ricci-flowed coord system pullback
 generate_uvprime = false ;  % generate a (u',v') coord sys pullback, where u',v' are found by conformal map with minimally twisted boundaries
 generate_ruvprime = false ;  % generate a (u',v') coord sys pullback, where u',v' are found by relaxed conformal map with minimally twisted boundaries
 % Other options
@@ -98,6 +99,10 @@ if nargin > 4
     if isfield(pbOptions, 'generate_rsm')
         generate_rsm = pbOptions.generate_rsm ;
         pbOptions = rmfield(pbOptions, 'generate_rsm') ;
+    end
+    if isfield(pbOptions, 'generate_ricci')
+        generate_ricci = pbOptions.generate_ricci ;
+        pbOptions = rmfield(pbOptions, 'generate_ricci') ;
     end
     if isfield(pbOptions, 'generate_uvprime')
         generate_uvprime = pbOptions.generate_uvprime ;

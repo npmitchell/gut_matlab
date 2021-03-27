@@ -69,6 +69,7 @@ function varargout=shadedErrorBar(x,y,errBar,varargin)
 %
 %
 % Rob Campbell - November 2009
+% Edits NPMitchell 2021
 
 
 

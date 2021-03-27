@@ -130,7 +130,7 @@ QS.clearTime() ;
 %% CREATE REFERENCE MESH 
 % Use Ricci flow for beltrami quasiconformal coefficient mu, etc
 refMeshFn = sprintf(QS.fileName.pathlines.refMesh, t0) ;
-if ~exist(refMeshFn, 'file') || overwrite || true 
+if ~exist(refMeshFn, 'file') || overwrite 
     if strcmp(QS.piv.imCoords, 'sp_sme')
         refMesh = load(sprintf(QS.fullFileBase.spcutMeshSm, t0), 'spcutMeshSm') ;
         refMesh = refMesh.spcutMeshSm ;
@@ -219,6 +219,7 @@ for qq = 1:length(gcell)
 end
 strClims = {'climVariable', 'climUniform'} ;
 for pp = 1:2
+    close all
     opts = struct() ;
     if pp == 1
         opts.clims = {max(abs(gg(:, 1))) * [-1, 1], ...
@@ -286,6 +287,7 @@ for qq = 1:length(gcell)
 end
 strClims = {'climVariable', 'climUniform'} ;
 for pp = 1:2
+    close all
     opts = struct() ;
     if pp == 1
         opts.clims = {max(abs(gg(:, 1))) * [-1, 1], ...
@@ -1136,6 +1138,75 @@ if ~exist(pliner3d, 'file') || overwrite || overwriteImages
             error('handle these piv coords here')
         end
         mesh0 = mesh0.spcutMeshSm ;
+        
+        if ~isfield(mesh0, 'radius_um')
+            error('no radius stored with mesh -- can add in post via code here')
+            % 
+            % for tidx = 1:length(QS.xp.fileMeta.timePoints)
+            %     tp = QS.xp.fileMeta.timePoints(tidx) ;
+            %     % Load this timepoint spcutMeshSm
+            %     QS.setTime(tp)
+            %     spcutMeshSm = QS.getCurrentSPCutMeshSm() ;
+            %     spcutMeshSmRS = QS.getCurrentSPCutMeshSmRS() ;
+            %     spcutMeshSmRSC = QS.getCurrentSPCutMeshSmRSC() ;
+            % 
+            %     % Make avgpts in pixel space (not RS)
+            %     fprintf('Resampling uvgrid3d curves in pix...\n')
+            %     nU = spcutMeshSm.nU ;
+            %     nV = spcutMeshSm.nV ;
+            %     curves3d_pix = reshape(spcutMeshSm.v, [nU, nV, 3]) ;
+            %     c3d_dsv_pix = zeros(size(curves3d_pix)) ;  % in units of pix
+            %     avgpts_pix = zeros(nU, 3) ;
+            %     radius_pix = zeros(nU, nV) ;
+            %     for i=1:nU
+            %         % Note: no need to add the first point to the curve
+            %         % since the endpoints already match exactly in 3d and
+            %         % curvspace gives a curve with points on either
+            %         % endpoint (corresponding to the same 3d location).
+            %         c3d_dsv_pix(i, :, :) = resampleCurvReplaceNaNs(squeeze(curves3d_pix(i, :, :)), nV, true) ;
+            %         if vecnorm(squeeze(c3d_dsv_pix(i, 1, :)) - squeeze(c3d_dsv_pix(i, end, :))) > 1e-7
+            %             error('endpoints do not join! Exiting')
+            %         end
+            %         % Drop the final endpoint in the mean pt determination
+            %         avgpts_pix(i, :) = mean(squeeze(c3d_dsv_pix(i, 1:end-1, :)), 1) ; 
+            %         radius_pix(i, :) = vecnorm(squeeze(curves3d_pix(i, :, :)) - avgpts_pix(i, :), 2, 2) ;
+            %     end
+            % 
+            %     % uvpcutMesh.raw.avgpts_pix = avgpts_pix ;
+            %     % uvpcutMesh.raw.radius_pix = radius_pix ;
+            %     spcutMeshSm.avgpts_um = QS.xyz2APDV(avgpts_pix) ;
+            %     spcutMeshSm.radius_um = radius_pix * QS.APDV.resolution ;
+            % 
+            %     % Add to RS and RSC versions
+            %     spcutMeshSmRS.avgpts_um = spcutMeshSm.avgpts_um ;
+            %     spcutMeshSmRS.radius_um = spcutMeshSm.radius_um ;
+            %     % RSC
+            %     spcutMeshSmRSC.avgpts_um = spcutMeshSm.avgpts_um ;
+            %     spcutMeshSmRSC.radius_um = spcutMeshSm.radius_um(:, 1:end-1) ;
+            % 
+            %     % Save spcutMeshSm / RS / RSC
+            %     save(sprintf(QS.fullFileBase.spcutMeshSm, QS.currentTime), ...
+            %         'spcutMeshSm')
+            %     save(sprintf(QS.fullFileBase.spcutMeshSmRS, QS.currentTime), ...
+            %         'spcutMeshSmRS')
+            %     save(sprintf(QS.fullFileBase.spcutMeshSmRSC, QS.currentTime), ...
+            %         'spcutMeshSmRSC')
+            % 
+            %     if mod(tidx, 10) < 3
+            %         clf; set(gcf, 'visible', 'on')
+            %         trisurf(triangulation(spcutMeshSmRSC.f, spcutMeshSmRSC.v), 'edgecolor', 'none')
+            %         axis equal 
+            %         title(num2str(tidx))
+            %         pause(1)
+            %         cla
+            %         trisurf(triangulation(spcutMeshSmRS.f, spcutMeshSmRS.v), 'edgecolor', 'k')
+            %         axis equal
+            %         title([num2str(tidx) ' open'])
+            %         pause(0.0001)
+            %     end
+            % end
+        end
+        
         rad0 = mesh0.radius_um(:) ;
         umax0 = max(mesh0.u(:, 1)) ;
         vmax0 = max(mesh0.u(:, 2)) ;

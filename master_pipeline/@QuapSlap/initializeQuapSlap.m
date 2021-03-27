@@ -117,7 +117,7 @@ QS.fileName.apBoundaryDorsalPts = 'ap_boundary_dorsalpts.h5' ;
 
 %% Metric
 QS.dir.metric = struct() ;
-QS.dir.metric.data = fullfile(QS.dir.uvCoord, 'metric', '%s') ;
+QS.dir.metric.data = fullfile(QS.dir.uvCoord, 'metric', '%s_lmesh%0.3f') ;
 QS.fullFileBase.metric = fullfile(QS.dir.metric.data, [QS.fileBase.name '.mat']) ;
 QS.dir.metric.g_images2d = fullfile(QS.dir.metric.data, 'g_images2d') ;
 QS.dir.metric.b_images2d = fullfile(QS.dir.metric.data, 'b_images2d') ;
@@ -494,18 +494,27 @@ QS.fullFileBase.im_up = fullfile(QS.dir.im_up, QS.fileBase.im_up) ;
 
  %% Smoothed pullbacks (pb)
 if dynamic
-    QS.fileBase.im_sp_sm = [QS.fileBase.name, '_pbspsm.tif'] ;
-    QS.fileBase.im_sp_sme = [QS.fileBase.name, '_pbspsme.tif'] ;
+    if length(QS.xp.expMeta.channelsUsed) > 1
+        
+        QS.fileBase.im_sp_sm = [ 'Time_%06d_stab_pbspsm.tif'] ;
+        QS.fileBase.im_sp_sme = [ 'Time_%06d_stab_pbspsme.tif'] ;
+        QS.fileBase.im_r_sm = [ 'Time_%06d_stab_pbrsm.tif'] ;
+        QS.fileBase.im_r_sme = [ 'Time_%06d_stab_pbrsme.tif'] ;
+    else
+        QS.fileBase.im_sp_sm = [QS.fileBase.name, '_pbspsm.tif'] ;
+        QS.fileBase.im_sp_sme = [QS.fileBase.name, '_pbspsme.tif'] ;
+        QS.fileBase.im_r_sm = [QS.fileBase.name, '_pbrsm.tif'] ;
+        QS.fileBase.im_r_sme = [QS.fileBase.name, '_pbrsme.tif'] ;
+    end
     QS.fullFileBase.im_sp_sm = ...
         fullfile(QS.dir.im_sp_sm, QS.fileBase.im_sp_sm);
     QS.fullFileBase.im_sp_sme = ...
         fullfile(QS.dir.im_sp_sme, QS.fileBase.im_sp_sme);
-    QS.fileBase.im_r_sm = [QS.fileBase.name, '_pbrsm.tif'] ;
-    QS.fileBase.im_r_sme = [QS.fileBase.name, '_pbrsme.tif'] ;
     QS.fullFileBase.im_r_sm = ...
         fullfile(QS.dir.im_r_sm, QS.fileBase.im_r_sm);
     QS.fullFileBase.im_r_sme = ...
         fullfile(QS.dir.im_r_sme, QS.fileBase.im_r_sme);
+   
 end
 
 % uvprime

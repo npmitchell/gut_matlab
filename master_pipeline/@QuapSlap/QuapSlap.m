@@ -932,10 +932,12 @@ classdef QuapSlap < handle
         end
         
         % Masked Data
-        generateMaskedData(QS)
+        generateMaskedData(QS, options)
         alignMaskedDataAPDV(QS)
         
         % TexturePatch and demo mesh visualization
+        % QS.visualizeMeshEvolution() gives evolution sequence with
+        % orthogonalviews of data planes -- aka morphsnakes demo
         visualizeMeshEvolution(QS, options)
         plotSeriesOnSurfaceTexturePatch(QS, overwrite, metadat, ...
                                         TexturePatchOptions)

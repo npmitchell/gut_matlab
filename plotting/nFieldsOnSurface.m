@@ -72,11 +72,20 @@ nfields = length(fields) ;
 axisOff = false ;
 visible = 'off' ;
 style = 'diverging' ;
+interpreter = 'latex' ;
+nematic_or_polar = 'nematic' ;
 if nargin < 3
     options = struct() ;
 end
 if isfield(options, 'visible')
     visible = options.visible ;
+end
+if isfield(options, 'polarStyle')
+    nematic_or_polar = lower(options.polarStyle) ;
+    if ~strcmpi(nematic_or_polar, 'nematic') && ...
+            ~strcmpi(nematic_or_polar, 'polar')
+        error('polarStyle must be <nematic> or <polar>')
+    end
 end
 
 %% Define axes
@@ -212,6 +221,9 @@ if isfield(options, 'labels')
 else
     labels = [] ;
 end
+if isfield(options, 'interpreter')
+    interpreter = options.interpreter ;
+end
 
 if isfield(options, 'makeCbar')
     % grab boolean (or numeric with 0 and 1) array of whether to make a
@@ -319,7 +331,10 @@ for qq = 1:nfields
         end
         
         if makeCbar(qq) && isfield(options, 'cbarlabels')
-            xlabel(cbs{qq}, options.cbarlabels{qq}, 'interpreter', 'latex')
+            % xlabel(cbs{qq}, options.cbarlabels{qq}, 'interpreter', 'latex') 
+            %set(cbs{qq}{2}, 'xlabel', options.cbarlabels{qq})
+            ylabel(cbs{qq}{2}, options.cbarlabels{qq}, 'interpreter', interpreter)
+            
         end
         
         if ~isempty(labels)
@@ -331,11 +346,8 @@ for qq = 1:nfields
             colormap(cmap)
         end
     else
-        % Nematic field or polar field?
-        % todo: code for polar field
-        
-        % Nematic field
-        % Unpack nematic field
+        % Nematic field or polar field
+        % Unpack field
         dev = fields{qq}{1} ;
         theta = fields{qq}{2} ;
         
@@ -360,7 +372,11 @@ for qq = 1:nfields
         
         % Intensity from dev and color from the theta
         pm256 = phasemap(256) ;
-        indx = max(1, round(mod(2*theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
+        if strcmpi(nematic_or_polar, 'nematic')
+            indx = max(1, round(mod(2*theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
+        else
+            indx = max(1, round(mod(theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
+        end
         colors = pm256(indx, :) ;
         colors = min(dev(:) / clim_dev, 1) .* colors ;
         
@@ -383,7 +399,7 @@ for qq = 1:nfields
             colormap(gca, phasemap)
             cbs{qq} = cell(2, 1) ;
             cbs{qq}{1} = phasebar('colormap', phasemap, ...
-                'location', [0.82, 0.12, 0.1, 0.135], 'style', 'nematic') ;
+                'location', [0.82, 0.12, 0.1, 0.135], 'style', nematic_or_polar) ;
             shrink = max(0.6 - 0.1 * (mod(nfields, 3)-2), 0.1) ;
             % axis off
             % view(2)
@@ -397,7 +413,8 @@ for qq = 1:nfields
             
             % label the colorbar
             if isfield(options, 'cbarlabels')
-                set(cbs{qq}{2}, 'xlabel', options.cbarlabels{qq})
+                %set(cbs{qq}{2}, 'xlabel', options.cbarlabels{qq})
+                ylabel(cbs{qq}{2}, options.cbarlabels{qq}, 'interpreter', interpreter)
             end
         end
         
@@ -408,7 +425,7 @@ for qq = 1:nfields
             elseif numel(clims{qq}) == 2
                 caxis([clims{qq}(1), clims{qq}(2)])
             end
-        else
+        elseif exist('clim', 'var')
             if numel(clim) == 1
                 caxis([0, clim])
             elseif numel(clim) == 2
@@ -418,6 +435,10 @@ for qq = 1:nfields
             end
         end
         colormap(gca, gray) 
+        
+        if ~isempty(labels)
+            title(labels{qq}, 'Interpreter', 'Latex')   
+        end
     end
     
     % Set view from "views"

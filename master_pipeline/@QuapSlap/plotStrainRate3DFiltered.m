@@ -120,6 +120,8 @@ for tp = tp2do
     % mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) * mesh.ar ;
     mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) ;
     cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1)) ;
+    
+    glueMesh = glueCylinderCutMeshSeam(cutMesh) ;
 
     % Load current mesh +/- nTimePoints
     first = true ;
@@ -159,19 +161,22 @@ for tp = tp2do
     end
     
     % Build TIME-AVERAGED tre, dev, theta
+    % average over time
     tre = mean(tres, 2) ;
+    % Note that this is not actually dv averaging: averaging over time
     [dev, theta] = QS.dvAverageNematic(devs, thetas) ;
     
     % Transfer to vertices
     [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.u) ;
+    tre = reshape(F2V * tre, [nU, nV-1]) ;
     dev = reshape(F2V * dev, [nU, nV-1]) ;
     theta = reshape(F2V * theta, [nU, nV-1]) ;
     
     % Space-filter the data using spectral filter
     filtOpts = struct('nmodes', nmodes, 'xwidth', zwidth) ;
     tre = modeFilterQuasi1D(tre, filtOpts) ;
-    ctheta = modeFilterQuasi1D(dev .* cos(2 * theta)) ;
-    stheta = modeFilterQuasi1D(dev .* sin(2 * theta)) ;
+    ctheta = modeFilterQuasi1D(dev .* cos(2 * theta), filtOpts) ;
+    stheta = modeFilterQuasi1D(dev .* sin(2 * theta), filtOpts) ;
     dev = sqrt(ctheta.^2 + stheta.^2) ;
     theta = 0.5 * mod(atan2(stheta, ctheta), 2*pi) ;
     
@@ -226,7 +231,7 @@ for tp = tp2do
             subplot(1, 2, qq) ;
             if qq == 1
                 trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
-                    'FaceVertexCData', 0.5* tre, 'edgecolor', 'none')
+                    'FaceVertexCData', 0.5* tre(:), 'edgecolor', 'none')
                 % trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
                 %     0.5* tre, 'edgecolor', 'none')
                 caxis([-clim_trace, clim_trace])
@@ -301,10 +306,12 @@ for tp = tp2do
     if ~exist(fn, 'file') || overwrite
         % Panel 1
         subplot(1, 2, 1) ;
+        tre2d = tre ;
+        tre2d(:, nV) = tre2d(:, 1) ;
         trisurf(cutMesh.f, ...
             cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
             cutMesh.u(:, 2), 0 * cutMesh.u(:, 2), ...
-            'FaceVertexCData', 0.5* tre, 'edgecolor', 'none')
+            'FaceVertexCData', 0.5* tre2d(:), 'edgecolor', 'none')
         
         daspect([1,1,1])
         cb = colorbar('location', 'southOutside') ;
@@ -318,9 +325,13 @@ for tp = tp2do
         % Panel 2 
         subplot(1, 2, 2) ;
         % Intensity from dev and color from the theta
-        indx = max(1, round(mod(2*theta, 2*pi)*size(pm256, 1)/(2 * pi))) ;
+        theta2d = theta ;
+        theta2d(:, nV) = theta(:, 1) ;
+        dev2d = dev ;
+        dev2d(:, nV) = dev2d(:, 1) ;
+        indx = max(1, round(mod(2*theta2d, 2*pi)*size(pm256, 1)/(2 * pi))) ;
         colors = pm256(indx, :) ;
-        colors = min(dev / clim_deviatoric, 1) .* colors ;
+        colors = min(dev2d(:) / clim_deviatoric, 1) .* colors ;
         trisurf(cutMesh.f, cutMesh.u(:, 1) / max(cutMesh.u(:, 1)), ...
             cutMesh.u(:, 2), 0*cutMesh.u(:, 1), ...
             'FaceVertexCData', colors, 'edgecolor', 'none')

@@ -594,7 +594,7 @@ for qq = 1:length(trsK)
             [sprintf('fold_strainRate_compare_w%03d_', 2*width+1), ...
             avgLabel{qq}]) ;
         fns.fn = [fnbase '.png'] ;
-        fns.early = [fnbase '_early.png'] ;
+        fns.early = [fnbase '_early.pdf'] ;
         fns.norms = [fnbase '_norms.png'] ;
         fns.norms_early = [fnbase '_norms_early.png'] ;
         fns.withH = [fnbase '_withH.png'] ;

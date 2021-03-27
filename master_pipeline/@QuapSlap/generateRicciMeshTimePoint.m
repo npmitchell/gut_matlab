@@ -74,7 +74,7 @@ if isfield(options, 'radiusTolerance')
 end
 if isfield(options, 'save_ims')
     save_ims = options.save_ims  ;
-else isfield(options, 'saveIms')
+elseif isfield(options, 'saveIms')
     save_ims = options.saveIms ;
 end
 
@@ -258,7 +258,8 @@ if ~exist(ricciMeshFn, 'file') || overwrite
     % which is smaller?
     [~, innerID] = min(LL) ;
     inner = boundaries{innerID} ;
-    outer = boundaries{mod(innerID+1, 2)} ;
+    outerID = setdiff([1,2], innerID) ;
+    outer = boundaries{outerID} ;
 
     % barycenter of inner -- THIS IS BIASED
     % baryc = mean(U(inner, :), 1) ;
@@ -293,7 +294,18 @@ if ~exist(ricciMeshFn, 'file') || overwrite
     radii = vecnorm(UU(inner, :), 2, 2) ;
     disp(['Correcting radial coordinate by a maximum of ' ...
         num2str(max(abs(radii - innerR) / innerR)*100) '%'])
-    assert(max(abs(radii - innerR) / innerR) < radiusTolerance)
+    try
+        assert(max(abs(radii - innerR) / innerR) < radiusTolerance)
+    catch
+        msg = 'ERROR: adjustment change is larger than tolerance! ' ;
+        msg = [msg '\n change=' num2str(max(abs(radii - innerR) / innerR))] ;
+        msg = [msg '\n tol=' num2str(radiusTolerance) ] ;
+        msg = [msg '\n Continue with large change? [N/y]:'] ;
+        cont = input(msg, 's') ;
+        if ~contains(lower(cont), 'y')
+            error('ERROR: adjustment change is larger than tolerance!')
+        end
+    end
     UU(inner, 1) = innerR * cos(phaseInner) ;
     UU(inner, 2) = innerR * sin(phaseInner) ;
 

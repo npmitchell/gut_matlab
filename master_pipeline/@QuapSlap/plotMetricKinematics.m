@@ -463,10 +463,11 @@ timeSpans{end+1} = hrTSpans{1} ;
 timeSpans{end+1} = hrTSpans{2} ;
 timeSpans{end+1} = hrTSpans{3} ;
 % Include one tpsan of -1.5hr, 1.5hr, 3hr after t0
-lhrTSpans = {max(min(tps),-90):0, 0:90, 90:min(max(tps), 180)} ;
+lhrTSpans = {max(min(tps),-90):0, 0:90, 90:min(max(tps), 180), max(min(tps), 0):min(max(tps),75)} ;
 timeSpans{end+1} = lhrTSpans{1} ;
 timeSpans{end+1} = lhrTSpans{2} ;
 timeSpans{end+1} = lhrTSpans{3} ;
+timeSpans{end+1} = lhrTSpans{4} ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Plot correlation between terms div(v) and 2Hvn for each point (no DV
@@ -557,18 +558,27 @@ if plot_spaceMaps && (~files_exist || overwrite)
             set(gca, 'position', [pos{ii-3}(1), p2(2)-pos{ii-3}(4)*0.1, pos{ii-3}(3), pos{ii-3}(4)])
         end
         
+        % Correlation for 10%-90% AP axis
+        lowU = 0.1 * max(m2d.u(:, 1)) ;
+        hiU = 0.9 * max(m2d.u(:, 1)) ;
+        selectSpace = (m2d.u(:, 1) > lowU) & (m2d.u(:, 1) < hiU) ;
+        RR = corrcoef(mH2vn(selectSpace), mdivv(selectSpace)) ;
+        rho = RR(1, 2) ;
+        corrString = [' $\rho=$' sprintf('%0.3f', rho)] ;
+        
         % master titles (suptitles)
         if tspanIdx > 1
             sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
                 num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
-                ' ' QS.timeUnits], ...
+                ' ' QS.timeUnits corrString], ...
                 'Interpreter', 'Latex') ;
         else
-            sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
+            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$' corrString], ...
                 'Interpreter', 'Latex') ;
         end
         
         % Save figure
+        disp(['Saving spaceMap: ' fnout])
         saveas(gcf, [fnout '.png']) ;
         saveas(gcf, [fnout '.pdf']) ;
         
@@ -924,6 +934,9 @@ collateTSpans = {0:min(max(tps), 120)} ;
 for qq = 1:length(hrTSpans)
     collateTSpans{qq+1} = hrTSpans{qq} ;
 end
+for qq = 1:length(lhrTSpans)
+    collateTSpans{qq+1} = lhrTSpans{qq} ;
+end
 padN = round(0.1 * nU) ;
 cols = padN:nU - padN ;
 corrDVqDir = fullfile(mKDir, 'correlations_DVquadrants_collapsed') ;
@@ -951,6 +964,8 @@ if plot_correlations && (~files_exist || overwrite)
         markers = QS.plotting.markers ;
         colors = mapValueToColor(1:5, [1, 5], cmap) ;
         close all
+        allX = [] ;
+        allY = [] ;
         for qq = 1:4  % consider left, right, dorsal, ventral
             disp(['qq = ', num2str(qq), ': ', titles{qq}])
             divv = divvsK{qq + 1}(:, cols) ;    
@@ -962,7 +977,9 @@ if plot_correlations && (~files_exist || overwrite)
                 'MarkerEdgeColor', colors(qq, :), ...
                 'MarkerEdgeAlpha', alphaVal) ;
             hold on ;
-
+            allX = [allX(:); xx(:)] ;
+            allY = [allY(:); yy(:)] ;
+            
             % Label the x axis if on the bottom row
             xlabel(['$\nabla \cdot \bf{v}_\parallel$ ' unitstr], ...
                     'Interpreter', 'Latex') ;
@@ -1003,9 +1020,126 @@ if plot_correlations && (~files_exist || overwrite)
         % c.Ticks = [0, 1] ;
         % c.TickLabels = [tps(1), max(timeSpan_i)] ;
 
+        % Label correlation
+        % Correlation for 10%-90% AP axis
+        RR = corrcoef(allX(:), allY(:)) ;
+        rho = RR(1, 2) ;
+        corrString = [' $\rho=$' sprintf('%0.3f', rho)] ;
+        
         sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
             num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
-            ' ' QS.timeUnits], ...
+            ' ' QS.timeUnits corrString], ...
+            'Interpreter', 'Latex') ;
+
+        % Save figure
+        figure(1)
+        saveas(gcf, [fnout '.png']) ;
+        disp('saving pdf version...')
+        saveas(gcf, [fnout '.pdf']) ;
+        disp('done')
+        close all
+        set(gcf, 'visible', 'off')
+    end
+    disp('done with collapsed correlation plots betweeen divv and H2vn')
+end
+
+
+
+
+%% Metric Kinematic Correlations for each hour, one single axis only 
+% (all quadrants) -- ONE MARKER ONLY
+padN = round(0.1 * nU) ;
+cols = padN:nU - padN ;
+corrDVqDir = fullfile(mKDir, 'correlations_DVquadrants_collapsed_singleMarker') ;
+files_exist = true ;
+for qq = 1:length(collateTSpans)
+    outputFileNames{qq} = ...
+        fullfile(corrDVqDir, sprintf('correlation_allQuad_times%02d_div_2Hvn_singleMarker', qq)) ;
+    files_exist = files_exist && exist([outputFileNames{qq} '.png'], 'file') ;
+end
+
+if plot_correlations && (~files_exist || overwrite)
+    if ~exist(corrDVqDir, 'dir')
+        mkdir(corrDVqDir)
+    end    
+    alphaVal = 0.2 ;
+    sz = 4 ;
+    cmap = phasemap(256) ;
+    close all
+    set(gcf, 'visible', 'off')
+    % Consider each hr long timespan (early or entire series)
+    for tspanIdx = 1:length(collateTSpans)
+        fnout = outputFileNames{tspanIdx} ;
+        timeSpan_i = collateTSpans{tspanIdx} ;
+        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        markers = QS.plotting.markers ;
+        colors = mapValueToColor(1:5, [1, 5], cmap) ;
+        close all
+        allX = [] ;
+        allY = [] ;
+        for qq = 1:4  % consider left, right, dorsal, ventral
+            disp(['qq = ', num2str(qq), ': ', titles{qq}])
+            divv = divvsK{qq + 1}(:, cols) ;    
+            H2vn = H2vnsK{qq + 1}(:, cols) ;
+            xx = divv(tidx_i, :) ;
+            yy = H2vn(tidx_i, :) ;
+            scatter(xx(:), yy(:), sz, ...
+                'o', 'MarkerFaceColor', 'none', ...
+                'MarkerEdgeColor', 'k', ...
+                'MarkerEdgeAlpha', alphaVal) ;
+            hold on ;
+            allX = [allX(:); xx(:)] ;
+            allY = [allY(:); yy(:)] ;
+            
+            % Label the x axis if on the bottom row
+            xlabel(['$\nabla \cdot \bf{v}_\parallel$ ' unitstr], ...
+                    'Interpreter', 'Latex') ;
+            ylabel(['$2Hv_n$ ' unitstr], 'Interpreter', 'Latex') ;
+        end
+        
+        % Add dashed y=x line
+        xlims = get(gca, 'xlim') ;
+        ylims = get(gca, 'ylim') ;
+        axis equal
+        xlim([max(-2 * climit, xlims(1)), min(2 * climit, xlims(2))])
+        ylim([max(-2 * climit, ylims(1)), min(2 * climit, ylims(2))])
+        xlims = get(gca, 'xlim') ;
+        ylims = get(gca, 'ylim') ;
+        leftdot = max(xlims(1), ylims(1)) ;
+        rightdot = min(xlims(2), ylims(2)) ;
+        plot([leftdot, rightdot], [leftdot, rightdot], 'k--')
+         
+        % % master titles (suptitles)
+        % figure(1) ;
+        % % Add colorbar
+        % c = colorbar() ;
+        % % Make colorbar share the alpha of the image
+        % % Manually flush the event queue and force MATLAB to render the colorbar
+        % % necessary on some versions
+        % drawnow
+        % % Get the color data of the object that correponds to the colorbar
+        % colormap(cmap)
+        % cdata = c.Face.Texture.CData;
+        % % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+        % cdata(end,:) = uint8(alphaVal * cdata(end,:));
+        % % Ensure that the display respects the alpha channel
+        % c.Face.Texture.ColorType = 'truecoloralpha';
+        % % Update the color data with the new transparency information
+        % c.Face.Texture.CData = cdata;
+        % c.Label.Interpreter = 'Latex' ;
+        % c.Label.String = ['time [' QS.timeUnits ']'] ;
+        % c.Ticks = [0, 1] ;
+        % c.TickLabels = [tps(1), max(timeSpan_i)] ;
+
+        % Label correlation
+        % Correlation for 10%-90% AP axis
+        RR = corrcoef(allX(:), allY(:)) ;
+        rho = RR(1, 2) ;
+        corrString = [' $\rho=$' sprintf('%0.3f', rho)] ;
+        
+        sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
+            num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
+            ' ' QS.timeUnits corrString], ...
             'Interpreter', 'Latex') ;
 
         % Save figure
@@ -1045,6 +1179,7 @@ if plot_correlations && (~files_exist || overwrite)
     cmap = phasemap(256) ;
     close all
     set(gcf, 'visible', 'off')
+   
     % Consider each timespan (early or entire series)
     for tspanIdx = 1:length(timeSpans)
         fnout = outputFileNames{tspanIdx} ;
@@ -1061,6 +1196,9 @@ if plot_correlations && (~files_exist || overwrite)
         sposCollection2 = cell(4, 1) ;
         sphCollection3 = cell(4, 1) ;
         sposCollection3 = cell(4, 1) ;
+        
+        allX = [] ;
+        allY = [] ;
         for qq = 1:4  % consider left, right, dorsal, ventral
             disp(['qq = ', num2str(qq), ': ', titles{qq}])
             divv = divvsK{qq + 1}(:, cols) ;    
@@ -1093,6 +1231,10 @@ if plot_correlations && (~files_exist || overwrite)
                     'MarkerEdgeColor', colors(row-tidx_i(1)+1, :), ...
                     'MarkerEdgeAlpha', alphaVal) ;
                 hold on ;
+                x2add = divv(row,:) ;
+                y2add = H2vn(row, :) ;
+                allX = [allX(:); x2add(:) ] ;
+                allY = [allY(:); y2add(:) ] ;
             end
 
             % Label the x axis if on the bottom row
@@ -1172,13 +1314,20 @@ if plot_correlations && (~files_exist || overwrite)
         c.Ticks = [0, 1] ;
         c.TickLabels = [tps(1), max(timeSpan_i)] ;
 
+        
+        % Label correlation
+        % Correlation for 10%-90% AP axis
+        RR = corrcoef(allX(:), allY(:)) ;
+        rho = RR(1, 2) ;
+        corrString = [' $\rho=$' sprintf('%0.3f', rho)] ;
+        
         if tspanIdx > 1
             sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$, ', ...
                 num2str(min(timeSpan_i)) '$<t<$' num2str(max(timeSpan_i)) ...
-                ' ' QS.timeUnits], ...
+                ' ' QS.timeUnits corrString], ...
                 'Interpreter', 'Latex') ;
         else
-            sgtitle('$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$', ...
+            sgtitle(['$2Hv_n$ vs $\nabla \cdot \bf{v}_\parallel$ ' corrString], ...
                 'Interpreter', 'Latex') ;
         end
 

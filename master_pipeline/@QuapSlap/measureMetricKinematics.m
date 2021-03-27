@@ -226,6 +226,7 @@ for tp = tp2do
     redo_comp = redo_comp || ~exist(H2vnfn, 'file') || ~exist(rfn, 'file') ;
 
     if redo_comp
+        disp('computing kinematics')
         tic 
         if doubleResolution
             % Load current mesh
@@ -472,6 +473,7 @@ for tp = tp2do
         radius_v = mean(radius_filt(:, ventral), 2) ;
         
         %% Save timeseries measurements
+        disp('Saving timeseries measurements')
         save(Hfn, 'HH', 'HH_filt', 'HH_ap', 'HH_l', 'HH_r', 'HH_d', 'HH_v')
         save(efn, 'gdot', 'gdot_filt', 'gdot_ap', 'gdot_l', 'gdot_r', 'gdot_d', 'gdot_v')
         save(dfn, 'divv', 'divv_filt', 'divv_ap', 'divv_l', 'divv_r', 'divv_d', 'divv_v')

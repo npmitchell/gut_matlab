@@ -156,18 +156,28 @@ for tp = tp2do
             % check smoothed mesh
             % trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none')
         end
-                
-        % Smooth the velocities in space using gptoolbox
+        % Define top struct tools
+        [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
         
+        % Smooth the velocities in space using gptoolbox
         if lambda > 0 
             vraw = squeeze(vertex_vels(tidx, 1:(nV-1)*nU, :)) ;
             vs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
                 lambda, 'implicit', vraw) ;   
             % Push vectors onto faces
-            [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
             vf = V2F * vs ;
         else
-            vf = face_vels(tidx, :) ;
+            vf = squeeze(face_vels(tidx, :, :)) ;
+            
+            % check it
+            % tmp = squeeze(face_vels(...
+            %     tidx, size(mesh.f, 1)+1:2*size(mesh.f, 1), :)) ;
+            % 
+            % tmpLoad = load(sprintf(QS.fullFileBase.spcutMeshSmRS, tp)) ;
+            % tmpMesh = tmpLoad.spcutMeshSmRS ;
+            % [TF, TU] = tileAnnularCutMesh(tmpMesh, [1,1]) ;
+            % bcs = barycenter(TU, TF) ;
+            % scatter(bcs(:, 1), bcs(:, 2), tmp(:, 1))
         end
         
         % %% Checking -- debug

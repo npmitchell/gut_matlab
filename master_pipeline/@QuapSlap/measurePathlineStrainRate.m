@@ -20,8 +20,8 @@ overwriteImages = false ;
 plot_comparison = false ;
 
 %% Parameter options
-lambda_mesh = 0.002 ;
-lambda = 0.01 ; 
+lambda_mesh = QS.smoothing.lambda_mesh ;
+lambda = QS.smoothing.lambda ; 
 debug = false ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
@@ -357,6 +357,7 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     plotOpts.debug = debug ;
     plotOpts.t0Pathline = t0Pathline ;
     plotOpts.plot_comparison = plot_comparison ;
+    disp('plotting pathline strain rate for this timepoint')
     QS.plotPathlineStrainRateTimePoint(tp, plotOpts)
 end
 disp('done with measuring pathline strain rate')

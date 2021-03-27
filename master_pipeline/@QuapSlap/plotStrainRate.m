@@ -25,6 +25,8 @@ averagingStyle = 'Lagrangian' ;
 skipTimePoint = false ;
 lambda = QS.smoothing.lambda ;
 lambda_mesh = QS.smoothing.lambda_mesh ;
+nmodes = QS.smoothing.nmodes ;
+zwidth = QS.smoothing.zwidth ;
 
 %% Unpack required params
 % Sampling resolution: whether to use a double-density mesh
@@ -82,8 +84,9 @@ t0 = QS.t0set() ;
 QS.getXYZLims ;
 xyzlim = QS.plotting.xyzlim_um ;
 srlambdaDir = fullfile(QS.dir.strainRate.root, ...
-    strrep(sprintf('lambda%0.3f_lmesh%0.3f', ...
-    lambda, lambda_mesh), '.', 'p')) ;
+    [strrep(sprintf('lambda%0.3f_lmesh%0.3f', ...
+    lambda, lambda_mesh), '.', 'p'), ...
+    sprintf('_modes%02dw%02d', nmodes, zwidth)]) ;
 buff = 10 ;
 xyzlim = xyzlim + buff * [-1, 1; -1, 1; -1, 1] ;
 nU = QS.nU ;
@@ -120,12 +123,14 @@ pm256 = phasemap(256) ;
 %% Collate data from each quarter of the gut
 if strcmp(averagingStyle, 'simple')
     sKDir = fullfile(QS.dir.strainRateSimple, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f'], ...
-        lambda, lambda_mesh), '.', 'p'));
+        [strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f'], ...
+        lambda, lambda_mesh), '.', 'p'), ...
+        sprintf('_modes%02dw%02d', nmodes, zwidth)]);
 else
     sKDir = fullfile(QS.dir.strainRate.root, ...
-        strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f'], ...
-        lambda, lambda_mesh), '.', 'p'));
+        [strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f'], ...
+        lambda, lambda_mesh), '.', 'p'), ...
+        sprintf('_modes%02dw%02d', nmodes, zwidth)]);
 end
 
 %% Load or collate kymograph data

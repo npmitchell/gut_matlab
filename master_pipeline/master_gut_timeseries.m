@@ -50,7 +50,13 @@ clear; close all; clc;
 % cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data
+% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data
+% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201903211930_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150/data/
+% cd /mnt/crunch/48Ygal4UASsqhGFP/201902271940_excellent_notunpacked/Time6views_60sec_1p4um_25x_1p5mW_exp1p0_3/data/
+% cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
+cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
+
+
 % .=========.
 % |  VIP10  |
 % .=========.
@@ -90,7 +96,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 1 ;
     channelsUsed = 1 ;
-    timePoints = 10:263 ;
+    timePoints = 1:234; %86:211 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
@@ -185,20 +191,20 @@ makeMips(timePoints, dir32bit, file32Base, mipDir, Options)
 convert32to16bit(timePoints, scale, dir32bit, dir16bit_prestab,...
     file32Base, fn_prestab)
 
-%% Rename stab to prestab
-% fns = fullfile('./deconvolved_16bit/Time*stab')
-% for qq=1:length(fns)
-%     command = ['mv ' fullfile(fns.folder, fns.name) fullfile(dir16bit, fns.name
-% end
+% % Rename stab to prestab -- hack
+% % fns = fullfile('./deconvolved_16bit/Time*stab')
+% % for qq=1:length(fns)
+% %     command = ['mv ' fullfile(fns.folder, fns.name) fullfile(dir16bit, fns.name
+% % end
 
-%% -III. make MIPs for 16bit images
+% -III. make MIPs for 16bit images
 % Skip if already done
 mipDir = fullfile(dir16bit_prestab, 'mips') ;
 Options.overwrite_mips = false ;
 Options.scale = -1 ; % do NOT rescale intensities during intensity projection
 makeMips(timePoints, dir16bit_prestab, fn_prestab, mipDir, Options)
 
-%%  -II. stabilize images, based on script stabilizeImagesCorrect.m
+%  -II. stabilize images, based on script stabilizeImagesCorrect.m
 % Skip if already done
 % name of directory to check the stabilization of mips
 mips_stab_check = fullfile(mipDir, 'stab_check') ;
@@ -220,7 +226,7 @@ stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     mipDir, mipoutdir, mips_stab_check, Options)
 
 
-%%   -I. master_gut_timeseries_prestab_for_training.m
+%   -I. master_gut_timeseries_prestab_for_training.m
 % Skip if already done
 cd(dir16bit)
 dataDir = cd ;
@@ -337,27 +343,46 @@ if exist(msls_detOpts_fn, 'file') && ~overwrite_detOpts
 else
     channel = 1;
     foreGroundChannel = 1;
-    ssfactor = 4;
-    niter = 15 ;
-    niter0 = 15 ;
-    ofn_ply = 'mesh_' ; % mesh_apical_ms_stab_' ; 
-    ofn_ls = 'msls_' ; % mesh_apical_stab_' ;
-    ofn_smoothply = 'mesh_apical_stab_' ; % mesh_apical_stab_' ;
-    lambda1 = 1 ;
-    lambda2 = 1 ;
-    exit_thres = 0.0001 ;
-    if contains(projectDir, 'LifeActRuby') || contains(projectDir, 'CAAXmCherry') 
-        nu = 4 ;  % For volumetric
-        smoothing = 0.20 ;
-    else
-        nu = 0.00 ;
-        smoothing = 0.10 ;
-    end
-    pre_nu = -4 ;
-    pre_smoothing = 0 ;
-    post_nu = 3 ;
-    post_smoothing = 1 ;
+    % ssfactor = 4;
+    % niter = 15 ;
+    % niter0 = 15 ;
+    % ofn_ply = 'mesh_' ; % mesh_apical_ms_stab_' ; 
+    % ofn_ls = 'msls_' ; % mesh_apical_stab_' ;
+    % ofn_smoothply = 'mesh_apical_stab_' ; % mesh_apical_stab_' ;
+    % lambda1 = 1 ;
+    % lambda2 = 1 ;
+    % exit_thres = 0.0001 ;
+    % if contains(projectDir, 'LifeActRuby') || contains(projectDir, 'CAAXmCherry') 
+    %     nu = 4 ;  % For volumetric
+    %     smoothing = 0.20 ;
+    % else
+    %     nu = 0.00 ;
+    %     smoothing = 0.10 ;
+    % end
+    % pre_nu = -4 ;
+    % pre_smoothing = 0 ;
+    % post_nu = 3 ;
+    % post_smoothing = 1 ;
     zdim = 2 ;
+    
+    % for caax_great
+    ssfactor=4
+    niter=35
+    niter0=35
+    ofn_ply='mesh_ms_'
+    ofn_ls='msls_'
+    ofn_smoothply = 'mesh_stab_' ; % mesh_apical_stab_' ;
+    ms_scriptDir='/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/'
+    pre_nu=-5
+    pre_smoothing=0
+    lambda1=1
+    lambda2=1
+    exit_thres=0.000005
+    smoothing=0.20
+    nu=0
+    post_nu=2
+    post_smoothing=5
+    
     init_ls_fn = 'msls_initguess.h5';
     % mlxprogram = fullfile(meshlabCodeDir, ...
     %     'laplace_refine_HCLaplace_LaplaceSPreserve_QuadEdgeCollapse60kfaces.mlx') ;
@@ -402,10 +427,10 @@ else
         'mslsDir', meshDir, ...
         'ofn_ls', ofn_ls, ...
         'ofn_ply', ofn_ply,...
-        'ofn_smoothply', ofn_smoothply, ...
         'ms_scriptDir', ms_scriptDir, ...
         'timepoint', xp.currentTime, ...
         'zdim', zdim, ...
+        'ofn_smoothply', ofn_smoothply, ...
         'pre_nu', pre_nu, ...
         'pre_smoothing', pre_smoothing, ...
         'mlxprogram', mlxprogram, ...
@@ -515,7 +540,7 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(206:210)
+    for tp = xp.fileMeta.timePoints(100:end)
         try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
@@ -548,6 +573,8 @@ else
 end
 
 %% Define QuapSlap object
+nU = masterSettings.nU ;
+nV = masterSettings.nV ;
 opts.meshDir = meshDir ;
 opts.flipy = flipy ;
 opts.timeInterval = timeInterval ;
@@ -567,29 +594,42 @@ disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
 
-%% Make some mips
+%% Make some mips of shallow stacks
 adjustIV = false ; 
 % QS.makeMIPs(1, {400:490, 510:550, 570:630, 800:880}, [], adjustIV)
 stacks = {400:490, 510:550, 570:630, 800:880} ;
 QS.makeMIPs(1, stacks, [], adjustIV)
 
+%% HACK -- transpose meshes
+% xyzc -> zyxc
+for tp = QS.xp.fileMeta.timePoints
+
+    meshfn = sprintf(QS.fullFileBase.mesh, tp) ;  
+    msh = read_ply_mod(meshfn) ;
+    msh.v = msh.v(:, [2,3,1]) ;
+    msh.vn = msh.vn(:, [2,3,1]) ;
+    plywrite_with_normals(meshfn, msh.f, msh.v, msh.vn)
+end
+
 
 %% Inspect a single mesh
 % Skip if already done
-tp = 50 ;
+tp = 100 ;
 meshfn = sprintf(QS.fullFileBase.mesh, tp) ;  
 QS.setTime(tp)
 QS.getCurrentData() ;
 IV = QS.currentData.IV ;
 mesh = read_ply_mod(meshfn) ;
-for leaf=1:40:size(IV, 1)
-    inds = find(abs(mesh.v(:, 1) - leaf) < 5) ;
-    imshow(imadjust(squeeze(IV(leaf, :, :))'))
+for leaf=1:40:size(IV{1}, 1)
+    tmp = mesh.v ;
+    inds = find(abs(tmp(:, 1) - leaf) < 5) ;
+    imshow(imadjust(squeeze(IV{1}(leaf, :, :))'))
     if any(inds)
         hold on;
-        plot(mesh.v(inds, 2), mesh.v(inds, 3), 'co')
+        % plot(mesh.v(inds, 2), mesh.v(inds, 3), 'co')
+        plot(tmp(inds, 2), tmp(inds, 3), 'co')
     end
-    pause(1)
+    pause(0.2)
     clf
 end
 close all
@@ -649,7 +689,7 @@ end
 % Skip if already done
 
 % Make an output directory for the quick-and-dirty inspection
-for tp = xp.fileMeta.timePoints(180:end)
+for tp = xp.fileMeta.timePoints
     % Load the mesh
     meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;    
     mesh = read_ply_mod(meshfn) ;
@@ -936,7 +976,9 @@ clearvars normal_step
 % and, optionally, a probability cloud to exclude 
 % (applied post extraction of previous mask)
 %   -->   <QS.fileBase.name>_Probabilities_maskDorsal.h5
-QS.generateMaskedData()
+options = struct() ;
+options.maskMask = false ;
+QS.generateMaskedData(options)
 
 %% MAKE ORIENTED MASKED DATA FOR PRETTY VIDEO =============================
 % Skip if already done
@@ -990,6 +1032,12 @@ options.plot_left = true ;
 options.plot_perspective = true ;
 QS.plotSeriesOnSurfaceTexturePatch(options, Options)
 clearvars Options
+
+%% Morphsnakes demo evolution visualizeMeshEvolution orthoviews data planes
+options = struct() ;
+options.plot_evolution = false ;
+options.growth_t0 = 85 ;
+QS.visualizeMeshEvolution(options)
 
 %% Symmetry figure
 % meshL = read_ply_mod(sprintf(...
@@ -1329,6 +1377,7 @@ for tt = QS.xp.fileMeta.timePoints
     pbOptions.generate_spsm = true ;
     pbOptions.generate_sphi = false ;
     pbOptions.generate_uvprime = false ;
+    pbOptions.generate_ruvprime = true ;
     QS.data.adjustlow = adjustlow ;
     QS.data.adjusthigh = adjusthigh ;
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
@@ -1346,7 +1395,15 @@ disp('done')
 
 %% Compute whether pullback is isothermal -> metric images
 options = struct() ;
+options.overwrite = false ;
+options.makeRawMetricComponentFigures = false ;
+options.lambda_mesh = 0.002 ;
 QS.plotMetric(options) ;
+% !!! todo: continue here for diagnostic
+
+%% Compare 2nd fund form director to radon of image
+options = struct() ;
+QS.measurePolarity(options) ;
 
 %% Add radii to spcutMeshSm's in post
 % 
@@ -1400,7 +1457,7 @@ QS.plotMetric(options) ;
 %     save(sprintf(QS.fullFileBase.spcutMeshSmRSC, QS.currentTime), ...
 %         'spcutMeshSmRSC')
 %     
-%     if mod(tidx, 10) < 3
+%     if mod(tidx, 10) == 0 
 %         clf; set(gcf, 'visible', 'on')
 %         trisurf(triangulation(spcutMeshSmRSC.f, spcutMeshSmRSC.v), 'edgecolor', 'none')
 %         axis equal 
@@ -1425,6 +1482,7 @@ options.overwrite = false ;
 options.overwriteImages = false ;
 QS.generateCellSegmentation3D(options) 
 QS.plotSegmentationStatisticsLobes(options)
+
 %%
 options = struct() ;
 options.timePoints = [93:15:263] ;
@@ -1636,10 +1694,10 @@ options = struct() ;
 options.overwrite = false ;
 options.samplingResolution = '1x'; 
 options.lambda_mesh = 0 ;
-options.lambda_err = 0 ;
-options.lambda = 0 ;
+options.lambda_err = 0.00 ;
+options.lambda = 0.00 ;
 options.nmodes = 7 ;  %% bandwidth filtering
-options.zwidth = 1 ; 
+options.zwidth = 2 ; 
 QS.measureMetricKinematics(options)
 
 %% Metric Kinematics Kymographs & Correlations -- Bandwidth Filtered
@@ -1657,7 +1715,7 @@ options.plot_spaceMaps = true ;
 options.plot_raw_correlations = true ;
 options.plot_gdot_correlations = false ;
 options.plot_gdot_decomp = false ;
-options.lambda = 0 ;
+options.lambda = 0.00 ;
 options.lambda_err = 0.00 ;
 options.lambda_mesh = 0 ;
 options.nmodes = 7 ;  %% bandwidth filtering
@@ -1667,7 +1725,7 @@ QS.plotMetricKinematics(options)
 
 %% Pullback pathlines connecting Lagrangian grids
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.preview = false ;
 options.debug = false ; 
 QS.measurePullbackPathlines(options)
@@ -1683,7 +1741,7 @@ options.overwrite = false ;
 options.gridTopology = 'triangulated' ;
 QS.plotPathlineVelocities(options)
 
-%% Measure Pathline Kinematics
+% Measure Pathline Kinematics
 options = struct() ;
 options.overwrite = false ;
 options.lambda = 0 ;
@@ -1692,8 +1750,9 @@ options.lambda_mesh = 0 ;
 options.nmodes = 7 ;
 options.zwidth = 1 ; 
 QS.measurePathlineMetricKinematics(options)
+% todo: resume this BLOCK !!!
 
-%% Plot Pathline Kinematics
+% Plot Pathline Kinematics
 options = struct() ;
 options.overwrite = true ;
 options.plot_kymographs = true ;
@@ -1776,31 +1835,35 @@ QS.measureStressPattern(options) ;
 
 %% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
 options = struct() ;
-options.overwrite = true ;
-options.overwriteImages = true ;
+options.overwrite = false ;
+options.overwriteImages = false ;
 options.preview = false ;
-options.lambda = 0.001 ;
+options.lambda = 0.000 ;
+options.lambda_error = 0 ;
+options.lambda_mesh = 0 ;
+options.nmodes = 7 ;
+options.zwidth = 1 ; 
 QS.measureStrainRate(options) 
 
 %% Plot time-averaged strain rates in 3d on mesh
 options = struct() ;
 % error('This does not look great -- tweak how the averaging is done to be Lagrangian?')
-options.overwrite = true ;
+options.overwrite = false ;
 options.preview = false ;
 QS.plotStrainRate3DFiltered(options) 
 
 %% Kymograph strain rates
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.skipTimePoint = true ;
 options.clim_trace = 0.05 ;
 options.clim_deviatoric = 0.05 ;
 QS.plotStrainRate(options)
 
-%% Measure strain rate along pathlines
+% Measure strain rate along pathlines
 options = struct() ;
 options.overwrite = false ;
-options.overwriteImages = true ;
+options.overwriteImages = false ;
 options.plot_dzdp = false ;
 QS.measurePathlineStrainRate(options)
 % Integrate strain rates along pathlines (noisy)
@@ -1814,10 +1877,10 @@ QS.measurePathlineStrainRate(options)
 % options.climitRatio = 1 ;
 % QS.measurePathlineIntegratedStrain(options)
 
-%% Pathline strain rate plots
+% Pathline strain rate plots
 options = struct() ;
-options.overwrite = true ;
-options.plot_kymographs = true ;
+options.overwrite = false ;
+options.plot_kymographs = false ;
 options.plot_fold_strainRate = true ;
 options.plot_lobe_strainRate = true ;
 options.climit = 0.05 ;

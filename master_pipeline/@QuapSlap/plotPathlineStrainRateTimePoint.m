@@ -256,6 +256,7 @@ if redo_images
 
         % Save the image
         sgtitle(['strain rate, ', tstr], 'Interpreter', 'latex') 
+        disp(['saving fig: ' fn_strainRate2d])
         saveas(gcf, fn_strainRate2d) ;
         clf
     end    

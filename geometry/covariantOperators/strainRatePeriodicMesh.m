@@ -91,7 +91,9 @@ end
 try
     assert(size(vf, 1) == size(cutMesh.f, 1)) 
 catch
-    error('velocity field must be supplied on faces')
+    error(['velocity field must be supplied on faces, but ', ...
+        'size(vf) = ', num2str(size(vf)), ' while size(cutMesh.f) = ', ...
+        num2str(size(cutMesh.f))])
 end
 
 %% Tile the mesh and the associated velocity vectors to triple cover
