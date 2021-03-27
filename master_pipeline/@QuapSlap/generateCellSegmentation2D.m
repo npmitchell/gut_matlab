@@ -68,6 +68,18 @@ end
 if isfield(options, 'iLastikVersion') 
     iLastikVersion = options.iLastikVersion ;
 end
+if isfield(options, 'cellSize') 
+    cellSize = options.cellSize ;
+end
+if isfield(options, 'strelRadius') 
+    strelRadius = options.strelRadius ;
+end
+if isfield(options, 'gaussKernel') 
+    gaussKernel = options.gaussKernel ;
+end
+if isfield(options, 'heightMinimum') 
+    heightMinimum = options.heightMinimum ;
+end
 
 %% Load in h5 from ilastik.
 if strcmpi(erase(coordSys, '_'), 'spsme') 
@@ -297,7 +309,7 @@ for tp = timePoints
     
     %% Save image of the polygons
     imfn = [outfn(1:end-4) '_polygons.png'] ;
-    if ~exist(imfn, 'file') || overwrite || overwriteImages
+    if ~exist(imfn, 'file') || overwrite || overwriteImages || true
         
         imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
         im = imread(imageFn) ;
@@ -338,6 +350,9 @@ for tp = timePoints
         t0 = QS.t0set() ;
         title(['t = ' sprintf('%03d', tp - t0) ' ' QS.timeUnits])
         colormap parula
-        saveas(gcf, imfn)
+        % saveas(gcf, imfn)
+        disp(['saving image: ' imfn])
+        current_ax = getframe(gca) ;
+        imwrite(current_ax.cdata, imfn)
     end
 end
