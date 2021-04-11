@@ -65,7 +65,8 @@ end
 
 % Duplicate the first row as last in pullback space
 if isfield(mesh, 'u')
-    cutMesh.u(nU*(nV-1) + 1:nU*nV, :) = [0, vmax] + mesh.u(1:nU, :) ;
+    cutMesh.u(nU*(nV-1) + 1:nU*nV, 1) = mesh.u(1:nU, 1) ;
+    cutMesh.u(nU*(nV-1) + 1:nU*nV, 2) = mesh.u(1:nU, 2) + vmax ;
 end
 
 % Redefine faces

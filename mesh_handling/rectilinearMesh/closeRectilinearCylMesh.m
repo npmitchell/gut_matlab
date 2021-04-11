@@ -1,4 +1,4 @@
-function cmesh = closeRectilinearCylMesh(mesh)
+function cmesh = closeRectilinearCylMesh(mesh, options)
 %CLOSERECTILINEARCYLMESH(mesh)
 % Given a cut mesh (topologically, a square with implied periodicity in Y),
 % glue the mesh back together into a topological cylinder.
@@ -17,6 +17,11 @@ function cmesh = closeRectilinearCylMesh(mesh)
 %       number of vertices of constant phi in each row
 %   nV : int
 %       number of vertices of constant u in each column
+% options: struct with fields
+%   ignoreRectilinearConstraint : bool
+%       mesh.u can be of any form, not necessarily rectilinear. This is
+%       useful if the pullback coordinates are "wavy" but still connected
+%       as a rectilinear grid.
 %
 % Returns
 % -------
@@ -30,6 +35,12 @@ function cmesh = closeRectilinearCylMesh(mesh)
 % 
 % NPMitchell 2020
 
+ignoreRectilinearConstraint = false ;
+if nargin > 1
+    if isfield(options, 'ignoreRectilinearConstraint')
+        ignoreRectilinearConstraint = options.ignoreRectilinearConstraint ;
+    end
+end
 nU = mesh.nU ;
 nV = mesh.nV ;
 
@@ -42,8 +53,10 @@ if ~size(mesh.v, 2) == 3 || any(size(mesh.v) == nU)
 end
 
 % check that uv has increasing u, then increasing v
-assert(mesh.u(1, 1) ~= mesh.u(2, 1))
-assert(mesh.u(1, 2) == mesh.u(2, 2))
+if ~ignoreRectilinearConstraint
+    assert(mesh.u(1, 1) ~= mesh.u(2, 1))
+    assert(mesh.u(1, 2) == mesh.u(2, 2))
+end
 
 % Close the seam connecting u(:, 2) == 0 to u(:, 2) == 1
 cmesh.v = mesh.v(1:end-nU, :) ;

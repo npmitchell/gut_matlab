@@ -70,6 +70,7 @@ function [axs, cbs, meshHandles] = ...
 %% Default options
 nfields = length(fields) ;
 axisOff = false ;
+phasebarPosition = [0.82, 0.12, 0.1, 0.135] ;
 visible = 'off' ;
 style = 'diverging' ;
 interpreter = 'latex' ;
@@ -79,6 +80,11 @@ if nargin < 3
 end
 if isfield(options, 'visible')
     visible = options.visible ;
+end
+if isfield(options, 'subplotGrouping')
+    subplotGrouping = options.subplotGrouping ;
+else
+    subplotGrouping = [] ;
 end
 if isfield(options, 'polarStyle')
     nematic_or_polar = lower(options.polarStyle) ;
@@ -93,26 +99,35 @@ set(gcf, 'visible', visible)
 if isfield(options, 'axs')
     axs = options.axs ;
 else
-    if nfields < 4
+    axs = cell(nfields, 1) ;
+    if ~isempty(subplotGrouping)
         for qq = 1:nfields
-            axs{qq} = subplot(1, nfields, qq) ;
+            axs{qq} = subplot(subplotGrouping(1), subplotGrouping(2), qq) ;
         end
-    elseif nfields == 4
-        for qq = 1:nfields
-            axs{qq} = subplot(2, 2, qq) ;
+    else    
+        if nfields < 4
+            for qq = 1:nfields
+                axs{qq} = subplot(1, nfields, qq) ;
+            end
+        elseif nfields == 4
+            for qq = 1:nfields
+                axs{qq} = subplot(2, 2, qq) ;
+            end
+        elseif nfields < 7
+            for qq = 1:nfields
+                axs{qq} = subplot(2, 3, qq) ;
+            end
+        else
+            error('code for default axis arrangement for this number of axes')
         end
-    elseif nfields < 7
-        for qq = 1:nfields
-            axs{qq} = subplot(2, 3, qq) ;
-        end
-    else
-        error('code for default axis arrangement for this number of axes')
     end
 end
 
 % Define climits
 if isfield(options, 'clim')
     clim = options.clim ;
+elseif isfield(options, 'climit')
+    clim = options.climit ;
 end
 if isfield(options, 'clims')
     clims = options.clims ;
@@ -234,7 +249,20 @@ if isfield(options, 'makeCbar')
     end
     assert(length(makeCbar) == 1 || length(makeCbar) == nfields)
 else
-    makeCbar = ones(nfields, 1) ;
+    if isfield(options, 'masterCbar')
+        masterCbar = options.masterCbar ;
+        if ~masterCbar 
+            makeCbar = true(nfields, 1) ;
+        else
+            makeCbar = false(nfields, 1) ;
+        end
+    else
+        makeCbar = true(nfields, 1) ;
+    end
+end
+
+if isfield(options, 'phasebarPosition')
+   phasebarPosition = options.phasebarPosition ;
 end
 
 if isfield(options, 'masterCbar')
@@ -249,6 +277,7 @@ if isfield(options, 'masterCbar')
 else
     masterCbar = false ;
 end
+
 
 %% Panels
 for qq = 1:nfields
@@ -333,17 +362,21 @@ for qq = 1:nfields
         if makeCbar(qq) && isfield(options, 'cbarlabels')
             % xlabel(cbs{qq}, options.cbarlabels{qq}, 'interpreter', 'latex') 
             %set(cbs{qq}{2}, 'xlabel', options.cbarlabels{qq})
-            ylabel(cbs{qq}{2}, options.cbarlabels{qq}, 'interpreter', interpreter)
+            ylabel(cbs{qq}, options.cbarlabels{qq}, 'interpreter', interpreter)
             
         end
         
         if ~isempty(labels)
-            title(labels{qq}, 'Interpreter', 'Latex')   
+            if length(labels) > qq - 1
+                if ~isempty(labels{qq})
+                    title(labels{qq}, 'Interpreter', 'Latex')   
+                end
+            end
         end
         if isfield('cmaps', 'var')
-            colormap(cmaps{qq})
+            colormap(axs{qq}, cmaps{qq})
         else
-            colormap(cmap)
+            colormap(axs{qq}, cmap)
         end
     else
         % Nematic field or polar field
@@ -356,12 +389,16 @@ for qq = 1:nfields
                 clim_dev = clims{qq} ;
             elseif numel(clims{qq}) == 2
                 clim_dev = clims{qq}(2) ;
+            elseif numel(clims{qq}) == 0
+                clim_dev = max(abs(dev(:))) ;
             end
         elseif exist('clim', 'var')
             if numel(clim) == 1
                 clim_dev = clim ;
             elseif numel(clim) == 2
                 clim_dev = clim(2) ;
+            elseif numel(clims{qq}) == 0
+                clim_dev = max(abs(dev(:))) ;
             else
                 error('clim provided has > 2 elements')
             end
@@ -375,19 +412,36 @@ for qq = 1:nfields
         if strcmpi(nematic_or_polar, 'nematic')
             indx = max(1, round(mod(2*theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
         else
-            indx = max(1, round(mod(theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
+            % Range of colormap is -pi to pi, so add pi to index at zero!
+            indx = max(1, round(mod(theta(:)+pi, 2*pi)*size(pm256, 1)/(2 * pi))) ;
         end
         colors = pm256(indx, :) ;
         colors = min(dev(:) / clim_dev, 1) .* colors ;
         
         if isa(mesh, 'struct')
-            meshHandles{qq} = trisurf(mesh.f, mesh.v(:, 1), ...
-                mesh.v(:, 2), mesh.v(:, 3), ...
-                'FaceVertexCData', colors, 'edgecolor', edgecolor) ;
+            if size(mesh.v, 2) == 3
+                meshHandles{qq} = trisurf(mesh.f, mesh.v(:, 1), ...
+                    mesh.v(:, 2), mesh.v(:, 3), ...
+                    'FaceVertexCData', colors, 'edgecolor', edgecolor) ;
+            elseif size(mesh.v, 2) == 2
+                meshHandles{qq} = trisurf(mesh.f, mesh.v(:, 1), ...
+                    mesh.v(:, 2), 0*mesh.v(:, 1), ...
+                    'FaceVertexCData', colors, 'edgecolor', edgecolor) ;
+            else
+                error('mesh.v must be 2d or 3d list of vector coordinates')
+            end
         elseif isa(mesh, 'cell')    
-            meshHandles{qq} = trisurf(mesh{1}, mesh{2}(:, 1), ...
-                mesh{2}(:, 2), mesh{2}(:, 3), ...
-                'FaceVertexCData', colors, 'edgecolor', edgecolor) ;
+            if size(mesh{2}, 2) == 3
+                meshHandles{qq} = trisurf(mesh{1}, mesh{2}(:, 1), ...
+                    mesh{2}(:, 2), mesh{2}(:, 3), ...
+                    'FaceVertexCData', colors, 'edgecolor', edgecolor) ;
+            elseif size(mesh.v, 2) == 2
+                meshHandles{qq} = trisurf(mesh.f, mesh.v(:, 1), ...
+                    mesh.v(:, 2), 0*mesh.v(:, 1), ...
+                    'FaceVertexCData', colors, 'edgecolor', edgecolor) ;
+            else
+                error('mesh.v must be 2d or 3d list of vector coordinates')
+            end
         end
         axis equal
         if ~isempty(labels)
@@ -399,7 +453,7 @@ for qq = 1:nfields
             colormap(gca, phasemap)
             cbs{qq} = cell(2, 1) ;
             cbs{qq}{1} = phasebar('colormap', phasemap, ...
-                'location', [0.82, 0.12, 0.1, 0.135], 'style', nematic_or_polar) ;
+                'location', phasebarPosition, 'style', nematic_or_polar) ;
             shrink = max(0.6 - 0.1 * (mod(nfields, 3)-2), 0.1) ;
             % axis off
             % view(2)

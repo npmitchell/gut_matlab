@@ -2,6 +2,11 @@ function generateCellSegmentation2D(QS, options)
 % Unfinished code -- Lin working on it.
 % ToDo: 
 %
+% Parameters
+% ----------
+%   QS : 
+%   options : struct with fields
+%       coordSys : coordinate system on which to compute the segmentation
 %
 % tissueAnalysisSuite fields are different than QuapSlap's. 
 % Tor tissueAnalysisSuite, we have:
@@ -30,6 +35,7 @@ function generateCellSegmentation2D(QS, options)
 
 %% Parameters
 overwrite = false ;
+skipPolygons = false ;
 overwriteImages = false ;
 % timepoints to process
 timePoints = QS.xp.fileMeta.timePoints ;
@@ -52,6 +58,9 @@ end
 
 if isfield(options, 'overwrite') 
     overwrite = options.overwrite ;
+end
+if isfield(options, 'skipPolygons') 
+    skipPolygons = options.skipPolygons ;
 end
 if isfield(options, 'overwriteImages') 
     overwriteImages = options.overwriteImages ;
@@ -89,7 +98,7 @@ if strcmpi(erase(coordSys, '_'), 'spsme')
         error(['Populate ' Folder ' with pixelClassification on pullbacks with coordSys ' coordSys])
     end
     filebase = [QS.fileBase.im_sp_sme(1:end-4) '_Probabilities.h5'] ;
-elseif strcmpi(erase(coordSys, '_'), 'sp_rsme')
+elseif strcmpi(erase(coordSys, '_'), 'sprsme')
     Folder = [QS.dir.im_r_sme, '_pixelClassification'] ;
     if ~exist(Folder, 'dir')
         mkdir(Folder)
@@ -183,19 +192,22 @@ for tp = timePoints
         % Assign polygons to vdat
         NL = vdat.NL ;
         coordSys = lower(erase(coordSys, '_')) ;
-        if strcmpi(coordSys, 'spsme')
+        if strcmpi(erase(coordSys, '_'), 'spsme') || ...
+                strcmpi(erase(coordSys, '_'), 'rspsme')
             % provide ROI in [minx, maxx; miny, maxy]
-            ROI = [-eps, size(segIm, 2) + eps; round([0.25, 0.75] * size(segIm, 2))] ;
+            ROI = [-eps, size(segIm, 2) + eps; round([0.25, 0.75] * size(segIm, 1))] ;
         else
             error('Handle this coordSys here')
         end
         opts = struct() ;
         opts.roi = ROI ;
-        polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL, opts) ;
-
+        
         seg2d.vdat = vdat ;
         seg2d.cdat = struct() ;
-        seg2d.cdat.polygons = polygons ;
+        if ~skipPolygons
+            polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL, opts) ;
+            seg2d.cdat.polygons = polygons ;
+        end
         seg2d.cdat.centroid = zeros(length(seg2d.Cdat), 2) ;
         for cid = 1:length(seg2d.Cdat)
             seg2d.cdat.centroid(cid, :) = seg2d.Cdat(cid).centroid.coord ;
@@ -309,7 +321,7 @@ for tp = timePoints
     
     %% Save image of the polygons
     imfn = [outfn(1:end-4) '_polygons.png'] ;
-    if ~exist(imfn, 'file') || overwrite || overwriteImages || true
+    if ~exist(imfn, 'file') || overwrite || overwriteImages || ~skipPolygons
         
         imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
         im = imread(imageFn) ;

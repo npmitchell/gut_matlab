@@ -1,4 +1,5 @@
-function [vfield3d, jacobian_2d_to_3d] = pushVectorField2Dto3DMesh(vfield2d, v2d, v3d, ff, fieldfaces)
+function [vfield3d, jacobian_2d_to_3d] = ...
+    pushVectorField2Dto3DMesh(vfield2d, v2d, v3d, ff, fieldfaces)
 %PUSHVECTORFIELD2DTO3DMESH(vfield2d, v2d, v3d, ff, fieldfaces)
 % Push a vector field defined on faces of a mesh from a 2d mesh to its 3d
 % embedding.
@@ -28,8 +29,16 @@ function [vfield3d, jacobian_2d_to_3d] = pushVectorField2Dto3DMesh(vfield2d, v2d
 
 jacobian_2d_to_3d = jacobian2Dto3DMesh(v2d, v3d, ff) ;
 
+if nargin < 5
+    if size(vfield2d, 1) == size(ff, 1)
+        fieldfaces = 1:size(ff, 1) ;
+    else
+        error('First pass fieldfaces, obtainable via pointLocation(tri)')
+    end
+end
+
 % Push Vector Fields Forward to 3D 
 vfield3d = zeros(size(vfield2d, 1), 3);
-for f = 1:size(fieldfaces,1)
+for f = 1:length(fieldfaces)
     vfield3d(f,:) = jacobian_2d_to_3d{fieldfaces(f)} * vfield2d(f,:)';
 end

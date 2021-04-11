@@ -1,4 +1,4 @@
-function [divs, rots, harms, glueMesh] = ...
+function [divs, rots, harms, lapvs, glueMesh] = ...
     helmHodgeDECRectGridPullback(cutM, facevf, Options, varargin)
 % helmHodgeDECRectGridPullback(cutM, facevf, varargin)
 %   Perform Hodge decomposition using discrete exterior calculus on
@@ -223,6 +223,14 @@ DEC = DiscreteExteriorCalculus( glueMesh.f, glueMesh.v ) ;
 
 divv = DEC.divergence(v0t) ;
 rotv = DEC.curl(v0t) ;
+[~, gF2V] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
+lapv = DEC.laplacian(v0t) ;
+
+% % Check that this gives the same thing as laplacian dim by dim
+% checks = 0*lapv ;
+% for dim = 1:3
+%     checks(:, dim) = DEC.laplacian(gF2V * v0t(:, dim)) ;
+% end
 
 % Clip the fields using supplied bounds for valid values
 divv(divv < clipDiv(1)) = clipDiv(1) ;
@@ -347,14 +355,25 @@ if do_calibration && false
     saveas(gcf, fullfile(outdir, 'smoothing_error_analysis2.png'))
 end
 
-%% LAPLACIAN SMOOTHING for divergence field
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% LAPLACIAN SMOOTHING for divergence field (on vertices)
 if nmodes > 0 || zwidth > 0
-    disp('Mode filtering divv on vertices')
+    disp('Mode filtering divv and lapv on vertices')
     filterOpts.nmodesY = nmodes ;
     filterOpts.widthX = zwidth ;
     divvm = modeFilterQuasi1D(reshape(divv, [nU, (nV-1)]), filterOpts) ;
+    lapvm = zeros(nU*(nV-1), 3) ;
+    tmpX = modeFilterQuasi1D(reshape(lapv(:, 1), [nU, (nV-1)]), filterOpts) ;
+    tmpY = modeFilterQuasi1D(reshape(lapv(:, 2), [nU, (nV-1)]), filterOpts) ;
+    tmpZ = modeFilterQuasi1D(reshape(lapv(:, 3), [nU, (nV-1)]), filterOpts) ;
+    lapvm(:, 1) = tmpX(:) ;
+    lapvm(:, 2) = tmpY(:) ;
+    lapvm(:, 3) = tmpZ(:) ;
 else
     divvm = divv ;
+    lapvm = lapv ;
 end
 
 if lambda_smooth > 0 
@@ -362,8 +381,16 @@ if lambda_smooth > 0
     fixed_verts = [] ;  % note: could use boundaries here, seems unnecessary
     divvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
         lambda_smooth, 'explicit', divvm(:), max_niter_div) ;
+    lapvsm = lapvm ;
+    lapvsm(:, 1) = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+        lambda_smooth, 'explicit', lapvm(:, 1), max_niter_div) ;
+    lapvsm(:, 2) = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+        lambda_smooth, 'explicit', lapvm(:, 2), max_niter_div) ;
+    lapvsm(:, 3) = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+        lambda_smooth, 'explicit', lapvm(:, 3), max_niter_div) ;
 else
     divvsm = divvm(:) ;
+    lapvsm = reshape(lapvm, [nU*(nV-1), 3]) ;
 end
 
 % View results on divergence
@@ -428,7 +455,6 @@ end
 
 %% SMOOTHING on vertices (rotation field)
 fixed_verts = [] ;  % note: could use boundaries here, seems unnecessary
-[~, gF2V] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
 rotvsm = gF2V * rotv ;
 % Spectral filtering
 if nmodes > 0 
@@ -450,6 +476,7 @@ rotvsm = rotvsm(:) ;
 divvCut = divvsm(glue2cut) ;
 % note: rot was on faces, and faces are preserved, but now on vertices
 rotvCut = rotvsm(glue2cut) ; 
+lapvCut = lapvsm(glue2cut, :) ;
 
 % Note: rotU, divU, and harmU are on faces, and faces are preserved when
 % converting from glueMesh to cutMesh
@@ -480,8 +507,9 @@ for dim=1:2
         'Weight', 'Area', 'Method', method, 'Epsilon', eps, ...
         'niter', niterU2d_harm) ;
 end
-    
-% Store fields in structs
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Store fields in structs
 divs.raw = divv ;
 divs.divv = divvCut ;
 divs.divU = divU ;
@@ -492,6 +520,8 @@ rots.rotU = rotU ;
 rots.rotU2d = rotU2d ;
 harms.harmU = harmU ;
 harms.harmU2d = harmU2d ;
+lapvs.raw = lapv ;
+lapvs.lapv = lapvCut ;
 
 return
 

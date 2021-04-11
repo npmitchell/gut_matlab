@@ -4,7 +4,12 @@
 % This is a pipeline to segment confocal data & take MIPs
 
 % temporary path def
-cd /mnt/data/confocal_data/gut/2020/mef2GAL4klarUASsqhGFPUASCAAXmCh/202010191649_mef2GAL4klarUASsqhGFPUASCAAXmCh_40x1p6x_240spf_0p4um_5to10pc3p5to7pc_oilImmersol/
+% cd /mnt/data/confocal_data/gut/2020/mef2GAL4klarUASsqhGFPUASCAAXmCh/202010191649_mef2GAL4klarUASsqhGFPUASCAAXmCh_40x1p6x_240spf_0p4um_5to10pc3p5to7pc_oilImmersol/
+
+dataDir = '/mnt/data/optogenetics_confocal/' ;
+dataDir = [dataDir 'antpGAL4/huygens_deconvolution_20210325/'] ;
+dataDir = [dataDir '202103181730_antpG4OCRLGap43mCh_40x1p6x_5mpf_4pc3pc_to_12pc9pc_600ns_lav3_DC/'] ;
+cd(dataDir)
 gutDir = '/mnt/data/code/gut_matlab/' ;
 addpath(fullfile(gutDir, 'addpath_recurse'))
 addpath_recurse(gutDir)
@@ -20,6 +25,39 @@ clear; close all; clc;
 
 dataDir    =  cd; 
 projectDir = dataDir ;
+
+% A filename base template - to be used throughout this script
+% the 32 bit fn
+fn = '' ;
+% the 16 bit fn
+file16name = 'antpOCRLgap43_T%03d' ;     
+um2pix = 5.6284 ;
+resolution = [1/um2pix, 1/um2pix, 1.4] ;
+timepoints = 1:38 ;
+
+%% Join data into stacks
+fns0 = dir('./splitChannels/*ch00.tif') ;
+fns1 = dir('./splitChannels/*ch01.tif') ;
+for tidx = 1:length(fns0)
+    fn0 = fullfile(fns0(tidx).folder, fns0(tidx).name) ;
+    fn1 = fullfile(fns1(tidx).folder, fns1(tidx).name) ;
+    fn2 = sprintf([file16name '.tif'], tidx) ;
+    
+    if ~exist(fn2, 'file')
+
+        im0 = readTiff4D(fn0, 1) ;
+        im1 = readTiff4D(fn1, 1) ;
+        im = cat(4, im0, im1) ;
+
+        writeTiff5D(permute(im, [1, 2, 4, 3]), fn2)
+
+        % % check it
+        % for qq = 1:size(im0, 3)
+        %   imagesc(squeeze(im0(:, :, qq))) ;
+        %   pause(0.01)
+        % end
+    end
+end
 
 %% CREATE EXPERIMENT
 % Start by creating an experiment object, optionally pass on the project
@@ -51,19 +89,14 @@ xp = project.Experiment(projectDir, dataDir);
 % * 'stackSize'         , size of stack in pixels per dimension 
 %                         [xSize ySize zSize]
 % * 'swapZT'            , set=1 if time is 3rd dimension and z is 4th
-
-% A filename base template - to be used throughout this script
-% the 32 bit fn
-fn = '' ;
-% the 16 bit fn
-file16name = '202010191649_T%02d' ;                   
+              
 
 fileMeta                    = struct();
 fileMeta.dataDir            = dataDir;
 fileMeta.filenameFormat     = [fn, '.tif'];
 fileMeta.nChannels          = 2;
-fileMeta.timePoints         = 0:66;
-fileMeta.stackResolution    = [0.22674292866082602, 0.22674292866082602, 0.4] ; % the px resolution (found in the .lif; 4 dec places)
+fileMeta.timePoints         = timepoints;
+fileMeta.stackResolution    = resolution ; % the px resolution (found in the .lif; 4 dec places)
 fileMeta.swapZT             = 0;
 
 % Set required additional information on the experiment. A verbal data set

@@ -148,7 +148,7 @@ else
     ricciMeshFn = sprintf(QS.fullFileBase.ricciMesh, maxIter, tp) ;
 end
 if ~exist(ricciMeshFn, 'file') || overwrite
-    disp('ricciMesh not on disk, computing...')
+    disp(['ricciMesh not on disk, computing: ' ricciMeshFn])
     
     % Load or compute ricci flow solution (initial mapping)
     if pathline_computation

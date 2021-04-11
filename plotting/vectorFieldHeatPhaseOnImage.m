@@ -156,8 +156,13 @@ try
         xx = xyfstruct.x ;
         yy = xyfstruct.y ;
     catch
-        xx = xyfstruct.v(:, 1) ;
-        yy = xyfstruct.v(:, 2) ;
+        try
+            xx = xyfstruct.v(:, 1) ;
+            yy = xyfstruct.v(:, 2) ;
+        catch
+            xx = xyfstruct.vertices(:, 1) ;
+            yy = xyfstruct.vertices(:, 2) ;
+        end
     end
 catch
     error('Must supply either fields x,y or field v to xyfstruct')
@@ -179,6 +184,7 @@ if size(speed, 1) == numel(xx) && size(speed, 2) == numel(yy)
     set(h2, 'AlphaData', speed / vscale)
 elseif isfield(xyfstruct, 'f') || isfield(xyfstruct, 'faces') 
     gridded_data = false ;
+    
     if isfield(xyfstruct, 'f')
         ff = xyfstruct.f ;
     elseif isfield(xyfstruct, 'faces')
@@ -251,6 +257,7 @@ if overlay_quiver
         yq = 1:qsubsample:hh ;
         [xg, yg] = meshgrid(xx(xq), yy(yq)) ;
     elseif nPts == 0
+        
         disp('Taking linear subsampling since nPts == 0')
         rx = xx(:) ;
         ry = yy(:) ;

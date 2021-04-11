@@ -18,7 +18,6 @@ function [g, b] = constructFundamentalForms(F, V, x)
 %
 % See also
 % metricSPhiGridMesh.m
-% QS.measurePathlineStrain()
 %
 %   by Dillon Cislo 07/09/2020
 

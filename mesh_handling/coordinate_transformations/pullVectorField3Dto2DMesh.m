@@ -29,6 +29,10 @@ function [vfield2d, jac3d_to_2d] = ...
 
 jac3d_to_2d = jacobian3Dto2DMesh(v2d, v3d, ff) ;
 
+if nargin < 5
+    fieldfaces = 1:size(ff, 1) ;
+end
+
 % Pullback Vector Fields to Domain of Parameterization ====================
 vfield2d = zeros(size(fieldfaces, 1), 2);
 for f = 1:length(fieldfaces)

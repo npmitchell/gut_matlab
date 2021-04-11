@@ -56,7 +56,11 @@ for tt = QS.xp.fileMeta.timePoints
         fullfile(HSmDir, 'dorsal', sprintf('meancurv_dorsal_%06d.png', tt)), ...
         fullfile(HSmDir, 'latright', sprintf('meancurv_latright_%06d.png', tt)),...
         fullfile(HSmDir, 'ventral', sprintf('meancurv_ventral_%06d.png', tt))} ;
-    KHfn = fullfile(KHSmDir, sprintf('gauss_mean_curvature_%06d.mat', tt)) ;
+    
+    KHfn = sprintf(QS.fullFileBase.curvatures, tt) ;
+    % Note this used to say:
+    % KHfn = fullfile(KHSmDir, sprintf('gauss_mean_curvature_%06d.mat', tt)) ;
+    
     if ~exist(KHfn, 'file') || overwrite
         % load glued / closed mesh for curvature computation
         load(sprintf(QS.fullFileBase.spcutMeshSmRSC, tt), 'spcutMeshSmRSC') ;

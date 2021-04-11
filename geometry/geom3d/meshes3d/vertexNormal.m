@@ -24,6 +24,7 @@ function normals = vertexNormal(vertices, faces)
 % Created: 2011-12-19,    using Matlab 7.9.0.529 (R2009b)
 % Copyright 2011 INRA - Cepia Software Platform.
 
+error('Not Recommended: use gptoolbox per_vertex_normal(v,f, Weighting, angle) instead')
 
 nv = size(vertices, 1);
 nf = size(faces, 1);

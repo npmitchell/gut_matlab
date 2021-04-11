@@ -211,6 +211,24 @@ if dynamic
         fullfile(uvDir, 'strainRate', l_lmesh, 'pathline_%04dt0') ;
     QS.dir.strainRate.pathline.measurements = ...
         fullfile(QS.dir.strainRate.pathline.root, 'measurements') ;
+    
+    
+    %% Forces from stokes force balance    
+    % Metric strain dirs
+    QS.dir.stokesForces = struct() ;
+    QS.dir.stokesForces.root = fullfile(uvDir, 'stokesForces') ;
+    QS.dir.stokesForces.smoothing = fullfile(uvDir, 'stokesForces', ...
+        l_lmesh_lerr) ;
+    QS.dir.stokesForces.measurements = ...
+        fullfile(uvDir, 'stokesForces', l_lmesh_lerr, 'measurements') ;
+    QS.fullFileBase.stokesForces = struct() ;
+    QS.fullFileBase.stokesForces.Lapv = ...
+        fullfile(QS.dir.metricKinematics.measurements, 'Lapv_vertices_%06d') ;
+    QS.fullFileBase.stokesForces.Kv = ...
+        fullfile(QS.dir.metricKinematics.measurements, 'Kv_vertices_%06d') ;
+    QS.fullFileBase.stokesForces.gradP = ...
+        fullfile(QS.dir.metricKinematics.measurements, 'gradP_vertices_%06d') ;
+
 end
 
 % shorten variable names for brevity
@@ -333,6 +351,7 @@ else
     KSmDir = fullfile(KHSmDir, 'gauss') ;
     HSmDir = fullfile(KHSmDir, 'mean') ;
 end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Port into QS
 % (already above) QS.dir.cutMesh = fullfile(meshDir, 'cutMesh') ;
@@ -417,6 +436,7 @@ QS.dir.foldHoopIm = foldHoopImDir ;
 QS.dir.curvatures = KHSmDir ;
 QS.dir.meanCurvature = HSmDir ;
 QS.dir.gaussCurvature = KSmDir ;
+QS.fullFileBase.curvatures = fullfile(QS.dir.curvatures, 'gauss_mean_curvature_%06d.mat') ;
 QS.fullFileBase.cutMesh = ...
     fullfile(QS.dir.cutMesh, [QS.fileBase.name, '_cutMesh.mat']) ;
 QS.fullFileBase.phi0fit = ...
@@ -540,6 +560,10 @@ QS.fullFileBase.segmentation2d = fullfile(QS.dir.segmentation, 'seg2d', ...
      [QS.fileBase.segmentation2d '.mat']) ;
 QS.fullFileBase.segmentation3d = fullfile(QS.dir.segmentation, 'seg3d', ...
      [QS.fileBase.segmentation3d '.mat']) ;
+QS.fullFileBase.segmentation2dCorrected = fullfile(QS.dir.segmentation, 'seg2d_corrected', ...
+     [QS.fileBase.segmentation2d '.mat']) ;
+QS.fullFileBase.segmentation2dCorrectedBinary = fullfile(QS.dir.segmentation, 'seg2d_corrected', ...
+     'binary_maps', [QS.fileBase.segmentation2d '_binary_map.png']) ;
  
 % nuclei only for voronoi measurement (could be ID'd through membrane training)
 QS.fullFileBase.cellProbabilities = ...
@@ -744,6 +768,9 @@ if dynamic
     % Helmholtz-Hodge and DEC -- Lagrangian averaging
     QS.dir.piv.avgDEC = struct() ;
     QS.dir.piv.avgDEC.data   = fullfile(QS.dir.piv.avg, 'dec') ;
+    QS.dir.piv.avgDEC.lap2d   = fullfile(QS.dir.piv.avg, 'dec_lap2d') ;
+    QS.dir.piv.avgDEC.lap3d   = fullfile(QS.dir.piv.avg, 'dec_lap3d') ;
+    QS.dir.piv.avgDEC.lap3dTexture = fullfile(QS.dir.piv.avg, 'dec_lap3dTexture') ;
     QS.dir.piv.avgDEC.div2d  = fullfile(QS.dir.piv.avg, 'dec_div2d') ;
     QS.dir.piv.avgDEC.div3d  = fullfile(QS.dir.piv.avg, 'dec_div3d') ;
     QS.dir.piv.avgDEC.div3dTexture = fullfile(QS.dir.piv.avg, 'dec_div3dTexture') ;
@@ -766,6 +793,9 @@ if dynamic
     % Helmholtz-Hodge and DEC -- simple/surface-Lagrangian averaging
     QS.dir.pivRawDEC = struct() ;
     QS.dir.pivRawDEC.data   = fullfile(QS.dir.pivRaw, 'dec') ;
+    QS.dir.pivRawDEC.lap2d   = fullfile(QS.dir.pivRaw, 'dec_lap2d') ;
+    QS.dir.pivRawDEC.lap3d   = fullfile(QS.dir.pivRaw, 'dec_lap3d') ;
+    QS.dir.pivRawDEC.lap3dTexture = fullfile(QS.dir.pivRaw, 'dec_lap3dTexture') ;
     QS.dir.pivRawDEC.div2d  = fullfile(QS.dir.pivRaw, 'dec_div2d') ;
     QS.dir.pivRawDEC.div3d  = fullfile(QS.dir.pivRaw, 'dec_div3d') ;
     QS.dir.pivRawDEC.div3dTexture = fullfile(QS.dir.pivRaw, 'dec_div3dTexture') ;
@@ -791,6 +821,9 @@ if dynamic
     % Helmholtz-Hodge and DEC -- simple/surface-Lagrangian averaging
     QS.dir.pivSimAvgDEC = struct() ;
     QS.dir.pivSimAvgDEC.data   = fullfile(QS.dir.pivSimAvg, 'dec') ;
+    QS.dir.pivSimAvgDEC.lap2d   = fullfile(QS.dir.pivRaw, 'dec_lap2d') ;
+    QS.dir.pivSimAvgDEC.lap3d   = fullfile(QS.dir.pivRaw, 'dec_lap3d') ;
+    QS.dir.pivSimAvgDEC.lap3dTexture = fullfile(QS.dir.pivRaw, 'dec_lap3dTexture') ;
     QS.dir.pivSimAvgDEC.div2d  = fullfile(QS.dir.pivSimAvg, 'dec_div2d') ;
     QS.dir.pivSimAvgDEC.div3d  = fullfile(QS.dir.pivSimAvg, 'dec_div3d') ;
     QS.dir.pivSimAvgDEC.div3dTexture = fullfile(QS.dir.pivSimAvg, 'dec_div3dTexture') ;

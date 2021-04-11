@@ -1606,6 +1606,7 @@ classdef QuapSlap < handle
         
         % Cell segmentation
         generateCellSegmentation2D(QS, options)
+        processCorrectedCellSegmentation2D(QS, options)
         generateCellSegmentation3D(QS, options)
         generateCellSegmentationPathlines3D(QS, options)
         function seg2d = getCurrentSegmentation2D(QS, options)
@@ -2325,6 +2326,9 @@ classdef QuapSlap < handle
         plotMetricKinematics(QS, options)
         measurePathlineMetricKinematics(QS, options)
         plotPathlineMetricKinematics(QS, options)
+        
+        %% infer stokes forces
+        measureStokesForces(QS, options)
         
         %% Strain RATE
         measureMetricStrainRate(QS, options)

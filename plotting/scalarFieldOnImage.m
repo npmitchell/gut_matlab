@@ -76,7 +76,7 @@ end
 
 %% Unpack options for style (diverging, positive, negative) and cmap
 style = 'diverging' ;     % default is diverging
-label_interpreter = 'latex' ; % for colorbar label
+label_interpreter = 'Latex' ; % for colorbar label
 if ~isempty(varargin)
     for i = 1:length(varargin)
         if isa(varargin{i},'double') 
@@ -238,20 +238,23 @@ alpha(alphaVal) ;
 if ~isempty(titlestr)
     if ~strcmp(label_interpreter, 'default') && ~strcmp(label_interpreter, 'none')
         title(titlestr, 'Interpreter', label_interpreter) ;
+    else
+        title(titlestr) ;
     end
-    title(titlestr) ;
 end
 if ~isempty(xlabelstr)
     if ~strcmp(label_interpreter, 'default') && ~strcmp(label_interpreter, 'none')
         xlabel(xlabelstr, 'Interpreter', label_interpreter) ;
+    else
+        xlabel(xlabelstr) ;
     end
-    xlabel(xlabelstr) ;
 end
 if ~isempty(ylabelstr)
     if ~strcmp(label_interpreter, 'default') && ~strcmp(label_interpreter, 'none')
         ylabel(ylabelstr, 'Interpreter', label_interpreter) ;
+    else
+        ylabel(ylabelstr) ;
     end
-    ylabel(ylabelstr) ;
 end
 
 %% Colorbar settings
@@ -267,7 +270,7 @@ cdata(end,:) = uint8(alphaVal * cdata(end,:));
 c.Face.Texture.ColorType = 'truecoloralpha';
 % Update the color data with the new transparency information
 c.Face.Texture.CData = cdata;
-c.Label.String = label ;
 if ~strcmp(label_interpreter, 'default') && ~strcmp(label_interpreter, 'none')
     c.Label.Interpreter = label_interpreter ;
 end
+c.Label.String = label ;

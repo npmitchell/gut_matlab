@@ -1,6 +1,9 @@
 function helmholtzHodge(QS, options) 
 %helmholtzHodge(QS, options) 
-%   Take divergence and "curl" on 2d evolving surface in 3d
+%   - Compute DEC divergence and DEC "curl" on 2d evolving surface in 3d.
+%   - Compute laplacian in covariant frame 
+%   - Compute scalar fields representing rotational and harmonic components
+%   - Store all on disk. 
 %
 % Parameters
 % ----------
@@ -21,7 +24,7 @@ function helmholtzHodge(QS, options)
 %   clipRot : float (default=0.5)
 %       max allowed vorticity measurement
 %
-% NPMitchell 2020
+% NPMitchell 2020/2021
 
 %% Default options
 overwrite = false ;
@@ -30,6 +33,7 @@ qsubU = 5 ;
 qsubV = 10 ;
 niter_smoothing = [1000, 1000, 1000] ;
 plot_dec_pullback = true ;
+plot_lap_pullback = true ;
 plot_dec_texturepatch = false ;
 preview = false ;
 pivimCoords = QS.piv.imCoords ;
@@ -43,6 +47,7 @@ clipDiv = 5.0 ;                     % max allowed divergence measurement
 clipRot = 0.5 ;                     % max allowed vorticity measurement
 sscaleDiv = 0.5 ;                   % climit (color limit) for divergence
 sscaleRot = 0.15 ;                  % climit (color limit) for vorticity
+sscaleLap = 0.05 ;                  % climit (color limit) for Laplacian of vel
 
 %% Unpack options
 if isfield(options, 'samplingResolution')
@@ -122,13 +127,13 @@ if strcmp(averagingStyle, 'Lagrangian')
         QS.getVelocityAverage2x('vf', 'v2dum') ;
         vf = QS.velocityAverage2x.vf ;
         v2dum = QS.velocityAverage2x.v2dum ;
-        decDirRoot = QS.dir.pivAvgDEC2x ;
+        decDirRoot = QS.dir.piv.avgDEC2x ;
         decFnBase = QS.fullFileBase.decAvg2x ;
     else
         QS.getVelocityAverage('vf', 'v2dum') ;
         vf = QS.velocityAverage.vf ;
         v2dum = QS.velocityAverage.v2dum ;
-        decDirRoot = QS.dir.pivAvgDEC ;
+        decDirRoot = QS.dir.piv.avgDEC ;
         decFnBase = QS.fullFileBase.decAvg ;    
     end
 elseif strcmp(averagingStyle, 'simple') 
@@ -154,13 +159,13 @@ elseif strcmp(averagingStyle, 'simple')
 elseif strcmp(averagingStyle, 'none') 
     if doubleResolution
         QS.getVelocityRaw('vf', 'v2dum') ;
-        vf = QS.velocitySimpleAverage2x.vf ;
-        v2dum = QS.velocitySimpleAverage2x.v2dum ;
+        vf = QS.velocityRaw2x.vf ;
+        v2dum = QS.velocityRaw2x.v2dum ;
         decDirRoot = QS.dir.pivRawDEC2x ;
         nU = 2 * QS.nU - 1 ;
         nV = 2 * QS.nV - 1 ;
         piv3dFileBase = QS.fullFileBase.piv3d2x ;
-        decFnBase = QS.fullFileBase.decSimAvg2x ;
+        decFnBase = QS.fullFileBase.dec2x ;
     else
         QS.getVelocityRaw('vf', 'v2dum') ;
         vf = QS.velocityRaw.vf ;
@@ -169,7 +174,7 @@ elseif strcmp(averagingStyle, 'none')
         nU = QS.nU ;
         nV = QS.nV ;
         piv3dFileBase = QS.fullFileBase.piv3d ;
-        decFnBase = QS.fullFileBase.decSimAvg ;
+        decFnBase = QS.fullFileBase.dec ;
     end
 else
     error('averagingStyle not recognized. Use Lagrangian or simple')
@@ -188,9 +193,13 @@ rDir3d = decDirRoot.rot3d ;
 rDir3dt = decDirRoot.rot3dTexture ;
 hDir2d = decDirRoot.harm2d ;
 hDir3d = decDirRoot.harm3d ;
+LDir2d = decDirRoot.lap2d ;
+LDir3d = decDirRoot.lap3d ;
+LDir3dt = decDirRoot.lap3dTexture ;
 % create the output dirs
 dirs2do = {decDir, dDir2d, dDir3d, dDir3dt, ...
     rDir2d, rDir3d, rDir3dt, ...
+    LDir2d, LDir3d, LDir3dt, ...
     hDir2d, hDir3d} ;
 for i = 1:length(dirs2do)
     ensureDir(dirs2do{i}) ;
@@ -215,10 +224,20 @@ for tidx = tidx2do
     decDataFn = sprintf(decFnBase, tp) ;
     
     % Prepare filenames
+    % pullback view of divergence
     div2dfn = fullfile(dDir2d, [sprintf(fname, tp) '_div2d.png']) ; 
+    % lateral view of surface plot
     div3dfn_lateral = fullfile(dDir3d, ['lateral_' sprintf(fname, tp) '_div3d.png']) ;
+    % ventral view of surface plot
     div3dfn_ventral = fullfile(dDir3d, ['ventral_' sprintf(fname, tp) '_div3d.png']) ;
+    % texture patch overlay
     div3dtfn = fullfile(dDir3dt, [sprintf(fname, tp) '_divt3d.png']) ;
+    
+    lap2dfn = fullfile(LDir2d, [sprintf(fname, tp) '_lap2d.png']) ; 
+    lap3dfn_lateral = fullfile(LDir3d, ['lateral_' sprintf(fname, tp) '_lap3d.png']) ;
+    lap3dfn_ventral = fullfile(LDir3d, ['ventral_' sprintf(fname, tp) '_lap3d.png']) ;
+    lap3dtfn = fullfile(LDir3dt, [sprintf(fname, tp) '_lapt3d.png']) ;
+    
     rot2dfn = fullfile(rDir2d, [sprintf(fname, tp) '_rot2d.png']) ;
     rot3dfn_lateral = fullfile(rDir3d, ['lateral_' sprintf(fname, tp) '_rot3d.png']) ;
     rot3dfn_ventral = fullfile(rDir3d, ['ventral_' sprintf(fname, tp) '_rot3d.png']) ;
@@ -231,12 +250,16 @@ for tidx = tidx2do
         (~exist(div2dfn, 'file') || ...
         ~exist(div3dfn_lateral, 'file') || ...
         ~exist(div3dfn_ventral, 'file') || overwrite || overwrite_images) ;
+    plot_lap_pullback_tidx = plot_lap_pullback && ...
+        (~exist(lap2dfn, 'file') || ...
+        ~exist(lap3dfn_lateral, 'file') || ...
+        ~exist(lap3dfn_ventral, 'file') || overwrite || overwrite_images) ;
     plot_dec_texturepatch_tidx = plot_dec_texturepatch && ...
         (overwrite || ~exist(div2dfn, 'file') || ...
         ~exist(div3dfn_lateral, 'file') || ...
         ~exist(div3dfn_ventral, 'file') || overwrite || overwrite_images) ;
     
-    if ~exist(decDataFn, 'file') || overwrite
+    if ~exist(decDataFn, 'file') || overwrite || true
         if ~exist(decDataFn, 'file')
             disp(['Creating DEC: ' decDataFn])
         else
@@ -283,22 +306,38 @@ for tidx = tidx2do
         Options.lambda_mesh = lambda_mesh ;     
         Options.nSpectralFilterModes = nmodes ;
         Options.spectralFilterWidth = zwidth ;
-        Options.outdir = QS.dir.pivAvgDEC.data ;
+        Options.outdir = QS.dir.piv.avgDEC.data ;
         Options.do_calibration = (tidx == tidx2do(1)) ;
-        [divs, rots, harms, glueMesh] = ...
+        [divs, rots, harms, lapvs, glueMesh] = ...
             helmHodgeDECRectGridPullback(cutM, vfsm, Options,...
             'niterSmoothing', niter_smoothing, ...
             'clipDiv', [-clipDiv, clipDiv], ...
             'clipRot', [-clipRot, clipRot], ...
             'preview', preview, 'method', 'both') ;
         
+        [gV2F, ~] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
+        [lapvn, lapvt, lapv2d, ~, ~, ~, dilation] = ...
+            resolveTangentNormalVelocities(cutM.f, ...
+            cutM.v, gV2F * lapvs.lapv(1:nU*(nV-1), :), ...
+            1:length(cutM.f), V2D) ;
+        
+        % tmp = vecnorm(lapv0t, 2, 2) ;
+        % plot(lapv0n, tmp, '.')
+        
+        lapv2dsc = lapv2d ./ dilation(:) * resolution ;
+        lapvs.lapv2d = lapv2d ;
+        lapvs.lapv2dsc = lapv2dsc ;
+        lapvs.lapvn = lapvn ;
+        lapvs.lapvt = lapvt ;
+        
         %% save divs, rots, and harms as structs in .mat file
         disp(['Saving DEC t=' num2str(tp) ': ' decDataFn])
-        save(decDataFn, 'divs', 'rots', 'harms', ...
+        save(decDataFn, 'divs', 'rots', 'harms', 'lapvs', ...
             'lambda_smooth', 'lambda_mesh', 'nmodes', 'zwidth')
-    elseif plot_dec_pullback_tidx || plot_dec_texturepatch_tidx
+    elseif plot_dec_pullback_tidx || plot_lap_pullback_tidx || ...
+            plot_dec_texturepatch_tidx
         disp(['Loading DEC t=' num2str(tp) ': ' decDataFn])
-        load(decDataFn, 'divs', 'rots')
+        load(decDataFn, 'divs', 'rots', 'lapvs')
     
         % Load piv3d
         piv3d = load(sprintf(piv3dFileBase, tp)) ;
@@ -323,8 +362,8 @@ for tidx = tidx2do
     end
 
     %% Plot results
-    disp('Plotting div/rot...')
     if plot_dec_pullback_tidx
+        disp('Plotting div/rot...')
         close all
         set(gcf, 'visible', 'off')
         if strcmp(pivimCoords, 'sp_sme')
@@ -359,6 +398,39 @@ for tidx = tidx2do
         plotHelmHodgeDECPullback(im, cutM, vfsm, xy, v2dsmum_ii, ...
             divs, rots, Options, opts2d) ;
     end
+    
+    % Plot laplacian of tangential vector field (pushed onto vertices)
+    if plot_lap_pullback_tidx || true
+        disp('Plotting laplacian(v)')
+        close all
+        set(gcf, 'visible', 'off')
+        if strcmp(pivimCoords, 'sp_sme')
+            im = imread(sprintf(QS.fullFileBase.im_sp_sme, tp)) ;
+            ylims = [0.25 * size(im, 1), 0.75 * size(im, 1)] ;
+        else
+            error(['Have not coded for this pivimCoords option. Do so here: ' pivimCoords])
+        end
+        im = cat(3, im, im, im) ;  % convert to rgb for no cmap change
+        addTitleStr = [': $t=$', num2str((tp - t0)*QS.timeInterval), ...
+                       ' ', QS.timeUnits] ;
+        Options = struct() ;
+        Options.addTitleStr = addTitleStr ;
+        Options.lapv2dfn = lap2dfn ;
+        Options.lapv3dfn_lateral = lap3dfn_lateral ;
+        Options.lapv3dfn_ventral = lap3dfn_ventral ;
+        Options.qsubU = qsubU ; 
+        Options.qsubV = qsubV ;
+        Options.sscale = sscaleLap ;
+        Options.qscale3d = 0 ;
+        Options.qscale2d = 0 ;
+        Options.xyzlim = xyzlim ;
+        opts2d.xlim = [0, size(im, 1)] ;
+        opts2d.ylim = [0.25 * size(im, 2), 0.75 * size(im, 2) ] ;
+        xy = {piv3d.x0, piv3d.y0} ;
+        plotDECLaplacianVPullback(im, cutM, vfsm, xy, lapvs, ...
+            Options, opts2d) ;
+    end
+    
     if plot_dec_texturepatch_tidx
         % load current timepoint
         % (3D data for coloring mesh pullback)

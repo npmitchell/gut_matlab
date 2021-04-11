@@ -1,6 +1,7 @@
 function [cutMeshClosed, glue2cut] = glueCylinderCutMeshSeam(cutMesh)
 %GLUECUTMESHSEAM(cutMesh)
-% close a rectilinear cutMesh by gluing the seam back together 
+% close a (rectilinear) cutMesh by gluing the seam back together 
+% todo: generalize to non-rectilinear cutMesh!
 % 
 % Parameters
 % ----------

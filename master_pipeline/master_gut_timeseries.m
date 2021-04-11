@@ -1346,7 +1346,7 @@ QS.measureCurvatures(options)
 % Skip if already done
 disp('Create pullback using S,Phi coords with time-averaged Meshes')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-for tt = QS.xp.fileMeta.timePoints
+for tt = fliplr(QS.xp.fileMeta.timePoints)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = QS.xp.tIdx(tt);
     
@@ -1374,10 +1374,10 @@ for tt = QS.xp.fileMeta.timePoints
     pbOptions.numLayers = [0 0] ; % previously [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
     pbOptions.generate_rsm = true ;
-    pbOptions.generate_spsm = true ;
+    pbOptions.generate_spsm = false ;
     pbOptions.generate_sphi = false ;
     pbOptions.generate_uvprime = false ;
-    pbOptions.generate_ruvprime = true ;
+    pbOptions.generate_ruvprime = false ;
     QS.data.adjustlow = adjustlow ;
     QS.data.adjusthigh = adjusthigh ;
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
@@ -1387,8 +1387,8 @@ end
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
-options.coordsys = 'spsm' ;
-QS.doubleCoverPullbackImages(options)
+% options.coordsys = 'spsm' ;
+% QS.doubleCoverPullbackImages(options)
 options.coordsys = 'rsm' ;
 QS.doubleCoverPullbackImages(options)
 disp('done')
@@ -1398,12 +1398,17 @@ options = struct() ;
 options.overwrite = false ;
 options.makeRawMetricComponentFigures = false ;
 options.lambda_mesh = 0.002 ;
+options.coordSys = 'ricci' ; % 'spsm_rs'
 QS.plotMetric(options) ;
 % !!! todo: continue here for diagnostic
+% Note: demo_FundFormNematic
 
 %% Compare 2nd fund form director to radon of image
 options = struct() ;
+options.method = 'pullback' ; 
+options.coordSys = 'spsmre' ;
 QS.measurePolarity(options) ;
+% inside measurePolarity: comparePolarityHopfDifferential()
 
 %% Add radii to spcutMeshSm's in post
 % 
@@ -1477,6 +1482,14 @@ options.overwrite = false ;
 options.overwriteImages = false;
 options.timePoints = [93:15:263] ;
 QS.generateCellSegmentation2D(options) 
+
+options = struct() ;
+options.overwrite = false ;
+options.overwriteImages = false;
+options.timePoints = [93:15:263] ;
+QS.processCorrectedCellSegmentation2D(options) 
+
+options = struct() ;
 options.timePoints = [93:15:263] ;
 options.overwrite = false ;
 options.overwriteImages = false ;
@@ -1682,7 +1695,7 @@ options.samplingResolution = '1x';
 QS.plotTimeAvgVelocities(options)
 %% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.samplingResolution = '1x' ;
 options.averagingStyle = 'Lagrangian' ;
 options.lambda = 0 ;
@@ -1722,6 +1735,18 @@ options.nmodes = 7 ;  %% bandwidth filtering
 options.zwidth = 1 ; 
 options.climit = 0.3 ;
 QS.plotMetricKinematics(options)
+
+%% Measure shear stresses against gradients in pressure
+% eta \nabla_i d^i_j = \nalba_j p, 
+% where d^i_j = 1/2(\nabla_i v_j + \nalba_j v_i) - b_ij vn
+options = struct() ;
+options.overwrite = true ;
+options.zwidth = 0 ;
+QS.measureStokesForces(options) ;
+options.plot_kymographs = true ;
+QS.plotStokesForces(options) ;  % !!! continue here
+
+
 
 %% Pullback pathlines connecting Lagrangian grids
 options = struct() ;
@@ -1773,8 +1798,8 @@ options.coordSys = 'ricci' ;
 QS.measureBeltramiCoefficient(options) ;
 
 %% Generate all Beltramis from all Riccis & plot aspect ratio over time
-% Note: this isn't really useful
 options = struct() ;
+options.overwrite = false ;
 QS.computeRicciMeshes(options)
 
 %% Generate all Beltramis from all Riccis & Plot aspect ratio for isothermal PB over time
