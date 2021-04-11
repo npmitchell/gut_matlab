@@ -98,13 +98,16 @@ if strcmpi(erase(coordSys, '_'), 'spsme')
         error(['Populate ' Folder ' with pixelClassification on pullbacks with coordSys ' coordSys])
     end
     filebase = [QS.fileBase.im_sp_sme(1:end-4) '_Probabilities.h5'] ;
-elseif strcmpi(erase(coordSys, '_'), 'sprsme')
+elseif strcmpi(erase(coordSys, '_'), 'sprsme') || ...
+        strcmpi(erase(coordSys, '_'), 'rspsme') || ...
+        strcmpi(erase(coordSys, '_'), 'rsme')
+    coordSys = 'sprsme' ;
     Folder = [QS.dir.im_r_sme, '_pixelClassification'] ;
     if ~exist(Folder, 'dir')
         mkdir(Folder)
         error(['Populate ' Folder ' with pixelClassification on pullbacks with coordSys ' coordSys])
     end
-    filebase = [QS.fileBase.im_sp_sme(1:end-4) '_Probabilities.h5'] ;
+    filebase = [QS.fileBase.im_r_sme(1:end-4) '_Probabilities.h5'] ;
 else
     error('Have not coded for this coordinate system yet. Do so here')
 end
