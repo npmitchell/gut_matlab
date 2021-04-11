@@ -196,7 +196,8 @@ for tp = timePoints
         NL = vdat.NL ;
         coordSys = lower(erase(coordSys, '_')) ;
         if strcmpi(erase(coordSys, '_'), 'spsme') || ...
-                strcmpi(erase(coordSys, '_'), 'rspsme')
+                strcmpi(erase(coordSys, '_'), 'rspsme') || ...
+                strcmpi(erase(coordSys, '_'), 'sprsme')
             % provide ROI in [minx, maxx; miny, maxy]
             ROI = [-eps, size(segIm, 2) + eps; round([0.25, 0.75] * size(segIm, 1))] ;
         else
@@ -291,10 +292,14 @@ for tp = timePoints
     %% Save image of the segmentation
     imfn = [outfn(1:end-3) 'png'] ;
     if ~exist(imfn, 'file') || overwrite || overwriteImages
-        
-        imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
+        if strcmpi( coordSys, 'spsme')
+            imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
+        elseif strcmpi( coordSys, 'sprsme')
+            imageFn = sprintf(QS.fullFileBase.im_r_sme, tp) ;
+        else
+            error('Have not yet coded for this CoordSys');
+        end
         im = imread(imageFn) ;
-        
         clf
         Xs = zeros(size(seg2d.vdat.BL, 1), 1) ;
         Ys = Xs ;
@@ -326,7 +331,14 @@ for tp = timePoints
     imfn = [outfn(1:end-4) '_polygons.png'] ;
     if ~exist(imfn, 'file') || overwrite || overwriteImages || ~skipPolygons
         
-        imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
+        
+        if strcmpi( coordSys, 'spsme')
+            imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
+        elseif strcmpi( coordSys, 'sprsme')
+            imageFn = sprintf(QS.fullFileBase.im_r_sme, tp) ;
+        else
+            error('Have not yet coded for this CoordSys');
+        end
         im = imread(imageFn) ;
         
         opts = struct() ;
