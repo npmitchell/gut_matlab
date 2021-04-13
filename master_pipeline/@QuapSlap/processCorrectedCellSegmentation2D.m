@@ -59,26 +59,8 @@ end
 if isfield(options, 'timePoints') 
     timePoints = options.timePoints ;
 end
-if isfield(options, 'very_far') 
-    very_far = options.very_far ;
-end
 if isfield(options, 'coordSys') 
     coordSys = options.coordSys ;
-end
-if isfield(options, 'iLastikVersion') 
-    iLastikVersion = options.iLastikVersion ;
-end
-if isfield(options, 'cellSize') 
-    cellSize = options.cellSize ;
-end
-if isfield(options, 'strelRadius') 
-    strelRadius = options.strelRadius ;
-end
-if isfield(options, 'gaussKernel') 
-    gaussKernel = options.gaussKernel ;
-end
-if isfield(options, 'heightMinimum') 
-    heightMinimum = options.heightMinimum ;
 end
 
 %% Load in h5 from ilastik.
@@ -88,101 +70,142 @@ if strcmpi(erase(coordSys, '_'), 'spsme')
         mkdir(Folder)
         error(['Populate ' Folder ' with pixelClassification on pullbacks with coordSys ' coordSys])
     end
-    filebase = [QS.fileBase.im_sp_sme(1:end-4) '_Probabilities.h5'] ;
-elseif strcmpi(erase(coordSys, '_'), 'sp_rsme')
+    coordSys = 'spsme' ;
+elseif strcmpi(erase(coordSys, '_'), 'sprsme') || ...
+        strcmpi(erase(coordSys, '_'), 'rspsme') || ...
+        strcmpi(erase(coordSys, '_'), 'rsme')
     Folder = [QS.dir.im_r_sme, '_pixelClassification'] ;
     if ~exist(Folder, 'dir')
         mkdir(Folder)
         error(['Populate ' Folder ' with pixelClassification on pullbacks with coordSys ' coordSys])
     end
-    filebase = [QS.fileBase.im_sp_sme(1:end-4) '_Probabilities.h5'] ;
+    coordSys = 'sprsme' ;
 else
     error('Have not coded for this coordinate system yet. Do so here')
 end
 
 for tp = timePoints
     
-    outfn = QS.fullFileBase.segmentation2dCorrected ;
+    % The results file with segmentation and polygons is called outfn
+    outfn = sprintf(QS.fullFileBase.segmentation2dCorrected, coordSys, tp)  ;
+    if strcmpi(erase(coordSys, '_'), 'spsme') 
+        imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ; 
+    elseif strcmpi(erase(coordSys, '_'), 'sprsme') 
+        imageFn = sprintf(QS.fullFileBase.im_r_sme, tp) ;
+    end
     
     if ~exist(outfn, 'file') || overwrite
 
-        bwfn = sprintf(QS.fullFileBase.segmentation2dCorrectedBinary, tp) ;
+        bwfn = sprintf(QS.fullFileBase.segmentation2dCorrectedBinary, coordSys, tp) ;
         bw = imread(bwfn) ;
+        
+        cc = bwconncomp(~bw, 4) ;
+        segIm = labelmatrix(cc) ;
 
-        % Now also synchronize Struct after removing bad cells
-        threefold = false ;
-        segIm = polygonsFromSegmentation(bw, threefold, 200);
+        % Check it -- Apply a variety of pseudo-colors to the regions.
+        coloredLabelsImage = label2rgb(segIm, 'hsv', 'k', 'shuffle');
+        % Display the pseudo-colored image.
+        % [row,col] = find(segIm < 2) ;
+        % coloredLabelsImage(row, col, :) = 0 ;
+        imshow(coloredLabelsImage);
+        title('Pseudocolored Labeled Image', 'Interpreter', 'None');
+        % impixelinfo;
         
-        %% Prepare data structure for inverse (optional? Does this improve segmentation?)
-        % % put a parameter in the cdat of Struct, a boolean of whether every vertex
-        % % is 3-fold.
-        % Struct = seg.threefold_cell(Struct);
-        % % generate the bdat structure in Struct
-        % Struct = seg.recordBonds(Struct, L);
-        % disp('generated the bond structure')
-        % % Segment the curvature of each bond
-        % Struct = seg.curvature(Struct, size(L));
-        % disp('segmented the curvature of each bond')
-        % % Remove all fourfold vertices, recursively if there are z>4
-        % Struct = seg.removeFourFold(Struct);
-        % disp('removed fourfold vertices')
-        % % The inverse is ill-posed if we have convex cells, so hack those to be
-        % % convex
-        % Struct = seg.makeConvexArray(Struct);
-        % disp('done with data preparation')
-
-        %% Convert to simpler format
-        disp('Constructing vdat')
-        vdat = struct() ;
-        vdat.v = zeros(length(seg2d.Vdat), 2) ;
-        vdat.NL = zeros(length(seg2d.Vdat), 4) ;
-        vdat.fourfold = false(length(seg2d.Vdat), 1) ;
-        for qq = 1:length(seg2d.Vdat)
-            vdat.v(qq, :) = [seg2d.Vdat(qq).vertxcoord, seg2d.Vdat(qq).vertycoord] ;
-            nv = length(seg2d.Vdat(qq).nverts) ;
-            try
-                vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
-            catch
-                % Increase the size of NL to accomodate more neighbors
-                disp('Increasing NL size (dim 2)')
-                swap = vdat.NL ;
-                vdat.NL = zeros(length(seg2d.Vdat), nv) ;
-                vdat.NL(1:qq, 1:size(swap, 2)) = swap(1:qq, :) ;
-                vdat.NL(qq, 1:nv) = seg2d.Vdat(qq).nverts ;
-            end
-            vdat.fourfold(qq) = ~isempty(seg2d.Vdat(qq).fourfold) ;
-        end    
-        
-        disp('generating bond list')
-        BL = Vdat2BL(seg2d.Vdat) ;
-        vdat.BL = BL ;
-        
-        % Assign polygons to vdat
-        NL = vdat.NL ;
         coordSys = lower(erase(coordSys, '_')) ;
-        if strcmpi(coordSys, 'spsme')
+        if strcmpi(coordSys, 'spsme') || ...
+                strcmpi(coordSys, 'sprsme') || ...
+                strcmpi(coordSys, 'rspsme') || ...
+                strcmpi(coordSys, 'rsme')
             % provide ROI in [minx, maxx; miny, maxy]
-            ROI = [-eps, size(segIm, 2) + eps; round([0.25, 0.75] * size(segIm, 2))] ;
+            ROI = [-eps, size(segIm, 2) + eps; round([0.25, 0.75] * size(segIm, 1))] ;
+            adjustY = 0.5 * size(segIm, 1) ;
         else
             error('Handle this coordSys here')
         end
-        opts = struct() ;
-        opts.roi = ROI ;
-        polygons = Cdat2polygons(seg2d.Cdat, vdat.v, BL, NL, opts) ;
-
-        seg2d.vdat = vdat ;
+        props = regionprops(segIm, 'centroid') ;
+        
+        seg2d.roi = ROI ;
+        % Could find vertices by seeking each point in all vertices, bonds
+        % by seeking starting and ending points of shared linesegments
+        % between pairs of cells. This seems unnecessary for now.
+        % seg2d.vdat = vdat ;
         seg2d.cdat = struct() ;
-        seg2d.cdat.polygons = polygons ;
-        seg2d.cdat.centroid = zeros(length(seg2d.Cdat), 2) ;
-        for cid = 1:length(seg2d.Cdat)
-            seg2d.cdat.centroid(cid, :) = seg2d.Cdat(cid).centroid.coord ;
+        seg2d.cdat.centroid = zeros(max(segIm(:)), 2) ;
+        for cid = 1:max(segIm(:))
+            seg2d.cdat.centroid(cid, :) = props(cid).Centroid ;
         end
         
-        %% Save the segmentation to disk
-        if ~exist(fullfile(QS.dir.segmentation, 'seg2d'), 'dir')
-            mkdir(fullfile(QS.dir.segmentation, 'seg2d'))
+        xmin = seg2d.roi(1, 1) ;
+        xmax = seg2d.roi(1, 2) ;
+        ymin = seg2d.roi(2, 1) ;
+        ymax = seg2d.roi(2, 2) ;
+        insideROI = inpolygon(seg2d.cdat.centroid(:, 1), ...
+            seg2d.cdat.centroid(:, 2), ...
+            [xmin, xmax, xmax, xmin], [ymin, ymin, ymax, ymax]) ;
+        if any(~insideROI)
+            c2move = find(~insideROI) ;
+            segIm2 = segIm ;
+            imagesc(segIm) 
+            hold on;
+            plot([xmin, xmax, xmax, xmin], [ymin, ymin, ymax, ymax], '-') ;
+            pause(1) 
+            clf
+            for ccId = 1:length(c2move)
+                qq = c2move(ccId) ;
+                % Check if we need to push it up in Y or down
+                insideUp = inpolygon(seg2d.cdat.centroid(qq, 1), ...
+                    seg2d.cdat.centroid(qq, 2) + adjustY, ...
+                    [xmin, xmax, xmax, xmin], [ymin, ymin, ymax, ymax]) ;
+                insideDown = inpolygon(seg2d.cdat.centroid(qq, 1), ...
+                    seg2d.cdat.centroid(qq, 2) - adjustY, ...
+                    [xmin, xmax, xmax, xmin], [ymin, ymin, ymax, ymax]) ;
+                if insideUp || insideDown
+                    % get all indices where segIm == c2move
+                    [row,col] = find(segIm == qq) ;
+                        
+                    if insideUp && ~insideDown
+                        for id = 1:length(row)
+                            % If this isn't merging this cell with another
+                            if segIm(row(id) + adjustY, col(id)) < 2
+                                segIm(row(id) + adjustY, col(id)) = qq ;
+                            end
+                            segIm(row(id), col(id)) = 1 ;
+                        end
+                    elseif insideDown && ~insideUp
+                        for id = 1:length(row)
+                            % If this isn't merging this cell with another
+                            if segIm(row(id) - adjustY, col(id)) < 2                            
+                                segIm(row - adjustY, col) = qq ;
+                            end
+                            segIm(row(id), col(id)) = 1 ;
+                        end
+                    else 
+                        error('Cannot place cell into the ROI')
+                    end
+                    disp('Check that this motion is correct')
+                    imagesc(segIm)
+                    pause(0.0001)
+                    % title('Press any button to continue')
+                    % waitforbuttonpress
+                else 
+                    error('Cannot place cell into the ROI')
+                end
+                
+            end
+            
+            % Recompute centroids
+            seg2d.cdat = struct() ;
+            seg2d.cdat.centroid = zeros(max(segIm(:)), 2) ;
+            for cid = 1:max(segIm(:))
+                seg2d.cdat.centroid(cid, :) = props(cid).Centroid ;
+            end
         end
-
+        
+        % Now convert to polygons
+        polygons = polygonsFromSegmentation(segIm) ;        
+        seg2d.cdat.polygons = polygons ;
+        
+        %% Save the segmentation to disk
         save(outfn, 'seg2d', 'segIm', 'coordSys')
     else
         disp(['already on disk: ' outfn])
@@ -194,83 +217,36 @@ for tp = timePoints
     %% Save image of the segmentation
     imfn = [outfn(1:end-3) 'png'] ;
     if ~exist(imfn, 'file') || overwrite || overwriteImages
-        
         imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
         im = imread(imageFn) ;
-        
-        clf
-        Xs = zeros(size(seg2d.vdat.BL, 1), 1) ;
-        Ys = Xs ;
-        Us = Xs ;
-        Vs = Xs ;
-        dmyk = 1 ;
-        for qq = 1:length(seg2d.Vdat)
-            for id = seg2d.Vdat(qq).nverts
-                Xs(dmyk) = seg2d.vdat.v(qq, 1) ;
-                Ys(dmyk) = seg2d.vdat.v(qq, 2) ; 
-                Us(dmyk) = seg2d.vdat.v(id, 1) - seg2d.vdat.v(qq, 1) ;
-                Vs(dmyk) = seg2d.vdat.v(id, 2) - seg2d.vdat.v(qq, 2) ; 
-                dmyk = dmyk + 1 ;
-            end
-        end
-        % plot(seg2d.vdat.v(:, 1), seg2d.vdat.v(:, 2), '.')
-        imshow(im) ;
-        hold on;
-        q = quiver(Xs,Ys, Us, Vs, 0, 'color', [ 0.8500    0.3250    0.0980]);
-        axis equal
-        t0 = QS.t0set() ;
-        title(['t = ' sprintf('%03d', tp - t0) ' ' QS.timeUnits])
-        q.ShowArrowHead = 'off';
-        saveas(gcf, imfn)
+        colors = define_colors() ;
+        im2 = imoverlay(im, segIm==0, colors(3, :)) ;
+        imwrite(im2, imfn)
     end
     
     
     %% Save image of the polygons
     imfn = [outfn(1:end-4) '_polygons.png'] ;
     if ~exist(imfn, 'file') || overwrite || overwriteImages || true
-        
-        imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
         im = imread(imageFn) ;
         
-        opts = struct() ;
-        [ff, vv] = polygons2triangulation(seg2d.cdat.polygons, ...
-            seg2d.vdat.v, seg2d.cdat.centroid, opts) ;
-
-        % vertex is part of input vertices in polygons or not
-        colorV = zeros(size(vv, 1), 1) ;
-        colorV(length(seg2d.vdat.v):end) = 255 ;
+        % Check it -- Apply a variety of pseudo-colors to the regions.
+        % iters = ceil(max(segIm(:)) / 256) ;
+        % cmpQ = tab10 ;
+        % for ii = 1:iters
+        %     cmpQ = [cmpQ; tab10] ;
+        % end
+        cmpQ = brewermap(max(segIm(:)), 'Paired') ;
+        coloredLabelsImage = label2rgb(segIm, cmpQ, 'k', 'shuffle');
+        % Display the pseudo-colored image.
+        coloredLabelsImage = (coloredLabelsImage) .* uint8(segIm > 1) ;
+        outim = uint8(0.5 * coloredLabelsImage + im) ;
+        % h = imshow(outim); 
         
-        clf
-        imshow(cat(3, im, im, im)) ;
-        hold on;
-        Xs = zeros(size(seg2d.vdat.BL, 1), 1) ;
-        Ys = Xs ;
-        Us = Xs ;
-        Vs = Xs ;
-        dmyk = 1 ;
-        for qq = 1:length(seg2d.Vdat)
-            for id = seg2d.Vdat(qq).nverts
-                Xs(dmyk) = seg2d.vdat.v(qq, 1) ;
-                Ys(dmyk) = seg2d.vdat.v(qq, 2) ; 
-                Us(dmyk) = seg2d.vdat.v(id, 1) - seg2d.vdat.v(qq, 1) ;
-                Vs(dmyk) = seg2d.vdat.v(id, 2) - seg2d.vdat.v(qq, 2) ; 
-                dmyk = dmyk + 1 ;
-            end
-        end
-        q = quiver(Xs,Ys, Us, Vs, 0, 'color', [ 0.8500    0.3250    0.0980]);
-        q.ShowArrowHead = 'off';
-        axis equal
-        hh = trisurf(ff, vv(:, 1), vv(:, 2), 0*vv(:, 2), ...
-            'edgeColor', 'none', 'facealpha', 0.5) ;
-        set(hh,'FaceColor','interp',...
-           'FaceVertexCData',colorV,...
-           'CDataMapping','scaled');
-        t0 = QS.t0set() ;
-        title(['t = ' sprintf('%03d', tp - t0) ' ' QS.timeUnits])
-        colormap parula
         % saveas(gcf, imfn)
         disp(['saving image: ' imfn])
-        current_ax = getframe(gca) ;
-        imwrite(current_ax.cdata, imfn)
+        % current_ax = getframe(gca) ;
+        % imwrite(current_ax.cdata, imfn)
+        imwrite(outim, imfn) 
     end
 end

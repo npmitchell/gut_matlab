@@ -1485,14 +1485,15 @@ QS.generateCellSegmentation2D(options)
 
 options = struct() ;
 options.overwrite = false ;
-options.overwriteImages = false;
+options.overwriteImages = true;
 options.timePoints = [93:15:263] ;
 QS.processCorrectedCellSegmentation2D(options) 
 
 options = struct() ;
-options.timePoints = [93:15:263] ;
-options.overwrite = false ;
+options.timePoints = [93:15:212] ;
+options.overwrite = true ;
 options.overwriteImages = false ;
+options.correctedSegmentation = true ;
 QS.generateCellSegmentation3D(options) 
 QS.plotSegmentationStatisticsLobes(options)
 

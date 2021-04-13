@@ -1,5 +1,7 @@
 function net = networkFromSegmentation(skel, threefold, very_far)
 % todo: finish this code to create network from segmentation
+% Not needed currently, where we just take the raw shapes of cells as
+% polygons
 %
 % NPMitchell, much adapted from Nick Noll's tissueAnalysisSuite
 

@@ -6,7 +6,7 @@ function [weightedMean,weightedStdOfMean,weightedStdOfSample] = weightedStats(da
 %INPUT data: vector of input values. 
 %
 %      weightsOrSigma: weights or standardDeviations of the input data
-%      sw (opt): switch, either 'w' or {'s'}
+%      sw (opt): switch, either 'w' or {'s'} --> weight or standardDev 
 %
 %       -> if either data or weights are matrices, the computation is done
 %       column-wise
@@ -24,7 +24,7 @@ function [weightedMean,weightedStdOfMean,weightedStdOfSample] = weightedStats(da
 %
 %reference: Taschenbuch der Mathematik, p. 815
 %
-%c: 06/03 jonas
+%c: 06/03 jonas, some comments NPMitchell
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %test input: count input arguments

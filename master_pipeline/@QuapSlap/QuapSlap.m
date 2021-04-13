@@ -195,7 +195,9 @@ classdef QuapSlap < handle
         currentSegmentation = struct(...
             'coordSys', 'spsme', ...    % pullback coordinate system in which segmentation is performed
             'seg2d', [], ...            % 2d pullback segmentation
-            'seg3d', []) ;              % segmentation pushed forward into 3d
+            'seg3d', [], ...            % segmentation pushed forward into 3d
+            'seg2dCorrected', [], ...
+            'seg3dCorrected', []) ;     
         piv = struct( ...
             'imCoords', 'sp_sme', ...   % image coord system for measuring PIV / optical flow) ;
             'Lx', [], ...               % width of image, in pixels (x coordinate)
@@ -365,6 +367,8 @@ classdef QuapSlap < handle
                 cell(length(QS.xp.expMeta.channelsUsed), 1);
             QS.currentSegmentation.seg2d = [] ;
             QS.currentSegmentation.seg3d = [] ;
+            QS.currentSegmentation.seg2dCorrected = [] ;
+            QS.currentSegmentation.seg3dCorrected = [] ;
         end
         
         function t0 = t0set(QS, t0)
@@ -1625,6 +1629,33 @@ classdef QuapSlap < handle
                 seg2d = QS.currentSegmentation.seg2d ;
             end
         end
+        function seg2dCorr = getCurrentSegmentation2DCorrected(QS, options)
+            % Decide on coordinate system for corrected pullback binary 
+            coordSys = 'spsme';
+            if nargin > 1
+                if isfield(options, 'coordSys')
+                    coordSys = options.coordSys ;
+                end
+            end
+                
+            % Obtain the cell segmentation in 3D pullback space
+            if isempty(QS.currentSegmentation.seg2dCorrected)
+                try
+                    QS.currentSegmentation.seg2dCorrected = ...
+                        load(sprintf(QS.fullFileBase.segmentation2dCorrected, coordSys, QS.currentTime)) ;
+                catch
+                    options.timePoints = [QS.currentTime] ;
+                    QS.processCorrectedCellSegmentation2D(options) ;
+                    QS.currentSegmentation.seg2dCorrected = ...
+                        load(sprintf(QS.fullFileBase.segmentation2dCorrected, coordSys, QS.currentTime)) ;
+                end
+            end
+            % if requested, return segmentation as output
+            if nargout > 0
+                seg2dCorr = QS.currentSegmentation.seg2dCorrected ;
+                assert(strcmpi(coordSys, seg2dCorr.coordSys))
+            end
+        end
         function seg3d = getCurrentSegmentation3D(QS, options)
             % Obtain the cell segmentation in 3D pushforward space
             if isempty(QS.currentSegmentation.seg3d)
@@ -1641,10 +1672,37 @@ classdef QuapSlap < handle
                 seg3d = QS.currentSegmentation.seg3d ;
             end
         end
+        function seg3dCorr = getCurrentSegmentation3DCorrected(QS, options)
+            % Obtain the cell segmentation in 3D pullback space
+            if isempty(QS.currentSegmentation.seg3dCorrected)
+                try
+                    QS.currentSegmentation.seg3dCorrected = ...
+                        load(sprintf(QS.fullFileBase.segmentation3dCorrected, QS.currentTime)) ;
+                catch
+                    options.timePoints = [QS.currentTime] ;
+                    options.corrected = true ;
+                    QS.processCorrectedCellSegmentation3D(options) ;
+                    QS.currentSegmentation.seg3dCorrected = ...
+                        load(sprintf(QS.fullFileBase.segmentation3dCorrected, QS.currentTime)) ;
+                end
+            end
+            % if requested, return segmentation as output
+            if nargout > 0
+                seg3dCorr = QS.currentSegmentation.seg3dCorrected ;
+            end
+        end
         function seg3d = loadCurrentSegmentation3D(QS) 
-            QS.currentSegmentation.seg3d = load(sprintf(QS.fullFileBase.segmentation3d, QS.currentTime)) ;
+            QS.currentSegmentation.seg3d = ...
+                load(sprintf(QS.fullFileBase.segmentation3d, QS.currentTime)) ;
             if nargout > 0
                 seg3d = QS.currentSegmentation.seg3d ;
+            end
+        end
+        function seg3dCorr = loadCurrentSegmentation3DCorrected(QS) 
+            QS.currentSegmentation.seg3dCorrected = ...
+                load(sprintf(QS.fullFileBase.segmentation3dCorrected, QS.currentTime)) ;
+            if nargout > 0
+                seg3dCorr = QS.currentSegmentation.seg3dCorrected ;
             end
         end
         % Note: anisotropy is stored in seg3d.quality

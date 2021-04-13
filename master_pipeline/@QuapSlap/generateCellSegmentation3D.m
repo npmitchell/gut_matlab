@@ -9,6 +9,8 @@ function generateCellSegmentation3D(QS, options)
 timePoints = QS.xp.fileMeta.timePoints ;
 maxCellSize = 200 ;  % maximum size allowed to include a cell
 overwrite = false ;
+corrected = false ;
+coordSys = 'spsme' ;
 overwriteImages = false ;
 debug = false ;
 [~, ~, ~, xyzlims] = QS.getXYZLims() ;
@@ -20,6 +22,15 @@ end
 if isfield(options, 'overwriteImages')
     overwriteImages = options.overwriteImages ;
 end
+if isfield(options, 'coordSys')
+    coordSys = options.coordSys ;
+    coordSys = lower(erase(coordSys, '_')) ;
+    % If the coordinate system is (s,phi) relaxed aspect ratio smoothed
+    % extended, correct for variants of naming convention.
+    if strcmpi(coordSys, 'rsme') || strcmpi(coordSys, 'rspsme')
+        coordSys = 'sprsme' ;
+    end
+end
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
 end
@@ -29,9 +40,20 @@ end
 if isfield(options, 'xyzlims')
     xyzlims = options.xyzlims ;
 end
+if isfield(options, 'correctedSegmentation')
+    corrected = options.correctedSegmentation ;
+end
 
 % Directory preparation
-imdir = fullfile(QS.dir.segmentation, 'seg3d', 'images') ;
+if corrected
+    segDir = fullfile(QS.dir.segmentation, 'seg3d_corrected') ;
+    if ~exist(segDir, 'dir')
+        mkdir(segDir)
+    end
+    imdir = fullfile(QS.dir.segmentation, 'seg3d_corrected', 'images') ;
+else
+    imdir = fullfile(QS.dir.segmentation, 'seg3d', 'images') ;
+end
 if ~exist(imdir, 'dir')
     mkdir(imdir)
 end
@@ -59,8 +81,10 @@ cos2thetaM = zeros(99, 1) ;
 sin2thetaM = cos2thetaM ;
 aspectM = cos2thetaM ;
 nAPBins = 20 ;
-mean_c2ts = zeros(length(timePoints), nAPBins) ;
-mean_s2ts = zeros(length(timePoints), nAPBins) ;
+mean_qc2ts = zeros(length(timePoints), nAPBins) ;
+mean_qs2ts = zeros(length(timePoints), nAPBins) ;
+std_qc2ts = zeros(length(timePoints), nAPBins) ;
+std_qs2ts = zeros(length(timePoints), nAPBins) ;
 meanQLobeAspects = zeros(nLobes, length(timePoints)) ;
 meanQLobeAspectStds = zeros(nLobes, length(timePoints)) ;
 meanQLobeThetas = zeros(nLobes, length(timePoints)) ;
@@ -69,41 +93,79 @@ for tp = timePoints
     QS.setTime(tp)
     tidx = QS.xp.tIdx(tp) ;
     
-    outfn = sprintf(QS.fullFileBase.segmentation3d, QS.currentTime) ;
-    if ~exist(outfn, 'file') || overwrite 
+    if corrected
+        outfn = sprintf(QS.fullFileBase.segmentation3dCorrected, QS.currentTime) ;
+    else
+        outfn = sprintf(QS.fullFileBase.segmentation3d, QS.currentTime) ;
+    end
+    if ~exist(outfn, 'file') || overwrite
 
         % Obtain the segmentation in 2d 
-        seg2d = QS.getCurrentSegmentation2D(options) ;
-
+        if corrected
+            seg2d = QS.getCurrentSegmentation2DCorrected(options) ;
+        else
+            seg2d = QS.getCurrentSegmentation2D(options) ;
+        end
+        
         % obtain the current cut mesh in APDV coordinates -->
         % 2d coordinates in plane of MESH
-        cutMesh = QS.getCurrentSPCutMeshSmRS() ;
+        if strcmp(coordSys, 'spsme') || strcmp(coordSys, 'sprsme') 
+            cutMesh = QS.getCurrentSPCutMeshSmRS() ;
 
-        % Normalize the u coordinate
-        cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1)) ;
+            % Normalize the u coordinate
+            cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1)) ;
+        else
+            error(['Code for this coordSys: ' coordSys])
+        end
 
         % tile annular cut mesh
         tileCount = [1,  1] ;
         [ faces, v2D, v3D ] = tileAnnularCutMesh(cutMesh, tileCount) ;
 
         % Collate cell vertices as XY
-        nVertices = length(seg2d.seg2d.Vdat) ;
         % XY = zeros(nVertices, 2) ;
         % for qq = 1:nVertices
         %     XY(qq, :) = [seg2d.seg2d.Vdat(qq).vertxcoord, seg2d.seg2d.Vdat(qq).vertycoord] ;
         % end
-        XY = seg2d.seg2d.vdat.v ;
-
+        if corrected
+            % corrected segmentation stores polygons as vertices
+            polygons = seg2d.seg2d.cdat.polygons ;
+            XY = [] ;
+            pgonIDs = [] ;
+            for pp = 1:length(polygons)
+                pgon = polygons{pp} ;
+                if ~isempty(pgon)
+                    pgon = pgon(:, [2, 1]) ;
+                    if isempty(XY)
+                        XY = pgon ;
+                    else
+                        XY = [XY; pgon] ;
+                    end
+                    nn = length(pgonIDs) ;
+                    pgonIDs(nn+1:nn+size(pgon, 1)) = pp ;
+                end
+            end
+        else
+            % seg2d stores a network of vertices and bonds
+            XY = seg2d.seg2d.vdat.v ;
+        end
+        
         % Collate cell centroids
-        nCells = length(seg2d.seg2d.Cdat) ;
-        centroids = zeros(nCells, 2) ;
-        for qq = 1:nCells
-            centroids(qq, :) = seg2d.seg2d.Cdat(qq).centroid.coord ;
-        end    
-
+        if corrected
+            centroids = seg2d.seg2d.cdat.centroid ;
+            nCells = size(centroids, 1) ;
+        else
+            nCells = length(seg2d.seg2d.Cdat) ;
+            centroids = zeros(nCells, 2) ;
+            for qq = 1:nCells
+                centroids(qq, :) = seg2d.seg2d.Cdat(qq).centroid.coord ;
+            end    
+        end
+        
         % Check that we are interpolating over the same domain of
         % parameterization
-        if strcmpi(seg2d.coordSys, 'spsme')
+        if strcmpi(seg2d.coordSys, 'spsme') || ...
+            strcmpi(seg2d.coordSys, 'sprsme')
             Ly = size(seg2d.segIm, 1) ;
             Lx = size(seg2d.segIm, 2) ;
             doubleCovered = true ;
@@ -122,6 +184,13 @@ for tp = timePoints
         [c3d, vertexMeshFaces] = ...
             interpolate2Dpts_3Dmesh(faces, v2D, v3D, uv) ;
 
+        if corrected
+            poly3d = cell(length(polygons), 1) ;
+            for pp = 1:length(polygons)
+                poly3d{pp} = c3d(pgonIDs == pp, :) ;
+            end
+        end
+        
         % Get fieldfaces for centroids
         [cellCntrd, cellMeshFaces] = interpolate2Dpts_3Dmesh(faces, v2D, v3D, cntrds) ;
         fN = faceNormal(triangulation(faces, v3D)) ;
@@ -146,8 +215,15 @@ for tp = timePoints
 
         for cid = 1:nCells
             % Obtain cell vertices in 3d
-            cell2d0 = seg2d.seg2d.vdat.v(seg2d.seg2d.cdat.polygons{cid}, :) ;
-            cellVtx0 = c3d(seg2d.seg2d.cdat.polygons{cid}, :) ;
+            if corrected
+                cell2d0 = seg2d.seg2d.cdat.polygons{cid} ;
+                cellVtx0 = c3d(pgonIDs == cid, :) ;
+            else
+                % original segmentation stores indices into vertices for
+                % polygon shapes
+                cell2d0 = seg2d.seg2d.vdat.v(seg2d.seg2d.cdat.polygons{cid}, :) ;
+                cellVtx0 = c3d(seg2d.seg2d.cdat.polygons{cid}, :) ;
+            end
             cellVtx = cellVtx0 - cellCntrd(cid, :) ;
 
             if ~isempty(cellVtx)
@@ -234,7 +310,7 @@ for tp = timePoints
                 %     ang1 and ang2 are in radians.
                 %     J is centroidal polar moment.  J = I1 + I2 = Iuu + Ivv
 
-                % Discard 3d info and compute
+                % Discard 3d info and compute polygon geometry
                 if size(cellVtx0, 1) > 2
                     [ geom, iner, cpmo ] = polygeom( cell_quasi2d(:, 2), ...
                         cell_quasi2d(:, 3) ) ;
@@ -256,7 +332,11 @@ for tp = timePoints
         end
                 
         %% Save results stored in struct
-        seg2d = QS.currentSegmentation.seg2d ;
+        if corrected
+            seg2d = QS.currentSegmentation.seg2dCorrected ;
+        else
+            seg2d = QS.currentSegmentation.seg2d ;
+        end
         seg3d = struct('vdat', struct(), 'cdat', struct(), ...
             'qualities', struct(), 'map', struct()) ;
         
@@ -269,16 +349,31 @@ for tp = timePoints
         seg3d.vdat.xyzrs = c3d ;
         seg3d.vdat.uv = uv ;
         seg3d.vdat.meshFaces = vertexMeshFaces ;
-        seg3d.vdat.NL = seg2d.seg2d.vdat.NL ;
-        seg3d.vdat.BL = seg2d.seg2d.vdat.BL ;
-        seg3d.vdat.fourfold = seg2d.seg2d.vdat.fourfold ;
+        if ~corrected
+            seg3d.vdat.NL = seg2d.seg2d.vdat.NL ;
+            seg3d.vdat.BL = seg2d.seg2d.vdat.BL ;
+            seg3d.vdat.fourfold = seg2d.seg2d.vdat.fourfold ;
+        end
         
         % cell data in 3d
         seg3d.cdat.centroids_uv = cntrds ;
         seg3d.cdat.centroids_3d = cellCntrd ;
         seg3d.cdat.meshFaces = cellMeshFaces ;
         seg3d.cdat.normals = cellNormals ;
-        seg3d.cdat.polygons = seg2d.seg2d.cdat.polygons ;
+        if corrected
+            seg3d.cdat.polygons = poly3d ;
+            seg3d.vdat.vertexPolygonMemberID = pgonIDs ;
+            seg3d.cdat.polygonVertexID = cell(length(polygons), 1) ;
+            dmyk = 1 ;
+            for pp = 1:length(polygons)
+                if length(polygons{pp}) > 1
+                    seg3d.cdat.polygonVertexID{pp} = dmyk:(dmyk+length(polygons{pp})-1) ;
+                    dmyk = dmyk + length(polygons{pp}) ;
+                end
+            end
+        else
+            seg3d.cdat.polygons = seg2d.seg2d.cdat.polygons ;
+        end
         
         % cell qualities
         seg3d.qualities = struct() ;
@@ -313,12 +408,16 @@ for tp = timePoints
             moment1 > 0 & moment2 > 0) ;
         seg3d.statistics.keep = keep ;
         seg3d.statistics.maxCellSize = maxCellSize ;
-        
+         
         % which coordinate system has been used for segmentation
         coordSys = seg2d.coordSys ;
         save(outfn, 'seg3d', 'coordSys')
     else
-        seg3d = QS.loadCurrentSegmentation3D() ;
+        if corrected
+            seg3d = QS.loadCurrentSegmentation3DCorrected() ;
+        else
+            seg3d = QS.loadCurrentSegmentation3D() ;
+        end
         coordSys = seg3d.coordSys ;
         seg3d = seg3d.seg3d ;
         
@@ -347,6 +446,8 @@ for tp = timePoints
     % --> isn't MOI already area-weighted? No, it's weighted oddly. 
     weight = areas(keep) ;
     weights = weight ./ nansum(weight) ;
+    allweights = zeros(size(areas)) ;
+    allweights(keep) = weights ;
     
     % Could rescale MOIs by sqrt(determinant) so each is nematic tensor 
     %   with unit 'size'. How to do this properly? Define Q tensor for each
@@ -383,6 +484,7 @@ for tp = timePoints
     % STORE NEMATIC INFO IN QUALITIES
     seg3d.qualities.nematicTensor = QQ ;
     seg3d.qualities.nematicStrength = strength ;
+    seg3d.statistics.weights = allweights ;
     
     % This is not helpful.
     % i11 = seg3d.qualities.mInertia(keep, 1, 1) ;
@@ -407,6 +509,9 @@ for tp = timePoints
     % Compute mean MOI, area-weighted, roll off weights for largest cells
     weight(weight > 0.5 * maxCellSize) = maxCellSize - weight(weight > 0.5 * maxCellSize) ;
     weights = weight ./ nansum(weight) ;
+    allweightsBounded = zeros(size(areas)) ;
+    allweightsBounded(keep) = weights ;
+    seg3d.statistics.weightsBounded = allweightsBounded ;
     
     meanQWB = squeeze(sum(weights .* strength(keep) .* QQ(keep, :, :), 1)) ;
     [ eig_vec, eig_val ] = eig(meanQWB) ;
@@ -496,20 +601,27 @@ for tp = timePoints
     % Statistics by AP position
     ap_pos = seg3d.cdat.centroids_uv(keep, 1) ;
     xedges = linspace(0, 1, nAPBins + 1) ;
-    [mid_ap, mean_c2t, std_c2t] = ...
-        binDataMeanStdWeighted(ap_pos, mratio_principal .* cos2thetas, ...
+    [mid_ap, mean_qc2t_ap, std_qc2t_ap] = ...
+        binDataMeanStdWeighted(ap_pos, strength(keep) .* cos2thetas, ...
             xedges, weights) ;
-    [mid_ap, mean_s2t, std_s2t] = ...
-        binDataMeanStdWeighted(ap_pos, mratio_principal .* sin2thetas, ...
+    [mid_ap, mean_qs2t_ap, std_qs2t_ap] = ...
+        binDataMeanStdWeighted(ap_pos, strength(keep) .* sin2thetas, ...
             xedges, weights) ;
-    
-    
+        
     %% Statistics by Lobe (between features.folds)
     nU = QS.nU ;
     fold0 = double(folds(tidx, :)) / double(nU) ;
     nLobes = length(fold0(:)) + 1 ;
     foldt = [0; fold0(:); 1] ;
     ap_pos = seg3d.cdat.centroids_uv(keep, 1) ;
+    
+    % Statistics by Lobe -- ars.*cos(2theta), ars.*sin(2theta)
+    [~, mean_qc2t_lobes, std_qc2t_lobes] = binDataMeanStdWeighted(ap_pos, ...
+        strength(keep) .* cos(2 * ang1(keep)), foldt, weights) ;
+    [~, mean_qs2t_lobes, std_qs2t_lobes] = binDataMeanStdWeighted(ap_pos, ...
+        strength(keep) .* sin(2 * ang1(keep)), foldt, weights) ;
+    
+    % Other measures
     [~, lobes_Q11, lobes_std_Q11] = binDataMeanStdWeighted(ap_pos, ...
         strength(keep) .* squeeze(QQ(keep, 1, 1)), foldt, weights) ;
     [~, lobes_Q12, lobes_std_Q12] = binDataMeanStdWeighted(ap_pos, ...
@@ -562,14 +674,20 @@ for tp = timePoints
     meanQLobeAspects(:, dmy) = meanQLobeAspect ;
     meanQLobeAspectStds(:, dmy) = meanQLobeAspectStd ;
     meanQLobeThetas(:, dmy) = meanQLobeTheta ;
-    mean_c2ts(dmy, :) = mean_c2t ;
-    mean_s2ts(dmy, :) = mean_s2t ;
+    mean_qc2ts(dmy, :) = mean_qc2t_ap ;
+    mean_qs2ts(dmy, :) = mean_qs2t_ap ;
+    std_qc2ts(dmy, :) = std_qc2t_ap ;
+    std_qs2ts(dmy, :) = std_qs2t_ap ;
+    
     
     %% Save 
     tmp = seg3d.statistics ;
     seg3d.statistics = struct() ;
     seg3d.statistics.keep = tmp.keep ;
     seg3d.statistics.maxCellSize = tmp.maxCellSize ;
+    seg3d.statistics.weights = tmp.weights ;
+    seg3d.statistics.weights = tmp.weightsBounded ;
+    
     % Mean tensor stats
     seg3d.statistics.meanMoI = meanMoI ;
     seg3d.statistics.meanQ = meanQ ;
@@ -597,6 +715,10 @@ for tp = timePoints
     seg3d.statistics.lobes.meanQLobeAspect = meanQLobeAspect ;
     seg3d.statistics.lobes.meanQLobeAspectStd = meanQLobeAspectStd ;
     seg3d.statistics.lobes.meanQLobeTheta = meanQLobeTheta ;
+    seg3d.statistics.lobes.meanQCos2Theta = mean_qc2t_lobes ;
+    seg3d.statistics.lobes.stdQCos2Theta = std_qc2t_lobes ;
+    seg3d.statistics.lobes.meanQSin2Theta = mean_qs2t_lobes ;
+    seg3d.statistics.lobes.stdQSin2Theta = std_qs2t_lobes ;
     
     % Raw distributions
     seg3d.statistics.aspect25 = prctile(ars, 25.0) ;
@@ -608,14 +730,14 @@ for tp = timePoints
     
     % AP averaging
     seg3d.statistics.apBins = mid_ap ;
-    seg3d.statistics.apCos2Theta = mean_c2t ;
-    seg3d.statistics.apSin2Theta = mean_s2t ;
-    seg3d.statistics.apCos2ThetaStd = std_c2t ;
-    seg3d.statistics.apSin2ThetaStd = std_s2t ;
+    seg3d.statistics.apCos2Theta = mean_qc2t_ap ;
+    seg3d.statistics.apSin2Theta = mean_qs2t_ap ;
+    seg3d.statistics.apCos2ThetaStd = std_qc2t_ap ;
+    seg3d.statistics.apSin2ThetaStd = std_qs2t_ap ;
     save(outfn, 'seg3d', 'coordSys')
     
     %% Plot this timepoint's segmentation in 3d
-    plotCells(QS, tp, seg3d, imdir, overwriteImages, xyzlims)
+    plotCells(QS, tp, seg3d, imdir, overwriteImages, xyzlims, corrected)
     
     %% Plot as histogram
     edges = linspace(-1, 1, 100) ;
@@ -636,7 +758,12 @@ redcol = colors(2, :) ;
 yelcol = colors(3, :) ;
 
 %% Plot mean +/- pctile over time
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy.png') ;
+if corrected
+    segSubDir = 'seg3d_corrected' ;
+else
+    segSubDir = 'seg3d' ;
+end
+imfn = fullfile(QS.dir.segmentation, segSubDir, 'cell_anisotropy.png') ;
 clf
 % shade(timePoints - t0, bndlow, timePoints, bndhigh)
 x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
@@ -664,7 +791,8 @@ saveas(gcf, imfn)
 
 
 %% Plot nematic strength and direction for each lobe 
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_lobes.png') ;
+imfn = fullfile(QS.dir.segmentation, segSubDir, ...
+    'cell_anisotropy_lobes.png') ;
 clf
 for lobe = 1:nLobes
     subplot(ceil(nLobes * 0.5), 2, lobe)
@@ -710,7 +838,7 @@ sgtitle('endoderm orientation over time', 'interpreter', 'latex')
 saveas(gcf, imfn)
 
 %% Plot nematic strength and direction for each lobe 
-imfn = fullfile(QS.dir.segmentation, 'seg3d', ...
+imfn = fullfile(QS.dir.segmentation, segSubDir, ...
     'cell_anisotropy_lobes_signed.png') ;
 clf
 for lobe = 1:nLobes
@@ -750,7 +878,7 @@ saveas(gcf, [imfn(1:end-3), 'pdf'])
 
 
 %% Plot histograms
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_hist.png') ;
+imfn = fullfile(QS.dir.segmentation, segSubDir, 'cell_anisotropy_hist.png') ;
 clf
 colormap(cividis)
 subplot(2, 2, 1)
@@ -779,7 +907,7 @@ axis off
 saveas(gcf, imfn) 
 
 %% Aspect ratio distributions, variation of mean shape aspect
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'cell_anisotropy_mratio.png') ;
+imfn = fullfile(QS.dir.segmentation, segSubDir, 'cell_anisotropy_mratio.png') ;
 clf
 colors = define_colors() ;
 bluecol = colors(1, :) ;
@@ -804,55 +932,59 @@ saveas(gcf, imfn)
 
 
 %% Plot as a function of AP position and time (kymograph)
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'ap_kymographs_c2t_s2t.png') ;
+imfn = fullfile(QS.dir.segmentation, segSubDir, 'ap_kymographs_qc2t_qs2t.png') ;
 clf
-subplot(1, 2, 1)
-imagesc(mid_ap, timePoints-t0, medfilt2(mean_c2ts, [3, 1])) ;
-caxis([-10, 10])
-colormap(blueblackred)
-xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
-ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-cb = colorbar('location', 'southOutside') ;
-ylabel(cb, '$\sqrt{\lambda_1/\lambda_2}\cos 2\theta$', ...
-    'interpreter', 'latex')
-subplot(1, 2, 2)
-imagesc(mid_ap, timePoints-t0, medfilt2(mean_s2ts, [3, 1])) ;
-caxis([-10, 10])
-colormap(blueblackred)
-xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
-ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-cb = colorbar('location', 'southOutside') ;
-ylabel(cb, '$\sqrt{\lambda_1/\lambda_2}\sin 2\theta$', ...
-    'interpreter', 'latex')
-sgtitle('cell anisotropy kymographs', 'interpreter', 'latex')
-saveas(gcf, imfn)
+if ~exist(imfn, 'file') || overwriteImages
+    subplot(1, 2, 1)
+    imagesc(mid_ap, timePoints-t0, medfilt2(mean_qc2ts, [3, 1])) ;
+    caxis([-2.5, 2.5])
+    colormap(blueblackred)
+    xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
+    ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+    cb = colorbar('location', 'southOutside') ;
+    ylabel(cb, '$|Q|\cos 2\theta$', ...
+        'interpreter', 'latex')
+    subplot(1, 2, 2)
+    imagesc(mid_ap, timePoints-t0, medfilt2(mean_qs2ts, [3, 1])) ;
+    caxis([-2.5, 2.5])
+    colormap(blueblackred)
+    xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
+    ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+    cb = colorbar('location', 'southOutside') ;
+    ylabel(cb, '$|Q|\sin 2\theta$', ...
+        'interpreter', 'latex')
+    sgtitle('cell anisotropy kymographs', 'interpreter', 'latex')
+    saveas(gcf, imfn)
+end
 
 %% Time derivative of filtered image AP position
-imfn = fullfile(QS.dir.segmentation, 'seg3d', 'ap_kymographs_dc2t_ds2t.png') ;
+imfn = fullfile(QS.dir.segmentation, segSubDir, 'ap_kymographs_dc2t_ds2t.png') ;
 clf
-cfiltered = medfilt2(mean_c2ts, [3, 1]) ;
-[~, dc2t] = gradient(cfiltered) ;
-sfiltered = medfilt2(mean_s2ts, [3, 1]) ;
-[~, ds2t] = gradient(sfiltered) ;
-subplot(1, 2, 1)
-imagesc(mid_ap, timePoints-t0, imgaussfilt(medfilt2(dc2t, [3, 1]), 0.5)) ;
-caxis([-3, 3])
-xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
-ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-colormap(blueblackred)
-cb = colorbar('location', 'southOutside') ;
-ylabel(cb, '$\partial_t\left(\sqrt{\lambda_1/\lambda_2} \cos 2\theta\right)$', ...
-    'interpreter', 'latex')
-subplot(1, 2, 2)
-imagesc(mid_ap, timePoints-t0, imgaussfilt(medfilt2(ds2t, [3, 1]), 0.5)) ;
-caxis([-3, 3])
-xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
-ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-cb = colorbar('location', 'southOutside') ;
-ylabel(cb, '$\partial_t\left(\sqrt{\lambda_1/\lambda_2} \sin 2\theta\right)$', ...
-    'interpreter', 'latex')
-sgtitle('cell anisotropy kymographs', 'interpreter', 'latex')
-saveas(gcf, imfn)
+if ~exist(imfn, 'file') || overwriteImages
+    cfiltered = medfilt2(mean_qc2ts, [3, 1]) ;
+    [~, dc2t] = gradient(cfiltered) ;
+    sfiltered = medfilt2(mean_qs2ts, [3, 1]) ;
+    [~, ds2t] = gradient(sfiltered) ;
+    subplot(1, 2, 1)
+    imagesc(mid_ap, timePoints-t0, imgaussfilt(medfilt2(dc2t, [3, 1]), 0.5)) ;
+    caxis([-0.5, 0.5])
+    xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
+    ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+    colormap(blueblackred)
+    cb = colorbar('location', 'southOutside') ;
+    ylabel(cb, '$\partial_t\left(|Q| \cos 2\theta\right)$', ...
+        'interpreter', 'latex')
+    subplot(1, 2, 2)
+    imagesc(mid_ap, timePoints-t0, imgaussfilt(medfilt2(ds2t, [3, 1]), 0.5)) ;
+    caxis([-0.5, 0.5])
+    xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
+    ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+    cb = colorbar('location', 'southOutside') ;
+    ylabel(cb, '$\partial_t\left(|Q| \sin 2\theta\right)$', ...
+        'interpreter', 'latex')
+    sgtitle('cell anisotropy kymographs', 'interpreter', 'latex')
+    saveas(gcf, imfn)
+end
 
 
 %% Testing for shape characterization
@@ -885,7 +1017,7 @@ saveas(gcf, imfn)
 
 end
 
-function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims)
+function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims, corrected)
 
     %% Draw cells colored by area
     t0 = QS.t0() ;
@@ -893,7 +1025,11 @@ function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims)
     
     % Easiest way is to triangulate all polygons using centroids
     % This is fine if the cells are all convex
-    faces = seg3d.cdat.polygons ;
+    if ~corrected
+        faces = seg3d.cdat.polygons ;
+    else
+        faces = seg3d.cdat.polygonVertexID ;
+    end
     keep = seg3d.statistics.keep ;
     
     areas = seg3d.qualities.areas ; 
@@ -919,7 +1055,7 @@ function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims)
     for cid = 1:nCells
         if ismember(cid, keep)
             face = faces{cid} ;
-            if ~isempty(face)
+            if numel(face) > 1
                 for vid = 1:length(face)
                     if vid < length(face)
                         addface = [face(vid), face(vid+1), nVertices + cid] ;
@@ -930,15 +1066,32 @@ function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims)
                     areaV(dmyk) = areas(cid) ;
                     ang1V(dmyk) = ang1(cid) ;
                     mratioV(dmyk) = mratio(cid) ;
+                    % qualities
                     IxxV(dmyk) = moinertia(cid, 1) ;
                     IxyV(dmyk) = moinertia(cid, 2) ;
                     IyyV(dmyk) = moinertia(cid, 3) ;
+                    % order parameter
                     oparmV(dmyk) = (mratio(cid) - 1) * cos(2*ang1(cid)) ;
+                     
                     dmyk = dmyk + 1 ;
                 end
+
+                % check it 
+                % clf
+                % patch('Faces',ff(1:dmyk-1, :),'Vertices', [c3d; cellCntrd],...
+                %     'FaceVertexCData',areaV(1:dmyk-1),'FaceColor','flat', ...
+                %    'Edgecolor', 'k');
+                % hold on;
+                % patch('Faces',ff(dmyk-1:dmyk-1, :),'Vertices', [c3d; cellCntrd],...
+                %     'FaceVertexCData',0,'FaceColor','flat', ...
+                %    'Edgecolor', 'k');
+                % scatter3(c3d(1:123, 1), c3d(1:123, 2), c3d(1:123, 3), 40, 1:123, 'filled')
             end
         end
     end
+    
+    % [ff, vv] = poly2fv({x1, x2, x3}, {y1, y2, y3});
+    
     ff = ff(1:dmyk-1, :) ;
     areaV = areaV(1:dmyk-1) ;
     ang1V = ang1V(1:dmyk-1) ;
@@ -955,12 +1108,13 @@ function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims)
     imfn = fullfile(imdir, sprintf('cellseg3d_area_%06d.png', tp)) ;
     if ~exist(imfn, 'file') || overwrite
         clf
+        colorV = areaV(:) ;
         patch('Faces',ff,'Vertices',vv,...
-            'FaceVertexCData',areaV(:),'FaceColor','flat', ...
+            'FaceVertexCData',colorV(:),'FaceColor','flat', ...
             'Edgecolor', 'none');
         cb = colorbar ;
         ylabel(cb, ['area [' QS.spaceUnits '$^2$]'],   'interpreter', 'latex')
-        caxis([0, nanmean(areas) + 3*nanstd(areas)])
+        caxis([0, min(max(areas), nanmean(areas) + 2.5*nanstd(areas))])
         axis equal
         view(0,0)
         xlim(xyzlims(1, :))
@@ -1035,32 +1189,50 @@ function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims)
     %% Draw bonds
     imfn = fullfile(imdir, sprintf('cellseg3d_bonds_full_%06d.png', tp)) ;
     if ~exist(imfn, 'file') || overwrite 
+        % Draw full and half of organ (up to midsaggital plane)
         for fullID = [0, 1] 
-            Xs = zeros(4*length(c3d(:, 1)), 1) ;
-            Ys = Xs ;
-            Zs = Xs ;
-            Us = Xs ;
-            Vs = Xs ;
-            Ws = Xs ;
-            dmyk = 1 ;
-            for qq = 1:nVertices
-                for id = seg3d.vdat.NL(qq, :)
-                    if id > 0
-                        Xs(dmyk) = c3d(qq, 1) ;
-                        Ys(dmyk) = c3d(qq, 2) ; 
-                        Zs(dmyk) = c3d(qq, 3) ;
-                        Us(dmyk) = c3d(id, 1) - c3d(qq, 1) ;
-                        Vs(dmyk) = c3d(id, 2) - c3d(qq, 2) ; 
-                        Ws(dmyk) = c3d(id, 3) - c3d(qq, 3) ;
-                        dmyk = dmyk + 1 ;
+            if corrected
+                clf
+
+                tmp = patch('Faces',ff,'Vertices',vv,...
+                    'FaceVertexCData',cos(2*ang1V(:)),'FaceColor','flat', ...
+                    'Edgecolor', 'none', 'FaceVertexAlphaData', 0.2);
+                tmp.FaceAlpha = 'flat' ;
+                hold on;
+                for pid = 1:length(seg3d.cdat.polygons)
+                    pgon = seg3d.cdat.polygons{pid} ;
+                    plot3(pgon(:, 1), pgon(:, 2), pgon(:, 3), 'k-')
+                    hold on;
+                end
+            else
+                % Plot as network
+                Xs = zeros(4*length(c3d(:, 1)), 1) ;
+                Ys = Xs ;
+                Zs = Xs ;
+                Us = Xs ;
+                Vs = Xs ;
+                Ws = Xs ;
+                dmyk = 1 ;
+                for qq = 1:nVertices
+                    for id = seg3d.vdat.NL(qq, :)
+                        if id > 0
+                            Xs(dmyk) = c3d(qq, 1) ;
+                            Ys(dmyk) = c3d(qq, 2) ; 
+                            Zs(dmyk) = c3d(qq, 3) ;
+                            Us(dmyk) = c3d(id, 1) - c3d(qq, 1) ;
+                            Vs(dmyk) = c3d(id, 2) - c3d(qq, 2) ; 
+                            Ws(dmyk) = c3d(id, 3) - c3d(qq, 3) ;
+                            dmyk = dmyk + 1 ;
+                        end
                     end
                 end
+                plot3(c3d(:, 1), c3d(:, 2), c3d(:, 3), '.')
+                hold on;
+                q = quiver3(Xs,Ys,Zs, Us, Vs, Ws, 0, 'color', [ 0.8500    0.3250    0.0980]);
+                axis equal
+                q.ShowArrowHead = 'off';
             end
-            plot3(c3d(:, 1), c3d(:, 2), c3d(:, 3), '.')
-            hold on;
-            q = quiver3(Xs,Ys,Zs, Us, Vs, Ws, 0, 'color', [ 0.8500    0.3250    0.0980]);
             axis equal
-            q.ShowArrowHead = 'off';
             [~, ~, ~, xyzlims] = QS.getXYZLims() ;
             xlim(xyzlims(1, :))
             if fullID

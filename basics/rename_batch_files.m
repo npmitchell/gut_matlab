@@ -4,10 +4,13 @@
 %make into a function...
 
 directory= './';
-fnSearchStr = '*stripe7*.png' ;
+fnSearchStr = 'Time*.ome.tif' ; %'*stripe7*.png' ;
+
+existingStrReplace= true;
+knownLocReplace = false ;
+renameTimeStamps = true ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-existingStrReplace= true;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if existingStrReplace
     %%%%%%%%%%%%%%%%%%%
@@ -31,8 +34,6 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %Replace characters at known position in string
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-knownLocReplace = false ;
-
 if knownLocReplace
     %Replace characters at known position in string
     newchar = '.tif' ;
@@ -44,6 +45,34 @@ if knownLocReplace
         lenstr= length(toRename(ii).name);
         newname = [toRename(ii).name(1:nchar-1), newchar] ;
         movefile([directory, toRename(ii).name], [directory, newname])
+    end
+end
+
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+fns = dir(fullfile(directory, fnSearchStr)) ;
+
+addTime = 2 ;
+prepend = 'Time_' ;
+postpend = '_Angle_' ;
+if renameTimeStamps
+    for ii = 1:length(fns)
+        fn2rename = fullfile(directory, fns(ii).name) ;
+        fn = fns(ii).name ;
+        end0 = strfind(fn, postpend) ;
+        start0 = strfind(fn, prepend) ;
+        tstamp = fn(start0+5:end0-1) ;
+        disp(['t=' tstamp])
+
+        % Convert to number, adjust 
+        tstampNew = sprintf('1%06d', str2double(tstamp)+addTime) ; 
+        newname = [prepend tstampNew fn(end0:end)] ;
+
+        infn = fullfile(directory, fn2rename) ;
+        outfn = fullfile(directory, newname) ;
+        disp([infn ' -> ' outfn])
+        movefile(infn, outfn) ;
     end
 end
 

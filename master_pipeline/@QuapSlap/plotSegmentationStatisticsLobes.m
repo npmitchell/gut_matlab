@@ -14,6 +14,7 @@ function plotSegmentationStatisticsLobes(QS, options)
 timePoints = QS.xp.fileMeta.timePoints ;
 maxCellSize = 200 ;  % maximum size allowed to include a cell
 overwrite = false ;
+corrected = false ;
 overwriteImages = false ;
 debug = false ;
 [~, ~, ~, xyzlims] = QS.getXYZLims() ;
@@ -27,6 +28,11 @@ if isfield(options, 'overwrite')
 end
 if isfield(options, 'overwriteImages')
     overwriteImages = options.overwriteImages ;
+end
+if isfield(options, 'correctedSegmentation')
+    corrected = options.correctedSegmentation ;
+elseif isfield(options, 'corrected')
+    corrected = options.corrected ;
 end
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
@@ -42,7 +48,13 @@ if isfield(options, 'aspectLims')
 end
 
 % Directory preparation
-imDir = fullfile(QS.dir.segmentation, 'seg3d', 'images') ;
+if corrected
+    segDir = fullfile(QS.dir.segmentation, 'seg3d_corrected') ;
+    imDir = fullfile(segDir, 'images') ;
+else
+    segDir = fullfile(QS.dir.segmentation, 'seg3d') ;
+    imDir = fullfile(QS.dir.segmentation, 'seg3d', 'images') ;
+end
 if ~exist(imDir, 'dir')
     mkdir(imDir)
 end
@@ -94,12 +106,17 @@ for tidx = tidxs
     foldt = [0; fold0(:); 1] ;
     
     % Load segs
-    seg2d = QS.getCurrentSegmentation2D() ;
+    if corrected
+        seg2d = QS.getCurrentSegmentation2DCorrected() ;
+        seg3d = QS.getCurrentSegmentation3DCorrected() ;
+    else
+        seg2d = QS.getCurrentSegmentation2D() ;
+        seg3d = QS.getCurrentSegmentation3D() ;
+    end
     coordSys = seg2d.coordSys ;
     segIm = seg2d.segIm ;
     seg2d = seg2d.seg2d ;
     Lx = size(segIm, 2) ;
-    seg3d = QS.getCurrentSegmentation3D() ;
     % ensure 3d and 2d segmentation are based on the same coordsys
     assert(strcmpi(seg3d.coordSys, coordSys))
     seg3d = seg3d.seg3d ;    
@@ -108,11 +125,17 @@ for tidx = tidxs
     close all
     for lobe = 1:nLobes
         % find cells in this current chamber
-        inLobe = find(seg2d.cdat.centroid(:, 1) > Lx * foldt(lobe) & ...
-            seg2d.cdat.centroid(:, 1) < Lx * foldt(lobe+1)) ;
+        if strcmpi(coordSys, 'spsme') || strcmpi(coordSys, 'sprsme')
+            inLobe = find(seg2d.cdat.centroid(:, 1) > Lx * foldt(lobe) & ...
+                seg2d.cdat.centroid(:, 1) < Lx * foldt(lobe+1)) ;
+        else
+            error(['code for fold locations in this coordSys here: ' coordSys])
+        end
         keep = intersect(inLobe, seg3d.statistics.keep) ;
         
         ars = sqrt(seg3d.qualities.moment2 ./ seg3d.qualities.moment1) ;
+        strength = seg3d.qualities.nematicStrength ;
+        assert(all(ars(keep) -1 == strength(keep)))
         edges = linspace(-1, 1, nbins+1) ;
         edgesAR = linspace(1, 5, nbins+1) ;
         tmp = histcounts(cos(2* seg3d.qualities.ang1(keep)), edges) ;
@@ -121,14 +144,18 @@ for tidx = tidxs
         sin2thetaM{lobe}(:, dmy) = tmp / sum(tmp) ;
         tmp = histcounts(ars(keep), edgesAR) ;
         aspectM{lobe}(:, dmy) = tmp / sum(tmp) ;
-        
 
         % elongation versus distance from fold
         distFold{lobe}{dmy} = min(abs(seg2d.cdat.centroid(keep, 1) / Lx - fold0), [], 2) ;
         % check it
         % scatter(seg2d.cdat.centroid(:, 1), seg2d.cdat.centroid(:, 2), 5, distFold{lobe}{dmy})
-        elongation{lobe}{dmy} = ars(keep) .* cos(2* seg3d.qualities.ang1(keep)) ;
-
+        elongation{lobe}{dmy} = (ars(keep) -1).* cos(2* seg3d.qualities.ang1(keep)) ;
+        
+        % STORE ALL FOR TRAJECTORIES
+        strengthsAll{lobe}{dmy} = strength(keep) ;
+        thetasAll{lobe}{dmy} = seg3d.qualities.ang1(keep) ;
+        weightsAll{lobe}{dmy} = seg3d.statistics.weights(keep) ;       
+        
         % Interpolate centroids onto pathline triangulation
         XX = pathlines.vertices.vX(tidx, :, :) ;
         YY = pathlines.vertices.vY(tidx, :, :) ;
@@ -231,8 +258,7 @@ for lobe = 1:nLobes
     ylabel(cb, '$\sqrt{I_1/I_2}$', 'interpreter', 'latex')
     mats{lobe} = mat ;
 end
-saveas(gcf, fullfile(QS.dir.segmentation, 'seg3d',...
-    'dynamics_shapeChanges.png'))
+saveas(gcf, fullfile(segDir, 'dynamics_shapeChanges.png'))
 
 % Take derivative
 for lobe = 1:nLobes
@@ -266,8 +292,7 @@ legend({'lobe 1', 'lobe 2', 'lobe 3', 'lobe 4'})
 xlabel('indentation, $\delta r / r_0$', 'interpreter', 'latex')
 ylabel('elongation, $\sqrt{\lambda_1 / \lambda_2} \cos 2\theta $', ...
     'interpreter', 'latex')
-saveas(gcf, fullfile(QS.dir.segmentation, 'seg3d', ...
-    'elongation_indentation_lobes.png'))
+saveas(gcf, fullfile(segDir, 'elongation_indentation_lobes.png'))
 
 %% Plot elongation versus indentation
 clf
@@ -293,14 +318,13 @@ cb.Ticks = linspace(0, 1, nTicks) ;
 cb.TickLabels = num2cell(round( ...
     linspace(min(timePoints-t0), max(timePoints-t0), nTicks))) ; 
 ylabel(cb, ['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-saveas(gcf, fullfile(QS.dir.segmentation, 'seg3d', ...
-    'elongation_indentation_time.png'))
+saveas(gcf, fullfile(segDir, 'elongation_indentation_time.png'))
 
 
 %% Plot histograms
 clim = 5 / nbins ;
 for lobe = 1:nLobes
-    imfn = fullfile(QS.dir.segmentation, 'seg3d', sprintf('cell_anisotropy_hist_lobe%d.png', lobe)) ;
+    imfn = fullfile(segDir, sprintf('cell_anisotropy_hist_lobe%d.png', lobe)) ;
     clf
     colormap(cividis)
     subplot(2, 2, 1)
@@ -330,4 +354,24 @@ for lobe = 1:nLobes
         'interpreter', 'latex')
     disp(['Saving fig: ' imfn])
     saveas(gcf, imfn) 
+    
+    
+    % Plot trajectory in phase space
+    imfn = fullfile(segDir, sprintf('cell_anisotropy_traj_lobe%d.png', lobe)) ;
+    
+    nTimes = length(strengthsAll{lobe}) ;
+    colorList = cmap0(round(linspace(1, size(cmap0, 1), nTimes)), :) ;
+    for dmy = 1:nTimes
+        xx = strengthsAll{lobe}{dmy} .* cos(thetasAll{lobe}{dmy}) ;
+        yy = strengthsAll{lobe}{dmy} .* sin(thetasAll{lobe}{dmy}) ;
+        meanx = sum(weightsAll{lobe}{dmy} .* xx) ;
+        meany = sum(weightsAll{lobe}{dmy} .* yy) ;
+        [meanx, std, ste] = weightedStats(xx, weightsAll{lobe}{dmyk}, 'w') ;
+        [meany, std, ste] = weightedStats(yy, weightsAll{lobe}{dmyk}, 'w') ;
+
+        scatter(xx, yy, 2, colorList(dmy,:), 'filled', 'markeredgecolor', 'none')
+        
+        hold on;
+    end
+    clf
 end

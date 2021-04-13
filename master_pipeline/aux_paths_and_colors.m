@@ -27,6 +27,7 @@ addpath_recurse(fullfile(gutpath, ['axisymmetric_pullbacks' filesep])) ;
 addpath_recurse(fullfile(gutpath, 'plotting' )) ;
 addpath_recurse(fullfile(gutpath, 'h5_handling' )) ;
 addpath_recurse(fullfile(gutpath, 'tiff_handling')) ;
+addpath_recurse(fullfile(gutpath, 'segmentation_handling')) ;
 addpath_recurse(fullfile(gutpath, 'geometry')) ;
 addpath_recurse(fullfile(gutpath, 'curve_functions')) ;
 addpath(fullfile(gutpath, ['ExtPhaseCorrelation' filesep])) ;
