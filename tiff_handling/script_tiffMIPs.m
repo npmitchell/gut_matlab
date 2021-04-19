@@ -1,5 +1,7 @@
 % make mips of data (for example, to see saggital plane of data over time)
 % using tiffMIP
+%
+% See also makeSubstackMIPs()
 
 addpath('/mnt/data/code/gut_matlab/tiff_handling')
 slices = [] ;

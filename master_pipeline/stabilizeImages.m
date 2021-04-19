@@ -90,7 +90,6 @@ for i = 1:length(mipdirs)
     end
 end
 
-timechannel='tc';
 if strcmp(timechannel, 'tc')
     name1  = fullfile('view1', 'mip_1_%03d_c%d.tif');
     name2  = fullfile('view2', 'mip_2_%03d_c%d.tif');
@@ -106,7 +105,6 @@ elseif strcmp(timechannel, 't')
     name12 = fullfile('view12', ['mip_12_%03d_c' num2str(channel) '.tif']);
     name22 = fullfile('view22', ['mip_22_%03d_c' num2str(channel) '.tif']);
 end
-timechannel='t';
 t_ref_ind = find( timePoints == t_ref ) ;
 
 %% Define shifts for each time point ======================================

@@ -212,6 +212,9 @@ if overlayChannels
     cname  = fullfile('mip_overlay_dim%d_%03d.png');
 
     olDir = fullfile(mipDir, 'overlay') ;
+    if ~exist(olDir, 'dir')
+        mkdir(olDir)
+    end
     
     %% Cycle through timepoints to make mips
     for time = timePoints

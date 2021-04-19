@@ -37,7 +37,7 @@ clear; close all; clc;
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
 % cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
-cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
+% cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 
 % .=========.
 % |  VIP10  |
@@ -45,6 +45,8 @@ cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 % cd /mnt/crunch/gut/48YGal4UasLifeActRuby/201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
+cd /mnt/crunch/gut/antpGal4UASCAAXHGFP/202103271505_1p4um_0p1ms0p25ms_1mW1mW_GFPRFP_Time3views_120s/data/
+
 dataDir = cd ;
 
 %% PATHS ==================================================================
@@ -76,14 +78,14 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 2 ;
     channelsUsed = [1 2];
-    timePoints = 0:178 ;
+    timePoints = [0,10,20,30,40,50,70,80,90] ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
-    timeInterval = 1 ;  % physical interval between timepoints
+    timeInterval = 2 ;  % physical interval between timepoints
     timeUnits = 'min' ; % physical unit of time between timepoints
     spaceUnits = '$\mu$m' ; % physical unit of time between timepoints
-    scale = [0.03 0.2] ;      % scale for conversion to 16 bit
+    scale = [0.3, 0.03] ; % [0.03 0.2] ;      % scale for conversion to 16 bit
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
     file32Base = 'TP%d_Ch%d_Ill0_Ang0,60,120,180,240,300.tif'; 
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
@@ -106,8 +108,12 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'fn', fn,...
         'fnCombined', fnCombined, ...
         'fn_prestab', fn_prestab, ...
+        'swapZT', swapZT, ...
         'set_preilastikaxisorder', set_preilastikaxisorder, ...
-        'swapZT', swapZT); 
+        't0_for_phi0', 0, ... % 40 for mef2 single channel, 110 for CAAX excellent
+        'tidx0_for_stab', 1, ... % t0 for stabilization of 16bit data
+        'nU', 150, ...  % 150 for mef2 data with posterior midgut loop
+        'nV', 100); 
     disp('Saving masterSettings to ./masterSettings.mat')
     if exist('./masterSettings.mat', 'file')
         ui = input('This will overwrite the masterSettings. Proceed (Y/n)?', 's') ;
@@ -148,6 +154,10 @@ if loadMaster
     set_preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
     swapZT = masterSettings.swapZT ;
     fnCombined = masterSettings.fnCombined ;
+    t0_for_phi0 = masterSettings.t0_for_phi0 ;
+    tidx0_for_stab = masterSettings.tidx0_for_stab ;
+    nU = masterSettings.nU ;
+    nV = masterSettings.nV ;
 end
 dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
 dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
@@ -191,7 +201,7 @@ Options.scale = -1 ; % do NOT rescale intensities during intensity projection
 Options.overlayColors = true ;
 Options.width = 5 ;
 Options.channels = [1 2] ;
-Options.overwrite_overlays = true ;
+Options.overwrite_overlays = false ;
 makeSubStackMips(timePoints, dir16bit_prestab, fn_prestab, subMipDir, Options)
 
 %%  -II. stabilize images, based on script stabilizeImagesCorrect.m
@@ -212,7 +222,7 @@ stabOptions.overwrite_mips = false ;
 stabOptions.overwrite_tiffs = false ;
 stabOptions.stabChannel = 1 ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
-    timePoints, timePoints, timePoints(50), ...
+    timePoints, timePoints, timePoints(tidx0_for_stab), ...
     mipDir, mipoutdir, mips_stab_check, stabOptions)
 
 %% 
