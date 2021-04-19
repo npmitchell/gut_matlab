@@ -113,17 +113,28 @@ shiftfn = fullfile(mipDir, 'shifts_stab.mat') ;
 if exist(shiftfn, 'file') && ~overwrite_mips
     disp('Loading shifts from disk')
     load(shiftfn, 'shifts', 't_ref', 't_ref_ind')
-    x_1 = cat(1,shifts.x_1); % rows        (x) 
-    y_1 = cat(1,shifts.y_1); % columns     (y)
-    x_2 = cat(1,shifts.x_2); % columns #2  (y)
-    y_2 = cat(1,shifts.y_2); % leaves      (z) 
-    x_3 = cat(1,shifts.x_3); % rows    #2  (x) 
-    y_3 = cat(1,shifts.y_3); % leaves  #2  (z)   
-    % Average contributions from different views on the same shift axis
-    dx = round(0.5 * (x_1 + x_3)) ;
-    dy = round(0.5 * (y_1 + x_2)) ;
-    dz = round(0.5 * (y_2 + y_3)) ;
-else
+    if length(shifts) == length(timePoints)
+        x_1 = cat(1,shifts.x_1); % rows        (x) 
+        y_1 = cat(1,shifts.y_1); % columns     (y)
+        x_2 = cat(1,shifts.x_2); % columns #2  (y)
+        y_2 = cat(1,shifts.y_2); % leaves      (z) 
+        x_3 = cat(1,shifts.x_3); % rows    #2  (x) 
+        y_3 = cat(1,shifts.y_3); % leaves  #2  (z)   
+        % Average contributions from different views on the same shift axis
+        dx = round(0.5 * (x_1 + x_3)) ;
+        dy = round(0.5 * (y_1 + x_2)) ;
+        dz = round(0.5 * (y_2 + y_3)) ;
+        compute_shifts = false ;
+    else
+        response = input('Shifts on disk but not the same length as timePoints. Recompute?', 's') ;
+        if contains(lower(response), 'y')
+            compute_shifts = true ;
+        else
+            error('Exiting.')
+        end
+    end
+end
+if compute_shifts
     disp('Shifts not on disk, computing them...')
     % Load MIP data into im_1 and im_2 for all times
     
