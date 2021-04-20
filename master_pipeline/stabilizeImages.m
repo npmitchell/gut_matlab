@@ -133,6 +133,8 @@ if exist(shiftfn, 'file') && ~overwrite_mips
             error('Exiting.')
         end
     end
+else
+    compute_shifts = true ;
 end
 if compute_shifts
     disp('Shifts not on disk, computing them...')

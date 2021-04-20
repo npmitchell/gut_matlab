@@ -19,6 +19,10 @@ axisOff = false ;
 if nargin > 2
     if isfield(options, 'clim_mag')
         clim_mag = options.clim_mag ;
+    elseif isfield(options, 'clim')
+        clim_mag = options.clim ;
+    elseif isfield(options, 'climit')
+        clim_mag = options.climit ;    
     end
     if isfield(options, 'mesh')
         mesh = options.mesh ;

@@ -1,4 +1,4 @@
-function viridis = viridis()
+function viridis = viridis_pyplot()
 viridis = [ ... 
        2.670040e-01 4.874000e-03 3.294150e-01 
        2.685100e-01 9.605000e-03 3.354270e-01 
