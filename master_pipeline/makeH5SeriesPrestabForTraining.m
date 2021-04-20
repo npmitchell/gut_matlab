@@ -142,7 +142,11 @@ else
     ofn_ply = 'mesh_apical_ms_stab_' ; 
     ofn_ls = 'msls_apical_stab_' ;
     ofn_smoothply = 'mesh_apical_stab_' ;
+    
     ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/' ;
+    if ~exist(ms_scriptDir, 'dir')    
+        ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/' ;
+    end
     lambda1 = 1 ;
     lambda2 = 1 ;
     exit_thres = 0.000001 ;
@@ -163,6 +167,7 @@ else
     ilastikaxisorder= 'cxyz'; ... % axis order as output by ilastik probabilities h5
     imsaneaxisorder = 'xyzc'; ... % axis order relative to mesh axis order by which to process the point cloud prediction. To keep as mesh coords, use xyzc
     include_boundary_faces = true ;
+    pythonVersion = '3' ;
 end
 
 % Surface detection parameters --------------------------------------------
@@ -204,7 +209,8 @@ detectOptions = struct( 'channel', channel, ...
     'preilastikaxisorder', preilastikaxisorder, ... % axis order as output by ilastik probabilities h5. To keep as saved coords use xyzc
     'ilastikaxisorder', ilastikaxisorder, ... % axis order as output by ilastik probabilities h5. To keep as saved coords use xyzc
     'include_boundary_faces', include_boundary_faces, ...
-     'smooth_with_matlab', -1) ;
+     'smooth_with_matlab', -1, ...
+     'pythonVersion', pythonVersion) ;
 
 % Set detect options ------------------------------------------------------
 xp.setDetectOptions( detectOptions );

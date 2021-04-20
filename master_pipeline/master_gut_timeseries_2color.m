@@ -343,7 +343,7 @@ clear fileMeta expMeta
 
 %% LOAD THE FIRST TIME POINT ==============================================
 xp.setTime(xp.fileMeta.timePoints(1)) ;
-xp.loadTime(xp.fileMeta.timePoints(first_tp));
+% xp.loadTime(xp.fileMeta.timePoints(first_tp));
 % xp.rescaleStackToUnitAspect();
 
 %% SET DETECT OPTIONS =====================================================
@@ -383,13 +383,17 @@ else
     post_nu = 2 ;
     post_smoothing = 1 ;
     zdim = 2 ;
+    ms_scriptDir='/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/' ;
+    if ~exist(ms_scriptDir, 'dir')
+        ms_scriptDir='/mnt/data/code/morphsnakes_wrapper/' ;
+    end    
     init_ls_fn = 'msls_initguess.h5';
     % mlxprogram = fullfile(meshlabCodeDir, ...
     %     'laplace_refine_HCLaplace_LaplaceSPreserve_QuadEdgeCollapse60kfaces.mlx') ;
     mlxprogram = fullfile(meshlabCodeDir, ...
         'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
     radius_guess = 30 ;
-    center_guess = '100,75,75' ;
+    center_guess = '' ; % 100,75,75' ;
     dtype = 'h5' ;
     mask = 'none' ;
     prob_searchstr = '_stab_Probabilities.h5' ;
@@ -449,7 +453,8 @@ else
         'ilastikaxisorder', ilastikaxisorder, ... 
         'physicalaxisorder', imsaneaxisorder, ... 
         'include_boundary_faces', include_boundary_faces, ...
-        'smooth_with_matlab', smooth_with_matlab) ;
+        'smooth_with_matlab', smooth_with_matlab, ...
+        'pythonVersion', '3') ;
 
     % save options
     if exist(msls_detOpts_fn, 'file')
@@ -482,13 +487,13 @@ disp('done')
 % skip if already done
 
 for tt = xp.fileMeta.timePoints
-    if ~exist(fullfile(projectDir, 'stabilized_h5s', [sprintf(fn, tt) '.h5']), 'file')
+    if ~exist(fullfile(projectDir, 'stabilized_h5s', [sprintf(fnCombined, tt) '.h5']), 'file')
         disp(['Did not find file: ', fullfile(projectDir, 'stabilized_h5s', [sprintf(fn, tt) '.h5'])])
         xp.loadTime(tt);
         xp.rescaleStackToUnitAspect();
         % make a copy of the detectOptions and change the fileName
         detectOpts2 = detectOptions ;
-        detectOpts2.fileName = sprintf( fn, xp.currentTime ) ;
+        detectOpts2.fileName = sprintf( fnCombined, xp.currentTime ) ;
         xp.setDetectOptions( detectOpts2 );
         xp.detector.prepareIlastik(xp.stack);
         disp(['done outputting downsampled data h5: tp=' num2str(tt) ' for surface detection'])
@@ -540,14 +545,37 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(1:end)
-        try
+    tidx0_for_msls = 5; 
+    for tp = xp.fileMeta.timePoints(tidx0_for_msls:end)
+         try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
             % xp.rescaleStackToUnitAspect();
 
             % make a copy of the detectOptions and change the fileName
-            detectOpts2 = detectOptions ;
+            detectOptions.ilastikaxisorder = 'xyzc' ;
+            detectOptions.center_guess = '200/100/80' ;
+            detectOptions.smoothing = 0.5 ;
+            detectOptions.niter = 50 ;
+            detectOptions.pre_nu = -2 ;
+            detectOptions.save = true ;
+            if tp == timePoints(tidx0_for_msls)
+                detectOpts2 = detectOptions ;
+                detectOpts2.niter = detectOptions.niter0 ;
+                % use previous result if it exists -- this can't work
+                % if exist(sprintf( fnCombined, xp.currentTime ), 'file')
+                %     detectOpts2.init_ls_fn = sprintf( fnCombined, xp.currentTime ) ;
+                % end
+            else
+                detectOpts2.niter = detectOptions.niter ; 
+            end
+            
+            % Optional: load previous try, recompute
+            
+            detectOpts2.init_ls_fn = fullfile(detectOpts2.mslsDir, ...
+                [detectOpts2.ofn_ls sprintf('pass_%06d.h5', tp)]) ;  % 'none' 
+            
+            detectOpts2.smoothing
             detectOpts2.post_smoothing = 1 ;
             detectOpts2.timepoint = xp.currentTime ;
             detectOpts2.fileName = sprintf( fnCombined, xp.currentTime );
@@ -560,13 +588,39 @@ else
             xp.setDetectOptions( detectOpts2 );
             xp.detectSurface();
             % For next time, use the output mesh as an initial mesh
-            detectOpts2.init_ls_fn = 'none' ;
+            detectOpts2.init_ls_fn = fullfile(detectOpts2.mslsDir, ...
+                [detectOpts2.ofn_ls sprintf('%06d.h5', tp)]) ;  % 'none' ;
         catch
-            disp('Could not create mesh -- skipping for now')
-            % On next timepoint, use the tp previous to current time
-            detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
-                    num2str(tp - 1, '%06d' ) '.' detectOptions.dtype] ;
-        end
+             disp('Could not create mesh -- skipping for now')
+             % On next timepoint, use the tp previous to current time
+             detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
+                     num2str(tp - 1, '%06d' ) '.' detectOptions.dtype] ;
+         end
+    end
+    
+    for tidx = fliplr(1:tidx0_for_msls-1)
+        tp = xp.fileMeta.timePoints(tidx) ;
+        xp.setTime(tp);
+        % xp.loadTime(tp) ;
+        % xp.rescaleStackToUnitAspect();
+
+        % make a copy of the detectOptions and change the fileName
+        detectOpts2 = detectOptions ;
+        detectOpts2.post_smoothing = 1 ;
+        detectOpts2.timepoint = xp.currentTime ;
+        detectOpts2.init_ls_fn = fullfile(detectOpts2.mslsDir, ...
+                [detectOpts2.ofn_ls sprintf('%06d.h5', timePoints(tidx+1))]) ;
+        detectOpts2.fileName = sprintf( fnCombined, xp.currentTime );
+        % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+        %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4_octree12.mlx') ;
+        detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+             'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
+        % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+        %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4.mlx') ;
+        xp.setDetectOptions( detectOpts2 );
+        xp.detectSurface();
+        % For next time, use the output mesh as an initial mesh
+        detectOpts2.init_ls_fn = detectOpts2.fileName ;  % 'none' ;
     end
 end
 
