@@ -1,7 +1,27 @@
-function simulateNES(QS, options)
+% DEBUGGING script for function simulateNES(QS, options)
+function simulateNES_standaloneTest()
+QS = struct() ;
+QS.nU = 100 ;
+QS.nV = 100 ;
+QS.t0 = 123 ;
+QS.timeInterval = 1 ;
+QS.timeUnits = 'min' ;
+options = struct() ;
+
+pathlineDir = '/mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/piv/pathlines/t0_0037' ;
+dxdyFilteredFn = '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/piv/pathlines/t0_0123/DxDyStrainFiltered/dxdy_strain_%06d.mat' ;
+debugFile = './simulationTestFile.mat' ;
+tmp = load(debugFile, 'cutM', 'mesh', 'refMesh', 'xyzlim', 'bwr', 'timePoints') ;
+cutM = tmp.cutM ;
+mesh = tmp.mesh ;
+refMesh = tmp.refMesh.refMesh ;
+xyzlim = tmp.xyzlim ;
+bwr = tmp.bwr ;
+timePoints = tmp.timePoints  ;
+% save(debugFile, 'cutM', 'mesh', 'refMesh', 'xyzlim', 'bwr', 'timePoints')
 
 %% Default options
-strainstyle = 'total' ;  % 'total' 'axial' 'hoop' 'hoopCompression' 'ring' 'line'
+strainstyle = 'hoopCompression' ;  % 'total' 'axial' 'hoop' 'hoopCompression' 'ring' 'line'
 targetThetaStyle = 'quasistatic' ; % either 'plate' or 'quasistatic'
 Alpha = 1 ;
 Beta = 1 ;
@@ -15,16 +35,19 @@ eL_allow = 0.1 ;
 maxIter = 500 ;
 nU = QS.nU ;
 nV = QS.nV ;
-t0Pathlines = QS.t0set() ;
+% t0Pathlines = QS.t0set() ; % Debug
+t0Pathlines = QS.t0 ;
 preview = false ;
 Dt = 10 ;
-% nsteps_per_timepoint = 10 ;
+nsteps_per_timepoint = 10 ;
 niter_per_Dt = 1 ;
 Ntotal = 155 ;
 plot_faces = true ;
 plot_dfaces = true ;
 plot_wire = false ;
 plot_divcurl = true ;
+% timePoints = QS.xp.fileMeta.timePoints ; % Debug
+
 
 % Figure Options
 figWidth = 16 ; 
@@ -71,13 +94,17 @@ if isfield(options, 'maxIter')
     maxIter = options.maxIter ;
 end
 
+%% Define paths % DEBUG
+% pathlineDir = sprintf(QS.dir.pathlines.data, t0Pathlines) ;  % Debug
+% dxdyFilteredDir = sprintf(QS.fileBase.pathlines.dxdyFiltered, t0Pathlines) ;  % Debug
 
 %% Add path (todo: make this automatic by putting NES code in gut_matlabl)
 NESpath = '/mnt/data/code/NonEuclideanShells/NES/' ;
 addpath_recurse(NESpath)
 
 %% Path options
-outRoot = fullfile(sprintf(QS.dir.pathlines.data, t0Pathlines), 'simulation') ;
+
+outRoot = fullfile(pathlineDir, 'simulation') ; % Debug
 exten = sprintf('_Dt%03d_nu%0.2f_t%0.2f_%03dx%03d', ...
     Dt, poisson_ratio, thickness, nU, nV) ;
 exten = strrep(exten, '.', 'p') ;
@@ -101,11 +128,12 @@ if ~exist(outdir, 'dir')
 end
 
 %% 
-QS.setTime(t0Pathlines)
-QS.getCurrentSPCutMeshSmRS()
-cutM = QS.currentMesh.spcutMeshSmRS ;
-QS.getCurrentSPCutMeshSmRSC()
-mesh = QS.currentMesh.spcutMeshSmRSC ;
+% QS.setTime(t0Pathlines) % Debug
+% QS.getCurrentSPCutMeshSmRS() % Debug
+% cutM = QS.currentMesh.spcutMeshSmRS ; % Debug
+% QS.getCurrentSPCutMeshSmRSC() % Debug
+% mesh = QS.currentMesh.spcutMeshSmRSC ; % Debug
+
 
 % Close the endcaps with a single vertex (may be a problem?)
 vtx = reshape(mesh.v, [nU, nV-1, 3]) ;
@@ -171,8 +199,8 @@ midz = 0.5 * (VV(eIDx(:, 1), 3) + VV(eIDx(:, 2), 3)) ;
 bc3d = [midx, midy, midz] ;
 
 %% Compute the bond orientation angles in 2d
-refMesh = load(sprintf(QS.fileName.pathlines.refMesh, t0Pathlines)) ;
-refMesh = refMesh.refMesh ;
+% refMesh = load(sprintf(QS.fileName.pathlines.refMesh, t0Pathlines)) ; % Debug
+% refMesh = refMesh.refMesh ; % Debug
 V2d = refMesh.u ;
 V2d(:, 1) = V2d(:, 1) / max(V2d(:, 1)) ;
 % Construct Topolgical Structure Tools ===================================
@@ -275,7 +303,7 @@ V1 = VV ;  % previous timepoint vertices
 cmap = bwr ;
 
 % plot limits
-[~,~,~,xyzlim] = QS.getXYZLims() ;
+% [~,~,~,xyzlim] = QS.getXYZLims() ; % Debug
 
 %% save simulation parameters
 eIDx2dGlued = e2dg ;
@@ -334,7 +362,7 @@ end
 bfn = fullfile(outdir, 'beltrami', sprintf('beltrami_%03d.mat', 0)) ;
 bifn = fullfile(outdir, 'beltrami_images', sprintf('beltrami_%03d.png', 0)) ;
 if ~exist(bfn, 'file') || ~exist(bifn, 'file') 
-    aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, 0, bfn, bifn)
+    aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, 0, bfn, bifn, xyzlim)
 end
 
 %% 
@@ -401,9 +429,9 @@ end
 %% Consider each timestep, which averages Dt timepoints of experiment
 for ii = 1:Ntotal
 
-    tp = QS.t0set() + (ii-1)*Dt ;
+    tp = QS.t0 + (ii-1)*Dt ;
     
-    assert(tp < max(QS.xp.fileMeta.timePoints) + 1)
+    assert(tp < max(timePoints) + 1)
 
     disp(['Considering tp = ' num2str(tp)])
     % Calculate Target Edge Lengths -------------------------------------------
@@ -429,7 +457,7 @@ for ii = 1:Ntotal
     else
         for qq = 1:Dt
             disp(['averaging dxs with tp=', num2str(tp + qq -1)])
-            tmp = load(sprintf(QS.fileBase.pathlines.dxdyFiltered, t0Pathlines, tp + qq - 1)) ;
+            tmp = load(sprintf(dxdyFilteredFn, tp + qq - 1)) ;
             if qq == 1
                 dxs = tmp.dxs ;
                 dys = tmp.dys ;
@@ -734,7 +762,6 @@ for ii = 1:Ntotal
         erorr(['Did not recognize targetTheta style: ' targetThetaStyle])
     end
     
-    
     %% Compute initial volume
     % The centroids of each face
     COM = cat( 3, VV(FF(:,1), :), ...
@@ -868,7 +895,6 @@ for ii = 1:Ntotal
             Egr = 0 ;
             Egr_faces = 0 ;
         end
-        
         
         %% Save vertices
         save(fn, 'VV', 'FF', 'Eb', 'Efp', 'Efv', 'Es', 'Egr',...

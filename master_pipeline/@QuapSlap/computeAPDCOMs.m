@@ -274,18 +274,24 @@ if ~load_from_disk || overwrite
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Smooth the acom and pcom data
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    if length(timePoints) > 2
-        disp('Smoothing acom and pcom...')
-        acom_sm = 0 * acoms ;
-        pcom_sm = 0 * acoms ;
-        % fraction of data for smoothing window
-        smfrac = smwindow / double(length(timePoints)) ;  
-        acom_sm(:, 1) = smooth(timePoints, acoms(:, 1), smfrac, 'rloess');
-        pcom_sm(:, 1) = smooth(timePoints, pcoms(:, 1), smfrac, 'rloess');
-        acom_sm(:, 2) = smooth(timePoints, acoms(:, 2), smfrac, 'rloess');
-        pcom_sm(:, 2) = smooth(timePoints, pcoms(:, 2), smfrac, 'rloess');
-        acom_sm(:, 3) = smooth(timePoints, acoms(:, 3), smfrac, 'rloess');
-        pcom_sm(:, 3) = smooth(timePoints, pcoms(:, 3), smfrac, 'rloess');
+    if length(timePoints) > 2 
+        if smwindow > 0
+            disp('Smoothing acom and pcom...')
+            acom_sm = 0 * acoms ;
+            pcom_sm = 0 * acoms ;
+            % fraction of data for smoothing window
+            smfrac = smwindow / double(length(timePoints)) ;  
+            acom_sm(:, 1) = smooth(timePoints, acoms(:, 1), smfrac, 'rloess');
+            pcom_sm(:, 1) = smooth(timePoints, pcoms(:, 1), smfrac, 'rloess');
+            acom_sm(:, 2) = smooth(timePoints, acoms(:, 2), smfrac, 'rloess');
+            pcom_sm(:, 2) = smooth(timePoints, pcoms(:, 2), smfrac, 'rloess');
+            acom_sm(:, 3) = smooth(timePoints, acoms(:, 3), smfrac, 'rloess');
+            pcom_sm(:, 3) = smooth(timePoints, pcoms(:, 3), smfrac, 'rloess');
+        else
+            disp('No smoothing to acom and pcom...')
+            acom_sm = acoms ;
+            pcom_sm = pcoms ;
+        end
     else
         acom_sm = acoms ;
         pcom_sm = pcoms ;

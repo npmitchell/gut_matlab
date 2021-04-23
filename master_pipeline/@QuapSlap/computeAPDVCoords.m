@@ -259,15 +259,38 @@ if redo_rot_calc || overwrite
         % [~, acom] = match_training_to_vertex(adat, thres, vertices, options) ;
         % [~, pcom] = match_training_to_vertex(pdat, thres, vertices, options) ;
         
-        switch lower(ilastikOutputAxisOrder)
-            case 'cxyz'
-                disp('no permuting necessary')
-            case 'czyx'
-                acom = [acom(3) acom(2) acom(1)];
-                pcom = [pcom(3) pcom(2) pcom(1)];
-            otherwise
-                error('did not recognize ilastikOutputAxisOrder')   
+        xyzstring = erase(lower(ilastikOutputAxisOrder), 'c') ;
+        xpos = strfind(xyzstring, 'x') ;
+        ypos = strfind(xyzstring, 'y') ;
+        zpos = strfind(xyzstring, 'z') ;
+        if isempty(xpos) || isempty(ypos) || isempty(zpos)
+            error(['did not recognize ilastikOutputAxisOrder=' ilastikOutputAxisOrder])
         end
+        acomPermuted = [0, 0, 0] ;
+        acomPermuted(xpos) = acom(1) ;
+        acomPermuted(ypos) = acom(2) ;
+        acomPermuted(zpos) = acom(3) ;
+        acom = acomPermuted ;
+        pcomPermuted = [0, 0, 0] ;
+        pcomPermuted(xpos) = pcom(1) ;
+        pcomPermuted(ypos) = pcom(2) ;
+        pcomPermuted(zpos) = pcom(3) ;
+        pcom = pcomPermuted ;
+        % switch lower(xyzstring)
+        %     case 'xyz'
+        %         disp('no permuting necessary')
+        %     case 'zyx'
+        %         acom = [acom(3) acom(2) acom(1)];
+        %         pcom = [pcom(3) pcom(2) pcom(1)];
+        %     case 'yxz'
+        %         acom = [acom(2) acom(1) acom(3)];
+        %         pcom = [pcom(2) pcom(1) pcom(3)];
+        %     case 'z'
+        %         acom = [acom(2) acom(1) acom(3)];
+        %         pcom = [pcom(2) pcom(1) pcom(3)];
+        %     otherwise
+        %         error('did not recognize ilastikOutputAxisOrder')   
+        % end
         
         if preview
             disp('acom = ')
@@ -465,6 +488,16 @@ for ii = 1:3
     subplot(1, 3, ii)
     trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
     hold on;
+    if ~exist('acom', 'var')
+        acom = dlmread(acomname) ;
+    end
+    if ~exist('pcom', 'var')
+        pcom = dlmread(pcomname) ;
+    end
+    if ~exist('dcom', 'var')
+        dcom = dlmread(dcomname) ;
+    end
+    
     plot3(acom(1) * ssfactor, acom(2) * ssfactor, acom(3) * ssfactor, 'o')
     plot3(pcom(1) * ssfactor, pcom(2) * ssfactor, pcom(3) * ssfactor, 'o')
     plot3(dcom(1) * ssfactor, dcom(2) * ssfactor, dcom(3) * ssfactor, 'o')

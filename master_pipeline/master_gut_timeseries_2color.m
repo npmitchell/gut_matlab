@@ -4,8 +4,11 @@
 % This is a pipeline to take the surface of the growing Drosophila gut and
 % conformally map patches of it to the unit disk
 
-% CONVENTIONS
-% -----------
+% ============= %
+%  CONVENTIONS
+% ============= % 
+% >> Data and chirality <<
+% ------------------------
 % xp.stack.image.apply() gives imageLength, imageWidth, imageDepth as XYZ.
 % This forms our definition for XYZ. However, this is mirrored wrt the
 % physical coordinates in the lab frame. 
@@ -21,6 +24,17 @@
 % Therefore, set axisorder = 'cxyz' since MATLAB probability h5s are saved 
 % as cxyz.
 %
+% THIS WORKS BETTER:
+% ------------------
+% set_preilastikaxisorder = 'xyzc' ;
+% preilastikaxisorder= set_preilastikaxisorder; ... % axis order in input to ilastik as h5s. To keep as saved coords use xyzc
+% ilastikaxisorder= 'cxyz'; ... % axis order as output by ilastik probabilities h5
+% imsaneaxisorder = 'xyzc'; ... % axis order relative to mesh axis order by which to process the point cloud prediction. To keep as mesh coords, use xyzc
+%
+%    'preilastikaxisorder', preilastikaxisorder, ... 
+%    'ilastikaxisorder', ilastikaxisorder, ... 
+%    'physicalaxisorder', imsaneaxisorder, ... 
+%
 % Meshes from integralDetector are stored with normals 'outward'/basal.
 % It is important to preserve the triangle orientation for texturepatch,
 % but the mesh XY coordinates are flipped with respect to the physical lab
@@ -28,17 +42,71 @@
 % apical normals. The APDV meshes are black in meshlab when viewed from the
 % outside.  flipy indicates that the APDV coordinate system is mirrored 
 % across XZ wrt data coordinate system XYZ. 
+%
+% >> APDV ilastik training <<
+% ---------------------------
+% Train on anterior (A), posterior (P), background (B), and 
+% dorsal anterior (D) location in different iLastik channels.
+% Default order is 1-A, 2-P, 3-bg, 4-D. 
+% Train on pre-stabilized H5s, NOT on stabilized H5s. 
+% anteriorChannel, posteriorChannel, and dorsalChannel specify the iLastik
+% training channel that is used for each specification.
+% By default, name the h5 file output from iLastik as 
+%    QS.fullFileBase.apdProb --> [QS.fileBase.name '_Probabilities_APDVcoords.h5'] 
+% and/or 
+%    QS.fullFileBase.apCenterlineProb --> [QS.fileBase.name '_Probabilities_apcenterline.h5'] 
+% 
+% The APDV coordinate system -- this is where global rot is defined -- is
+% computed via 
+%    alignAPDVOpts.aProbFileName = QS.fullFileBase.apdProb ;
+%    alignAPDVOpts.pProbFileName = QS.fullFileBase.apCenterlineProb ;
+%    QS.computeAPDVCoords(alignAPDVOpts) ;
+% However, the APD COMs for centerline extraction can be independent. For
+% example, if the original segmentation used a third channel which happens
+% to be the posterior end, we can specify the posterior COM (P) via:
+%    apdvOpts.aProbFileName = QS.fullFileBase.apdProb ; % filename pattern for the apdv training probabilities
+%    apdvOpts.pProbFileName = QS.fullFileBase.prob ;
+%    apdvOpts.posteriorChannel = 3 ;
+%    [acom_sm, pcom_sm] = QS.computeAPDCOMs(apdvOpts) ;
+%
+% >> Centerline extraction <<
+% ---------------------------
+% STEP 1: INITIAL CENTERLINE
+% Centerlines are first computed using a fast marching procedure on a 
+% distance transform (DT) of the mesh data in dataspace. The starting and
+% endingpoints of this initial centerline can be specified using APDVcoords
+% training (and the resulting COM extraction) from the previous section or
+% else can be unique to the centerline extraction. This independence is
+% useful, for example, in convoluted organs like the gut, where the 
+% centerline of the muscle data curves away from the AP axis in the
+% posterior where the midgut turns back on itself to connect to the
+% hindgut.
+%
+% For redundant use of APDV coords for centerline, use the option:
+%
+% For independent training use the following convention:
+% Train on anterior (A), posterior (P), background (B), and 
+% dorsal anterior (D) location in different iLastik channels.
+% Default order is 1-A, 2-P, 3-bg, 4-D. 
+% anteriorChannel, posteriorChannel, and dorsalChannel specify the iLastik
+% training channel that is used for each specification.
+% Name the h5 file output from iLastik as ..._Probabilities_apcenterline.h5
+%
+% STEP 2: PRECISE CENTERLINE
+% The initial centerline is used to constrain the winding number of the
+% orbifold mapping. The second centerline is a series of average 3d points,
+% one for each DV ring of the quasi-axisymmetric pullback. 
 
 %% Clear workspace ========================================================
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
-% cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
-% cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
+% cd /mnt/data/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
+% cd /mnt/data/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
-% cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
-% cd /mnt/data/antpGAL4UASCAAXmChHGFP/202103281352_1p4um_0p15ms0p25ms_1mW1mW_GFPRFP/data/
+% cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
+% cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_180s/data/
+cd /mnt/data/antpGAL4UASCAAXmChHGFP/202103281352_1p4um_0p15ms0p25ms_1mW1mW_GFPRFP/Time3views_180s/data/
 
 % .=========.
 % |  VIP10  |
@@ -46,7 +114,7 @@ clear; close all; clc;
 % cd /mnt/crunch/gut/48YGal4UasLifeActRuby/201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
-cd /mnt/crunch/gut/antpGal4UASCAAXHGFP/202103271505_1p4um_0p1ms0p25ms_1mW1mW_GFPRFP_Time3views_120s/data/
+% cd /mnt/crunch/gut/antpGal4UASCAAXHGFP/202103271505_1p4um_0p1ms0p25ms_1mW1mW_GFPRFP_Time3views_120s/data/
 
 dataDir = cd ;
 
@@ -205,6 +273,11 @@ Options.channels = [1 2] ;
 Options.overwrite_overlays = false ;
 makeSubStackMips(timePoints, dir16bit_prestab, fn_prestab, subMipDir, Options)
 
+%% Collate multiple colors into one TIFF pre-stabilization
+fileNameIn = fullfile(dir16bit_prestab, fn_prestab) ;
+fileNameOut = fullfile(dir16bit_prestab, 'Time_%06d.tif') ;
+collateColors(fileNameIn, fileNameOut, timePoints, channelsUsed) ; 
+
 %%  -II. stabilize images, based on script stabilizeImagesCorrect.m
 % Skip if already done
 % name of directory to check the stabilization of mips
@@ -232,11 +305,6 @@ mips_stab_check2 = fullfile(mipDir, 'stab_check_ch2') ;
 applyStabilizationToChannel(2, fileNameIn, fileNameOut, ...
     rgbName, typename, timePoints, timePoints, timePoints(tidx0_for_stab), ...
     mipDir, mipoutdir2, mips_stab_check2, stabOptions)
-
-%% Collate multiple colors into one TIFF pre-stabilization
-fileNameIn = fullfile(dir16bit_prestab, fn_prestab) ;
-fileNameOut = fullfile(dir16bit_prestab, 'Time_%06d.tif') ;
-collateColors(fileNameIn, fileNameOut, timePoints, channelsUsed) ; 
 
 %% Collate multiple colors post stabilization
 fileNameIn = fullfile(dir16bit, [fn '.tif']) ;
@@ -364,7 +432,7 @@ else
     foreGroundChannel = 2;
     ssfactor = 4;
     niter = 15 ;
-    niter0 = 15 ;
+    niter0 = 50 ;
     ofn_ply = 'mesh_apical_ms_stab_' ; 
     ofn_ls = 'msls_apical_stab_' ;
     ofn_smoothply = 'mesh_apical_stab_' ;
@@ -374,6 +442,9 @@ else
     if contains(projectDir, 'LifeActRuby') || contains(projectDir, 'CAAXmCherry') 
         nu = 4 ;  % For volumetric
         smoothing = 0.20 ;
+    elseif contains(projectDir, 'HGFP') || contains(projectDir, 'HRFP')
+        nu = 0.00 ;
+        smoothing = 0.5 ;
     else
         nu = 0.00 ;
         smoothing = 0.10 ;
@@ -545,7 +616,7 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    tidx0_for_msls = 5; 
+    tidx0_for_msls = 2; 
     for tp = xp.fileMeta.timePoints(tidx0_for_msls:end)
          try
             xp.setTime(tp);
@@ -556,8 +627,9 @@ else
             detectOptions.ilastikaxisorder = 'xyzc' ;
             detectOptions.center_guess = '200/100/80' ;
             detectOptions.smoothing = 0.5 ;
+            detectOptions.pythonVersion = '3' ;
             detectOptions.niter = 50 ;
-            detectOptions.pre_nu = -2 ;
+            detectOptions.pre_nu = -8 ;
             detectOptions.save = true ;
             if tp == timePoints(tidx0_for_msls)
                 detectOpts2 = detectOptions ;
@@ -631,8 +703,8 @@ opts.flipy = flipy ;
 opts.timeInterval = timeInterval ;
 opts.timeUnits = timeUnits ;
 opts.spaceUnits = spaceUnits ;
-opts.nV = 100 ;
-opts.nU = 100 ;
+opts.nV = nV ;
+opts.nU = nU ;
 opts.normalShift = 10 ;
 opts.a_fixed = 2.0 ;
 opts.adjustlow = 1.00 ;         % floor for intensity adjustment
@@ -647,15 +719,15 @@ disp('done')
 
 %% Inspect a single mesh
 % Skip if already done
-tp = 50 ;
+tp = 10 ;
 meshfn = sprintf(QS.fullFileBase.mesh, tp) ;  
 QS.setTime(tp)
 QS.getCurrentData() ;
 IV = QS.currentData.IV ;
 mesh = read_ply_mod(meshfn) ;
-for leaf=1:40:size(IV, 1)
+for leaf=1:40:size(IV{1}, 1)
     inds = find(abs(mesh.v(:, 1) - leaf) < 5) ;
-    imshow(imadjust(squeeze(IV(leaf, :, :))'))
+    imshow(imadjust(squeeze(IV{1}(leaf, :, :))'))
     if any(inds)
         hold on;
         plot(mesh.v(inds, 2), mesh.v(inds, 3), 'co')
@@ -672,7 +744,7 @@ close all
 color1 = [1 1 1] ;
 color2 = [0 1 1] ;
 % which timepoint
-tp = 50 ;
+tp = 10 ;
 % grab mesh filename
 meshfn = sprintf(QS.fullFileBase.mesh, tp) ;
 % Load the raw data via imsane Experiment instance xp
@@ -680,33 +752,37 @@ QS.setTime(tp)
 QS.getCurrentData()
 IV = QS.currentData.IV ;
 %% which page do you want to look at in cross section?
-leaf = 500 ;
-% unpack two channel data
-if any(size(IV) > 1)
-    IV1 = IV{1} ;
-    IV2 = IV{2} ;
-    % make an rgb image cyan/magenta
-    red = squeeze(IV1(leaf, :, :) * color1(1) + IV2(leaf, :, :) * color2(1)) ;
-    grn = squeeze(IV1(leaf, :, :) * color1(2) + IV2(leaf, :, :) * color2(2)) ;
-    blu = squeeze(IV1(leaf, :, :) * color1(3) + IV2(leaf, :, :) * color2(3)) ;
-    im = cat(3, red, grn, blu) ;
-else
-    IV = IV{1} ;
-    im = squeeze(IV(leaf, :, :)) ;
-    im = cat(3, im, im, im) ;
-end
-% Load up the mesh
-mesh = read_ply_mod(meshfn) ;
-% Normal shift
-mesh.v = mesh.v + QS.normalShift .* mesh.vn;
-% Make this number larger to sample more of the nearby mesh
-width = 5 ;
-% Show the cross-section
-inds = find(abs(mesh.v(:, 1) - leaf) < width) ;
-imshow(permute(im, [2, 1, 3]))
-if any(inds)
-    hold on;
-    plot(mesh.v(inds, 2), mesh.v(inds, 3), '.')
+leaves = 100:100:1100 ;
+for leaf = leaves
+    % unpack two channel data
+    if any(size(IV) > 1)
+        IV1 = IV{1} ;
+        IV2 = IV{2} ;
+        % make an rgb image cyan/magenta
+        red = squeeze(IV1(leaf, :, :) * color1(1) + IV2(leaf, :, :) * color2(1)) ;
+        grn = squeeze(IV1(leaf, :, :) * color1(2) + IV2(leaf, :, :) * color2(2)) ;
+        blu = squeeze(IV1(leaf, :, :) * color1(3) + IV2(leaf, :, :) * color2(3)) ;
+        im = cat(3, red, grn, blu) ;
+    else
+        IV = IV{1} ;
+        im = squeeze(IV(leaf, :, :)) ;
+        im = cat(3, im, im, im) ;
+    end
+    % Load up the mesh
+    mesh = read_ply_mod(meshfn) ;
+    % Normal shift
+    mesh.v = mesh.v + QS.normalShift .* mesh.vn;
+    % Make this number larger to sample more of the nearby mesh
+    width = 5 ;
+    % Show the cross-section
+    inds = find(abs(mesh.v(:, 1) - leaf) < width) ;
+    imshow(permute(im, [2, 1, 3]))
+    if any(inds)
+        hold on;
+        plot(mesh.v(inds, 2), mesh.v(inds, 3), '.')
+    end
+    pause(1) ;
+    clf
 end
                 
 %% Inspect all meshes in 3D
@@ -809,7 +885,7 @@ clearvars msls_exten msls_detOpts_fn niter niter0 nu
 % Perform on pre-stabilized H5s, NOT on stabilized H5s. 
 % anteriorChannel, posteriorChannel, and dorsalChannel specify the iLastik
 % training channel that is used for each specification.
-% Name the h5 file output from iLastik as ..._Probabilities_apcenterline.h5
+% Name the h5 file output from iLastik as ..._Probabilities_APDVcoords.h5
 % with dataset name /exported_data.
 % Train for anterior dorsal (D) only at the first time point, because
 % that's the only one that's used. 
@@ -904,11 +980,16 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         load(optsfn, 'alignAPDVOpts', 'apdvOpts')
     else
         disp('No alignAPDV_Opts on disk or overwriting, defining')
-        apdvOpts.smwindow = 30 ;
+        apdvOpts.smwindow = 0 ;
         apdvOpts.buffer = buffer ;  
         apdvOpts.plot_buffer = plot_buffer ;
         apdvOpts.anteriorChannel = anteriorChannel ;
         apdvOpts.posteriorChannel = posteriorChannel ;
+        apdvOpts.tpref = t0_for_phi0 ;
+        % Can specify separate APDV coordinate system from centerline
+        apdvOpts.aProbFileName = QS.fullFileBase.apCenterlineProb ;
+        apdvOpts.pProbFileName = QS.fullFileBase.apCenterlineProb ;
+        
         
         alignAPDVOpts.weight = weight ;
         alignAPDVOpts.normal_step = normal_step ;
@@ -918,10 +999,12 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         alignAPDVOpts.posteriorChannel = posteriorChannel ;
         alignAPDVOpts.dorsalChannel = dorsalChannel ;
         alignAPDVOpts.dorsal_thres = dorsal_thres ;
-        
-        % alignAPDVOpts.fn = fn ;  % filename base
+        alignAPDVOpts.tref = t0_for_phi0 ;       
+        alignAPDVOpts.fn = fn ;  % filename base
+        alignAPDVOpts.aProbFileName = QS.fullFileBase.apdProb ;
+        alignAPDVOpts.pProbFileName = QS.fullFileBase.apdProb ;
 
-        % save the optionsc
+        % save the options
         save(optsfn, 'alignAPDVOpts', 'apdvOpts')
     end
 
@@ -981,19 +1064,27 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     % dlmwrite(acomname, startpt) ;
     % dlmwrite(pcomname, pcom) ;
     
-    %% Compute APDV coordinate system
+    %% Compute APDV coordinate system-- this is where rot is defined
     QS.computeAPDVCoords(alignAPDVOpts) ;
     
-    % Compute the APD COMs
-    apdvOpts.aProbFileName = QS.fullFileBase.apdProb ; % filename pattern for the apdv training probabilities
-    apdvOpts.pProbFileName = QS.fullFileBase.prob ;
-    apdvOpts.posteriorChannel = 3 ;
+    % Compute the APD COMs 
+    % apdvOpts.aProbFileName = QS.fullFileBase.apdProb ; % filename pattern for the apdv training probabilities
+    % apdvOpts.pProbFileName = QS.fullFileBase.apdProb ;
+    apdvOpts.posteriorChannel = 2 ;
     [acom_sm, pcom_sm] = QS.computeAPDCOMs(apdvOpts) ;
     
     % Align the meshes APDV & plot them
     alignAPDVOpts.overwrite_ims = overwrite_alignedMeshIms ;  % overwrite images even if centerlines are not overwritten
     alignAPDVOpts.overwrite = overwrite_APDVCOMs || overwrite_APDVMeshAlignment ; % recompute APDV rotation, translation
     QS.alignMeshesAPDV(alignAPDVOpts) ;
+    
+    
+    % NOTE: normals should point INWARD
+    tmp = read_ply_mod(sprintf(QS.fullFileBase.alignedMesh, 1)) ;
+    trisurf(triangulation(tmp.f, tmp.v), tmp.vn(:, 1), 'edgecolor', 'none')
+    axis equal
+    title('Do normals point inward?')
+    
 else
     % Display APDV COMS over time
     acom_sm = h5read(QS.fileName.apdv, '/acom_sm') ;
@@ -1093,19 +1184,36 @@ end
 
 % Use first timepoint's intensity limits throughout
 % QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.95)
-QS.data.adjustlow = 1000 ;
-QS.data.adjusthigh = 65535 ;
+% For mef2Gal4CAAX
+% QS.data.adjustlow = 1000 ;
+% QS.data.adjusthigh = 65535 ;
+
+% For antpGal4 ch2 (CAAX)
+QS.data.adjustlow = 0 ;
+QS.data.adjusthigh = 10000 ;
 
 %% Plot on surface for all TP 
 options = metadat ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.plot_dorsal = true ;
 options.plot_ventral = true ;
 options.plot_right = true ;
 options.plot_left = true ;
 options.plot_perspective = true ;
-options.channel = 1 ;
+options.channel = [2] ; % if empty, plot all channels
 % Options.falseColors = [1, 1, 1; 0, 1, 0]; 
+
+Options.numLayers = [15, 0] ;
+Options.layerSpacing = 1 ;
+Options.PSize = 1;
+Options.EdgeColor = 'k' ;
+Options.PSize = 5 ;
+Options.EdgeColor = 'none';
+QS.getRotTrans() ;
+Options.Rotation = QS.APDV.rot ;
+Options.Translation = QS.APDV.trans ;
+Options.Dilation = QS.APDV.resolution ;
+
 QS.plotSeriesOnSurfaceTexturePatch(options, Options)
 clearvars Options
 

@@ -1,7 +1,43 @@
-function simulateNES(QS, options)
+% DEBUGGING script for function simulateNES(QS, options)
+function simulateNES_standaloneTest()
+QS = struct() ;
+QS.nU = 100 ;
+QS.nV = 100 ;
+QS.t0 = 123 ;
+QS.timeInterval = 1 ;
+QS.timeUnits = 'min' ;
+options = struct() ;
+
+pathlineDir = '/mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/piv/pathlines/t0_0037' ;
+dxdyFilteredFn = '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/piv/pathlines/t0_0123/DxDyStrainFiltered/dxdy_strain_%06d.mat' ;
+debugFile = './simulationTestFile.mat' ;
+tmp = load(debugFile, 'cutM', 'mesh', 'refMesh', 'xyzlim', 'bwr', 'timePoints') ;
+cutM = tmp.cutM ;
+mesh = tmp.mesh ;
+refMesh = tmp.refMesh.refMesh ;
+xyzlim = tmp.xyzlim ;
+bwr = tmp.bwr ;
+timePoints = tmp.timePoints  ;
+% save(debugFile, 'cutM', 'mesh', 'refMesh', 'xyzlim', 'bwr', 'timePoints')
+
+%% Add path (todo: make this automatic by putting NES code in gut_matlabl)
+NESpath = '/mnt/data/code/NonEuclideanShells/NES/' ;
+addpath_recurse(NESpath)
 
 %% Default options
-strainstyle = 'total' ;  % 'total' 'axial' 'hoop' 'hoopCompression' 'ring' 'line'
+strainstyle = 'meshes' ;  % 'meshes' 'total' 'axial' 'hoop' 'hoopCompression' 'ring' 'line'
+% 'meshes' : infer metric from a series of meshes and use those as rest
+%       lengths
+% 'total' : all measured compress/expansion applied to bonds
+% 'axial' :  compression/expansion along ap direction on bonds, so
+%       epilon_zz applied to bonds with cos(beta)
+% 'hoop' : compression/expansion along dv direction for all bonds, so
+%       epsilon_phiphi applied to bonds with sin(beta)
+% 'hoopCompression' : compression along dv direction
+% 'ring' : compression/expansion along dv direction on bonds with 
+%       beta==pi/2
+% 'line' : compression/expansion along ap direction on bonds with beta==0
+
 targetThetaStyle = 'quasistatic' ; % either 'plate' or 'quasistatic'
 Alpha = 1 ;
 Beta = 1 ;
@@ -15,16 +51,19 @@ eL_allow = 0.1 ;
 maxIter = 500 ;
 nU = QS.nU ;
 nV = QS.nV ;
-t0Pathlines = QS.t0set() ;
+% t0Pathlines = QS.t0set() ; % Debug
+t0Pathlines = QS.t0 ;
 preview = false ;
 Dt = 10 ;
-% nsteps_per_timepoint = 10 ;
+nsteps_per_timepoint = 10 ;
 niter_per_Dt = 1 ;
 Ntotal = 155 ;
 plot_faces = true ;
 plot_dfaces = true ;
 plot_wire = false ;
 plot_divcurl = true ;
+% timePoints = QS.xp.fileMeta.timePoints ; % Debug
+
 
 % Figure Options
 figWidth = 16 ; 
@@ -71,13 +110,13 @@ if isfield(options, 'maxIter')
     maxIter = options.maxIter ;
 end
 
-
-%% Add path (todo: make this automatic by putting NES code in gut_matlabl)
-NESpath = '/mnt/data/code/NonEuclideanShells/NES/' ;
-addpath_recurse(NESpath)
+%% Define paths % DEBUG
+% pathlineDir = sprintf(QS.dir.pathlines.data, t0Pathlines) ;  % Debug
+% dxdyFilteredDir = sprintf(QS.fileBase.pathlines.dxdyFiltered, t0Pathlines) ;  % Debug
 
 %% Path options
-outRoot = fullfile(sprintf(QS.dir.pathlines.data, t0Pathlines), 'simulation') ;
+
+outRoot = fullfile(pathlineDir, 'simulation') ; % Debug
 exten = sprintf('_Dt%03d_nu%0.2f_t%0.2f_%03dx%03d', ...
     Dt, poisson_ratio, thickness, nU, nV) ;
 exten = strrep(exten, '.', 'p') ;
@@ -101,11 +140,12 @@ if ~exist(outdir, 'dir')
 end
 
 %% 
-QS.setTime(t0Pathlines)
-QS.getCurrentSPCutMeshSmRS()
-cutM = QS.currentMesh.spcutMeshSmRS ;
-QS.getCurrentSPCutMeshSmRSC()
-mesh = QS.currentMesh.spcutMeshSmRSC ;
+% QS.setTime(t0Pathlines) % Debug
+% QS.getCurrentSPCutMeshSmRS() % Debug
+% cutM = QS.currentMesh.spcutMeshSmRS ; % Debug
+% QS.getCurrentSPCutMeshSmRSC() % Debug
+% mesh = QS.currentMesh.spcutMeshSmRSC ; % Debug
+
 
 % Close the endcaps with a single vertex (may be a problem?)
 vtx = reshape(mesh.v, [nU, nV-1, 3]) ;
@@ -171,8 +211,8 @@ midz = 0.5 * (VV(eIDx(:, 1), 3) + VV(eIDx(:, 2), 3)) ;
 bc3d = [midx, midy, midz] ;
 
 %% Compute the bond orientation angles in 2d
-refMesh = load(sprintf(QS.fileName.pathlines.refMesh, t0Pathlines)) ;
-refMesh = refMesh.refMesh ;
+% refMesh = load(sprintf(QS.fileName.pathlines.refMesh, t0Pathlines)) ; % Debug
+% refMesh = refMesh.refMesh ; % Debug
 V2d = refMesh.u ;
 V2d(:, 1) = V2d(:, 1) / max(V2d(:, 1)) ;
 % Construct Topolgical Structure Tools ===================================
@@ -275,7 +315,7 @@ V1 = VV ;  % previous timepoint vertices
 cmap = bwr ;
 
 % plot limits
-[~,~,~,xyzlim] = QS.getXYZLims() ;
+% [~,~,~,xyzlim] = QS.getXYZLims() ; % Debug
 
 %% save simulation parameters
 eIDx2dGlued = e2dg ;
@@ -334,7 +374,7 @@ end
 bfn = fullfile(outdir, 'beltrami', sprintf('beltrami_%03d.mat', 0)) ;
 bifn = fullfile(outdir, 'beltrami_images', sprintf('beltrami_%03d.png', 0)) ;
 if ~exist(bfn, 'file') || ~exist(bifn, 'file') 
-    aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, 0, bfn, bifn)
+    aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, 0, bfn, bifn, xyzlim)
 end
 
 %% 
@@ -401,9 +441,9 @@ end
 %% Consider each timestep, which averages Dt timepoints of experiment
 for ii = 1:Ntotal
 
-    tp = QS.t0set() + (ii-1)*Dt ;
+    tp = QS.t0 + (ii-1)*Dt ;
     
-    assert(tp < max(QS.xp.fileMeta.timePoints) + 1)
+    assert(tp < max(timePoints) + 1)
 
     disp(['Considering tp = ' num2str(tp)])
     % Calculate Target Edge Lengths -------------------------------------------
@@ -424,171 +464,175 @@ for ii = 1:Ntotal
     end            
     
     %% Determine hoop strain from experimental dx and/or dy
-    if strcmpi(strainstyle, 'total')
-        error('here')
+    if strcmpi(strainstyle, 'meshes')
+        
     else
-        for qq = 1:Dt
-            disp(['averaging dxs with tp=', num2str(tp + qq -1)])
-            tmp = load(sprintf(QS.fileBase.pathlines.dxdyFiltered, t0Pathlines, tp + qq - 1)) ;
-            if qq == 1
-                dxs = tmp.dxs ;
-                dys = tmp.dys ;
-            else
-                dxs = dxs + tmp.dxs ;
-                dys = dys + tmp.dys ;
+        if strcmpi(strainstyle, 'total')
+            error('here')
+        else
+            for qq = 1:Dt
+                disp(['averaging dxs with tp=', num2str(tp + qq -1)])
+                tmp = load(sprintf(dxdyFilteredFn, tp + qq - 1)) ;
+                if qq == 1
+                    dxs = tmp.dxs ;
+                    dys = tmp.dys ;
+                else
+                    dxs = dxs + tmp.dxs ;
+                    dys = dys + tmp.dys ;
+                end
             end
+
+            % hack for now --> go back and repeat with reflected boundaries
+            dxs(:, nV) = dxs(:, 1) ; 
+            dys(:, nV) = dys(:, 1) ; 
+            % dxs = dxs / Dt ;
+            % dys = dys / Dt ;
         end
 
-        % hack for now --> go back and repeat with reflected boundaries
-        dxs(:, nV) = dxs(:, 1) ; 
-        dys(:, nV) = dys(:, 1) ; 
-        % dxs = dxs / Dt ;
-        % dys = dys / Dt ;
-    end
-        
-    
-    %% Roll off the deformation to zero at anterior and posterior ends
-    % make something like a tukey window and apply to deformation
-    twinAnterior = tukeywin(nU, 0.15) ;
-    twinPosterior = tukeywin(nU, 0.25) ;
-    twin = twinAnterior ;
-    twin(round(nU*0.5):end) = twinPosterior(round(nU*0.5:end)) ;
-    dxs = twin .* dxs ;
-    dys = twin .* dys ;
-    
-    % Smooth dx field with modeFilter
-    opt = struct('nModesY', 4) ;
-    dxs = modeFilterQuasi1D(dxs, opt) ;
-    dys = modeFilterQuasi1D(dys, opt) ;
 
-    % prep for interpolation
-    rux = refMesh.u(:, 1) / max(refMesh.u(:, 1)) ;
-    ruy = refMesh.u(:, 2) / max(refMesh.u(:, 2)) ;
-    rux = reshape(rux, [nU, nV]) ;
-    ruy = reshape(ruy, [nU, nV]) ;
-    if preview
-        tmplim = max(max(dys(:)), max(dxs(:))) ;
-        close all
-        subplot(1, 2, 1)
-        imagesc(linspace(0,1,nU), linspace(0,1,nV), dxs')
-        xlabel('$\zeta$','interpreter', 'latex')
-        ylabel('$\phi$','interpreter', 'latex')
-        title('$\delta \zeta$', 'interpreter', 'latex')
-        caxis([-tmplim, tmplim])
-        colormap bwr
-        colorbar('location', 'southoutside')
-        subplot(1, 2, 2)
-        imagesc(linspace(0,1,nU), linspace(0,1,nV), dys')
-        xlabel('$\zeta$','interpreter', 'latex')
-        ylabel('$\phi$','interpreter', 'latex')
-        title('$\delta \phi$', 'interpreter', 'latex')
-        caxis([-tmplim, tmplim])
-        colormap bwr
-        colorbar('location', 'southoutside')
-    end
+        %% Roll off the deformation to zero at anterior and posterior ends
+        % make something like a tukey window and apply to deformation
+        twinAnterior = tukeywin(nU, 0.15) ;
+        twinPosterior = tukeywin(nU, 0.25) ;
+        twin = twinAnterior ;
+        twin(round(nU*0.5):end) = twinPosterior(round(nU*0.5:end)) ;
+        dxs = twin .* dxs ;
+        dys = twin .* dys ;
 
-    if any(strcmpi(strainstyle, {'all', 'axial', 'line'}))
+        % Smooth dx field with modeFilter
+        opt = struct('nModesY', 4) ;
+        dxs = modeFilterQuasi1D(dxs, opt) ;
+        dys = modeFilterQuasi1D(dys, opt) ;
 
+        % prep for interpolation
         rux = refMesh.u(:, 1) / max(refMesh.u(:, 1)) ;
         ruy = refMesh.u(:, 2) / max(refMesh.u(:, 2)) ;
         rux = reshape(rux, [nU, nV]) ;
         ruy = reshape(ruy, [nU, nV]) ;
-        dxinterp = griddedInterpolant(rux, ruy, dxs, 'linear') ;
-        dxi = dxinterp(bxy2dg(:, 1), bxy2dg(:, 2)) ;
-        dxmag = zeros(size(bbeta)) ;
-        dxmag(i3d) = dxi ;
-
-        %% Preview 3d assignment
         if preview
-            clear all
-            scatter3(bc3d(:,1), bc3d(:, 2),bc3d(:,3), 15, dxmag, 'filled')
-            caxis([-max(abs(dxs(:))), max(abs(dxs(:)))])
+            tmplim = max(max(dys(:)), max(dxs(:))) ;
+            close all
+            subplot(1, 2, 1)
+            imagesc(linspace(0,1,nU), linspace(0,1,nV), dxs')
+            xlabel('$\zeta$','interpreter', 'latex')
+            ylabel('$\phi$','interpreter', 'latex')
+            title('$\delta \zeta$', 'interpreter', 'latex')
+            caxis([-tmplim, tmplim])
             colormap bwr
-            pause(3)
-        end
-    end
-    if any(contains(lower(strainstyle), {'all', 'hoop', 'ring'}))
-        % Interpolation
-        dyinterp = griddedInterpolant(rux, ruy, dys, 'linear') ;
-        dyi = dyinterp(bxy2dg(:, 1), bxy2dg(:, 2)) ;
-        dymag = zeros(size(bbeta)) ;
-        dymag(i3d) = dyi ;
-
-        %% Preview 3d assignment
-        if preview
-            clf
-            midx = 0.5 * (VV(eIDx(:, 1), 1) + VV(eIDx(:, 2), 1)) ;
-            midy = 0.5 * (VV(eIDx(:, 1), 2) + VV(eIDx(:, 2), 2)) ;
-            midz = 0.5 * (VV(eIDx(:, 1), 3) + VV(eIDx(:, 2), 3)) ;
-            scatter3(midx, midy, midz, 15, dymag, 'filled')
-            caxis([-max(abs(dys(:))), max(abs(dys(:)))])
+            colorbar('location', 'southoutside')
+            subplot(1, 2, 2)
+            imagesc(linspace(0,1,nU), linspace(0,1,nV), dys')
+            xlabel('$\zeta$','interpreter', 'latex')
+            ylabel('$\phi$','interpreter', 'latex')
+            title('$\delta \phi$', 'interpreter', 'latex')
+            caxis([-tmplim, tmplim])
             colormap bwr
-            pause(3)
+            colorbar('location', 'southoutside')
         end
+
+        if any(strcmpi(strainstyle, {'all', 'axial', 'line'}))
+
+            rux = refMesh.u(:, 1) / max(refMesh.u(:, 1)) ;
+            ruy = refMesh.u(:, 2) / max(refMesh.u(:, 2)) ;
+            rux = reshape(rux, [nU, nV]) ;
+            ruy = reshape(ruy, [nU, nV]) ;
+            dxinterp = griddedInterpolant(rux, ruy, dxs, 'linear') ;
+            dxi = dxinterp(bxy2dg(:, 1), bxy2dg(:, 2)) ;
+            dxmag = zeros(size(bbeta)) ;
+            dxmag(i3d) = dxi ;
+
+            %% Preview 3d assignment
+            if preview
+                clear all
+                scatter3(bc3d(:,1), bc3d(:, 2),bc3d(:,3), 15, dxmag, 'filled')
+                caxis([-max(abs(dxs(:))), max(abs(dxs(:)))])
+                colormap bwr
+                pause(3)
+            end
+        end
+        if any(contains(lower(strainstyle), {'all', 'hoop', 'ring'}))
+            % Interpolation
+            dyinterp = griddedInterpolant(rux, ruy, dys, 'linear') ;
+            dyi = dyinterp(bxy2dg(:, 1), bxy2dg(:, 2)) ;
+            dymag = zeros(size(bbeta)) ;
+            dymag(i3d) = dyi ;
+
+            %% Preview 3d assignment
+            if preview
+                clf
+                midx = 0.5 * (VV(eIDx(:, 1), 1) + VV(eIDx(:, 2), 1)) ;
+                midy = 0.5 * (VV(eIDx(:, 1), 2) + VV(eIDx(:, 2), 2)) ;
+                midz = 0.5 * (VV(eIDx(:, 1), 3) + VV(eIDx(:, 2), 3)) ;
+                scatter3(midx, midy, midz, 15, dymag, 'filled')
+                caxis([-max(abs(dys(:))), max(abs(dys(:)))])
+                colormap bwr
+                pause(3)
+            end
+        end
+
+        %% check seam
+        % % Look at all glued bonds that touch seam
+        % clf
+        % [rs, cs] = find(e2dg < nU+1) ;
+        % rs = unique(rs) ;
+        % subplot(2, 1, 1)
+        % hold on;
+        % for tmpId = 1:length(rs)
+        %     rr = rs(tmpId) ;
+        %     ids = e2dg(rr, :) ;
+        %     plot(V2d(ids(:),1), V2d(ids(:), 2), '.-', ...
+        %         'color', [0, 0, 0, 0.25])
+        % end
+        % subplot(2, 1, 2)
+        % hold on;
+        % for tmpId = 1:length(rs)
+        %     rr = rs(tmpId) ;
+        %     ids = e2dg(rr, :) ;
+        %     plot3(VV(ids,1), VV(ids, 2), VV(ids, 3), '.-', ...
+        %         'color', [0, 0, 0, 0.25])
+        % end
+        % % Look at all cut bonds that touch seam
+        % [rs, cs] = find(eIDx2d < nU+1 | eIDx2d > nU*(nV-1)) ;
+        % rs = unique(rs) ;
+        % subplot(2, 1, 2)
+        % hold on;
+        % for tmpId = 1:length(rs)
+        %     rr = rs(tmpId) ;
+        %     ids = eIDx2d(rr, :) ;
+        %     plot(V2d(ids(:),1), V2d(ids(:), 2), 'k.-')
+        % end
+        % for tmpId = 1:length(rs)
+        %     rr = rs(tmpId) ;
+        %     ids = e2dg(rr, :) ;
+        % scatter(bxy2dg(:, 1), bxy2dg(:, 2), 10, dxi, 'filled')
+
+        % check domain
+        % scatter(rux(:), ruy(:), 5, dxs(:))
+        % hold on;
+        % scatter(bxy2d(:, 1), bxy2d(:, 2), 5, 'filled')
+
+        switch strainstyle
+            case 'all'
+                scalefactor = 1 + mag ;  
+            case 'hoop'
+                scalefactor = 1 + dymag .* abs(sin(bbeta)) ;
+            case 'hoopCompression'
+                dymag(dymag > 0) = 0 ;
+                scalefactor = 1 + dymag .* abs(sin(bbeta)) ;
+            case 'axial'
+                scalefactor = 1 + dxmag .* abs(cos(bbeta)) ;
+            case 'ring'
+                scalefactor = 1 + dymag .* abs(sin(bbeta)) ;
+                scalefactor(abs(sin(bbeta))<0.99) = 1 ;
+            case 'line'
+                scalefactor = 1 + dxmag .* abs(cos(bbeta)) ;
+                scalefactor(abs(cos(bbeta))<0.99) = 1 ;
+        end
+
+        % Calculate target geometry for current time point --------------------
+        [eL1, tarTheta] = calculateEdgeLengthsAndAngles(FF, VV);
+        eL = eL1 .* scalefactor ;
     end
-
-    %% check seam
-    % % Look at all glued bonds that touch seam
-    % clf
-    % [rs, cs] = find(e2dg < nU+1) ;
-    % rs = unique(rs) ;
-    % subplot(2, 1, 1)
-    % hold on;
-    % for tmpId = 1:length(rs)
-    %     rr = rs(tmpId) ;
-    %     ids = e2dg(rr, :) ;
-    %     plot(V2d(ids(:),1), V2d(ids(:), 2), '.-', ...
-    %         'color', [0, 0, 0, 0.25])
-    % end
-    % subplot(2, 1, 2)
-    % hold on;
-    % for tmpId = 1:length(rs)
-    %     rr = rs(tmpId) ;
-    %     ids = e2dg(rr, :) ;
-    %     plot3(VV(ids,1), VV(ids, 2), VV(ids, 3), '.-', ...
-    %         'color', [0, 0, 0, 0.25])
-    % end
-    % % Look at all cut bonds that touch seam
-    % [rs, cs] = find(eIDx2d < nU+1 | eIDx2d > nU*(nV-1)) ;
-    % rs = unique(rs) ;
-    % subplot(2, 1, 2)
-    % hold on;
-    % for tmpId = 1:length(rs)
-    %     rr = rs(tmpId) ;
-    %     ids = eIDx2d(rr, :) ;
-    %     plot(V2d(ids(:),1), V2d(ids(:), 2), 'k.-')
-    % end
-    % for tmpId = 1:length(rs)
-    %     rr = rs(tmpId) ;
-    %     ids = e2dg(rr, :) ;
-    % scatter(bxy2dg(:, 1), bxy2dg(:, 2), 10, dxi, 'filled')
-
-    % check domain
-    % scatter(rux(:), ruy(:), 5, dxs(:))
-    % hold on;
-    % scatter(bxy2d(:, 1), bxy2d(:, 2), 5, 'filled')
-
-    switch strainstyle
-        case 'all'
-            scalefactor = 1 + mag ;  
-        case 'hoop'
-            scalefactor = 1 + dymag .* abs(sin(bbeta)) ;
-        case 'hoopCompression'
-            dymag(dymag > 0) = 0 ;
-            scalefactor = 1 + dymag .* abs(sin(bbeta)) ;
-        case 'axial'
-            scalefactor = 1 + dxmag .* abs(cos(bbeta)) ;
-        case 'ring'
-            scalefactor = 1 + dymag .* abs(sin(bbeta)) ;
-            scalefactor(abs(sin(bbeta))<0.99) = 1 ;
-        case 'line'
-            scalefactor = 1 + dxmag .* abs(cos(bbeta)) ;
-            scalefactor(abs(cos(bbeta))<0.99) = 1 ;
-    end
-
-    % Calculate target geometry for current time point --------------------
-    [eL1, tarTheta] = calculateEdgeLengthsAndAngles(FF, VV);
-    eL = eL1 .* scalefactor ;
     
     if restrictGrowth
         % Transform the growth vector into the current time point
@@ -734,7 +778,6 @@ for ii = 1:Ntotal
         erorr(['Did not recognize targetTheta style: ' targetThetaStyle])
     end
     
-    
     %% Compute initial volume
     % The centroids of each face
     COM = cat( 3, VV(FF(:,1), :), ...
@@ -868,7 +911,6 @@ for ii = 1:Ntotal
             Egr = 0 ;
             Egr_faces = 0 ;
         end
-        
         
         %% Save vertices
         save(fn, 'VV', 'FF', 'Eb', 'Efp', 'Efv', 'Es', 'Egr',...
