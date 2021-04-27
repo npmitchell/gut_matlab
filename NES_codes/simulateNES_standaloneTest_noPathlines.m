@@ -1,5 +1,5 @@
 % DEBUGGING script for function simulateNES(QS, options)
-function simulateNES_standaloneTest()
+% function simulateNES_standaloneTest_noPathlines()
 QS = struct() ;
 QS.nU = 100 ;
 QS.nV = 100 ;
@@ -8,8 +8,35 @@ QS.timeInterval = 1 ;
 QS.timeUnits = 'min' ;
 options = struct() ;
 
-pathlineDir = '/mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/piv/pathlines/t0_0037' ;
-dxdyFilteredFn = '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/piv/pathlines/t0_0123/DxDyStrainFiltered/dxdy_strain_%06d.mat' ;
+%% Add path (todo: make this automatic by putting NES code in gut_matlab)
+
+% VIP 8 
+% codedir = '/mnt/data/code/'; 
+% NESpath = '/mnt/data/code/NonEuclideanShells/NES/' ; % Debug
+
+% Laptop
+codedir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/'; 
+NESpath = fullfile(codedir, 'NES') ;
+% addpath_recurse(NESpath)
+% addpath(fullfile(codedir, 'gut_matlab','NES_codes'))
+% addpath_recurse(fullfile(codedir, 'gut_matlab', 'mesh_handling'))
+% addpath_recurse(fullfile(codedir, 'gut_matlab', 'geometry'))
+% addpath_recurse(fullfile(codedir, 'gut_matlab', 'plotting'))
+% addpath_recurse(fullfile(codedir, 'gut_matlab', 'NES_codes'))
+% addpath_recurse(fullfile(codedir, 'gut_matlab', 'master_pipeline', 'nes_functions'))
+% addpath_recurse(fullfile(codedir, 'gptoolbox'))
+
+% VIP8
+% pathlineDir = '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/piv/pathlines/t0_0123/' ;
+% dxdyFilteredFn = fullfile(pathlineDir, 'DxDyStrainFiltered/dxdy_strain_%06d.mat') ;
+
+% Laptop
+dataDir = '/Users/npmitchell/Desktop/gut/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/' ;
+gridCoordDir = fullfile(dataDir, 'msls_output','gridCoords_nU0100_nV0100') ;
+pathlineDir = fullfile(gridCoordDir, 'piv','pathlines','t0_0123') ;
+dxdyFilteredFn = fullfile(pathlineDir, 'DxDyStrainFiltered/dxdy_strain_%06d.mat') ;
+ameshFn = fullfile(gridCoordDir, 'sphi_cutMesh_010step','smoothed_rs_closed', 'spcMSmRSC_%06d.mat');
+
 debugFile = './simulationTestFile.mat' ;
 tmp = load(debugFile, 'cutM', 'mesh', 'refMesh', 'xyzlim', 'bwr', 'timePoints') ;
 cutM = tmp.cutM ;
@@ -20,9 +47,6 @@ bwr = tmp.bwr ;
 timePoints = tmp.timePoints  ;
 % save(debugFile, 'cutM', 'mesh', 'refMesh', 'xyzlim', 'bwr', 'timePoints')
 
-%% Add path (todo: make this automatic by putting NES code in gut_matlabl)
-NESpath = '/mnt/data/code/NonEuclideanShells/NES/' ;
-addpath_recurse(NESpath)
 
 %% Default options
 strainstyle = 'meshes' ;  % 'meshes' 'total' 'axial' 'hoop' 'hoopCompression' 'ring' 'line'
@@ -147,33 +171,37 @@ end
 % mesh = QS.currentMesh.spcutMeshSmRSC ; % Debug
 
 
-% Close the endcaps with a single vertex (may be a problem?)
-vtx = reshape(mesh.v, [nU, nV-1, 3]) ;
-nvtx = size(mesh.v, 1) ;
-endpt1 = mean(squeeze(vtx(1, :, :)), 1) ;
-endpt2 = mean(squeeze(vtx(end, :, :)), 1) ;
-end1 = 1:nU:nU*(nV-1) ;
-endf1 = [];
-for qq = 1:length(end1)
-    if qq + 1 <= numel(end1) 
-        endf1 = [endf1; [end1(qq), end1(qq+1), nvtx + 1]] ;
-    else
-        endf1 = [endf1; [end1(qq), end1(mod(qq+1, numel(end1))), nvtx + 1]] ;
-    end
-end
-end2 = nU:nU:nU*(nV-1) ;
-endf2 = [];
-for qq = 1:length(end2)
-    if qq + 1 <= numel(end2) 
-        endf2 = [endf2; [end2(qq), nvtx+2, end2(qq+1)]] ;
-    else
-        endf2 = [endf2; [end2(qq), nvtx+2, end2(mod(qq+1, numel(end2)))]] ;
-    end
-end
+%% Close the endcaps with a single vertex (may be a problem?)
+% vtx = reshape(mesh.v, [nU, nV-1, 3]) ;
+% nvtx = size(mesh.v, 1) ;
+% endpt1 = mean(squeeze(vtx(1, :, :)), 1) ;
+% endpt2 = mean(squeeze(vtx(end, :, :)), 1) ;
+% end1 = 1:nU:nU*(nV-1) ;
+% endf1 = [];
+% for qq = 1:length(end1)
+%     if qq + 1 <= numel(end1) 
+%         endf1 = [endf1; [end1(qq), end1(qq+1), nvtx + 1]] ;
+%     else
+%         endf1 = [endf1; [end1(qq), end1(mod(qq+1, numel(end1))), nvtx + 1]] ;
+%     end
+% end
+% end2 = nU:nU:nU*(nV-1) ;
+% endf2 = [];
+% for qq = 1:length(end2)
+%     if qq + 1 <= numel(end2) 
+%         endf2 = [endf2; [end2(qq), nvtx+2, end2(qq+1)]] ;
+%     else
+%         endf2 = [endf2; [end2(qq), nvtx+2, end2(mod(qq+1, numel(end2)))]] ;
+%     end
+% end
+% 
+% % add endcap points to vtx and triangulation
+% VV = [mesh.v; endpt1; endpt2] ;
+% FF = [mesh.f; endf1; endf2] ;
 
-% add endcap points to vtx and triangulation
-VV = [mesh.v; endpt1; endpt2] ;
-FF = [mesh.f; endf1; endf2] ;
+mesh.nU = nU ;
+mesh.nV = nV ;
+[FF, VV] = closeMeshEndcaps(mesh) ;
 tri = triangulation(FF, VV) ;
 
 % Construct Topolgical Structure Tools ===================================
@@ -465,7 +493,16 @@ for ii = 1:Ntotal
     
     %% Determine hoop strain from experimental dx and/or dy
     if strcmpi(strainstyle, 'meshes')
-        
+        % aligned mesh APDV RSC
+        ameshfn_ii = sprintf(ameshFn, tp) ;
+        amesh = load(ameshfn_ii) ;
+        tarMesh = amesh.spcutMeshSmRSC ;
+        tarMesh.nU = nU ;
+        tarMesh.nV = nV ;
+        [tarMesh.f, tarMesh.v] = closeMeshEndcaps(tarMesh) ;
+        % Calculate target geometry for current time point ----------------
+        [eL1, tarTheta] = calculateEdgeLengthsAndAngles(tarMesh.f, tarMesh.v);
+        eL1(length(eL1)+1:end) = eL(length(eL1)+1:end) ;
     else
         if strcmpi(strainstyle, 'total')
             error('here')
@@ -805,9 +842,9 @@ for ii = 1:Ntotal
     Es0 = calculateStretchEnergy(FF, VV, eL, poisson_ratio) ;
 
     % Compute per-face energies
-    Eb0_faces = calculateBendEnergyFaces(FF, VV, eL, tarTheta, ...
-        poisson_ratio, thickness) ;
-    Es0_faces = calculateStretchEnergyFaces(FF, VV, eL, poisson_ratio) ;
+    % Eb0_faces = calculateBendEnergyFaces(FF, VV, eL, tarTheta, ...
+    %     poisson_ratio, thickness) ; % Debug -- turn on
+    % Es0_faces = calculateStretchEnergyFaces(FF, VV, eL, poisson_ratio) ; % Debug -- turn on
     if restrictGrowth
         [Egr0, projL, isValid] = calculateGrowthRestrictionEnergy(F, V, ...
             growthVec, maxProjL, mu) ;

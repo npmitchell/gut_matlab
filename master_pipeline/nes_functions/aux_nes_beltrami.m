@@ -44,7 +44,13 @@ opts.visible = 'off' ;
 [axs, cbs, meshHandles] = nFieldsOnSurface({mesh_ii,mesh_ii,m2d,m2d}, ...
     {real(mu3d), imag(mu3d),real(mu2d), imag(mu2d)}, opts) ;
 expandSecondAxesRow(axs, -0.1)
-sgtitle(['$t=$' num2str(tt * QS.timeInterval) ' ' QS.timeUnits], ...
-    'Interpreter', 'latex')
+try
+    sgtitle(['$t=$' num2str(tt * QS.timeInterval) ' ' QS.timeUnits], ...
+        'Interpreter', 'latex')
+catch
+    title(['$t=$' num2str(tt * QS.timeInterval) ' ' QS.timeUnits], ...
+        'Interpreter', 'latex')
+end
+        
 saveas(gcf, bifn)
 close all   

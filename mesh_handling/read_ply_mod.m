@@ -18,9 +18,9 @@ try
     [d,c] = plyread(filename);
 catch
     try
-        error(['Could not find mesh: ' filename])
+        error(['Could not read mesh: ' filename])
     catch
-        error('Filename is not a valid string')
+        error(['Filename is not a valid string: ', filename])
     end
 end
 vi = d.face.vertex_indices;
