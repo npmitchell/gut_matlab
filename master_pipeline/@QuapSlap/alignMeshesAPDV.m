@@ -2,11 +2,14 @@ function [rot, trans, xyzlim_raw, xyzlim, xyzlim_um, xyzlim_um_buff] = ...
     alignMeshesAPDV(QS, opts)
 % ALIGNMESHESAPDV(opts) 
 % Uses anterior, posterior, and dorsal training in ilastik h5 output to
-% align meshes along APDV coordinate system. Extracted COMs from the 
+% align meshes along APDV coordinate system with global rotation matrix 
+% and translation vector. Extracted COMs from the 
 % segmented training is loaded/saved in h5 file opts.rawapdvname (usually
 % "apdv_coms_from_training.h5").
 % Smoothed COMs from the segmented training --> opts.rawapdvname
 % Smoothed rotated scaled COMs              --> opts.outapdvname
+% Note that the global rotation matrix for the QuapSlap instance is defined
+% previously in computeAPDCOMs()
 % 
 % 
 % This is a function similar to the align_meshes_APDV.m script

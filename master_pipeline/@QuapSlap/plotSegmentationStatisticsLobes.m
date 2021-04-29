@@ -355,23 +355,208 @@ for lobe = 1:nLobes
     disp(['Saving fig: ' imfn])
     saveas(gcf, imfn) 
     
-    
-    % Plot trajectory in phase space
-    imfn = fullfile(segDir, sprintf('cell_anisotropy_traj_lobe%d.png', lobe)) ;
-    
-    nTimes = length(strengthsAll{lobe}) ;
-    colorList = cmap0(round(linspace(1, size(cmap0, 1), nTimes)), :) ;
-    for dmy = 1:nTimes
-        xx = strengthsAll{lobe}{dmy} .* cos(thetasAll{lobe}{dmy}) ;
-        yy = strengthsAll{lobe}{dmy} .* sin(thetasAll{lobe}{dmy}) ;
-        meanx = sum(weightsAll{lobe}{dmy} .* xx) ;
-        meany = sum(weightsAll{lobe}{dmy} .* yy) ;
-        [meanx, std, ste] = weightedStats(xx, weightsAll{lobe}{dmyk}, 'w') ;
-        [meany, std, ste] = weightedStats(yy, weightsAll{lobe}{dmyk}, 'w') ;
-
-        scatter(xx, yy, 2, colorList(dmy,:), 'filled', 'markeredgecolor', 'none')
-        
-        hold on;
-    end
-    clf
 end
+
+%% Store lobes 1 and 2 together for comparison between optogenetic and WT
+imfn = fullfile(segDir, 'cell_anisotropy_traj_lobes12.png') ;    
+clf
+confidence = 0.5 ;
+clipping_radius = inf ;
+nTimes = length(strengthsAll{1}) ;
+meanxs = zeros(nTimes, 1) ;
+meanys = zeros(nTimes, 1) ;
+stdmeanxs = zeros(nTimes, 1) ;
+stdmeanys = zeros(nTimes, 1) ;
+stdxs = zeros(nTimes, 1) ;
+stdys = zeros(nTimes, 1) ;
+covs = zeros(nTimes, 2, 2) ;
+
+maxx = zeros(nTimes, 1) ;
+maxy = zeros(nTimes, 1) ;
+for dmy = 1:nTimes
+    
+    x1 = strengthsAll{1}{dmy} .* cos(2*thetasAll{1}{dmy}) ;
+    y1 = strengthsAll{1}{dmy} .* sin(2*thetasAll{1}{dmy}) ;
+    x2 = strengthsAll{2}{dmy} .* cos(2*thetasAll{2}{dmy}) ;
+    y2 = strengthsAll{2}{dmy} .* sin(2*thetasAll{2}{dmy}) ;
+    
+    xx = [x1(:); x2(:)] ;
+    yy = [y1(:); y2(:)] ;
+    
+    weights = [weightsAll{1}{dmy}; weightsAll{2}{dmy}] ;
+    
+    % meanx = sum(weightsAll{lobe}{dmy} .* xx) / sum(weightsAll{lobe}{dmy});
+    % meany = sum(weightsAll{lobe}{dmy} .* yy) / sum(weightsAll{lobe}{dmy}) ;
+    [meanxs(dmy), stdmeanxs(dmy), stdxs(dmy)] = ...
+        weightedStats(xx, weights, 'w') ;
+    [meanys(dmy), stdmeanys(dmy), stdys(dmy)] = ...
+        weightedStats(yy, weights, 'w') ;
+
+    h = scatter(xx, yy, 2, colors(1, :), ...
+        'filled', 'markeredgecolor', 'none') ;
+    h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+    h.MarkerFaceAlpha = 0.2 ;
+
+    cc = cov(xx, yy) ;
+    covs(dmy, :, :) = cc ;
+    % [h, ellip] = error_ellipse(cc, [meanxs(dmy), meanys(dmy)]) ;
+    [xx,yy] = covarianceEllipse2d(cc, [meanxs(dmy), meanys(dmy)], ...
+        confidence, clipping_radius) ;
+    maxx(dmy) = max(xx(:)) ;
+    minx(dmy) = min(xx(:)) ;
+    maxy(dmy) = max(yy(:)) ;
+    miny(dmy) = min(yy(:)) ;
+    ellipses{dmy} = [xx, yy] ;
+    % set(h, 'color', colorList(dmy, :))
+    % set(h, 'linewidth', 2)
+    % the following line skip the name of the previous plot from the legend
+    h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+    % set(h, 'alpha', 0.2)
+    hold on;
+
+end
+
+covariancesL12 = covs ;
+maxysL12 = maxy ;
+minysL12 = miny ;
+maxxsL12 = maxx ;
+minxsL12 = minx ;
+meanxsL12 = meanxs;
+meanysL12 = meanys ;
+% hs = (meanxsL12, meanysL12, '.-', 'linewidth', 1, 'color', colors(1, :)) ;
+lineProps = {'.-', 'color', colors(1, :)} ;
+hs=shadedErrorBar(meanxsL12, meanysL12, stdys, 'lineProps', lineProps) ;
+
+axis equal
+% plot(meanxsL12, maxysL12, '-', 'color', colors(1, :)) ;
+% plot(meanxsL12, minysL12, '-', 'color', colors(1, :)) ;
+% plot(meanxsL12, meanysL12+stdys, '-', 'color', colors(1, :)) ;
+% plot(meanxsL12, meanysL12-stdys, '-', 'color', colors(1, :)) ;
+plot(meanxsL12, meanysL12+stdmeanys, '--', 'color', colors(1, :)) ;
+plot(meanxsL12, meanysL12-stdmeanys, '--', 'color', colors(1, :)) ;
+
+ylim([-3, 3])
+legend(hs.patch, {'lobes 1 & 2'})
+axis equal
+ylim([-3, 3])
+daspect([1 1 1]) 
+xlabel('$|Q| \cos 2 \theta$, lobes 1\&2', 'interpreter', 'latex')
+ylabel('$|Q| \sin 2 \theta$, lobes 1\&2', 'interpreter', 'latex')
+saveas(gcf, imfn)
+
+%% Save statistics summary Lobes 1&2
+summaryFn = fullfile(segDir, 'stats_summary_L12.mat') ;
+timeStamps = (timePoints - t0) * QS.timeInterval ;
+timeUnits = QS.timeUnits ;
+save(summaryFn, 'timePoints', 'timeStamps', 'timeUnits', ...
+    'meanxsL12', 'meanysL12', 'covariancesL12', ...
+    'stdmeanxs', 'stdmeanys', 'stdxs', 'stdys') ;
+
+%% Plot trajectory in phase space
+% Plot trajectory in phase space
+imfn = fullfile(segDir, 'cell_anisotropy_traj_lobes.png') ;    
+clf
+confidence = 0.5 ;
+clipping_radius = inf ;
+maxysAll = {} ;
+minysAll = {} ;
+maxxsAll = {} ;
+minxsAll = {} ;
+stdmeanxsAll = {} ;
+stdmeanysAll = {} ;
+stdxsAll = {} ;
+stdysAll = {} ;
+ellipsesAll = {} ;
+covariancesAll = {} ;
+meanxsAll = {} ;
+meanysAll = {} ;
+for lobe = 1:nLobes
+    nTimes = length(strengthsAll{lobe}) ;
+    % colorList = cmap0(round(linspace(1, size(cmap0, 1), nTimes)), :) ;
+    % colorList = cubehelix(nTimes, 2.54, 1, 1.3, 1.3, [.6, 0], [0.5, 1]) ;
+    colorList = squeeze(outerProduct(colors(lobe, :), linspace(0.25, 1, nTimes)))' ;
+    meanxs = zeros(nTimes, 1) ;
+    meanys = zeros(nTimes, 1) ;
+    stdmeanxs = zeros(nTimes, 1) ;
+    stdmeanys = zeros(nTimes, 1) ;
+    stdxs = zeros(nTimes, 1) ;
+    stdys = zeros(nTimes, 1) ;
+    covs = zeros(nTimes, 2, 2) ;
+
+    maxx = zeros(nTimes, 1) ;
+    maxy = zeros(nTimes, 1) ;
+    for dmy = 1:nTimes
+        xx = strengthsAll{lobe}{dmy} .* cos(2*thetasAll{lobe}{dmy}) ;
+        yy = strengthsAll{lobe}{dmy} .* sin(2*thetasAll{lobe}{dmy}) ;
+        % meanx = sum(weightsAll{lobe}{dmy} .* xx) / sum(weightsAll{lobe}{dmy});
+        % meany = sum(weightsAll{lobe}{dmy} .* yy) / sum(weightsAll{lobe}{dmy}) ;
+        [meanxs(dmy), stdmeanxs(dmy), stdxs(dmy)] = ...
+            weightedStats(xx, weightsAll{lobe}{dmy}, 'w') ;
+        [meanys(dmy), stdmeanys(dmy), stdys(dmy)] = ...
+            weightedStats(yy, weightsAll{lobe}{dmy}, 'w') ;
+
+        h = scatter(xx, yy, 2, colorList(dmy,:), ...
+            'filled', 'markeredgecolor', 'none') ;
+        h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+        h.MarkerFaceAlpha = 0.2 ;
+        
+        cc = cov(xx, yy) ;
+        covs(dmy, :, :) = cc ;
+        % [h, ellip] = error_ellipse(cc, [meanxs(dmy), meanys(dmy)]) ;
+        [xx,yy] = covarianceEllipse2d(cc, [meanxs(dmy), meanys(dmy)], ...
+            confidence, clipping_radius) ;
+        maxx(dmy) = max(xx(:)) ;
+        minx(dmy) = min(xx(:)) ;
+        maxy(dmy) = max(yy(:)) ;
+        miny(dmy) = min(yy(:)) ;
+        ellipses{dmy} = [xx, yy] ;
+        % set(h, 'color', colorList(dmy, :))
+        % set(h, 'linewidth', 2)
+        % the following line skip the name of the previous plot from the legend
+        h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+        % set(h, 'alpha', 0.2)
+        hold on;
+        
+    end
+    
+    covariancesAll{lobe} = covs ;
+    ellipsesAll{lobe} = ellipses ;
+    stdmeanxsAll{lobe} = stdmeanxs ;
+    stdmeanysAll{lobe} = stdmeanys ;
+    stdxsAll{lobe} = stdxs ;
+    stdysAll{lobe} = stdys ;
+    maxysAll{lobe} = maxy ;
+    minysAll{lobe} = miny ;
+    maxxsAll{lobe} = maxx ;
+    minxsAll{lobe} = minx ;
+    meanxsAll{lobe} = meanxs;
+    meanysAll{lobe} = meanys ;
+end
+hs = [] ;
+for lobe = 1:nLobes
+    meanxs = meanxsAll{lobe} ;
+    meanys = meanysAll{lobe} ;
+    maxys = maxysAll{lobe} ;
+    minys = minysAll{lobe} ;
+    hs(lobe) = plot(meanxs, meanys, '.-', ...
+        'linewidth', 1, 'color', colors(lobe, :)) ;
+    axis equal
+    plot(meanxs, maxys, '--', 'color', colors(lobe, :)) ;
+    plot(meanxs, minys, '--', 'color', colors(lobe, :)) ;
+end
+ylim([-3, 3])
+legend(hs, {'lobe 1', 'lobe 2', 'lobe 3', 'lobe 4'})
+axis equal
+ylim([-3, 3])
+daspect([1 1 1]) 
+xlabel('$|Q| \cos 2 \theta$', 'interpreter', 'latex')
+ylabel('$|Q| \sin 2 \theta$', 'interpreter', 'latex')
+saveas(gcf, imfn)
+
+%% Save statistics summary
+summaryFn = fullfile(segDir, 'stats_summary.mat') ;
+timeStamps = (timePoints - t0) * QS.timeInterval ;
+timeUnits = QS.timeUnits ;
+save(summaryFn, 'timePoints', 'timeStamps', 'timeUnits', ...
+    'meanxsAll', 'meanysAll', 'covariancesAll', ...
+    'stdmeanxs', 'stdmeanys', 'stdxs', 'stdys')

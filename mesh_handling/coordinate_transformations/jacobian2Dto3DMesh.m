@@ -1,5 +1,6 @@
 function J_2D_To_3D = jacobian2Dto3DMesh(v2d, v3d, ff)
 %JACOBIAN2DTO3DMESH(v2d, v3d, ff) Construct jacobian for mapping 2d->3d
+% Acts on contravariant vectors, NOT on covariant vectors
 %
 % Parameters
 % ----------

@@ -8,7 +8,88 @@ function plotSeriesOnSurfaceTexturePatch(QS,...
 % QS : QuapSlap class instance
 % overwrite : bool
 % metadat : struct with fields
-% TexturePatchOptions: struct with fields
+% TexturePatchOptions: struct with fields   
+%       - Options.PSize: default=5
+%       Special option, defines the image texture size
+%       for each individual polygon.  A lower number gives a more 
+%       pixelated texture {64}
+%
+%       - Options.Dilation: default=QS.APDV.resolution
+%       Special option, defines the units of space (pix2um, for ex)
+%
+%       - Options.Translation: default=QS.APDV.trans
+%       Special option, defines the translation 
+%       vector applied after rotation on all surfaces
+%
+%       - Options.Rotation: default=QS.APDV.rot
+%       Special option, defines the dilation factor 
+%       applied to all surfaces after rotation and translation
+%
+%       - Options.ApplyAmbientOcclusion: Determines if the texture
+%       colors should be modified by the ambient occlusion of the 
+%       underlying triangulation {'false'}
+%
+%       - Options.AmbientOcclusion:    #Vx1 list of ambient occlusion
+%       values
+%
+%       - Options.AmbientOcculsionFactor: A scalar between [0,1]
+%       determining how strongly the ambient occlusion modifies the 
+%       texture mapping {1}
+%
+%       - Options.AmbientOcculsionSamples: The number of samples to use
+%       when computing the ambient occlusion {1000}
+%
+%       - Options.Unoriented: Treat the surface as unoriented when
+%       applying ambient occlusion {'false'}
+%
+%       - Options.AddLights: Will add lighting to the plot {'false'}
+%
+%       - Options.ScalarField: A vertex-based or face based scalar field
+%       used to augment texture mapping with external color
+%
+%       - Options.ScalarCLim: The colormap limits used to display the
+%       scalar field. By default it will use the full range of values in
+%       the scalar field
+%
+%       - Options.ScalarColorMap: The colormap used to display the scalar
+%       field.  Either a a string corresponding to a built-in MATLAB
+%       colormap or a user supplied #Cx3 colormap {'parula'}
+%
+%       - Options.ScalarAlpha: A scalar between [0,1] determining
+%       how the transparency of the overlay of the scalar field mapping
+%       {0.1};
+%
+%       - Options.VertexNormals: #Vx3 list of vertex unit normals
+%
+%       - Options.isRGB : bool, whether input arrays are R,G,B channels
+%
+%       - Options.isFalseColor : bool, whether to colorize with unique
+%       color for each channel
+%
+%       - Options.falseColors : #channels x 3 list of colors for each
+%       channel
+%
+%       - Options.Imax: float, maximum value for the data interpolant 
+%       object above which we clip the intensity
+%
+%       - Options.Imin: float, minimum value for the data interpolant 
+%       object below which we clip the intensity
+%
+%       - Options.extrapolationMethod: 
+%         'nearest' | 'linear' | 'nearest' | 'next' | 'previous' | 
+%         'pchip' | 'cubic' | 'spline' | 'makima' | 'none', 
+%       what extrapolation to use outside of the domain of data 
+%       interpolation values
+% 
+%       - Options.smoothIter : int, how many iterations of Laplcaian 
+%       smoothing to apply before normal displacement       
+%       
+%       - Options.numLayers : default=[1, 1]
+%       length 2 array of ints, number of layers in
+%       positive, negative directions for MIP option
+%
+%       - Options.layerSpacing :  float, default=2
+%       distance between layers in texture space pixel coordinate units
 %
 %
 % Returns

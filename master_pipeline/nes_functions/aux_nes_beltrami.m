@@ -1,4 +1,4 @@
-function aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, tt, bfn, bifn)
+function aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, tt, bfn, bifn, xyzlim)
 % aux_nes_beltrami(QS, FF, VV, capID, nU, nV, tt, bfn, bifn)
 % Save and plot beltrami coefficients for NES simulation timestep 
 %
@@ -8,7 +8,7 @@ function aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, tt, bfn, bifn)
 %
 % NPMitchell 2021
 
-[~,~,~,xyzlim] = QS.getXYZLims() ;
+% [~,~,~,xyzlim] = QS.getXYZLims() ;
 
 [ff, vv] = remove_vertex_from_mesh(FF, VV, capID) ;
 mesh_ii = struct('f', ff, 'v', vv, 'nU', nU, 'nV', nV) ;
@@ -44,7 +44,13 @@ opts.visible = 'off' ;
 [axs, cbs, meshHandles] = nFieldsOnSurface({mesh_ii,mesh_ii,m2d,m2d}, ...
     {real(mu3d), imag(mu3d),real(mu2d), imag(mu2d)}, opts) ;
 expandSecondAxesRow(axs, -0.1)
-sgtitle(['$t=$' num2str(tt * QS.timeInterval) ' ' QS.timeUnits], ...
-    'Interpreter', 'latex')
+try
+    sgtitle(['$t=$' num2str(tt * QS.timeInterval) ' ' QS.timeUnits], ...
+        'Interpreter', 'latex')
+catch
+    title(['$t=$' num2str(tt * QS.timeInterval) ' ' QS.timeUnits], ...
+        'Interpreter', 'latex')
+end
+        
 saveas(gcf, bifn)
 close all   

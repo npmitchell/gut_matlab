@@ -4,6 +4,8 @@ function varargout=shadedErrorBar(x,y,errBar,varargin)
 %
 % function H=shadedErrorBar(x,y,errBar, ...)
 %
+% Example Usage (standard)
+% ---------------------
 % lineProps = {'-','color', colors(ch, :)} ;
 % h1=shadedErrorBar(t, means, stdev, 'lineProps', lineProps) ;
 %

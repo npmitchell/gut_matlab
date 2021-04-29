@@ -110,6 +110,8 @@ if exist(shiftfn, 'file') && ~overwrite_mips
     dx = round(0.5 * (x_1 + x_3)) ;
     dy = round(0.5 * (y_1 + x_2)) ;
     dz = round(0.5 * (y_2 + y_3)) ;
+else
+    error('no shifts for stabilization on disk!')
 end
 
 %% Clear the individual shift values

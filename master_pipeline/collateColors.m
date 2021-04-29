@@ -78,7 +78,7 @@ for tid = tidx_todo
         % Write to disk. Note that if uint16 specified upon instantiation, then
         % imwrite will respect the class type.
         if ~tiff_exists || overwrite_tiffs
-            disp(['Saving stabilized TIFF: t=' num2str(time)])
+            disp(['Saving TIFF: t=' num2str(time) ' to ' name_out])
             bfsave(im, name_out, 'dimensionOrder', dimensionOrder)
             
             % Alternative to bfsave

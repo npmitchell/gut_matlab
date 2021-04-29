@@ -3,6 +3,7 @@ function [vfield3d, jacobian_2d_to_3d] = ...
 %PUSHVECTORFIELD2DTO3DMESH(vfield2d, v2d, v3d, ff, fieldfaces)
 % Push a vector field defined on faces of a mesh from a 2d mesh to its 3d
 % embedding.
+% Acts on contravariant vectors, NOT on covariant vectors.
 %
 % Parameters
 % ----------

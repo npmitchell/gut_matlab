@@ -4,8 +4,11 @@
 % This is a pipeline to take the surface of the growing Drosophila gut and
 % conformally map patches of it to the unit disk
 
-% CONVENTIONS
-% -----------
+% ============= %
+%  CONVENTIONS
+% ============= % 
+% >> Data and chirality <<
+% ------------------------
 % xp.stack.image.apply() gives imageLength, imageWidth, imageDepth as XYZ.
 % This forms our definition for XYZ. However, this is mirrored wrt the
 % physical coordinates in the lab frame. 
@@ -42,6 +45,61 @@
 % apical normals. The APDV meshes are black in meshlab when viewed from the
 % outside.  flipy indicates that the APDV coordinate system is mirrored 
 % across XZ wrt data coordinate system XYZ. 
+
+% >> APDV ilastik training <<
+% ---------------------------
+% Train on anterior (A), posterior (P), background (B), and 
+% dorsal anterior (D) location in different iLastik channels.
+% Default order is 1-A, 2-P, 3-bg, 4-D. 
+% Train on pre-stabilized H5s, NOT on stabilized H5s. 
+% anteriorChannel, posteriorChannel, and dorsalChannel specify the iLastik
+% training channel that is used for each specification.
+% By default, name the h5 file output from iLastik as 
+%    QS.fullFileBase.apdProb --> [QS.fileBase.name '_Probabilities_APDVcoords.h5'] 
+% and/or 
+%    QS.fullFileBase.apCenterlineProb --> [QS.fileBase.name '_Probabilities_apcenterline.h5'] 
+% 
+% The APDV coordinate system -- this is where global rot is defined -- is
+% computed via 
+%    apdvOpts.aProbFileName = QS.fullFileBase.apdProb ;
+%    apdvOpts.pProbFileName = QS.fullFileBase.apCenterlineProb ;
+%    QS.computeAPDVCoords(alignAPDVOpts) ;
+% However, the APD COMs for centerline extraction can be independent. For
+% example, if the original segmentation used a third channel which happens
+% to be the posterior end, we can specify the posterior COM (P) via:
+%    apdvOpts.aProbFileName = QS.fullFileBase.apdProb ; % filename pattern for the apdv training probabilities
+%    apdvOpts.pProbFileName = QS.fullFileBase.prob ;
+%    apdvOpts.posteriorChannel = 3 ;
+%    [acom_sm, pcom_sm] = QS.computeAPDCOMs(apdvOpts) ;
+%
+% >> Centerline extraction <<
+% ---------------------------
+% STEP 1: INITIAL CENTERLINE
+% Centerlines are first computed using a fast marching procedure on a 
+% distance transform (DT) of the mesh data in dataspace. The starting and
+% endingpoints of this initial centerline can be specified using APDVcoords
+% training (and the resulting COM extraction) from the previous section or
+% else can be unique to the centerline extraction. This independence is
+% useful, for example, in convoluted organs like the gut, where the 
+% centerline of the muscle data curves away from the AP axis in the
+% posterior where the midgut turns back on itself to connect to the
+% hindgut.
+%
+% For redundant use of APDV coords for centerline, use the option:
+%
+% For independent training use the following convention:
+% Train on anterior (A), posterior (P), background (B), and 
+% dorsal anterior (D) location in different iLastik channels.
+% Default order is 1-A, 2-P, 3-bg, 4-D. 
+% anteriorChannel, posteriorChannel, and dorsalChannel specify the iLastik
+% training channel that is used for each specification.
+% Name the h5 file output from iLastik as ..._Probabilities_apcenterline.h5
+%
+% STEP 2: PRECISE CENTERLINE
+% The initial centerline is used to constrain the winding number of the
+% orbifold mapping. The second centerline is a series of average 3d points,
+% one for each DV ring of the quasi-axisymmetric pullback. 
+%
 
 %% Clear workspace ========================================================
 % We start by clearing the memory and closing all figures
@@ -1491,10 +1549,14 @@ QS.processCorrectedCellSegmentation2D(options)
 
 options = struct() ;
 options.timePoints = [93:15:212] ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.overwriteImages = false ;
 options.correctedSegmentation = true ;
 QS.generateCellSegmentation3D(options) 
+options = struct() ;
+options.correctedSegmentation = true ;
+options.timePoints = [93:15:212] ;
+options.overwrite = false  ;
 QS.plotSegmentationStatisticsLobes(options)
 
 %%

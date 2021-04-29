@@ -336,7 +336,7 @@ for tp = tp2do
         piv3d = piv3d.piv3dstruct ;
         FF = piv3d.m0f ;   % #facesx3 float: mesh connectivity list
         % V2D = piv3d.m0XY ; % Px2 float: 2d mesh vertices in pullback image pixel space
-        v3drs = QS.xyz2APDV(piv3d.m0v3d) ;
+        % v3drs = QS.xyz2APDV(piv3d.m0v3d) ;
         
         % Grab cutMesh from piv3d. Could grab from disk instead...
         cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1)) ;
@@ -344,7 +344,7 @@ for tp = tp2do
         cutM.f = FF ;
         cutM.u = cutMesh.u ;
         V2D = cutM.u ;
-        cutM.v = v3drs ;
+        cutM.v = cutMesh.v ; % v3drs ;
         cutM.nU = nU ;
         cutM.nV = nV ;
         
@@ -353,115 +353,144 @@ for tp = tp2do
             resolveTangentNormalVelocities(cutM.f, cutM.v, vfsm, ...
             1:length(FF), cutM.u ) ;
 
-
         m2d = cutM ;
         m2d.v = cat(2, cutM.u, 0*cutM.u(:, 1)) ;
         % DEC2d = DiscreteExteriorCalculus(m2d.f, m2d.v) ;
         % DEC2d.laplacianVectorField(v0t, cutM.u, cutM.v)
         
+        % -------------------------------------
+        % DEC 1-form method for Laplacian term
+        % -------------------------------------
+        % This is -(\delta \diff v^{\flat})^\sharp 
+        % Same as -g^{ab} (\delta d v^{\flat})_b as 3d vector (ie sharped)
+        %  > flat vector on faces to one form (flatDP) 
+        %  > 1form to 2form (d1) > dual zero form (hd2) 
+        %  > dual one form (dd0) 
+        %  > star (inv(hd1)) brings to primal one form.
+        %  > Lastly, sharp DP maps primal dual form to tangent vectors on
+        %       faces -- note this is -delta in the notation of Arroyo &
+        %       DeSimone 2009 PRE equation 18.
+        nFaces = size(mesh.f, 1) ;
         [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
-        vecs = v0t ;
-        gr = grad(V2D, cutM.f) ;
-        euev = gr * cutM.v ;
-        eu = euev(1:length(cutM.f), :) ;
-        ev = euev(length(cutM.f)+1:2*length(cutM.f), :) ;
-
-        % without normalization 
-        % --> note that we have uvecs and vvecs from v0t2d already.
-        % wu = dot(eu, vecs, 2) ;
-        % wv = dot(ev, vecs, 2) ;
-        % uvecs_num = wu - (wv .* dot(eu,ev,2)) ./ vecnorm(ev, 2, 2).^2 ;
-        % uvecs_den = vecnorm(eu, 2, 2).^2 - dot(eu, ev, 2).^2 ./ vecnorm(ev, 2, 2).^2 ;
-        % uvecs = uvecs_num ./ uvecs_den ;
-        % vvecs = (wu - uvecs .* vecnorm(eu, 2, 2).^2) ./ dot(eu, ev, 2) ;
-        % assert(max(abs(v0t2d(:, 1) - uvecs(:))) < 1e-15)
-        
-        Lv1 = DEC.laplacian(F2V * v0t2d(:, 1)) ;
-        Lv2 = DEC.laplacian(F2V * v0t2d(:, 2)) ;
-        
-        Lv_uv = [Lv1, Lv2] ;
-        
-        % Push to 3d
-        Lv3d = Lv1 .* (F2V * eu) + Lv2 .* (F2V * ev) ;
-        
-        % Plot in 2d and 3d
-        Lvmag = vecnorm(Lv3d, 2, 2) ; % sqrt(Lv1.^2 + Lv2.^2) ./  (F2V*dilation') ;
-        Lvang = atan2(Lv2, Lv1) ;
-        Lvmag2D = Lvmag ;
-        Lvang2D = Lvang ;
-        Lvmag2D(nU*(nV-1)+1:nU*nV) = Lvmag2D(1:nU) ;
-        Lvang2D(nU*(nV-1)+1:nU*nV) = Lvang2D(1:nU) ;
-        opts = struct() ;
-        opts.axisOff = true ;
-        opts.labels = {'$\nabla^2 v_\parallel$', '$\nabla^2 v_\parallel$'} ;
-        opts.polarStyle = 'polar' ;
-        opts.view = {[0,0], [0, 90]} ;
-        opts.climit = 2*rms1d(Lvmag) ;
-        nFieldsOnSurface({mesh, m2d}, {{Lvmag, Lvang}, {Lvmag2D, Lvang2D}}, opts)
-        set(gcf, 'visible', 'on')
-        saveas(gcf, fullfile(fig2dDir, 'factors_Lv.png'))
-        
-        %% Checks: uvecs = v0t2d, and vvecs = v0t2d 
-        % figure ;
-        % subplot(2, 3, 1)
-        % trisurf(triangulation(m2d.f, m2d.v), uvecs, 'edgecolor', 'none')
-        % view(2); axis equal; colorbar
-        % title('uvecs')
-        % subplot(2, 3, 2)
-        % trisurf(triangulation(m2d.f, m2d.v), v0t2d(:, 1), 'edgecolor', 'none')
-        % view(2); axis equal; colorbar
-        % title('v0t2d')
-        % subplot(2, 3, 3)
-        % trisurf(triangulation(m2d.f, m2d.v), uvecs ./ v0t2d(:, 1), 'edgecolor', 'none')
-        % title('difference')
-        % view(2); axis equal; colorbar
-        % 
-        % % Check 2
-        % subplot(2, 3, 4)
-        % trisurf(triangulation(m2d.f, m2d.v), vvecs, 'edgecolor', 'none')
-        % view(2); axis equal; axis off; colorbar
-        % title('uvecs')
-        % subplot(2, 3, 5)
-        % trisurf(triangulation(m2d.f, m2d.v), v0t2d(:, 2), 'edgecolor', 'none')
-        % view(2); axis equal ; axis off; colorbar
-        % title('v0t2d')
-        % subplot(2, 3, 6)
-        % trisurf(triangulation(m2d.f, m2d.v), vvecs ./ v0t2d(:, 2), 'edgecolor', 'none')
-        % title('difference')
-        % view(2); axis equal; axis off; colorbar
-        
-        
-        % This is too simple-minded: 
-        % Lv3d = DEC.laplacianVectorField(v0t, cutM.u) ;
-        
-        
-        
+        Lvf = DEC.sharpPD * inv(DEC.hd1) * DEC.dd0 * DEC.hd2 * DEC.d1 * DEC.dualVectorToPrimal1Form(v0t) ;
+        Lvf = reshape(Lvf, [nFaces, 3]) ;
+        Lv3d = F2V * Lvf ;
         % Smooth results
         if lambda > 0
             Lv3d = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
                                     lambda, 'implicit', Lv3d) ;
         end
+        Lv2d = extendFieldAlongCutMeshSeam(Lv3d, cutMesh) ;
         
-        % Smooth the velocities in space using gptoolbox
-        vx = squeeze(vertex_vels(tidx, 1:(nV-1)*nU, 1)) ;
-        vy = squeeze(vertex_vels(tidx, 1:(nV-1)*nU, 2)) ;
-        vz = squeeze(vertex_vels(tidx, 1:(nV-1)*nU, 3)) ;
-        if lambda > 0
-            vxs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
-                lambda, 'implicit', vx') ;
-            vys = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
-                lambda, 'implicit', vy') ;
-            vzs = laplacian_smooth(mesh.v, mesh.f, 'cotan', [], ...
-                lambda, 'implicit', vz') ;
-        else
-            vxs = vx' ; 
-            vys = vy' ; 
-            vzs = vz' ;   
-        end
+        [~, ~, Lv3d_uv, ~, ~, ~, ~] = ...
+            resolveTangentNormalVelocities(cutM.f, cutM.v, Lvf, ...
+            1:length(FF), cutM.u ) ;
+        Lv3d_uv = F2V * Lv3d_uv ;
+        Lv_magf = vecnorm(Lvf, 2, 2) ;
+        Lv_angf = atan2(Lv3d_uv(:, 2), Lv3d_uv(:, 1)) ;
+        Lv_mag3d = vecnorm(Lv3d, 2, 2) ;
+        Lv_ang3d = atan2(Lv3d_uv(:, 2), Lv3d_uv(:, 1)) ;
+        Lv_mag2d = extendFieldAlongCutMeshSeam(Lv_mag3d, cutMesh) ;
+        Lv_ang2d = extendFieldAlongCutMeshSeam(Lv3d_ang, cutMesh) ;
         
+        % Check it
+        opts = struct() ;
+        opts.mesh = mesh ;
+        opts.climit = 0.02 ;
+        plotPolarField(Lv_mag3d, Lv_ang3d, opts)
+        opts = struct() ;
+        opts.mesh = m2d ;
+        opts.climit = 1 ;
+        plotPolarField(Lv_mag2d, Lv_ang2d, opts)
+        
+        % ------------------------------
+        % Component-by-component method
+        % ------------------------------
+        % vecs = v0t ;
+        % gr = grad(V2D, cutM.f) ;
+        % euev = gr * cutM.v ;
+        % eu = euev(1:length(cutM.f), :) ;
+        % ev = euev(length(cutM.f)+1:2*length(cutM.f), :) ;
+        % 
+        % % without normalization 
+        % % --> note that we have uvecs and vvecs from v0t2d already.
+        % % wu = dot(eu, vecs, 2) ;
+        % % wv = dot(ev, vecs, 2) ;
+        % % uvecs_num = wu - (wv .* dot(eu,ev,2)) ./ vecnorm(ev, 2, 2).^2 ;
+        % % uvecs_den = vecnorm(eu, 2, 2).^2 - dot(eu, ev, 2).^2 ./ vecnorm(ev, 2, 2).^2 ;
+        % % uvecs = uvecs_num ./ uvecs_den ;
+        % % vvecs = (wu - uvecs .* vecnorm(eu, 2, 2).^2) ./ dot(eu, ev, 2) ;
+        % % assert(max(abs(v0t2d(:, 1) - uvecs(:))) < 1e-15)
+        % 
+        % Lv1 = DEC.laplacian(F2V * v0t2d(:, 1)) ;
+        % Lv2 = DEC.laplacian(F2V * v0t2d(:, 2)) ;
+        % 
+        % Lv_uv = [Lv1, Lv2] ;
+        % 
+        % % Push to 3d
+        % Lv3d = Lv1 .* (F2V * eu) + Lv2 .* (F2V * ev) ;
+        % 
+        % % Plot in 2d and 3d
+        % Lvmag = vecnorm(Lv3d, 2, 2) ; % sqrt(Lv1.^2 + Lv2.^2) ./  (F2V*dilation') ;
+        % Lvang = atan2(Lv2, Lv1) ;
+        % Lvmag2D = Lvmag ;
+        % Lvang2D = Lvang ;
+        % Lvmag2D(nU*(nV-1)+1:nU*nV) = Lvmag2D(1:nU) ;
+        % Lvang2D(nU*(nV-1)+1:nU*nV) = Lvang2D(1:nU) ;
+        % opts = struct() ;
+        % opts.axisOff = true ;
+        % opts.labels = {'$\nabla^2 v_\parallel$', '$\nabla^2 v_\parallel$'} ;
+        % opts.polarStyle = 'polar' ;
+        % opts.view = {[0,0], [0, 90]} ;
+        % opts.climit = 2*rms1d(Lvmag) ;
+        % nFieldsOnSurface({mesh, m2d}, {{Lvmag, Lvang}, {Lvmag2D, Lvang2D}}, opts)
+        % set(gcf, 'visible', 'on')
+        % saveas(gcf, fullfile(fig2dDir, 'factors_Lv.png'))
+        % 
+        % %% Checks: uvecs = v0t2d, and vvecs = v0t2d 
+        % % figure ;
+        % % subplot(2, 3, 1)
+        % % trisurf(triangulation(m2d.f, m2d.v), uvecs, 'edgecolor', 'none')
+        % % view(2); axis equal; colorbar
+        % % title('uvecs')
+        % % subplot(2, 3, 2)
+        % % trisurf(triangulation(m2d.f, m2d.v), v0t2d(:, 1), 'edgecolor', 'none')
+        % % view(2); axis equal; colorbar
+        % % title('v0t2d')
+        % % subplot(2, 3, 3)
+        % % trisurf(triangulation(m2d.f, m2d.v), uvecs ./ v0t2d(:, 1), 'edgecolor', 'none')
+        % % title('difference')
+        % % view(2); axis equal; colorbar
+        % % 
+        % % % Check 2
+        % % subplot(2, 3, 4)
+        % % trisurf(triangulation(m2d.f, m2d.v), vvecs, 'edgecolor', 'none')
+        % % view(2); axis equal; axis off; colorbar
+        % % title('uvecs')
+        % % subplot(2, 3, 5)
+        % % trisurf(triangulation(m2d.f, m2d.v), v0t2d(:, 2), 'edgecolor', 'none')
+        % % view(2); axis equal ; axis off; colorbar
+        % % title('v0t2d')
+        % % subplot(2, 3, 6)
+        % % trisurf(triangulation(m2d.f, m2d.v), vvecs ./ v0t2d(:, 2), 'edgecolor', 'none')
+        % % title('difference')
+        % % view(2); axis equal; axis off; colorbar
+        
+        % -----------------------------------------------
+        % 3D "method" for laplacian term -- likely wrong
+        % ------------------------------------------------
+        % This is too simple-minded: 
+        % Lv3d = DEC.laplacianVectorField(v0t, cutM.u) ;
+       
+        % done -------------------------------------------
+        
+        %% TERM 4
         % Gaussian curvature term
-        Kv3d = 2 * K3d .* [vxs, vys, vzs] ;
+        % Tangential component of velocities only, but on vertices
+        v0t_vtx = F2V * v0t ;
+        Kv3d = 2 * K3d .* v0t_vtx ;
         
+        %% TERM 2
         % grad trace term
         efn = sprintf(QS.fullFileBase.strainRate, tp) ;
         load(efn, 'tre_vtx')
@@ -473,7 +502,7 @@ for tp = tp2do
         gradtr2_3d = F2V * gradtr2_faces ;
         
         
-        %% normal velocity (vn) term %%
+        %% TERM 3 -- normal velocity (vn) term %%
         % on faces
         % ---------
         % vn = load(QS.fileName.pivAvg.vn) ;
@@ -490,66 +519,85 @@ for tp = tp2do
             ggInv(faceId, :, :) = inv(gg{faceId}) ;
             bbInv(faceId, :, :) = inv(bb{faceId}) ;
         end
-        assert(all(ggInv(:, 1, 2) == ggInv(:, 2, 1)))
+        % assert(all(ggInv(:, 1, 2) == ggInv(:, 2, 1)))
         H3d_faces = V2F * H3d ;
         bM2H_faces = (bbInv - 2 * H3d_faces .* ggInv) ;
+        
+        % 2-dimensional basis gradient to get basis vectors        
+        gr = grad(V2D, cutM.f) ;
+        % euev = gr * cutM.v ;
+        % eu = euev(1:length(cutM.f), :) ;
+        % ev = euev(length(cutM.f)+1:2*length(cutM.f), :) ;
+        
         gradvn = (gr * veln2d) ;
         gradvn = [gradvn(1:nFaces), gradvn(nFaces+1:end)] ;
         gvnbM2H_faces = zeros(nFaces, 2) ;
         for faceId = 1:nFaces
+            % matrix product of grad(vn) with (b -2Hg) on this face
             gvnbM2H_faces(faceId, :) = ...
                 -2 * gradvn(faceId, :) * squeeze(bM2H_faces(faceId, :, :)) ;
         end      
         
-        euhatF = eu ./ vecnorm(eu, 2, 2) ;
-        evhatF = ev ./ vecnorm(ev, 2, 2) ;
-        euhatV = (F2V * eu) ./ vecnorm((F2V * eu), 2, 2) ;
-        evhatV = (F2V * ev) ./ vecnorm((F2V * ev), 2, 2) ;
+        % euhatF = eu ./ vecnorm(eu, 2, 2) ;
+        % evhatF = ev ./ vecnorm(ev, 2, 2) ;
+        % euhatV = (F2V * eu) ./ vecnorm((F2V * eu), 2, 2) ;
+        % evhatV = (F2V * ev) ./ vecnorm((F2V * ev), 2, 2) ;
         
-        gvnbM2H3d_faces = gvnbM2H_faces(:, 1) .* euhatF + gvnbM2H_faces(:, 2) .* evhatF;
-        gvnbM2H_Fvtx_uv = F2V * gvnbM2H_faces ;
-        gvnbM2H_Fvtx = F2V * gvnbM2H3d_faces ;
+        % gvnbM2H3d_faces = gvnbM2H_faces(:, 1) .* euhatF + gvnbM2H_faces(:, 2) .* evhatF;
+        % gvnbM2H_Fvtx_uv = F2V * gvnbM2H_faces ;
+        % gvnbM2H_Fvtx = F2V * gvnbM2H3d_faces ;
+        
+        % gvnbM2H_faces is CONTRAVARIANT!
+        gvnbM2H_3d = pushVectorField2Dto3DMesh(gvnbM2H_faces, V2D, v3d, faces, 1:size(faces,1)) ;
         
         if lambda > 0
-            gvnbM2H_Fvtx = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
-                                    lambda, 'implicit', gvnbM2H_Fvtx) ;
+            gvnbM2H_3d = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
+                                    lambda, 'implicit', gvnbM2H_3d) ;
         end
-         % polar coordinate version
-        gvnbM2H_Fvtx_mag3d = vecnorm(gvnbM2H_Fvtx, 2, 2) ;
-        gvnbM2H_Fvtx_mag2d = extendFieldAlongCutMeshSeam(gvnbM2H_Fvtx_mag3d, cutMesh) ;
-        gvnbM2H_Fvtx_ang3d = atan2(gvnbM2H_Fvtx_uv(:, 2), gvnbM2H_Fvtx_uv(:, 1)) ;
-        gvnbM2H_Fvtx_ang2d = extendFieldAlongCutMeshSeam(gvnbM2H_Fvtx_ang3d, cutMesh) ;
+        gvnbM2H_2d = extendFieldAlongCutMeshSeam(gvnbM2H_mag3d, cutMesh) ;
         
-        % on vertices
-        % -----------
-        % Create INVERSE fundamental forms
-        % push bb and gg onto vertices
-        bbIvtx = zeros(nU*(nV-1), 2, 2) ;
-        bbIvtx(:, 1, 1) = F2V * bbInv(:, 1, 1) ;
-        bbIvtx(:, 1, 2) = F2V * bbInv(:, 1, 2) ;
-        bbIvtx(:, 2, 1) = F2V * bbInv(:, 2, 1) ;
-        bbIvtx(:, 2, 2) = F2V * bbInv(:, 2, 2) ;
-        ggIvtx = zeros(nU*(nV-1), 2, 2) ;
-        ggIvtx(:, 1, 1) = F2V * ggInv(:, 1, 1) ;
-        ggIvtx(:, 1, 2) = F2V * ggInv(:, 1, 2) ;
-        ggIvtx(:, 2, 1) = F2V * ggInv(:, 2, 1) ;
-        ggIvtx(:, 2, 2) = F2V * ggInv(:, 2, 2) ;
-        bM2H = (bbIvtx - 2 * H3d .* ggIvtx) ;
-        gradvnV = F2V * gradvn ;
-        if lambda > 0
-            gradvnV = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
-                                    lambda, 'implicit', gradvnV) ;
-            bM2H = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
-                                    lambda, 'implicit', bM2H) ;      
-        end
-        gvnbM2H_vtx = zeros(nU*(nV-1), 2) ;
-        for vId = 1:size(ggIvtx, 1)
-            gvnbM2H_vtx(vId, :) = ...
-                -2 * gradvnV(vId, :) * squeeze(bM2H(vId, :, :)) ;
-        end
-        % for comparison, look at vtx calculation compared to face calc 
-        % pushed to vtx
-        gvnbM2H = gvnbM2H_vtx(:, 1) .* euhatV + gvnbM2H_vtx(:, 2) .* evhatV;
+        % polar coordinate version
+        gvnbM2H_mag3d = vecnorm(gvnbM2H_3d, 2, 2) ;
+        gvnbM2H_mag2d = extendFieldAlongCutMeshSeam(gvnbM2H_mag3d, cutMesh) ;
+        
+        [~, ~, gvnbM2H_uv, ~, ~, ~, ~] = ...
+            resolveTangentNormalVelocities(cutM.f, cutM.v, gvnbM2H_2d, ...
+            1:length(FF), cutM.u ) ;
+        gvnbM2H_ang2d = atan2(gvnbM2H_uv(:, 2), gvnbM2H_uv(:, 1)) ;
+        gvnbM2H_ang3d = gvnbM2H_ang3d(1:nU*(nV-1), :) ;
+        
+        % % on vertices
+        % % -----------
+        % % Create INVERSE fundamental forms
+        % % push bb and gg onto vertices
+        % bbIvtx = zeros(nU*(nV-1), 2, 2) ;
+        % bbIvtx(:, 1, 1) = F2V * bbInv(:, 1, 1) ;
+        % bbIvtx(:, 1, 2) = F2V * bbInv(:, 1, 2) ;
+        % bbIvtx(:, 2, 1) = F2V * bbInv(:, 2, 1) ;
+        % bbIvtx(:, 2, 2) = F2V * bbInv(:, 2, 2) ;
+        % ggIvtx = zeros(nU*(nV-1), 2, 2) ;
+        % ggIvtx(:, 1, 1) = F2V * ggInv(:, 1, 1) ;
+        % ggIvtx(:, 1, 2) = F2V * ggInv(:, 1, 2) ;
+        % ggIvtx(:, 2, 1) = F2V * ggInv(:, 2, 1) ;
+        % ggIvtx(:, 2, 2) = F2V * ggInv(:, 2, 2) ;
+        % bM2H = (bbIvtx - 2 * H3d .* ggIvtx) ;
+        % gradvnV = F2V * gradvn ;
+        % if lambda > 0
+        %     gradvnV = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
+        %                             lambda, 'implicit', gradvnV) ;
+        %     bM2H = laplacian_smooth(mesh.v, mesh.f, 'cotan', [],...
+        %                             lambda, 'implicit', bM2H) ;      
+        % end
+        % gvnbM2H_vtx = zeros(nU*(nV-1), 2) ;
+        % for vId = 1:size(ggIvtx, 1)
+        %     gvnbM2H_vtx(vId, :) = ...
+        %         -2 * gradvnV(vId, :) * squeeze(bM2H(vId, :, :)) ;
+        % end
+        % % for comparison, look at vtx calculation compared to face calc 
+        % % pushed to vtx
+        % gvnbM2H = gvnbM2H_vtx(:, 1) .* euhatV + gvnbM2H_vtx(:, 2) .* evhatV;
+        % 
+
         % polar coordinate version
         gvnbM2H_vtx_mag3d = vecnorm(gvnbM2H, 2, 2) ;
         gvnbM2H_vtx_mag2d = gvnbM2H_vtx_mag3d ;
@@ -671,40 +719,7 @@ for tp = tp2do
             H2g3d(:, 1, 2), Hgvtx2d(:, 1, 2), ... % gg2
             H2g3d(:, 2, 2), Hgvtx2d(:, 2, 2), ... % gg4
             }, opts)
-        saveas(gcf, fullfile(fig2dDir, 'term3_factors_H2g.png'))
-        
-        
-        
-        
-        % opts.view = {[0,0], [0, 90], [0,0], [0, 90], ...
-        %     [0,0], [0, 90], [0,0], [0, 90], ...
-        %     [0,0], [0, 90], [0,0], [0, 90], ...
-        %     [0,0], [0, 90]} ;
-        % opts.axisOff = true ;
-        % opts.visible = 'on' ;
-        % opts.labels = {'$\nabla v_n$', '$\nabla v_n$', ...
-        %     '$b^{11}$', '$b^{11}$', '$b^{12}$', '$b^{12}$', ...
-        %     '$b^{22}$', '$b^{22}$', ...
-        %     '$-2Hg^{11}$', '$-2Hg^{11}$', '$-2Hg^{12}$',  '$-2Hg^{12}$', ...
-        %     '$-2Hg^{22}$', '$-2Hg^{22}$'} ;
-        % opts.subplotGrouping = [4,4] ;
-        % % opts.climit = max(gvnbM2H_vtx_mag3d(:)) ;
-        % nFieldsOnSurface({mesh, m2d, mesh, m2d, ...
-        %     mesh, m2d, mesh, m2d, mesh, m2d, ...
-        %     mesh, m2d, mesh, m2d, ...
-        %     }, ...
-        %     {{gradvnV_mag3d, gradvnV_ang3d}, ...  % grad v_n
-        %     {gradvnV_mag2d, gradvnV_ang2d}, ...
-        %     bbIvtx(:, 1, 1), bbIvtx2d(:, 1, 1), ... % bb
-        %     bbIvtx(:, 1, 2), bbIvtx2d(:, 1, 2), ... % bb2
-        %     bbIvtx(:, 2, 2), bbIvtx2d(:, 2, 2), ... % bb4
-        %     -2 * H3d .* ggIvtx(:, 1, 1), Hgvtx2d(:, 1, 1), ... % gg
-        %     -2 * H3d .* ggIvtx(:, 1, 2), Hgvtx2d(:, 1, 2), ... % gg2
-        %     -2 * H3d .* ggIvtx(:, 2, 2), Hgvtx2d(:, 2, 2), ... % gg4
-        %     }, ...
-        %     opts)
-        % set(gcf, 'visible', 'on')
-        
+        saveas(gcf, fullfile(fig2dDir, 'term3_factors_H2g.png'))        
         
         % Extend to have another row for 2d map
         Lv2d = extendFieldAlongCutMeshSeam(Lv3d, cutMesh) ;
@@ -726,9 +741,6 @@ for tp = tp2do
         end
         
         %% Take u,v components of each term and the result
-        % --> already done for LvUV
-        Lv_uv3d = Lv_uv ;
-        Lv_uv2d = extendFieldAlongCutMeshSeam(Lv_uv3d, cutMesh) ;
         % --> already done for gvnbM2H_vtx
         gvnbM2H_uv3d = gvnbM2H_vtx ;
         gvnbM2H_uv2d = extendFieldAlongCutMeshSeam(gvnbM2H_uv3d, cutMesh) ;

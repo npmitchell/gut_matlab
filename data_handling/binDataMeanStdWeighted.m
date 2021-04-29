@@ -37,24 +37,30 @@ end
 [~, ~, loc] = histcounts(x,xedges);
 % Consider each bin
 nBins = length(xedges) -1 ;
-meany = zeros(nBins, 1) ; 
-stdy = zeros(nBins, 1) ;
+meany = nan(nBins, 1) ; 
+stdy = nan(nBins, 1) ;
 ny = zeros(nBins, 1) ;
 
 for bin = 1:nBins
-    idx = find(loc == bin) ;
-    ny(bin) = length(idx) ;
-    ww = weights(idx) / sum(weights(idx)) ;
-    meany(bin) = sum(ww .* y(idx)) ;
-    
-    % The var function divides by N instead of (N-1)
-    % stdy(bin) = sqrt(var(x(idx), ww)) ;
-    
-    % We choose to divide by (N-1)
-    num = sum(ww .* (y(idx)-meany(bin)).^2) ;
-    % denom is very close to 1, slightly smaller because of N-1
-    denom = (length(idx) -1) / length(idx) * sum(ww) ;
-    stdy(bin) = sqrt(num / denom) ;
+    idx = find(loc == bin & ~isnan(weights)) ;
+    if ~isempty(idx)
+        ny(bin) = length(idx) ;
+        ww = weights(idx) / nansum(weights(idx)) ;
+        meany(bin) = nansum(ww .* y(idx)) ;
+
+        % The var function divides by N instead of (N-1)
+        % stdy(bin) = sqrt(var(x(idx), ww)) ;
+
+        % We choose to divide by (N-1)
+        num = nansum(ww .* (y(idx)-meany(bin)).^2) ;
+        % denom is very close to 1, slightly smaller because of N-1
+        denom = (length(idx) -1) / length(idx) * nansum(ww) ;
+        stdy(bin) = sqrt(num / denom) ;
+        
+        if isnan(stdy(bin))
+            assert(length(idx) == 1)
+        end
+    end
 end
 
 % Unweighted for reference:

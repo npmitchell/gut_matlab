@@ -85,6 +85,11 @@ Ixy = Iuv + A*x_cen*y_cen;
 % principal moments and orientation
 I = [ Iuu  -Iuv ;
      -Iuv   Ivv ];
+% try
+%     [ eig_vec, eig_val ] = eig(I);
+% catch
+%     error('here')
+% end
 [ eig_vec, eig_val ] = eig(I);
 I1 = eig_val(1,1);
 I2 = eig_val(2,2);
