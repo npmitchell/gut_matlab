@@ -46,7 +46,8 @@ clear; close all; clc;
 % cd /mnt/crunch/gut/48YGal4UasLifeActRuby/201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
-cd /mnt/crunch/gut/antpGal4UASCAAXHGFP/202103271505_1p4um_0p1ms0p25ms_1mW1mW_GFPRFP_Time3views_120s/data/
+% cd /mnt/crunch/gut/antpGal4UASCAAXHGFP/202103271505_1p4um_0p1ms0p25ms_1mW1mW_GFPRFP_Time3views_120s/data/
+cd /mnt/data/gut/AntpGal4OCRL/202104142135_antpG4kOCRL_1p4um_0p3ms1ms_1mW1mW_GFPRFP/Time2views_60s_RFPRFP_2137_tp0at2132/data/
 
 dataDir = cd ;
 
@@ -222,6 +223,7 @@ typename = 'uint16' ;
 stabOptions.overwrite_mips = false ;
 stabOptions.overwrite_tiffs = false ;
 stabOptions.stabChannel = 1 ;
+stabOptions.forceNoDx = false ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     timePoints, timePoints, timePoints(tidx0_for_stab), ...
     mipDir, mipoutdir, mips_stab_check, stabOptions)
@@ -487,10 +489,12 @@ disp('done')
 % skip if already done
 
 for tt = xp.fileMeta.timePoints
-    if ~exist(fullfile(projectDir, 'stabilized_h5s', [sprintf(fnCombined, tt) '.h5']), 'file')
-        disp(['Did not find file: ', fullfile(projectDir, 'stabilized_h5s', [sprintf(fn, tt) '.h5'])])
-        xp.loadTime(tt);
-        xp.rescaleStackToUnitAspect();
+    h5fntt = fullfile(projectDir, [sprintf(fnCombined, tt) '.h5']) ;
+    if ~exist(h5fntt, 'file')
+        disp(['Did not find file: ', h5fntt])
+        xp.loadTime(tt) ;
+        xp.rescaleStackToUnitAspect() ;
+        
         % make a copy of the detectOptions and change the fileName
         detectOpts2 = detectOptions ;
         detectOpts2.fileName = sprintf( fnCombined, xp.currentTime ) ;
@@ -571,7 +575,6 @@ else
             end
             
             % Optional: load previous try, recompute
-            
             detectOpts2.init_ls_fn = fullfile(detectOpts2.mslsDir, ...
                 [detectOpts2.ofn_ls sprintf('pass_%06d.h5', tp)]) ;  % 'none' 
             
@@ -599,28 +602,40 @@ else
     end
     
     for tidx = fliplr(1:tidx0_for_msls-1)
-        tp = xp.fileMeta.timePoints(tidx) ;
-        xp.setTime(tp);
-        % xp.loadTime(tp) ;
-        % xp.rescaleStackToUnitAspect();
+        try
+            tp = xp.fileMeta.timePoints(tidx) ;
+            xp.setTime(tp);
+            % xp.loadTime(tp) ;
+            % xp.rescaleStackToUnitAspect();
 
-        % make a copy of the detectOptions and change the fileName
-        detectOpts2 = detectOptions ;
-        detectOpts2.post_smoothing = 1 ;
-        detectOpts2.timepoint = xp.currentTime ;
-        detectOpts2.init_ls_fn = fullfile(detectOpts2.mslsDir, ...
-                [detectOpts2.ofn_ls sprintf('%06d.h5', timePoints(tidx+1))]) ;
-        detectOpts2.fileName = sprintf( fnCombined, xp.currentTime );
-        % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-        %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4_octree12.mlx') ;
-        detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-             'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
-        % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-        %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4.mlx') ;
-        xp.setDetectOptions( detectOpts2 );
-        xp.detectSurface();
-        % For next time, use the output mesh as an initial mesh
-        detectOpts2.init_ls_fn = detectOpts2.fileName ;  % 'none' ;
+            % make a copy of the detectOptions and change the fileName
+            detectOpts2 = detectOptions ;
+            detectOpts2.post_smoothing = 1 ;
+            detectOpts2.timepoint = xp.currentTime ;
+            
+            %pass 2 
+            detectOpts2.init_ls_fn = fullfile(detectOpts2.mslsDir, ...
+                [detectOpts2.ofn_ls sprintf('pass_%06d.h5', tp)]) ;  % 'none' 
+            
+            % original pass
+            % detectOpts2.init_ls_fn = fullfile(detectOpts2.mslsDir, ...
+            %         [detectOpts2.ofn_ls sprintf('%06d.h5', timePoints(tidx+1))]) ;
+            
+            
+            detectOpts2.fileName = sprintf( fnCombined, xp.currentTime );
+            % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+            %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4_octree12.mlx') ;
+            detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+                 'laplace_surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4.mlx') ;
+            % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+            %      'surface_rm_resample30k_reconstruct_LS3_ssfactor4.mlx') ;
+            xp.setDetectOptions( detectOpts2 );
+            xp.detectSurface();
+            % For next time, use the output mesh as an initial mesh
+            detectOpts2.init_ls_fn = detectOpts2.fileName ;  % 'none' ;
+        catch
+            disp('skipping timepoint')
+        end
     end
 end
 
