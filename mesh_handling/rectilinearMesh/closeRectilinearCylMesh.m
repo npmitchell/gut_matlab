@@ -1,12 +1,15 @@
 function cmesh = closeRectilinearCylMesh(mesh, options)
 %CLOSERECTILINEARCYLMESH(mesh)
 % Given a cut mesh (topologically, a square with implied periodicity in Y),
-% glue the mesh back together into a topological cylinder.
+% glue the mesh back together into a topological cylinder and add endcap
+% faces so that the result is a topological sphere.
 %
 % Parameters
 % ----------
 % mesh : struct with fields v, u, vn, nU, nV
 %   mesh whose vertices are defined in u plane by 1...nU cols, 1...nV rows
+%   f : #faces x 3 int array
+%       indices into mesh.v of oriented mesh faces
 %   v : Nx3 float array 
 %       vertices in 3d
 %   u : Nx2 float array

@@ -1,10 +1,8 @@
-function aux_nes_divcurl(QS, FF, VV, V1, climit_div, divcurlfn, tt)
+function aux_nes_divcurl(QS, FF, VV, V1, climit_div, divcurlfn, tt, xyzlim)
 % aux_nes_divcurl(QS, FF, VV, V1, climit_div, divcurlfn)
 % 
 % 
 % NPMitchell 2021 
-
-[~,~,~,xyzlim] = QS.getXYZLims() ;
 
 disp('Creating figure with divergence and curl')
 close all      

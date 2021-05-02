@@ -97,7 +97,7 @@ t_ref_ind = find( timePoints == t_ref ) ;
 %% Define shifts for each time point ======================================
 disp('Defining shifts...')
 shiftfn = fullfile(mipDir, 'shifts_stab.mat') ;
-if exist(shiftfn, 'file') && ~overwrite_mips
+if exist(shiftfn, 'file')
     disp('Loading shifts from disk')
     load(shiftfn, 'shifts', 't_ref', 't_ref_ind')
     x_1 = cat(1,shifts.x_1); % rows        (x) 

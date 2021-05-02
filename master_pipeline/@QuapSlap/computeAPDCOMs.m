@@ -260,7 +260,7 @@ if ~load_from_disk || overwrite
                         view(180, 0)
                     end
                 end
-                sgtitle('APD COMs for APDV coordinates')
+                sgtitle('APD COMs for APD COMs for centerline')
                 saveas(gcf, fullfile(QS.dir.mesh, 'apd_coms_centerline.png'))
             end
             

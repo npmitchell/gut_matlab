@@ -337,7 +337,6 @@ midx = 0.5 * (VV(eIDx(:, 1), 1) + VV(eIDx(:, 2), 1)) ;
 midy = 0.5 * (VV(eIDx(:, 1), 2) + VV(eIDx(:, 2), 2)) ;
 midz = 0.5 * (VV(eIDx(:, 1), 3) + VV(eIDx(:, 2), 3)) ;
 midpt = [midx(:), midy(:), midz(:)] ;
-
 clf
 aux_plot_strain_pattern(VV, eIDx, eL0, distribution, strainstyle, strainStruct, -1, 1, outfn, Rad)
 
@@ -483,6 +482,9 @@ for ii = 1:uint8(1/strain)
             'Beta', 1, ...
             'FixBoundary');    
     elseif fixVolume
+        % debugger
+        % [eLp, tarTheta] = calculateEdgeLengthsAndAngles(FF, V0);
+        % eL = eLp + 1e-3 * rand(size(eL)) ;
         VV = minimizeElasticEnergy( FF, V0, eL, ...
             'TargetAngles', tarTheta, ...
             'Thickness', thickness, ...
@@ -520,7 +522,7 @@ for ii = 1:uint8(1/strain)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Plot faces
     h = trisurf(triangulation(FF, VV), astrain, 'edgecolor', 'none');
-    caxis([-1, 1])
+    caxis([-0.1, 0.1])
     colormap(bwr)
     c = colorbar ;
     c.Color = 'w' ;

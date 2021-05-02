@@ -115,10 +115,7 @@ cd /mnt/data/antpGAL4UASCAAXmChHGFP/202103281352_1p4um_0p15ms0p25ms_1mW1mW_GFPRF
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
 % cd /mnt/crunch/gut/antpGal4UASCAAXHGFP/202103271505_1p4um_0p1ms0p25ms_1mW1mW_GFPRFP_Time3views_120s/data/
-<<<<<<< HEAD
-cd /mnt/data/gut/AntpGal4OCRL/202104142135_antpG4kOCRL_1p4um_0p3ms1ms_1mW1mW_GFPRFP/Time2views_60s_RFPRFP_2137_tp0at2132/data/
-=======
->>>>>>> f2d39b8838008cdc7b8b2db30e59def684ae75e8
+% cd /mnt/data/gut/AntpGal4OCRL/202104142135_antpG4kOCRL_1p4um_0p3ms1ms_1mW1mW_GFPRFP/Time2views_60s_RFPRFP_2137_tp0at2132/data/
 
 dataDir = cd ;
 
@@ -151,7 +148,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 2 ;
     channelsUsed = [1 2];
-    timePoints = [0,10,20,30,40,50,70,80,90] ;
+    timePoints = 0:40 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
@@ -266,7 +263,7 @@ Options.scale = -1 ; % do NOT rescale intensities during intensity projection
 Options.channels = [1 2] ;
 makeMips(timePoints, dir16bit_prestab, fn_prestab, mipDir, Options)
 
-%% -III. make saggital MIPs for 16bit images
+% -III. make saggital MIPs for 16bit images
 % Skip if already done
 subMipDir = fullfile(dir16bit_prestab, 'substack') ;
 Options.overwrite_mips = false ;
@@ -277,12 +274,12 @@ Options.channels = [1 2] ;
 Options.overwrite_overlays = false ;
 makeSubStackMips(timePoints, dir16bit_prestab, fn_prestab, subMipDir, Options)
 
-%% Collate multiple colors into one TIFF pre-stabilization
+% Collate multiple colors into one TIFF pre-stabilization
 fileNameIn = fullfile(dir16bit_prestab, fn_prestab) ;
 fileNameOut = fullfile(dir16bit_prestab, 'Time_%06d.tif') ;
 collateColors(fileNameIn, fileNameOut, timePoints, channelsUsed) ; 
 
-%%  -II. stabilize images, based on script stabilizeImagesCorrect.m
+%  -II. stabilize images, based on script stabilizeImagesCorrect.m
 % Skip if already done
 % name of directory to check the stabilization of mips
 mips_stab_check = fullfile(mipDir, 'stab_check') ;
@@ -299,7 +296,7 @@ typename = 'uint16' ;
 stabOptions.overwrite_mips = false ;
 stabOptions.overwrite_tiffs = false ;
 stabOptions.stabChannel = 1 ;
-stabOptions.forceNoDx = false ;
+stabOptions.forceNoDx = true ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     timePoints, timePoints, timePoints(tidx0_for_stab), ...
     mipDir, mipoutdir, mips_stab_check, stabOptions)
@@ -623,8 +620,8 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    tidx0_for_msls = 2; 
-    for tp = xp.fileMeta.timePoints(tidx0_for_msls:end)
+    tidx0_for_msls = 1; 
+    for tp = xp.fileMeta.timePoints(39:end) % tidx0_for_msls:end)
          try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
@@ -633,10 +630,10 @@ else
             % make a copy of the detectOptions and change the fileName
             detectOptions.ilastikaxisorder = 'xyzc' ;
             detectOptions.center_guess = '200/100/80' ;
-            detectOptions.smoothing = 0.5 ;
+            % detectOptions.smoothing = 0.5 ;
             detectOptions.pythonVersion = '3' ;
-            detectOptions.niter = 50 ;
-            detectOptions.pre_nu = -8 ;
+            % detectOptions.niter = 50 ;
+            % detectOptions.pre_nu = -8 ;
             detectOptions.save = true ;
             if tp == timePoints(tidx0_for_msls)
                 detectOpts2 = detectOptions ;
@@ -653,8 +650,8 @@ else
             detectOpts2.init_ls_fn = fullfile(detectOpts2.mslsDir, ...
                 [detectOpts2.ofn_ls sprintf('pass_%06d.h5', tp)]) ;  % 'none' 
             
-            detectOpts2.smoothing
-            detectOpts2.post_smoothing = 1 ;
+            % detectOpts2.smoothing
+            % detectOpts2.post_smoothing = 1 ;
             detectOpts2.timepoint = xp.currentTime ;
             detectOpts2.fileName = sprintf( fnCombined, xp.currentTime );
             % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
@@ -685,7 +682,7 @@ else
 
             % make a copy of the detectOptions and change the fileName
             detectOpts2 = detectOptions ;
-            detectOpts2.post_smoothing = 1 ;
+            % detectOpts2.post_smoothing = 1 ;
             detectOpts2.timepoint = xp.currentTime ;
             
             %pass 2 
@@ -737,7 +734,7 @@ disp('done')
 
 %% Inspect a single mesh
 % Skip if already done
-tp = 10 ;
+tp = 17 ;
 meshfn = sprintf(QS.fullFileBase.mesh, tp) ;  
 QS.setTime(tp)
 QS.getCurrentData() ;
@@ -1169,6 +1166,7 @@ QS.alignMaskedDataAPDV()
 %% PLOT ALL TEXTURED MESHES IN 3D =========================================
 % Skip if already done
 overwrite = false ;
+overwrite_TextureMeshOpts= true ;
 
 % Get limits and create output dir
 % Establish texture patch options
@@ -1184,14 +1182,17 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     metadat.texture_axis_order = QS.data.axisOrder ;    % texture space sampling
         
     % Psize is the linear dimension of the grid drawn on each triangular face
+    Options = struct() ;
     Options.PSize = 5 ;
     Options.EdgeColor = 'none';
     QS.getRotTrans() ;
     Options.Rotation = QS.APDV.rot ;
     Options.Translation = QS.APDV.trans ;
     Options.Dilation = QS.APDV.resolution ;
-    Options.numLayers = [0, 10];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
-    Options.layerSpacing = 1 ;
+    Options.numLayers = [35, 1];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
+    Options.layerSpacing = 0.75 ;
+    Options.smoothIter = 100 ;
+    Options.smoothLambda = 0.02 ;
     
     % Save it
     disp('Saving metadat')
@@ -1218,19 +1219,12 @@ options.plot_ventral = true ;
 options.plot_right = true ;
 options.plot_left = true ;
 options.plot_perspective = true ;
-options.channel = [2] ; % if empty, plot all channels
+% options.channel = [2] ; % if empty, plot all channels
+% For ch1
+options.channel = [1] ; % if empty, plot all channels
+Options.numLayers = [10, 0];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
+    
 % Options.falseColors = [1, 1, 1; 0, 1, 0]; 
-
-Options.numLayers = [15, 0] ;
-Options.layerSpacing = 1 ;
-Options.PSize = 1;
-Options.EdgeColor = 'k' ;
-Options.PSize = 5 ;
-Options.EdgeColor = 'none';
-QS.getRotTrans() ;
-Options.Rotation = QS.APDV.rot ;
-Options.Translation = QS.APDV.trans ;
-Options.Dilation = QS.APDV.resolution ;
 
 QS.plotSeriesOnSurfaceTexturePatch(options, Options)
 clearvars Options

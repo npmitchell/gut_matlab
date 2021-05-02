@@ -1,5 +1,31 @@
 % DEBUGGING script for function simulateNES(QS, options)
 % function simulateNES_standaloneTest_noPathlines()
+%
+% 1 FOLLOW (s,phi) MESHES --> fix points to new points, fix volume to new vol
+% 2 Check that pathline meshes have good triangle quality
+% 3 FOLLOW PATHLINE MESHES
+% 4 relaxing some contraints 
+%
+% Try 
+% targetEdgeLength = 10 ;
+% numIterations = 8 ;
+% [newFaces, newVertices, newFaceNormals, newVertexNormals] = ...
+%       isotropic_remeshing(faces, vertices, targetEdgeLength, numIterations)
+% 
+% Try 
+% [intx_exist, faces_intx ] = mesh_self_intersection_3d(faces, vertices)
+%
+% Try
+% For pathlines, load smoothed 3d velocity for all vertices/faces, apply to
+% current (remeshed) vertices, compute those target lengths/bending angles.
+%
+% Track triangle quality for pathline meshes
+% measure angles for quality inspection
+% gptoolbox -->  internalangles( V, F )
+% 
+
+clear all
+
 QS = struct() ;
 QS.nU = 100 ;
 QS.nV = 100 ;
@@ -11,35 +37,70 @@ options = struct() ;
 %% Add path (todo: make this automatic by putting NES code in gut_matlab)
 
 % VIP 8 
-% codedir = '/mnt/data/code/'; 
-% NESpath = '/mnt/data/code/NonEuclideanShells/NES/' ; % Debug
+codedir = '/mnt/data/code/'; 
+NESpath = '/mnt/data/code/NonEuclideanShells/NES/' ; % Debug
 
 % Laptop
-codedir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/'; 
-NESpath = fullfile(codedir, 'NES') ;
-% addpath_recurse(NESpath)
-% addpath(fullfile(codedir, 'gut_matlab','NES_codes'))
-% addpath_recurse(fullfile(codedir, 'gut_matlab', 'mesh_handling'))
-% addpath_recurse(fullfile(codedir, 'gut_matlab', 'geometry'))
-% addpath_recurse(fullfile(codedir, 'gut_matlab', 'plotting'))
-% addpath_recurse(fullfile(codedir, 'gut_matlab', 'NES_codes'))
-% addpath_recurse(fullfile(codedir, 'gut_matlab', 'master_pipeline', 'nes_functions'))
-% addpath_recurse(fullfile(codedir, 'gptoolbox'))
+% codedir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/'; 
+% NESpath = fullfile(codedir, 'NES') ;
+
+% Run once
+addpath_recurse(NESpath)
+addpath_recurse(fullfile(codedir, 'DEC'))
+addpath(fullfile(codedir, 'gut_matlab','NES_codes'))
+addpath_recurse(fullfile(codedir, 'gut_matlab', 'mesh_handling'))
+addpath_recurse(fullfile(codedir, 'gut_matlab', 'geometry'))
+addpath_recurse(fullfile(codedir, 'gut_matlab', 'plotting'))
+addpath_recurse(fullfile(codedir, 'gut_matlab', 'NES_codes'))
+addpath_recurse(fullfile(codedir, 'gut_matlab', 'master_pipeline', 'nes_functions'))
+addpath_recurse(fullfile(codedir, 'gptoolbox'))
 
 % VIP8
-% pathlineDir = '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/piv/pathlines/t0_0123/' ;
-% dxdyFilteredFn = fullfile(pathlineDir, 'DxDyStrainFiltered/dxdy_strain_%06d.mat') ;
-
-% Laptop
-dataDir = '/Users/npmitchell/Desktop/gut/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/' ;
+dataDir = '/mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/';
+pathlineDir = 'msls_output/gridCoords_nU0100_nV0100/piv/pathlines/t0_0123/' ;
+dxdyFilteredFn = fullfile(pathlineDir, 'DxDyStrainFiltered/dxdy_strain_%06d.mat') ;
 gridCoordDir = fullfile(dataDir, 'msls_output','gridCoords_nU0100_nV0100') ;
 pathlineDir = fullfile(gridCoordDir, 'piv','pathlines','t0_0123') ;
-dxdyFilteredFn = fullfile(pathlineDir, 'DxDyStrainFiltered/dxdy_strain_%06d.mat') ;
+
+% Laptop
+% dataDir = '/Users/npmitchell/Desktop/gut/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/' ;
+% dxdyFilteredFn = fullfile(pathlineDir, 'DxDyStrainFiltered/dxdy_strain_%06d.mat') ;
 ameshFn = fullfile(gridCoordDir, 'sphi_cutMesh_010step','smoothed_rs_closed', 'spcMSmRSC_%06d.mat');
+
+mkdir(fullfile(gridCoordDir, 'sphi_cutMesh_010step', 'smoothed_rs_closed_endcaps')) 
+meshFn = fullfile(gridCoordDir, 'sphi_cutMesh_010step', 'smoothed_rs_closed_endcaps', 'spcMSmRSCE_%06d.mat') ;
+%%%%%%%%%%%%%%%%%%%%%%%%
+%% Make some meshes
+% aligned mesh APDV RSC
+timePoints = 10:263 ;
+for ii = 1:length(timePoints)
+    tp = timePoints(ii) ;
+    ameshfn_ii = sprintf(ameshFn, tp) ;
+    meshfn = sprintf(meshFn, tp) ;
+    amesh = load(ameshfn_ii) ;
+    closedMesh = amesh.spcutMeshSmRSC ;
+    closedMesh.nU = nU ;
+    closedMesh.nV = nV ;
+    [closedMesh.f, closedMesh.v] = closeMeshEndcaps(closedMesh) ;
+    save(meshfn, 'closedMesh')
+end
+%% end mesh making
+%%%%%%%%%%%%%%%%%%%%%%%%
 
 debugFile = './simulationTestFile.mat' ;
 tmp = load(debugFile, 'cutM', 'mesh', 'refMesh', 'xyzlim', 'bwr', 'timePoints') ;
-cutM = tmp.cutM ;
+
+% For debugging
+ameshfn_ii = sprintf(ameshFn, QS.t0) ;
+amesh = load(ameshfn_ii) ;
+cutM = amesh.spcutMeshSmRSC ;
+cutM.nU = 100 ;
+cutM.nV = 100 ;
+[cutM.f, cutM.v] = closeMeshEndcaps(cutM) ;
+VV = cutM.v ;
+FF = cutM.f ;
+
+% cutM = tmp.cutM ;
 mesh = tmp.mesh ;
 refMesh = tmp.refMesh.refMesh ;
 xyzlim = tmp.xyzlim ;
@@ -63,22 +124,22 @@ strainstyle = 'meshes' ;  % 'meshes' 'total' 'axial' 'hoop' 'hoopCompression' 'r
 % 'line' : compression/expansion along ap direction on bonds with beta==0
 
 targetThetaStyle = 'quasistatic' ; % either 'plate' or 'quasistatic'
-Alpha = 1 ;
-Beta = 1 ;
-fixVolume = true ;
+Alpha = 0 ;
+Beta = 0 ;
+fixVolume = false ;
 fixBoundary = false ;
 fixCap = false ;
 restrictGrowth = false ;
 poisson_ratio = 0.5 ;
-thickness = 0.1 ;
+thickness = 1 ;
 eL_allow = 0.1 ;
-maxIter = 500 ;
+maxIter = 10 ;
 nU = QS.nU ;
 nV = QS.nV ;
 % t0Pathlines = QS.t0set() ; % Debug
 t0Pathlines = QS.t0 ;
 preview = false ;
-Dt = 10 ;
+Dt = 2 ;
 nsteps_per_timepoint = 10 ;
 niter_per_Dt = 1 ;
 Ntotal = 155 ;
@@ -229,7 +290,7 @@ save(fullfile(outdir, 'initial_mesh.mat'), 'VV', 'FF', 'eIDx', 'feIDx', 'bulkEdg
 eij = VV(eIDx(:,2), :) - VV(eIDx(:,1), :);
 
 % Target edge lengths
-eL = sqrt( sum( eij.^2, 2 ) );
+[eL, tarTheta] = calculateEdgeLengthsAndAngles(FF, VV);
 eL0 = eL ; 
 
 % Get bond centers in 3d
@@ -466,6 +527,8 @@ if contains(strainstyle, 'restricted')
 
 end
 
+
+
 %% Consider each timestep, which averages Dt timepoints of experiment
 for ii = 1:Ntotal
 
@@ -678,6 +741,12 @@ for ii = 1:Ntotal
         curGrowthV = normalizerow(curGrowthV);
     end
     
+    %% Check for self-intersections
+    [intx_exist, faces_intx ] = mesh_self_intersection_3d(FF, VV) ;
+    if intx_exist
+        error([num2str(length(find(faces_intx))) 'self intersections exist'])
+    end
+    
     %% Check for triangle inequality: 
     % sum of edge 2 lengths cannot be less than the third edgelength
     % #faces x 3 array of target edge lengths on faces
@@ -836,10 +905,10 @@ for ii = 1:Ntotal
     fixedX = V1(fixedIDx, :) ;
     
     %% Check magnitudes of energies
-    Eb0 = calculateBendEnergy(FF, VV, eL, tarTheta, poisson_ratio, thickness) ;
+    [Eb0, Eb0_faces] = calculateBendEnergy(FF, VV, eL, tarTheta, poisson_ratio, thickness) ;
     Efp0 = calculateFixedPointEnergy(FF, VV, fixedIDx, fixedX, Alpha) ;
     Efv0 = calculateFixedVolumeEnergy(FF, VV, targetVolume, Beta) ;
-    Es0 = calculateStretchEnergy(FF, VV, eL, poisson_ratio) ;
+    [Es0, Es0_faces] = calculateStretchEnergy(FF, VV, eL, poisson_ratio) ;
 
     % Compute per-face energies
     % Eb0_faces = calculateBendEnergyFaces(FF, VV, eL, tarTheta, ...
@@ -867,6 +936,10 @@ for ii = 1:Ntotal
         Efp = tmp.Efp ;
         Efv = tmp.Efv ;
         Es = tmp.Es ;
+        Eb_faces = tmp.Eb_faces ;
+        Es_faces = tmp.Es_faces ;
+        Eb0_faces = tmp.Eb0_faces ;
+        Es0_faces = tmp.Es0_faces ;
         Eb0 = tmp.Eb0 ;
         Efp0 = tmp.Efp0 ;
         Efv0 = tmp.Efv0;
@@ -874,7 +947,6 @@ for ii = 1:Ntotal
     else
         tic
         V4min = V1 ; 
-        % for pp = 1:nsteps_per_timepoint 
         if fixBoundary && fixVolume 
             error('check params here')
             V4min = minimizeElasticEnergy( FF, V4min, eL, ...
@@ -917,12 +989,30 @@ for ii = 1:Ntotal
                 'targetVertices', capID(end-1), ...
                 'targetLocations', V1(capID(end-1), :)) ;
         else
-            error('not fixing Volume or boundary?')
+            disp('WARNING: not fixing Volume or boundary! Fixing one vertex')
+            disp(['initial distance from target:' num2str(sum(vecnorm(V4min - V0, 2, 2)))])
+            [eL, tarTheta] = calculateEdgeLengthsAndAngles(FF, V4min) ;
+            V4min = minimizeElasticEnergy( FF, V4min, eL, ...
+                'TargetAngles', tarTheta, ...
+                'Thickness', thickness, ...
+                'Poisson', poisson_ratio, ...
+                'MaxIterations', maxIter, ...
+                'Past', 500, 'Delta', 1e-7, ... % L-BFGS parameters
+                'iterDisplay', 10, ...
+                'Alpha', Alpha, ...             % fixed vertex coeff
+                'Beta', Beta, ...               % fixed volume coeff
+                'targetVertices', capID(end-1), ...
+                'targetLocations', V1(capID(end-1), :)) ;
         end
-        % end
         VV = V4min ;
         toc
-
+        
+        
+        % For scale = 1
+        % ||dx|| = 14.3817936 ||x|| = 12410.9977 f(x) =   19.0601791136
+        % scale = 5
+        %  ||dx|| = 776026668.5042272 ||x|| = 60160.2956 f(x) = 1314937352.3637316227
+        
         %% Check
         % % Directed edge vectors
         % eijp = VV(eIDx(:,2), :) - VV(eIDx(:,1), :);
@@ -931,14 +1021,12 @@ for ii = 1:Ntotal
         % eLp = sqrt( sum( eijp.^2, 2 ) );
 
         %% New energies
-        Eb = calculateBendEnergy(FF, VV, eL, tarTheta, poisson_ratio, thickness) ;
+        [Eb, Eb_faces] = calculateBendEnergy(FF, VV, eL, tarTheta, poisson_ratio, thickness) ;
         Efp = calculateFixedPointEnergy(FF, VV, fixedIDx, fixedX, Alpha) ;
         Efv = calculateFixedVolumeEnergy(FF, VV, targetVolume, Beta) ;
-        Es = calculateStretchEnergy(FF, VV, eL, poisson_ratio) ;
+        [Es, Es_faces] = calculateStretchEnergy(FF, VV, eL, poisson_ratio) ;
         
-        % Compute per-face energies
-        Eb_faces = calculateBendEnergyFaces(FF, VV, eL, tarTheta, poisson_ratio, thickness) ;
-        Es_faces = calculateStretchEnergyFaces(FF, VV, eL, poisson_ratio) ;
+        % Compute per-face energies 
         if restrictGrowth
             [Egr, projL, isValid] = calculateGrowthRestrictionEnergy(F, V, ...
                 growthVec, maxProjL, mu) ;
@@ -948,6 +1036,10 @@ for ii = 1:Ntotal
             Egr = 0 ;
             Egr_faces = 0 ;
         end
+        
+        % Check that energies went down?
+        total_energy0 = Eb0 + Efp0 + Efv0 + Es0 + Egr0 ;
+        total_energy = Eb + Efp + Efv + Es + Egr ;
         
         %% Save vertices
         save(fn, 'VV', 'FF', 'Eb', 'Efp', 'Efv', 'Es', 'Egr',...
@@ -973,17 +1065,18 @@ for ii = 1:Ntotal
         set(gcf, 'PaperPosition', [0 0 figWidth figHeight]);  
 
         trisurf(triangulation(FF, VV), a0strain, 'edgecolor', 'none');
-        caxis([-0.5, 0.5])
+        caxis(max(abs(a0strain(:))) * [-1, 1])
         colormap(bwr)
         c = colorbar ;
         c.Color = 'w' ;
         c.Label.Interpreter = 'latex' ;
-        c.Label.String = '$\delta A / A_0$' ;
+        c.Label.String = '$ A / A_0$' ;
 
         % Figure properties
         set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w')
         set(gcf, 'color', 'k')
 
+        titlestr = ['face dilation, $ (A - A_0) / A_0$: $t=$' num2str(tp-QS.t0)]; 
         title(titlestr, 'interpreter', 'latex', 'color', 'w'); 
         axis equal
         view(0,0)
@@ -1006,12 +1099,13 @@ for ii = 1:Ntotal
         c = colorbar ;
         c.Color = 'w' ;
         c.Label.Interpreter = 'latex' ;
-        c.Label.String = '$(A - A_{prev})/ A_{prev}$' ;
+        c.Label.String = '$\delta A/ A_{prev}$' ;
 
         % Figure properties
         set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w')
         set(gcf, 'color', 'k')
 
+        titlestr = ['face dilation, $\delta A / A_{prev}$: $t=$' num2str(tp-QS.t0)]; 
         title(titlestr, 'interpreter', 'latex', 'color', 'w'); 
         axis equal
         view(0,0)
@@ -1027,13 +1121,15 @@ for ii = 1:Ntotal
     % Get indices of the colors to plot edges as
     wirefn = fullfile(outdir, 'wire', sprintf('wire%03d.png', ii)) ;
     if ~exist(wirefn, 'file') && plot_wire 
-        aux_nes_wire(QS, eIDx, VV, eL, eL0, clims, wirefn, ii*Dt)
+        clims = [] ;
+        titlestr = ['$t=$' num2str(tp * QS.timeInterval) ' ' QS.timeUnits] ;
+        aux_nes_wire(QS, eIDx, VV, eL, eL0, clims, wirefn, titlestr)
     end
         
     %% Plot flow invariants
     divcurlfn = fullfile(outdir, 'divcurl', sprintf('divcurl_%03d.png', ii)) ;
     if ~exist(divcurlfn, 'file') && plot_divcurl
-        aux_nes_divcurl(QS, FF, VV, V1, climit_div, divcurlfn, ii*Dt)
+        aux_nes_divcurl(QS, FF, VV, V1, climit_div, divcurlfn, ii*Dt, xyzlim)
     end
     
     %% Compute Beltrami
@@ -1041,7 +1137,7 @@ for ii = 1:Ntotal
     bifn = fullfile(outdir, 'beltrami_images', ...
         sprintf('beltrami_%03d.png', ii)) ;
     if ~exist(bfn, 'file') || ~exist(bifn, 'file')
-        aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, ii*Dt, bfn, bifn)
+        aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, ii*Dt, bfn, bifn, xyzlim)
     end
     
     %% Store energies as we go

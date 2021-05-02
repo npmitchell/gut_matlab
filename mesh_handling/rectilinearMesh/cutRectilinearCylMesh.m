@@ -34,6 +34,9 @@ function cutMesh = cutRectilinearCylMesh(mesh, options)
 %   vn : (nU*nV) x 3 float array
 %       vertex normals 
 %
+% See also
+% --------
+% 
 % NPMitchell 2020
 
 if nargin > 1

@@ -1,7 +1,7 @@
 function simulateNES(QS, options)
 
 %% Default options
-strainstyle = 'total' ;  % 'total' 'axial' 'hoop' 'hoopCompression' 'ring' 'line'
+strainstyle = 'hoop' ;  % 'total' 'axial' 'hoop' 'hoopCompression' 'ring' 'line'
 targetThetaStyle = 'quasistatic' ; % either 'plate' or 'quasistatic'
 Alpha = 1 ;
 Beta = 1 ;
@@ -334,7 +334,7 @@ end
 bfn = fullfile(outdir, 'beltrami', sprintf('beltrami_%03d.mat', 0)) ;
 bifn = fullfile(outdir, 'beltrami_images', sprintf('beltrami_%03d.png', 0)) ;
 if ~exist(bfn, 'file') || ~exist(bifn, 'file') 
-    aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, 0, bfn, bifn)
+    aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, 0, bfn, bifn, xyzlim)
 end
 
 %% 
@@ -962,7 +962,7 @@ for ii = 1:Ntotal
     bifn = fullfile(outdir, 'beltrami_images', ...
         sprintf('beltrami_%03d.png', ii)) ;
     if ~exist(bfn, 'file') || ~exist(bifn, 'file')
-        aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, ii*Dt, bfn, bifn)
+        aux_nes_beltrami(QS, FF, VV, refMesh, capID, nU, nV, ii*Dt, bfn, bifn, xyzlim)
     end
     
     %% Store energies as we go

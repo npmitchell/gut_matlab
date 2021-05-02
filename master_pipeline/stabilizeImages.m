@@ -75,6 +75,9 @@ overwrite_tiffs = Options.overwrite_tiffs ;
 if isfield(Options, 'stabChannel')
     channel = Options.stabChannel ;
 end
+if isfield(Options, 'forceNoDx')
+    forceNoDx = Options.forceNoDx ;
+end
 
 %% Make the subdirectories for the mips if not already existing
 mipdirs = {mipStabDir, mipsRGBDir, ...
@@ -110,31 +113,34 @@ t_ref_ind = find( timePoints == t_ref ) ;
 %% Define shifts for each time point ======================================
 disp('Defining shifts...')
 shiftfn = fullfile(mipDir, 'shifts_stab.mat') ;
-if exist(shiftfn, 'file') && ~overwrite_mips
-    disp('Loading shifts from disk')
-    load(shiftfn, 'shifts', 't_ref', 't_ref_ind')
-    if length(shifts) == length(timePoints)
-        x_1 = cat(1,shifts.x_1); % rows        (x) 
-        y_1 = cat(1,shifts.y_1); % columns     (y)
-        x_2 = cat(1,shifts.x_2); % columns #2  (y)
-        y_2 = cat(1,shifts.y_2); % leaves      (z) 
-        x_3 = cat(1,shifts.x_3); % rows    #2  (x) 
-        y_3 = cat(1,shifts.y_3); % leaves  #2  (z)   
-        % Average contributions from different views on the same shift axis
-        dx = round(0.5 * (x_1 + x_3)) ;
-        dy = round(0.5 * (y_1 + x_2)) ;
-        dz = round(0.5 * (y_2 + y_3)) ;
-        compute_shifts = false ;
-    else
-        response = input('Shifts on disk but not the same length as timePoints. Recompute?', 's') ;
-        if contains(lower(response), 'y')
-            compute_shifts = true ;
+
+if forceNoDx
+    compute_shifts = true ;
+else
+    if exist(shiftfn, 'file') && ~overwrite_mips
+        disp('Loading shifts from disk')
+        load(shiftfn, 'shifts', 't_ref', 't_ref_ind')
+        if length(shifts) == length(timePoints)
+            x_1 = cat(1,shifts.x_1); % rows        (x) 
+            y_1 = cat(1,shifts.y_1); % columns     (y)
+            x_2 = cat(1,shifts.x_2); % columns #2  (y)
+            y_2 = cat(1,shifts.y_2); % leaves      (z) 
+            x_3 = cat(1,shifts.x_3); % rows    #2  (x) 
+            y_3 = cat(1,shifts.y_3); % leaves  #2  (z)   
+            % Average contributions from different views on the same shift axis
+            dx = round(0.5 * (x_1 + x_3)) ;
+            dy = round(0.5 * (y_1 + x_2)) ;
+            dz = round(0.5 * (y_2 + y_3)) ;
+            compute_shifts = false ;
         else
-            error('Exiting.')
+            response = input('Shifts on disk but not the same length as timePoints. Recompute?', 's') ;
+            if contains(lower(response), 'y')
+                compute_shifts = true ;
+            else
+                error('Exiting.')
+            end
         end
     end
-else
-    compute_shifts = true ;
 end
 if compute_shifts
     disp('Shifts not on disk, computing them...')
@@ -168,18 +174,29 @@ if compute_shifts
     % Compute shifts via phase correlation
     disp('Computing/overwriting shifts')
     shifts = struct('x_1',[],'y_1',[],'x_2',[],'y_2',[]);
-    for time = 1 :NTimes
-        [shiftx,shifty,~] = xcorr2fft(im_1(:,:,time), im_1(:,:,t_ref_ind));
-        shifts(time).x_1 = shiftx;
-        shifts(time).y_1 = shifty; 
+    for time = 1 :NTimes        
+        if forceNoDx
+            shifts(time).x_1 = 0 ;
+            shifts(time).y_1 = 0 ; 
 
-        [shiftx,shifty,~] = xcorr2fft(im_2(:,:,time), im_2(:,:,t_ref_ind));
-        shifts(time).x_2 = shiftx;
-        shifts(time).y_2 = shifty; 
+            shifts(time).x_2 = 0 ;
+            shifts(time).y_2 = 0 ; 
 
-        [shiftx,shifty,~] = xcorr2fft(im_3(:,:,time), im_3(:,:,t_ref_ind));
-        shifts(time).x_3 = shiftx;
-        shifts(time).y_3 = shifty; 
+            shifts(time).x_3 = 0 ;
+            shifts(time).y_3 = 0 ; 
+        else
+            [shiftx,shifty,~] = xcorr2fft(im_1(:,:,time), im_1(:,:,t_ref_ind));
+            shifts(time).x_1 = shiftx;
+            shifts(time).y_1 = shifty; 
+
+            [shiftx,shifty,~] = xcorr2fft(im_2(:,:,time), im_2(:,:,t_ref_ind));
+            shifts(time).x_2 = shiftx;
+            shifts(time).y_2 = shifty; 
+
+            [shiftx,shifty,~] = xcorr2fft(im_3(:,:,time), im_3(:,:,t_ref_ind));
+            shifts(time).x_3 = shiftx;
+            shifts(time).y_3 = shifty; 
+        end
     end
     disp('done defining phase correlations')
 
@@ -214,6 +231,7 @@ if compute_shifts
     saveas(gcf, fullfile(mipDir, 'jitter_stabilization.png'))
     disp('done plotting shifts, see Figure')
     disp('Saving shifts to shifts_stab.mat in mipDir')
+    
     save(fullfile(mipDir, 'shifts_stab.mat'), 'shifts', 't_ref', 't_ref_ind')
 end
 

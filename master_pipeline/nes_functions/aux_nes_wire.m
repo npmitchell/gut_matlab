@@ -1,16 +1,21 @@
-function aux_nes_wire(QS, eIDx, VV, eL, eL0, clims, wirefn)
+function aux_nes_wire(QS, eIDx, VV, eL, eL0, clims, wirefn, titlestr)
 % aux_nes_wire(QS, eIDx, VV, eL, eL0, clims, wirefn)
 %
 % NPMitchell 2021
 
-cmin = clims(1) ;
-cmax = clims(2) ;
+if isempty(clims)
+    cmin = min(eL ./ eL0) ;
+    cmax = max(eL ./ eL0) ;
+else
+    cmin = clims(1) ;
+    cmax = clims(2) ;
+end
 disp('Creating figure with wire frame bonds')
 figure('visible', 'off')
 colormap bwr
 cmap = bwr ;
 set(gcf, 'PaperUnits', 'centimeters');
-set(gcf, 'PaperPosition', [0 0 figWidth figHeight]);  
+set(gcf, 'PaperPosition', [0 0 16 10]);  
 sratio = eL ./ eL0 ;
 cID = max(1, sum(sratio > linspace(cmin, cmax, length(cmap)), 2)) ;
 ecolors = cmap(cID, :) ;
