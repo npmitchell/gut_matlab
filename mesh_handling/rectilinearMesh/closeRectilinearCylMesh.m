@@ -74,6 +74,7 @@ if isfield(cmesh, 'vn')
     cmesh.vn = mesh.vn(1:end-nU, :) ;
 end
 
+
 apt = mean(mesh.v(1:nV:end, :), 1) ;
 ppt = mean(mesh.v(nU:nV:end, :), 1) ;
 

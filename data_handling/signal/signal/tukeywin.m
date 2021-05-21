@@ -47,10 +47,10 @@ end % if
 
 % generate window
 switch r
-  case 0,
+  case 0
     % full box
     w = ones (L, 1);
-  case 1,
+  case 1
     % Hanning window
     w = hanning (L);
   otherwise

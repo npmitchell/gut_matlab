@@ -1,6 +1,6 @@
 function aux_plot_lobe_dynamics(length_lobes, area_lobes, volume_lobes, ...
     timePoints, fold_onset, colors, lobe_dynamics_figfn, ...
-    lobedyn_figfn_scaled, t0, nlobes)
+    lobedyn_figfn_scaled, t0, nlobes, timeInterval, timeUnits, spaceUnits)
 %AUX_PLOT_LOBE_DYNAMICS(length_lobes, area_lobes, volume_lobes, ...
 %    timePoints, fold_onset, colors, lobe_dynamics_figfn)
 % Auxiliary function for plotting the geometric dynamics of each lobe. 
@@ -33,7 +33,7 @@ function aux_plot_lobe_dynamics(length_lobes, area_lobes, volume_lobes, ...
 close all;
 fig = figure('visible', 'off');
 fh = cell(1, nlobes) ;
-tp = timePoints - t0 ; 
+tp = (timePoints - t0) * timeInterval ; 
 for lobe = 1:nlobes
     % Length
     subplot(3,2,1)
@@ -53,11 +53,11 @@ end
 
 subplot(3, 2, 1)
 xlim([min(tp), max(tp)])
-ylabel('Length [\mum]')
+ylabel(['Length [' spaceUnits ']'], 'interpreter', 'latex')
 
 subplot(3, 2, 3)
 xlim([min(tp), max(tp)])
-ylabel('Area [\mum^2]')
+ylabel(['Area [' spaceUnits '$^2$]'], 'interpreter', 'latex')
 
 if nlobes == 4 
     legend({'\color[rgb]{ 0,0.4470,0.7410} lobe 1', ...
@@ -74,9 +74,9 @@ end
 
 subplot(3, 2, 5)
 xlim([min(tp), max(tp)])
-ylabel('Volume [\mum^3]')
+ylabel(['Volume [' spaceUnits '$^3$]'], 'interpreter', 'latex')
 
-xlabel('time [min]')
+xlabel(['time [' timeUnits ']'])
 disp(['Saving summary to ' lobe_dynamics_figfn])
 saveas(fig, lobe_dynamics_figfn)
 close all
@@ -86,7 +86,7 @@ disp('Plotting lobe dynamics scaled...')
 close all;
 fig = figure('visible', 'off');
 fh = cell(1, 4) ;
-tp = timePoints - min(fold_onset) ;
+tp = (timePoints - min(fold_onset)) * timeInterval ;
 for lobe = 1:nlobes
     % Length
     subplot(3,2,1)
@@ -126,6 +126,6 @@ xlim([min(tp), max(tp)])
 ylabel('Volume / V_0')
 ylim([0, 2])
 
-xlabel('time [min]')
+xlabel(['time [' timeUnits ']'])
 disp(['Saving summary to ' lobedyn_figfn_scaled])
 saveas(fig, lobedyn_figfn_scaled)

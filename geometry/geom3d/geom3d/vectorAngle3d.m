@@ -33,6 +33,18 @@ function theta = vectorAngle3d(v1, v2)
 % compute angle using arc-tangent to get better precision for angles near
 % zero, see the discussion in: 
 % http://www.mathworks.com/matlabcentral/newsreader/view_thread/151925#381952
+% 
+% NPMitchell notes:
+% If a signed value is desired, use
+%   
+%   c = cross(a_3d,b_3d);
+%   if c(3) < 0
+%       theta = -atan2(norm(c),dot(a,b));
+%   else
+%       theta = atan2(norm(c),dot(a,b));
+%   end
+% 
+
 theta = atan2(vectorNorm3d(crossProduct3d(v1, v2)), sum(bsxfun(@times, v1, v2),2));
 
 % equivalent to:

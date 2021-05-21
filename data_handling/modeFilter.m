@@ -91,7 +91,7 @@ catch
     error('Not enough data for requested number of modes in filter')
 end
 
-%% RECONSTRUCTION: NOT FINISHED YET
+%% RECONSTRUCTION 
 wn = 0:(nmodes-1) ;   %Vector of desired frequencies
 amp = zeros(size(wn));
 for k = 1:length(wn)

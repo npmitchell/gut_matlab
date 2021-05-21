@@ -1,4 +1,4 @@
-function [ newFace, newVertex, oldVertexIDx ] = ...
+function [ newFace, newVertex, oldVertexIDx, newVertexIDx ] = ...
     remove_vertex_from_mesh( face, vertex, rmVIDx )
 %REMOVE_VERTEX_FROM_MESH Removes a subset of the vertices and the
 %associated faces from a mesh triangulation.
@@ -13,6 +13,9 @@ function [ newFace, newVertex, oldVertexIDx ] = ...
 %       - oldVertexIDx: #V'x1 list of the vertex IDs of the updated
 %                       vertices in the old vertex list, so that, for ex,
 %                       vn_new = old_mesh.vn(oldVertexIdx, :)
+%       - newVertexIDx: #V x1 list of vertex IDs of the old vertices in
+%                       the new vertex list, so that
+%                       kept_old_vertices = new_mesh.v(newVertexIDx, :)
 %
 % By Dillon Cislo, modified NPMitchell 2019
 

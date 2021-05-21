@@ -1,7 +1,7 @@
 function [BL] = TRI2BL(TRI)
 % TRI2BL(TRI) Convert connectivity list to bond list
 %
-% wtmi boston une 2011
+% wtmi boston june 2011
 % npmitchell 2019
 
 BL = TRI(:,[1,2]);

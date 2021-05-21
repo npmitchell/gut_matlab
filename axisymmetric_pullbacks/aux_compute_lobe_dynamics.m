@@ -1,6 +1,7 @@
 function [length_lobes, area_lobes, volume_lobes] = ...
     aux_compute_lobe_dynamics(folds, ssfold, ssmax, lobeDir, timePoints, ...
-    t0, timeInterval, timeUnits, spcutMeshBase, nV, nU, rot, trans, resolution, flipy, xyzlim, colors, save_ims, overwrite_lobeims)
+    t0, timeInterval, timeUnits, spaceUnits, ...
+    spcutMeshBase, nV, nU, rot, trans, resolution, flipy, xyzlim, colors, save_ims, overwrite_lobeims)
 %AUX_COMPUTE_LOBE_DYNAMICS auxiliary function for Generate_Axisymmetric_Pullbacks_Orbifold.m
 %   Compute the lobe dynamics for all timepoints
 % 
@@ -67,14 +68,9 @@ for kk = 1:length(timePoints)
     % load(fn, 'avgpts')
     avgpts = spcutMesh.avgpts ;
 
-    % rename the fold indices (in U)
-    f1 = folds(kk, 1) ;
-    f2 = folds(kk, 2) ;
-    f3 = folds(kk, 3) ;
-
     % preallocate
-    vol_kk = [0, 0, 0, 0] ;
-    area_kk = [0, 0, 0, 0] ;
+    vol_kk = zeros(size(folds, 2) + 1, 1) ;
+    area_kk = zeros(size(folds, 2) + 1, 1) ;
 
     % Create figure for plotting lobes
     lobeimfn = fullfile(lobeImDir, ['lobes_' timestr '.png']) ;
@@ -99,7 +95,7 @@ for kk = 1:length(timePoints)
         vrs(:, 2) = -vrs(:, 2) ;
     end
     
-    for lobe = 1:4
+    for lobe = 1:size(folds, 2) + 1
         % Note that the vertices are ordered in AP strips, with
         % nU elements for each value of nV. 
 
@@ -125,21 +121,18 @@ for kk = 1:length(timePoints)
         % Create matrix of indices, each row identical (y location)
         allvs = (0:(nV-1)) * nU ;
         if lobe == 1
-            urm = (f1+1):nU ;
-            rear_id = f1 ;
+            % rename the fold indices (in U)
             front_id = 1 ;
-        elseif lobe == 2
-            urm = [1:(f1-1), (f2+1):nU] ;
-            rear_id = f2 ;
-            front_id = f1 ;
-        elseif lobe == 3
-            urm = [1:(f2-1), (f3+1):nU] ;
-            rear_id = f3 ;
-            front_id = f2 ;
-        elseif lobe == 4
-            urm = 1:(f3-1) ;
+            rear_id = folds(kk, 1) ;
+            urm = (rear_id+1):nU ;
+        elseif lobe == size(folds, 2) + 1
+            front_id = folds(kk, lobe-1) ;
             rear_id = nU ;
-            front_id = f3 ;
+            urm = 1:(front_id-1) ;
+        else
+            front_id = folds(kk, lobe-1) ;
+            rear_id = folds(kk, lobe) ;
+            urm = [1:(front_id-1), (rear_id+1):nU] ;
         end
         rear_id = double(rear_id) ;
         front_id = double(front_id) ;
@@ -212,9 +205,9 @@ for kk = 1:length(timePoints)
     if redo_lobeims
         axis equal
         title(['Lobes, t = ' sprintf('%03d', (t-t0)*timeInterval) ' ' timeUnits])
-        xlabel('x [\mum]')
-        ylabel('y [\mum]')
-        zlabel('z [\mum]')
+        xlabel(['x [' spaceUnits ']'])
+        ylabel(['y [' spaceUnits ']'])
+        zlabel(['z [' spaceUnits ']'])
         xlim(xyzlim(1, :))
         ylim(xyzlim(2, :))
         zlim(xyzlim(3, :))

@@ -1,5 +1,5 @@
 function aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
-    timePoints, lobeDir, dvexten, sphiBase, method, overwrite) 
+    timePoints, lobeDir, dvexten, sphiBase, method, overwrite, timeInterval, t0) 
 % aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, nU, timePoints, lobeDir, dvexten)
 %
 % Parameters
@@ -39,10 +39,10 @@ mexten = ['_' method] ;
 
 % Plot kymograph
 close all; figure('visible', 'off'); hold on
-plot(folds(:, 1), timePoints)
-plot(folds(:, 2), timePoints)
-plot(folds(:, 3), timePoints)
-ylim([timePoints(1), timePoints(end)])
+plot(folds(:, 1), (timePoints - t0) * timeInterval)
+plot(folds(:, 2), (timePoints - t0) * timeInterval)
+plot(folds(:, 3), (timePoints - t0) * timeInterval)
+ylim([(timePoints(1)- t0) * timeInterval, (timePoints(end)- t0) * timeInterval])
 xlim([0, nU])
 ylabel('time [min]')
 xlabel('position index')
@@ -52,11 +52,11 @@ saveas(gcf, fullfile(lobeDir, ['fold_idx' dvexten mexten '.png']))
 
 % Plot the locations as a fraction of the total length as a kymograph
 close all; figure('visible', 'off'); hold on
-plot(ssfold_frac(:, 1), timePoints)
-plot(ssfold_frac(:, 2), timePoints)
-plot(ssfold_frac(:, 3), timePoints)
+plot(ssfold_frac(:, 1), (timePoints - t0) * timeInterval)
+plot(ssfold_frac(:, 2), (timePoints - t0) * timeInterval)
+plot(ssfold_frac(:, 3), (timePoints - t0) * timeInterval)
 xlim([0, 1])
-ylim([timePoints(1), timePoints(end)])
+ylim([(timePoints(1)- t0) * timeInterval, (timePoints(end)- t0) * timeInterval])
 ylabel('time [min]')
 xlabel('position [x/L]')
 title('Fold positions')
@@ -65,11 +65,11 @@ saveas(gcf, fullfile(lobeDir, ['fold_ssfrac' dvexten mexten '.png']))
 
 % Plot the locations (pathlength) as a kymograph
 close all; figure('visible', 'off'); hold on
-plot(ssfold(:, 1), timePoints)
-plot(ssfold(:, 2), timePoints)
-plot(ssfold(:, 3), timePoints)
-plot(ssmax, timePoints, 'k--')
-ylim([timePoints(1), timePoints(end)])
+plot(ssfold(:, 1), (timePoints - t0) * timeInterval)
+plot(ssfold(:, 2), (timePoints - t0) * timeInterval)
+plot(ssfold(:, 3), (timePoints - t0) * timeInterval)
+plot(ssmax, (timePoints - t0) * timeInterval, 'k--')
+ylim([(timePoints(1)- t0) * timeInterval, (timePoints(end)- t0) * timeInterval])
 ylabel('time [min]')
 xlabel('position [\mum]')
 title('Fold positions')

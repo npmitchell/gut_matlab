@@ -1,7 +1,7 @@
-function aux_plot_writhe(timepoints, clines_resampled, ...
+function aux_plot_writhe(timepoints, timeInterval, clines_resampled, ...
     Wr, Wr_density, dWr, Length_t, wrfigdir, area_volume_fn, fold_onset, Wr_style, ...
     xyzlim, clineDVhoopBase, cylinderMeshCleanBase, rot, trans, resolution, ...
-    flipy, omit_endpts, plot_fold_times, t0, black_figs)
+    flipy, omit_endpts, plot_fold_times, t0, black_figs, timeUnits, spaceUnits)
 %AUX_PLOT_WRITHE(Wr, Wr_density, dWr, Length_t)
 % auxiliary function for plotting writhe over time along with geometric
 % properties of length, area, and volume
@@ -38,7 +38,7 @@ dl = Length_t.dl ;
 % close all
 % fig = figure('Visible', 'Off') ;
 % plot(timepoints, Chirality) ;
-% xlabel('time [min]', 'Interpreter', 'Latex')
+% xlabel('time [' timeUnits ']', 'Interpreter', 'Latex')
 % ylabel('Chirality, $\Delta \phi$', 'Interpreter', 'Latex')
 % title('Chirality over time', 'Interpreter', 'Latex')
 % set(gcf, 'PaperUnits', 'centimeters');
@@ -54,7 +54,7 @@ hold on
 plot(timepoints, Wrpseg1) ;
 plot(timepoints, WrL, '--') ;
 plot(timepoints, WrG, ':') ;
-xlabel('time [min]', 'Interpreter', 'Latex')
+xlabel(['time [' timeUnits ']'], 'Interpreter', 'Latex')
 ylabel('Writhe')
 title('Writhe over time', 'Interpreter', 'Latex')
 legend({'polar', 'polar (segment 1 only)', 'Levitt', 'Gauss'}, 'location', 'best')
@@ -108,17 +108,17 @@ for ii = 1:4
     %     hf3 = fill(xx3, yfill, color3, 'facealpha', 0.5);
     % end
     
-    vh = plot(timepoints - t0, vvs / vvs(ind),...
+    vh = plot((timepoints - t0)* timeInterval, vvs / vvs(ind),...
         'color', colors(1, :), 'linewidth', 2) ;
     ylabel('$V$', 'Interpreter', 'Latex')
     hold on ;
     if ii > 1
-        ah = plot(timepoints - t0, aas / aas(ind),...
+        ah = plot((timepoints - t0)* timeInterval, aas / aas(ind),...
         'color', colors(1, :), 'linewidth', 2) ;
         ylabel('$V$, $A$', 'Interpreter', 'Latex')
     end
     if ii > 2
-        lh = plot(timepoints - t0, lengths / lengths(ind), ...
+        lh = plot((timepoints - t0)* timeInterval, lengths / lengths(ind), ...
             'color', colors(1, :), 'linewidth', 2) ;
         ylabel('$V$, $A$, $L$', 'Interpreter', 'Latex')
     end
@@ -139,7 +139,7 @@ for ii = 1:4
     elseif ii > 3
         % writhe on right
         yyaxis right
-        wh = plot(timepoints - t0, Wrc, 'linewidth', 2) ;
+        wh = plot((timepoints - t0)* timeInterval, Wrc, 'linewidth', 2) ;
         xlims = get(gca, 'xlim') ;
         ylims = get(gca, 'ylim') ;
         ylim([ylims(1), ylims(2) + 0.8])
@@ -151,23 +151,23 @@ for ii = 1:4
     % Plot folding events
     if plot_fold_times
         if ii > 3
-            plot(t1 - t0, Wrc(t1-t0+ind), 'ks') ;
-            plot(t3 - t0, Wrc(t3-t0+ind), 'k^') ;
+            plot((t1 - t0)*timeInterval, Wrc(t1-t0+ind), 'ks') ;
+            plot((t3 - t0)*timeInterval, Wrc(t3-t0+ind), 'k^') ;
             plot(0, Wrc(ind), 'ko') ;
         end
 
         yyaxis left
-        plot(t1 - t0, vvs(t1-t0+ind)/vvs(ind), 'ks') ;
-        plot(t3 - t0, vvs(t3-t0+ind)/vvs(ind), 'k^') ;
+        plot((t1 - t0)*timeInterval, vvs(t1-t0+ind)/vvs(ind), 'ks') ;
+        plot((t3 - t0)*timeInterval, vvs(t3-t0+ind)/vvs(ind), 'k^') ;
         plot(0, 1, 'ko') ;
         if ii > 1
-            plot(t1 - t0, aas(t1-t0+ind)/aas(ind), 'ks') ;
-            plot(t3 - t0, aas(t3-t0+ind)/aas(ind), 'k^') ;
+            plot((t1 - t0)*timeInterval, aas(t1-t0+ind)/aas(ind), 'ks') ;
+            plot((t3 - t0)*timeInterval, aas(t3-t0+ind)/aas(ind), 'k^') ;
             plot(0, 1, 'ko') ;
         end
         if ii > 2
-            plot(t1 - t0, lengths(t1-t0+ind)/lengths(ind), 'ks') ;
-            plot(t3 - t0, lengths(t3-t0+ind)/lengths(ind), 'k^') ;
+            plot((t1 - t0)*timeInterval, lengths(t1-t0+ind)/lengths(ind), 'ks') ;
+            plot((t3 - t0)*timeInterval, lengths(t3-t0+ind)/lengths(ind), 'k^') ;
             plot(0, 1, 'ko') ;
         end
     end
@@ -190,7 +190,7 @@ for ii = 1:4
     ylim([0 ylimits(2)])
     
     % Set limits
-    xlabel('time [min]', 'Interpreter', 'Latex')
+    xlabel(['time [' timeUnits ']'], 'Interpreter', 'Latex')
     set(gca, 'Position', [0.25, 0.25, 0.6, 0.6])
     set(gcf, 'PaperUnits', 'centimeters');
     set(gcf, 'PaperPosition', [0 0 xwidth ywidth]);   
@@ -221,31 +221,31 @@ fig = figure('Visible', 'On') ;
 s1 = subplot(2, 1, 1) ;
 hold on;
 yyaxis left
-vh = plot(timepoints - t0, vvs / vvs(ind)) ;
-ah = plot(timepoints - t0, aas / aas(ind)) ;
-lh = plot(timepoints - t0, lengths / lengths(ind)) ;
+vh = plot((timepoints - t0)*timeInterval, vvs / vvs(ind)) ;
+ah = plot((timepoints - t0)*timeInterval, aas / aas(ind)) ;
+lh = plot((timepoints - t0)*timeInterval, lengths / lengths(ind)) ;
 ylabel('$V$, $A$, $L$', 'Interpreter', 'Latex')
 % writhe on right
 yyaxis right
-wh = plot(timepoints - t0, Wrc ) ;
+wh = plot((timepoints - t0)*timeInterval, Wrc ) ;
 xlims = get(gca, 'xlim') ; 
 ylabel('Writhe, $Wr$', 'Interpreter', 'Latex')
 legend({'volume', 'area', 'length'}, ...
     'location', 'northwest', 'AutoUpdate', 'off')
 title('Gut dynamics', 'Interpreter', 'Latex')
 % Plot folding events
-plot(t1 - t0, Wrc(t1-t0+ind), 'ks') ;
-plot(t3 - t0, Wrc(t3-t0+ind), 'k^') ;
+plot((t1 - t0)*timeInterval, Wrc(t1-t0+ind), 'ks') ;
+plot((t3 - t0)*timeInterval, Wrc(t3-t0+ind), 'k^') ;
 plot(0, Wrc(ind), 'ko') ;
 yyaxis left
-plot(t1 - t0, aas(t1-t0+ind)/aas(ind), 'ks') ;
-plot(t3 - t0, aas(t3-t0+ind)/aas(ind), 'k^') ;
+plot((t1 - t0)*timeInterval, aas(t1-t0+ind)/aas(ind), 'ks') ;
+plot((t3 - t0)*timeInterval, aas(t3-t0+ind)/aas(ind), 'k^') ;
 plot(0, 1, 'ko') ;
-plot(t1 - t0, vvs(t1-t0+ind)/vvs(ind), 'ks') ;
-plot(t3 - t0, vvs(t3-t0+ind)/vvs(ind), 'k^') ;
+plot((t1 - t0)*timeInterval, vvs(t1-t0+ind)/vvs(ind), 'ks') ;
+plot((t3 - t0)*timeInterval, vvs(t3-t0+ind)/vvs(ind), 'k^') ;
 plot(0, 1, 'ko') ;
-plot(t1 - t0, lengths(t1-t0+ind)/lengths(ind), 'ks') ;
-plot(t3 - t0, lengths(t3-t0+ind)/lengths(ind), 'k^') ;
+plot((t1 - t0)*timeInterval, lengths(t1-t0+ind)/lengths(ind), 'ks') ;
+plot((t3 - t0)*timeInterval, lengths(t3-t0+ind)/lengths(ind), 'k^') ;
 plot(0, 1, 'ko') ;
 
 
@@ -260,22 +260,22 @@ di = (windowSize:length(dwr)-windowSize) ;
 % lcolor = get(lh, 'color') ;
 % wcolor = get(wh, 'color') ;
 yyaxis left
-plot(timepoints(di) - t0, dv(di) / vvs(ind)) ; %, 'Color', vcolor) ;
-plot(timepoints(di) - t0, da(di) / aas(ind)) ; %, 'Color', acolor) ;
-plot(timepoints(di) - t0, dl(di) / lengths(ind)) ; %, 'Color', lcolor) ;
+plot((timepoints(di) - t0)*timeInterval, dv(di) / vvs(ind)) ; %, 'Color', vcolor) ;
+plot((timepoints(di) - t0)*timeInterval, da(di) / aas(ind)) ; %, 'Color', acolor) ;
+plot((timepoints(di) - t0)*timeInterval, dl(di) / lengths(ind)) ; %, 'Color', lcolor) ;
 set(gca, 'ylim', ylims_derivs) ;
 ylabel('$\partial_t V / V_0$, $\partial_t A / A_0$, $\partial_t L/ L_0$',...
     'Interpreter', 'Latex')
 
 yyaxis right
-plot(timepoints(di) - t0, dwr(di)) ; %, 'Color', wcolor) ;
+plot((timepoints(di) - t0)*timeInterval, dwr(di)) ; %, 'Color', wcolor) ;
 ylabel('$\partial_t Wr$', 'Interpreter', 'Latex')
 set(gca, 'ylim', ylims_derivs) ;
 
 % Set limits
 set(s1, 'xlim', xlims)
 set(s2, 'xlim', xlims)
-xlabel('time [min]', 'Interpreter', 'Latex')
+xlabel(['time [' timeUnits ']'], 'Interpreter', 'Latex')
 set(gcf, 'PaperUnits', 'centimeters');
 set(gcf, 'PaperPosition', [0 0 xwidth 2*ywidth]);   
 outfn = fullfile(wrfigdir, ['writhe_dynamics_' Wr_style '_DVhoop']) ;
@@ -292,22 +292,22 @@ fig = figure('Visible', 'Off') ;
 hold on;
 toff = t0 - timepoints(1) ;
 disp(['time offset is ' num2str(toff)])
-vh = plot(timepoints - t0, vvs / vvs(ind)) ;
-ah = plot(timepoints - t0, aas / aas(ind)) ;
-lh = plot(timepoints - t0, lengths / lengths(ind)) ;
-wh = plot(timepoints - t0, Wrc ) ;
+vh = plot((timepoints - t0)*timeInterval, vvs / vvs(ind)) ;
+ah = plot((timepoints - t0)*timeInterval, aas / aas(ind)) ;
+lh = plot((timepoints - t0)*timeInterval, lengths / lengths(ind)) ;
+wh = plot((timepoints - t0)*timeInterval, Wrc ) ;
 vcolor = get(vh, 'color') ;
 acolor = get(ah, 'color') ;
 xlims = get(gca, 'xlim') ; 
 ylims = get(gca, 'ylim') ; 
-plot(timepoints - t0, dv / vvs(ind) * 100, '--', 'Color', vcolor) ;
-plot(timepoints - t0, da / aas(ind) * 100, '--', 'Color', acolor) ;
+plot((timepoints - t0)*timeInterval, dv / vvs(ind) * 100, '--', 'Color', vcolor) ;
+plot((timepoints - t0)*timeInterval, da / aas(ind) * 100, '--', 'Color', acolor) ;
 plot(t0, Wrc(max(toff, 1)), 'k.') ;
 plot(t1 - t0, Wrc(max(t1 - t0 + toff, 1)), 'ko') ;
 plot(t3 - t0, Wrc(max(t3 - t0 + toff, 1)), 'ks') ;
 set(gca, 'xlim', xlims)
 set(gca, 'ylim', ylims)
-xlabel('time [min]', 'Interpreter', 'Latex')
+xlabel(['time [' timeUnits ']'], 'Interpreter', 'Latex')
 ylabel('Volume, Area, Length, \& Writhe', 'Interpreter', 'Latex')
 title('Gut dynamics', 'Interpreter', 'Latex')
 legend({'volume', 'area', 'length'}, 'location', 'northwest')
@@ -378,16 +378,16 @@ for ii=1:length(wr_densities)
     set(cb, 'units', 'normalized', 'position', [.85, .3, 0.05, 0.4])
     set(get(cb, 'label'), 'string', 'Writhe density')
     
-    thandle = title(['$t=$' sprintf('%03d', t - min(fold_onset)) ' min'], ...
+    thandle = title(['$t=$' sprintf('%03d', (t - t0)*timeInterval) ' ' timeUnits], ...
         'Interpreter', 'latex') ; 
     set(get(gca,'title'), 'Position',[100, 0, 100 ])
     % set(thandle, 'position', get(thandle, 'position') - [0, 0, 10])
     if black_figs 
         set(thandle, 'color', 'w')
     end
-    xlabel('x [\mum]') ;
-    ylabel('y [\mum]') ;
-    zlabel('z [\mum]') ;
+    xlabel(['x [' spaceUnits ']']) ;
+    ylabel(['y [' spaceUnits ']']) ;
+    zlabel(['z [' spaceUnits ']']) ;
     set(gcf, 'PaperUnits', 'centimeters');
     set(gcf, 'PaperPosition', [0 0 xwidth ywidth]); 
     axis equal

@@ -1,6 +1,8 @@
-function [ TF, TV2D, TV3D, TVN3D, TQ ] = tileAnnularCutMesh( cutMesh, tileCount )
+function [ TF, TV2D, TV3D, TVN3D, TQ ] = tileAnnularCutMesh( cutMesh, tileCount, options )
 %TILEANNULARCUTMESH This function vertically tiles the orbifold pullback of
 %an annular cutMesh and returns the parameters of a single triangulation
+% todo: move to /data_handling/annular_cut_mesh_handling/
+% 
 %   INPUT PARAMETERS:
 %       - cutMesh:          A struct defining the cut 3D annulus with
 %                           fields (See 'cylinderCutMesh.m'):
@@ -14,6 +16,11 @@ function [ TF, TV2D, TV3D, TVN3D, TQ ] = tileAnnularCutMesh( cutMesh, tileCount 
 %       - tileCount:        The vertical tiling parameters.
 %                           tileCount(1) tiles above the basic tile.
 %                           tileCount(2) tiles below the basic tile.
+%       
+%       - options:          struct with fields 
+%                           enforceUniformShift: (bool) check that all path
+%                               pairs are equidistant in pullback space (u)
+%                           preview: (bool) inspect progress as we go
 %
 %   OUTPUT PARAMETERS:
 %       - TF:               #Fx3 face connectivity list of the combined
@@ -24,6 +31,10 @@ function [ TF, TV2D, TV3D, TVN3D, TQ ] = tileAnnularCutMesh( cutMesh, tileCount 
 %                           combined triangulation.
 %       - TNV3D:            #Vx3 3D normal vectors of embedding coords
 %       - TQ:               #FxQDim face quality array for tiled mesh
+%
+%   SEE ALSO
+%       tiledAnnularCutMesh2SingleCover()
+%
 %
 % by Dillon Cislo, additions by NPMitchell 2019-2021
 
@@ -55,10 +66,110 @@ function [ TF, TV2D, TV3D, TVN3D, TQ ] = tileAnnularCutMesh( cutMesh, tileCount 
 % [0 1] X [0 1]
 %
 %==========================================================================
+%
+% Example usage                           
+% -------------     
+%                              19--20-21 <---- topSeamIDx for positive shifts
+%                               | \| \|
+%                              16--17-18
+%                               | \| \|
+%           13--14-15 <----    13--14-15 <---- topSeamIDx
+%            | \| \|            | \| \|
+%           10--11-12          10--11-12
+%            | \| \|            | \| \|
+% 7--8--9    7--8--9  <----     7--8--9  <---- topSeamIDx
+% | \| \|    | \| \|            | \| \|
+% 4--5--6    4--5--6            4--5--6
+% | \| \|    | \| \|            | \| \|
+% 1--2--3    1--2--3  <----     1--2--3  <---- 
+
+% 7--8--9    7--8--9            7--8--9         for negative shifts
+% | \| \|    | \| \|            | \| \|
+% 4--5--6    4--5--6            4--5--6
+% | \| \|    | \| \|            | \| \|
+% 1--2--3    1--2--3  <----     1--2--3  <---- topSeamIDx
+%            | \| \|            | \| \|
+%           13--14-15          13--14-15 
+%            | \| \|            | \| \|
+%           10--11-12 <----    10--11-12 <---- topSeamIDx
+%                               | \| \|
+%                              19--20-21 
+%                               | \| \|
+%                              16--17-18 <---- topSeamIDx
+% 
+% cutMesh = struct() ;                       
+% x = [ 0,1,2, 0,1,2, 0,1,2];               
+% y = [0, 0, 0, 1, 1, 1, 2, 2, 2] ;      
+% cutMesh.u = [x(:), y(:)] ;
+% cutMesh.pathPairs = [7,1; 8,2; 9,3] ;
+% cutMesh.pathPairs = [1,7; 2,8; 3,9] ;
+% cutMesh.f = [1,2,4; 2,5,4; 2,3,5; 3,6,5; ...
+%              4,5,7; 5,8,7; 5,6,8; 6,9,8] ;
+% xv = [0,1,2, 0,1,2, 0,1,2];
+% yv = [0,0,0, 0,0,0, 0,0,0];
+% zv = [0,0,0, 1,1,1, 0,0,0];
+% cutMesh.v = [xv(:), yv(:), zv(:)] ;
+% tileAnnularCutMesh(cutMesh, [0, 1])
+%
+%                              19--20-21 <----
+%                               | \| \|
+%                              16--17-18
+%                               | \| \|
+%           14--10-15 <----    13--14-15 <----
+%            | \| \|            | \| \|
+%           11--12-13          10--11-12
+%            | \| \|            | \| \|
+% 7--2--9    7--2--9  <----     7--8--9  <----
+% | \| \|    | \| \|            | \| \|
+% 4--5--6    4--5--6            4--5--6
+% | \| \|    | \| \|            | \| \|
+% 1--8--3    1--8--3  <----     1--2--3  <---- topSeamIDx
+%
+%
+% 7--2--9    7--2--9            7--2--9         for negative shifts
+% | \| \|    | \| \|            | \| \|
+% 4--5--6    4--5--6            4--5--6
+% | \| \|    | \| \|            | \| \|
+% 1--8--3    1--8--3  <----     1--8--3  <---- topSeamIDx
+%            | \| \|            | \| \|
+%           12--13-14          12--13-14 
+%            | \| \|            | \| \|
+%           10--15-11 <----    10--15-11 <---- topSeamIDx
+%                               | \| \|
+%                              18--19-20 
+%                               | \| \|
+%                              16--21-17 <---- topSeamIDx
+% 
+% cutMesh = struct() ;                       
+% x = [ 0,1,2, 0,1,2, 0,1,2];               
+% y = [ 0,2,0, 1,1,1, 2,0,2] ;      
+% cutMesh.u = [x(:), y(:)] ;
+% cutMesh.pathPairs = [7,1; 8,2; 9,3] ;
+% cutMesh.pathPairs = [1,7; 8,2; 3,9] ;
+% cutMesh.f = [1,8,4; 8,5,4; 8,3,5; 3,6,5; ...
+%              4,5,7; 5,2,7; 5,6,2; 6,9,2] ;
+% xv = [0,1,2, 0,1,2, 0,1,2];
+% yv = [0,0,0, 0,0,0, 0,0,0];
+% zv = [0,0,0, 1,1,1, 0,0,0];
+% cutMesh.v = [xv(:), yv(:), zv(:)] ;
+% options = struct('enforceUniformShift', true, 'preview', true) ;
+% tileAnnularCutMesh(cutMesh, [0, 1], options)
+
 
 % Default tiling creates three stacked tiles
 if nargin < 2
     tileCount = [1 1];
+end
+
+enforceUniformShift = false ;
+preview = false ;
+if nargin > 2
+    if isfield(options, 'enforceUniformShift')
+        enforceUniformShift = options.enforceUniformShift ;
+    end
+    if isfield(options, 'preview')
+        preview = options.preview ;
+    end
 end
 
 if nargout > 3
@@ -98,8 +209,20 @@ if compute_face_quality
     TQ = cutMesh.quality ;
 end
 
-% Find the vertical shift between tiles (should just be 1)
+% Find the vertical shift between tiles (should just be 1 or 2*pi)
 shift = cutMesh.u( pathPairs(1,1), 2 ) - cutMesh.u( pathPairs(1,2), 2 );
+
+if enforceUniformShift
+    shifts = cutMesh.u( pathPairs(:,1), 2 ) - cutMesh.u( pathPairs(:,2), 2 );
+    assert(all(abs(shifts - shift) < 1e-7))
+end
+disp(['Tiling mesh with spacing dY = ' num2str(shift)])
+
+% Make sure bottom seam is pathPairs(:, 2)
+% if all(cutMesh.u(pathPairs(:, 2), 2) - cutMesh.u(pathPairs(:, 1), 2) > 0)
+%     disp('Swapping axes of pathPairs for default [top, bottom] ordering...')
+%     pathPairs = pathPairs(:, [2, 1]) ;
+% end
 
 % Due to the structure of the cutMesh generation process it is easiest to
 % add all new tiles to the top of the basic tile and then shift to reflect
@@ -116,25 +239,49 @@ for i = 1:sum(abs(tileCount))
     
     % The shifted pullback vertices
     V2D(:,2) = V2D(:,2) + i * shift;
-    
-    % Remove the bottom seam from the vertex lists
+     
+    % ORIGINAL CODE REMOVED BOTTOM FROM CURRENT COPY
+    % % Remove the bottom seam from the vertex lists
     V2D( pathPairs(:,2), : ) = [];
     V3D( pathPairs(:,2), : ) = [];
+    unreferenced = pathPairs(:,2) + size(TV2D, 1) ;
+        
+    % Part 1: Replace basic bottom seam IDs with the current top seam IDs
+    % This replaces the BottomSeamLocations pathPairs(:,2) with top indices 
+    for j = 1:length(topSeamIDx)
+        face( ismember(face, pathPairs(j,2) ) ) = topSeamIDx(j);
+        % Note these updates are protected in part 2 since
+        % the replaced elements are in bottomSeamLocations
+        % Note these updates are protected in part 3 since unreferenced
+        % vertices are necessarily higher index than any element of 
+        % pathPairs(:).
+    end
     
-    % Update the basic tile face list to reflect the fact that vertices
-    % will be added at the end of the combined vertex coordinate list
+    % Part 2: Update the basic tile face list to reflect the fact that 
+    % vertices will be added at the end of the combined vertex coordinate 
+    % list
     face( ~bottomSeamLoc(:) ) = face( ~bottomSeamLoc(:) ) + size(TV2D,1);
+           
+    % Part 3: Update face list
+    for pp = 1:length(unreferenced)
+        pt2rm = unreferenced(pp) ;
+        face( face > pt2rm ) = face( face > pt2rm ) - 1 ;
+    end
     
     % Reshape the face connectivity list
     face = reshape( face, size( cutMesh.f ) );
-    
-    % Replace basic bottom seam IDs with the current top seam IDs
-    for j = 1:length(topSeamIDx)
-        face( ismember(face, pathPairs(j,2) ) ) = topSeamIDx(j);
-    end
+    maxval = size(TV2D, 1) + size(V2D, 1) ;
+    assert(max(face(:)) == size(TV2D, 1) + size(V2D, 1))
     
     % Update the current top seam vertex IDs
-    topSeamIDx = pathPairs(:,1) + size(TV2D,1);
+    % Offset by #(eliminated indices < kept indices pathPairs(:, 1))
+    for pp = 1:length(pathPairs(:, 1))
+        offsets(pp) = sum(pathPairs(:, 2) < pathPairs(pp, 1));    
+    end
+    topSeamIDx = pathPairs(:,1) + size(TV2D,1) - offsets(:) ;
+    if preview
+        disp(['topSeamIDx -> [' num2str(topSeamIDx') ']'])
+    end
     
     % Update combined lists
     TF = [ TF; face ];
@@ -146,17 +293,49 @@ for i = 1:sum(abs(tileCount))
         TVN3D = [ TVN3D; VN3D ]; 
     end
     
+    % % Update vertices to remove unreferenced (tiled vertices)
+    % if i == 1
+    %     unreferenced2 = setdiff(1:size(TV3D, 1), TF(:)) ;
+    %     assert(all(sort(unreferenced(:)) == sort(unreferenced2(:)))) ;
+    % end
+    % 
+    % [ TF, TV3D, oldVertexIDx, newVertexIDx] = ...
+    %     remove_vertex_from_mesh( TF, TV3D, unreferenced) ;
+    % TV2D = TV2D(oldVertexIDx, :) ;
+    
     % Face quality is simply concatenated since physical face list is
     % unaltered, simply translated and reindexed along seams
     if compute_face_quality
         TQ = [TQ; face_quality] ;
     end
     
+    % Final checks for this addition
+    assert(length(unique(TF(:))) == size(TV2D, 1))
+    % Inspect output
+    if preview
+        clf
+        trisurf(triangulation(TF, cat(2, TV2D, (1:size(TV2D,1))')), 1:size(TV2D,1)) ;
+        hold on;
+        plot3(TV2D(:, 1), TV2D(:, 2), (1:size(TV2D, 1))', '.')
+    end
 end
 
 % Shift the coordinates of the combined triangulation to reflect the
 % desired number of tiles below the basic tile
 TV2D(:,2) = TV2D(:,2) - abs(tileCount(2)) * shift;
+
+% Final checks
+assert(length(unique(TF(:))) == size(TV2D, 1))
+% Inspect output
+if preview
+    clf
+    trisurf(triangulation(TF, cat(2, TV2D, (1:size(TV2D,1))')), 1:size(TV2D,1)) ;
+    hold on;
+    plot3(TV2D(:, 1), TV2D(:, 2), (1:size(TV2D, 1))', '.')
+    % Look for unreferenced vertices
+    missing = setdiff(1:max(TF(:)), TF(:)) ;
+    assert(isempty(missing))
+end
 
 end
 

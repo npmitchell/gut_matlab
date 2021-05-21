@@ -31,8 +31,10 @@ QS.fileBase.fn = xp.fileMeta.filenameFormat ;
 QS.ssfactor = xp.detectOptions(1).ssfactor ;
 QS.nU = opts.nU ;
 QS.nV = opts.nV ;
-if isfield(opts, 'timeinterval')
+if isfield(opts, 'timeInterval')
     QS.timeInterval = opts.timeInterval ;
+elseif isfield(opts, 'timeinterval')
+    QS.timeInterval = opts.timeinterval ;
 else
     QS.timeInterval = 1 ;
 end

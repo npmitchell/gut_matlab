@@ -1,7 +1,7 @@
 function aux_plot_constriction_DVhoops(folds, fold_onset, outDir, dvexten, ...
-    save_ims, overwrite_lobeims, tp, timePoints, spcutMeshBase, ...
+    save_ims, overwrite_lobeims, timePoints, spcutMeshBase, ...
     alignedMeshBase, normal_shift, rot, trans, resolution, colors, ...
-    xyzlim, flipy)
+    xyzlim, flipy, t0, timeInterval, timeUnits, spaceUnits)
 %AUX_PLOT_AVGPTCLINE_LOBES auxiliary function for plotting the motion of
 %the constrictions between lobes and the centerlines over time
 % 
@@ -17,6 +17,8 @@ function aux_plot_constriction_DVhoops(folds, fold_onset, outDir, dvexten, ...
 %
 % NPMitchell 2020 
 
+
+tp = (timePoints - t0) * timeInterval ;
 c1 = colors(1, :) ;
 c2 = colors(2, :) ;
 c3 = colors(3, :) ;
@@ -109,10 +111,10 @@ if save_ims && (~(length(fns)==length(timePoints)) || overwrite_lobeims)
         zlim(xlims)
         ylim(ylims)
         zlim(zlims)
-        xlabel('AP position [\mum]')
-        ylabel('lateral position [\mum]')
-        zlabel('DV position [\mum]')
-        title(sprintf('Constriction dynamics, t=%03d min', tp4title))
+        xlabel(['AP position [' spaceUnits ']'], 'interpreter', 'latex')
+        ylabel(['lateral position [' spaceUnits ']'], 'interpreter', 'latex')
+        zlabel(['DV position [' spaceUnits ']'], 'interpreter', 'latex')
+        title(sprintf(['Constriction dynamics, t=%03d ' timeUnits], tp4title))
         ofn = sprintf(fold_lat_figfn, t) ;
         disp(['Saving figure to ' ofn])
         view(0, 0) ;

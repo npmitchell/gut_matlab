@@ -148,20 +148,20 @@ if ~exist(outfn_png, 'file') || overwrite
     figh = figure();
     hold on;
     t0idx = QS.xp.tIdx(t0) ;
-    ah = plot(timePoints - t0, aas / aas(t0idx)) ;
-    vh = plot(timePoints - t0, vvs / vvs(t0idx)) ; 
+    ah = plot((timePoints - t0) * QS.timeInterval, aas / aas(t0idx)) ;
+    vh = plot((timePoints - t0) * QS.timeInterval, vvs / vvs(t0idx)) ; 
     if ~isempty(fold_onset)
         if isnumeric(fold_onset(1)) 
             tidx = QS.xp.tIdx(fold_onset(1)) ;
-            plot(fold_onset(1) - t0, aas(tidx) / aas(t0idx), 's') ;
+            plot((fold_onset(1) - t0)* QS.timeInterval, aas(tidx) / aas(t0idx), 's') ;
         end
         if isnumeric(fold_onset(2)) 
             tidx = QS.xp.tIdx(fold_onset(2)) ;
-            plot(fold_onset(2) - t0, aas(tidx) / aas(t0idx), 'o') ;
+            plot((fold_onset(2) - t0)* QS.timeInterval, aas(tidx) / aas(t0idx), 'o') ;
         end
         if isnumeric(fold_onset(3)) 
             tidx = QS.xp.tIdx(fold_onset(3)) ;
-            plot(fold_onset(3) - t0, aas(tidx) / aas(t0idx), '^') ;
+            plot((fold_onset(3) - t0) * QS.timeInterval, aas(tidx) / aas(t0idx), '^') ;
         end
     end
     legend({'area', 'volume'}, 'location', 'northwest')

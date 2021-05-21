@@ -15,6 +15,8 @@ function [Wr, Wr_density, dWr, Length_t, clines_resampled] = measureWrithe(QS, o
 %       which style of writhe calculation to plot
 %   black_figs : bool
 %       plot figures with black background rather than white
+%   flipy_centerline : bool
+%       flip the centerline data y --> -y (inverts sign of writhe)
 %
 % Returns
 % -------
@@ -28,6 +30,9 @@ nU = QS.nU ;
 nV = QS.nV ;
 dvexten = sprintf('_nU%04d_nV%04d', nU, nV) ;
 timePoints = QS.xp.fileMeta.timePoints ;
+timeInterval = QS.timeInterval ;
+timeUnits = QS.timeUnits ;
+spaceUnits = QS.spaceUnits ;
 preview = QS.plotting.preview ;
 [rot, trans] = QS.getRotTrans() ;
 resolution = QS.APDV.resolution ;
@@ -43,6 +48,7 @@ meshDir = QS.dir.mesh ;
 load(QS.fileName.fold, 'fold_onset') ;
 [~, ~, xyzlim] = getXYZLims(QS) ;
 flipy = QS.flipy ;
+flipy_centerline = false ;
 t0 = QS.t0set() ;
 if isempty(t0)
     t0 = 0 ;
@@ -65,6 +71,9 @@ if isfield(options, 'Wr_style')
     Wr_style = options.Wr_style ;
 else
     Wr_style = 'Levitt' ;
+end
+if isfield(options, 'flipy_centerline')
+    flipy_centerline = options.flipy_centerline ;
 end
 if isfield(options, 'omit_endpts')
     omit_endpts = options.omit_endpts ;
@@ -89,7 +98,7 @@ if ~exist(wrfn, 'file') || overwrite
 
     [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
         aux_compute_writhe(clineDVhoopBase, timePoints, ...
-        filter_curve, omit_endpts, flipy, preview) ;
+        filter_curve, omit_endpts, flipy_centerline, preview) ;
     
     % Save the fold locations as a mat file
     save(wrfn, 'Wr', 'Wr_density', 'dWr', 'Length_t', 'clines_resampled')
@@ -103,11 +112,11 @@ tmpfn = fullfile(writheImDir, ['writhe_' Wr_style '_vs_time_comparison_DVhoop.pn
 if ~exist(tmpfn, 'file') || overwrite 
     % Compute ringpath pathlength for results found using centerline
     area_volume_fn = fullfile(meshDir, 'surfacearea_volume_stab.mat') ;
-    aux_plot_writhe(timePoints, clines_resampled, ...
+    aux_plot_writhe(timePoints, timeInterval, clines_resampled, ...
         Wr, Wr_density, dWr, Length_t, writheImDir, area_volume_fn, ...
         fold_onset, Wr_style, xyzlim, clineDVhoopBase, ...
         cylinderMeshCleanBase, rot, trans, resolution, flipy, ...
-        omit_endpts, false, t0, black_figs)
+        omit_endpts, false, t0, black_figs, timeUnits, spaceUnits)
 end
 
 % Done with measuring writhe

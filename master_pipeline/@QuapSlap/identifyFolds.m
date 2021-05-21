@@ -35,6 +35,8 @@ function identifyFolds(QS, options)
 lobeDir = QS.dir.lobe ;
 nU = QS.nU ;
 nV = QS.nV ;
+t0 = QS.t0set() ;
+timeInterval = QS.timeInterval ;
 uvexten = QS.uvexten ;  % string like sprintf('_nU%04d_nV%04d', nU, nV) ;
 timePoints = QS.xp.fileMeta.timePoints ;
 preview = QS.plotting.preview ;
@@ -116,6 +118,7 @@ else
         timePoints, spcutMeshBase) ;
     
     readme = struct(...
+        'timeInterval', 'float, dt for timestamps in QS.timeUnits', ...
         'fold_onset', '#folds x 1 float, timestamps (not indices) of fold onset', ...
         'folds', '#timepoints x #folds int, indices of nU sampling of folds', ...
         'ssmax', '#timepoints x 1 float, maximum length of the centerline', ...
@@ -125,27 +128,29 @@ else
         'rmax', '#timepoints x 1 float, maximum radius of any part of the surface at each timepoint') ;
 
     % Save the fold locations as a mat file
+    timeInterval = QS.timeInterval ;
     save(foldfn, 'rssfold', 'rssfold_frac', 'rssmax', 'rmax', ...
-        'ssfold', 'folds', 'ssfold_frac', 'ssmax', 'fold_onset', 'readme')
+        'timeInterval', 'ssfold', 'folds', 'ssfold_frac', ...
+        'ssmax', 'fold_onset', 'readme')
 end
 clearvars guess123 maxwander
 
 % Plot results as both avgpts and ringpath distances
 fold_ofn = dir(fullfile(lobeDir, ['radii_folds' uvexten '_avgpts*.png'])) ;
-if (length(fold_ofn) < length(timePoints)) || overwrite
+if (length(fold_ofn) < length(timePoints)) || overwrite || true
     disp('Plotting ss folds...')
     aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
         timePoints, lobeDir, uvexten, spcutMeshBase, ...
-        'avgpts', overwrite)
+        'avgpts', overwrite, timeInterval, t0)
 end
 
 % Plot the radii and the fold locations
 fold_ofn = dir(fullfile(lobeDir, ['radii_folds' uvexten '_avgpts*.png'])) ;
-if (length(fold_ofn) < length(timePoints)) || overwrite   
+if (length(fold_ofn) < length(timePoints)) || overwrite  || true
     disp('Plotting rss folds...')
     aux_plot_folds(folds, rssfold, rssfold_frac, rssmax, rmax, nU, ...
         timePoints, lobeDir, uvexten, spcutMeshBase, ...
-        'ringpath', overwrite)
+        'ringpath', overwrite, timeInterval, t0)
 end
 
 % Done creating folds and images

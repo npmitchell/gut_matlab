@@ -726,7 +726,18 @@ classdef QuapSlap < handle
             end
         end
         
-        function IV = adjustIV(QS, IV, adjustlow, adjusthigh)
+        function IV = adjustIV(QS, IV, adjustlow, adjusthigh, forceValues)
+            % Parameters
+            % ----------
+            % QS : QuapSlap class instance
+            % IV : 3D numeric (optional, loads currentData if empty)  
+            %   data to adjust
+            % adjustlow : numeric or #channels x 1 numeric
+            %   minimum intensity or percent intensity to adjust data
+            % adjusthigh : numeric or #channels x 1 numeric
+            %   maximum intensity or percent intensity to adjust data
+            % forceValues : enforce the adjustlow/high to be intensity
+            % values, not percentile, even if < 100. 
             if nargin > 2 
                 adjustlow = QS.data.adjustlow ;
                 adjusthigh = QS.data.adjusthigh ;
@@ -735,6 +746,9 @@ classdef QuapSlap < handle
                 if ~isempty(QS.currentData.IV) 
                     IV = QS.currentData.IV ;
                 end
+            end
+            if nargin < 5
+                forceValues = false ;
             end
             
             % If only one value of intensity limit is supplied, duplicate 
@@ -747,23 +761,29 @@ classdef QuapSlap < handle
             end
 
             % custom image intensity adjustment
-            if all(adjustlow == 0) && all(adjusthigh == 0)
+            if all(adjustlow == 0) && all(adjusthigh == 0) && ~forceValues
                 disp('Using default limits for imadjustn')
                 for ii = 1:length(IV)
                     IV{ii} = imadjustn(IV{ii});
                 end
-            elseif all(adjustlow < 100) && all(adjusthigh < 100)
+            elseif all(adjustlow < 100) && all(adjusthigh < 100) && ~forceValues
                 disp('Taking custom limits for imadjustn as prctile')
                 for ii = 1:length(IV)
                     IVii = IV{ii} ;
-                    vlo = double(prctile( IVii(:) , adjustlow(ii) )) / double(max(IVii(:))) ;
-                    vhi = double(prctile( IVii(:) , adjusthigh(ii))) / double(max(IVii(:))) ;
-                    disp(['--> ', num2str(vlo), ', ', num2str(vhi), ...
-                        ' for ', num2str(adjustlow), '/', num2str(adjusthigh)])
+                    vlo = double(prctile( IVii(:) , adjustlow(ii) )) ;
+                    vhi = double(prctile( IVii(:) , adjusthigh(ii))) ;
+                    disp(['  raw --> ', num2str(vlo), ', ', num2str(vhi), ...
+                        ' for ', num2str(adjustlow(ii)), '/', num2str(adjusthigh(ii))])
+                    
+                    % Now as fraction for imadjustn
+                    vlo = vlo / double(max(IVii(:))) ;
+                    vhi = vhi / double(max(IVii(:))) ;
+                    disp(['  frac--> ', num2str(vlo), ', ', num2str(vhi), ...
+                        ' for ', num2str(adjustlow(ii)), '/', num2str(adjusthigh(ii))])
                     IV{ii} = imadjustn(IVii, [double(vlo); double(vhi)]) ;
                 end
             else
-                % adjusthigh is > 100, so interpret as an intensity value
+                % adjusthigh is > 100 or forceValues, so interpret as an intensity value
                 disp('Taking custom limits for imadjustn as direct intensity limit values')
 
                 for ii = 1:length(IV)
@@ -771,7 +791,7 @@ classdef QuapSlap < handle
                     vlo = double(adjustlow(ii)) ;
                     vhi = double(adjusthigh(ii)) ;
                     disp(['--> ', num2str(vlo), ', ', num2str(vhi), ...
-                        ' for ', num2str(adjustlow), '/', num2str(adjusthigh)])
+                        ' for ', num2str(adjustlow(ii)), '/', num2str(adjusthigh(ii))])
                     tmp = (double(IVii) - vlo) / (vhi - vlo) ;
                     tmp(tmp > (vhi - vlo)) = 1.0 ;
                     IV{ii} = uint16(2^16 * tmp) ;
@@ -923,6 +943,9 @@ classdef QuapSlap < handle
         [rot, trans, xyzlim_raw, xyzlim, xyzlim_um, xyzlim_um_buff] = ...
             alignMeshesAPDV(QS, alignAPDVOpts) 
         
+        % Plot aligned meshes for pretty presentation
+        plotAlignedMeshesPretty(QS, options)
+
         % Load raw mesh or rawMeshRS (rotated & scaled to APDV)
         function rawMesh = loadCurrentRawMesh(QS)
             meshfn = sprintf(QS.fullFileBase.mesh, QS.currentTime) ;
@@ -1529,19 +1552,20 @@ classdef QuapSlap < handle
             aux_plot_avgptcline_lobes(QS.features.folds, ...
                 QS.features.fold_onset, QS.dir.lobe, ...
                 QS.uvexten, QS.plotting.save_ims, ...
-                overwrite, QS.xp.fileMeta.timePoints - QS.t0,...
-                QS.xp.fileMeta.timePoints, ...
-                QS.fullFileBase.spcutMesh, QS.fullFileBase.clineDVhoop)
+                overwrite, QS.xp.fileMeta.timePoints,...
+                QS.fullFileBase.spcutMesh, QS.fullFileBase.clineDVhoop, ...
+                QS.t0, QS.timeInterval, QS.timeUnits, QS.spaceUnits)
             
             % Plot motion of DVhoop at folds in yz plane over time
             aux_plot_constriction_DVhoops(QS.features.folds, ...
                 QS.features.fold_onset, QS.dir.foldHoopIm,...
                 QS.uvexten, QS.plotting.save_ims, ...
-                overwrite, QS.xp.fileMeta.timePoints - QS.t0,...
+                overwrite, ...
                 QS.xp.fileMeta.timePoints, QS.fullFileBase.spcutMesh, ...
                 QS.fullFileBase.alignedMesh, ...
                 QS.normalShift, QS.APDV.rot, QS.APDV.trans, QS.APDV.resolution, ...
-                QS.plotting.colors, QS.plotting.xyzlim_um_buff, QS.flipy)
+                QS.plotting.colors, QS.plotting.xyzlim_um_buff, QS.flipy, ...
+                QS.t0, QS.timeInterval, QS.timeUnits, QS.spaceUnits)
         end
         generateFoldCrossSections(QS, options)
         measureFoldCrossSectionDynamics(QS, options)

@@ -448,7 +448,8 @@ for ii = 1:Ntotal
         
     
     %% Roll off the deformation to zero at anterior and posterior ends
-    % make something like a tukey window and apply to deformation
+    % make something like a tukey window and apply to deformation 
+    % -- instead of hamming or hanning use tukeywindow
     twinAnterior = tukeywin(nU, 0.15) ;
     twinPosterior = tukeywin(nU, 0.25) ;
     twin = twinAnterior ;

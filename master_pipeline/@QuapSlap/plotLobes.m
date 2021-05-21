@@ -22,6 +22,9 @@ nlobes = 4 ;
 foldfn = QS.fileName.fold ;
 lobeDir = QS.dir.lobe ;
 timePoints = QS.xp.fileMeta.timePoints ;
+timeInterval = QS.timeInterval ;
+timeUnits = QS.timeUnits ;
+spaceUnits = QS.spaceUnits ;
 
 %% Unpack options
 if isfield(options, 'overwrite')
@@ -53,7 +56,8 @@ if ~fig1exist || ~fig2exist || overwrite
     disp('Plotting lobe dynamics...')
     aux_plot_lobe_dynamics(length_lobes, area_lobes, volume_lobes, ...
             timePoints, fold_onset, colors, lobedyn_figfn, ...
-            lobedyn_figfn_scaled, t0, nlobes)
+            lobedyn_figfn_scaled, t0, nlobes, ...
+            timeInterval, timeUnits, spaceUnits)
 else
     disp('Skipping lobe dynamics plot since it exists...')
 end

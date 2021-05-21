@@ -1,20 +1,25 @@
 function aux_plot_avgptcline_lobes(folds, fold_onset, lobeDir, dvexten, ...
-    save_ims, overwrite_lobeims, tp, timePoints, spcutMeshBase, clineDVhoopBase)
+    save_ims, overwrite_lobeims, timePoints, spcutMeshBase, clineDVhoopBase, ...
+    t0, timeInterval, timeUnits, spaceUnits)
 %AUX_PLOT_AVGPTCLINE_LOBES auxiliary function for plotting the motion of
 %the constrictions between lobes and the centerlines over time
 % 
 % Parameters
 % ----------
 % tp : N x 1 int array
-%   xp.fileMeta.timePoints - min(fold_onset)
+%   xp.fileMeta.timePoints 
 % timePoints : N x 1 int array
 %   the timepoints in the experiment (xp.fileMeta.timePoints)
+% t0, min(fold_onset)
 % 
 % Returns
 % -------
+% <none>
 %
 % NPMitchell 2020 
 
+
+tp = (timePoints - t0) * timeInterval ;
 fold_dynamics_figfn = fullfile(lobeDir, ['constriction_dynamics' dvexten '.png']) ;
 if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobeims)
     disp('Creating constriction dynamics plots...')
@@ -70,11 +75,12 @@ if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobeims)
     plot(f2pts(idx(fons2), 2), f2pts(idx(fons2), 3), 'ks', 'markersize', msz);
     plot(f3pts(idx(fons3), 2), f3pts(idx(fons3), 3), 'k^', 'markersize', msz);
     axis equal
-    xlabel('y [\mum]')
-    ylabel('z [\mum]')
+    xlabel(['y [' spaceUnits ']'], 'interpreter', 'latex')
+    ylabel(['z [' spaceUnits ']'], 'interpreter', 'latex')
     title('Constriction dynamics')
     cb = colorbar() ;
-    cb.Label.String = 'time [min]' ;
+    cb.Label.String = ['time [' timeUnits ']'] ;
+    cb.Label.Interpreter = 'Latex' ;
     disp(['Saving figure to ' fold_dynamics_figfn])
     saveas(fig, fold_dynamics_figfn) ;
     close all
