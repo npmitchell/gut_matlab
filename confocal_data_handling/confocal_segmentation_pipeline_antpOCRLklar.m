@@ -11,18 +11,28 @@ addpath_recurse('/mnt/data/code/gut_matlab/')
 addpath('/mnt/data/code/TexturePatch_for_git/TexturePatch/')
 
 dataDir = '/mnt/data/optogenetics_confocal/' ;
-dataDir = [dataDir 'antpGAL4/huygens_deconvolution_noKlar/'] ;
-dataDir = [dataDir '202103181730_antpG4OCRLGap43mCh_40x1p6x_5mpf_4pc3pc_to_12pc9pc_600ns_lav3_DC/'] ;
+dataDir = [dataDir 'antpGAL4/huygens_deconvolution_withKlar/'] ;
+
+% noKlar
+% dataDir = [dataDir '202103181730_antpG4OCRLGap43mCh_40x1p6x_5mpf_4pc3pc_to_12pc9pc_600ns_lav3_DC/'] ;
+
+% klar
+dataDir = fullfile(dataDir, '202105252111_AntpG4kOCRLgap43_0p75um_1p25x40x_lav3_3t6pc3t6pc_5mpf_480ns_LED4') ;
 cd(dataDir)
 gutDir = '/mnt/data/code/gut_matlab/' ;
 addpath(fullfile(gutDir, 'addpath_recurse'))
 addpath_recurse(gutDir)
 
-%% INITIALIZE ImSAnE PROJECT ==============================================
-%
+
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 
+% Configuration metadata for this dataset
+tp0 = 5 ;  % which timepoint (index) is the onset of folding?
+embryoView = 'RD' ; % 'RD'/RV/LD/LV --> which way is out of page (decreasing z) and up (increasing Y in Fiji)  
+
+%% INITIALIZE ImSAnE PROJECT ==============================================
+%
 % Setup a working directory for the project, where extracted surfaces,
 % metadata and debugging output will be stored.  Also specifiy the
 % directory containing the data.
@@ -35,9 +45,10 @@ projectDir = dataDir ;
 fn = '' ;
 % the 16 bit fn
 file16name = 'antpOCRLgap43_T%03d' ;     
-um2pix = 5.6284 ;
-resolution = [1/um2pix, 1/um2pix, 1.4] ;
-timepoints = 1:38 ;
+pix2um = 0.22669667644183772 ;
+um2pix = 1 / pix2um ;
+resolution = [pix2um, pix2um, 0.75] ;
+timepoints = 1:20 ;
 
 %% Join data into stacks
 fns0 = dir('./splitChannels/*ch00.tif') ;
@@ -48,9 +59,21 @@ for tidx = 1:length(fns0)
     fn2 = sprintf([file16name '.tif'], tidx) ;
     
     if ~exist(fn2, 'file')
+        disp(['stacking file for tidx = ' num2str(tidx)])
 
         im0 = readTiff4D(fn0, 1) ;
         im1 = readTiff4D(fn1, 1) ;
+        
+        % Reorient the image
+        if strcmpi(embryoView, 'rd')
+            im0 = fliplr(im0) ;
+            im0 = flipud(im0) ;
+            im1 = fliplr(im1) ;
+            im1 = flipud(im1) ;
+        else
+            error('handle here')
+        end
+        
         im = cat(4, im0, im1) ;
 
         writeTiff5D(permute(im, [1, 2, 4, 3]), fn2)
@@ -60,6 +83,8 @@ for tidx = 1:length(fns0)
         %   imagesc(squeeze(im0(:, :, qq))) ;
         %   pause(0.01)
         % end
+    else
+        disp('file exists')
     end
 end
 fn = file16name ;
@@ -328,7 +353,7 @@ detectOptions = struct('channel', 1, ...
             'ilastikaxisorder', 'xyzc', ... % axis order as output by ilastik probabilities h5. To keep as saved coords use xyzc
             'include_boundary_faces', true, ... % keep faces along the boundaries of the data volume if true
             'smooth_with_matlab', -1, ... % if <0, use meshlab. If >0, smooth the mesh after marching cubes mesh creation using matlab instead of mlxprogram, with diffusion parameter lambda = this value. If =0, no smoothing.
-            'pythonVersion', 2) ;
+            'pythonVersion', '') ; 
         
 % Set detect options ------------------------------------------------------
 xp.setDetectOptions( detectOptions );
@@ -463,25 +488,36 @@ else
 end
 
 
-%% 
-xp.loadTime(timepoints(1));
+%%
+xp.loadTime(timepoints(1)) ;
 
 %% Load mesh, subsample, triangulate, Texturepatch
 IV = xp.stack.image.apply() ;
 sz1 = size(IV{1}, 1) ;
 sz2 = size(IV{1}, 2) ;
 sz3 = size(IV{1}, 3) ;
-nU = 150 ;
+nU = round(150 * sz1 / sz2) ;
 nV = 150 ;
 uminmax = [0, sz1] ;
 vminmax = [0, sz2] ;
-
+%%
+midLayerOffset = -25;
+layerWidth = 5 ; % 1 for RFP
 subsample = 10 ;
+zOffset = 5 ; % 20 ;
+gaussSigma = 0.5 ; % 2;
+lam = 0.005 ;  % 1 ; 
+axisOrder = 'cxyz' ;
 
-nPos = 20 ;
-nNeg = 50 ;
+nPos = 35 ;
+nNeg = 35 ;
+
 
 preview = false ;
+
+axisOrder = erase(axisOrder, 'c') ;
+zdim = find(axisOrder== 'z') ;
+timepoints = 1:20 ;
 tidx2do = 1:5:length(timepoints) ;
 tidx2do = [tidx2do, setdiff(1:length(timepoints), tidx2do)] ;
 for tidx = tidx2do
@@ -494,12 +530,18 @@ for tidx = tidx2do
         sz1 = size(IV{1}, 1) ;
         sz2 = size(IV{1}, 2) ;
         sz3 = size(IV{1}, 3) ;
+        if contains(lower(axisOrder), 'xyz')
+            szX = sz1 ; szY = sz2 ; szZ = sz3 ;
+            zdim = 3 ;
+        else
+            error('handle here')
+        end
         meshfn = fullfile(mslsDir, sprintf('mesh_ms_%06d.ply', tp)) ;
         mesh = read_ply_mod(meshfn) ;
         % scatter3(mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), mesh.v(:, 1))
 
         % Floor is max(x)
-        plane = find(mesh.v(:, 1) > max(mesh.v(:, 1))-0.9) ;
+        plane = find(mesh.v(:, zdim) > max(mesh.v(:, zdim))-0.1) ;
         % surfId = setdiff(1:length(mesh.v), plane) ;
 
         % % Sample some of the planar points
@@ -518,21 +560,35 @@ for tidx = tidx2do
 
         % check it
         if preview
-            trisurf(triangulation(surfF, surfV), surfV(:, 1), 'edgecolor', 'none')
+            trisurf(triangulation(surfF, surfV), surfV(:, 3), 'edgecolor', 'none')
             axis equal;
             view(2)
         end
 
         % surfV = mesh.v(surfId, :) ;
-        uvz = [surfV(:, 3), surfV(:, 2), surfV(:, 1)] ;
-
+        if contains(lower(axisOrder), 'zyx')
+            uvz = [surfV(:, 3), surfV(:, 2), surfV(:, 1)] ;
+        elseif contains(lower(axisOrder), 'xyz')
+            if strcmpi(embryoView, 'rd')        
+                uvz = [surfV(:, 1), surfV(:, 2), surfV(:, 3)] ;
+            else
+                error('handle here')
+            end
+            
+            if preview
+                scatter3(uvz(:, 1), uvz(:, 2), uvz(:, 3), 5, uvz(:, 3))
+                axis equal
+                xlabel('x'); ylabel('y'); zlabel('z') ;
+            end
+        end
+        
         % subsample by binning and finding medians
         [zmeans, counts, zs, xidx, yidx] = ...
             binData2dGrid(uvz, uminmax, vminmax, nU, nV, false) ;
         medz = zeros(nU, nV) ;
         for pp = 1:size(zs, 1)
             for qq = 1:size(zs, 2)
-                medz(pp, qq) = median(zs{pp, qq}) - 20 ;
+                medz(pp, qq) = median(zs{pp, qq}) - zOffset ;
             end
         end
         Z0 = sz3; 
@@ -540,9 +596,19 @@ for tidx = tidx2do
         medz(out_of_frame) = Z0 ;
         % local minimum filter (lower z is further from midsagittal plane)
         medz = imerode(medz, true(5)) ;
-        medz = imgaussfilt(medz, 2) ;
-        [xx, yy] = meshgrid(linspace(1, sz1, nU), linspace(1, sz1, nV)) ;
-
+        medz = imgaussfilt(medz, gaussSigma) ;
+        [yy, xx] = meshgrid(linspace(1, sz1, nU), linspace(1, sz2, nV)) ;
+        xx = xx';
+        yy = yy';
+        
+        % NOTE: This should look correct
+        if preview
+            imagesc( linspace(1, sz2, nV), linspace(1, sz1, nU), medz)
+            axis equal ;
+            title('rescaled resampled surface')
+            pause(1)
+        end    
+        
         % Create ring of zeros around shape
         % se = strel('disk', 2);
         % keep = find(imdilate(~isnan(zmeans), se)) ;
@@ -551,6 +617,8 @@ for tidx = tidx2do
         xr = xx(:) ;
         yr = yy(:) ;
         zr = medz(:) ;
+        scatter3(xr, yr, zr, 4, zr); view(2); axis equal
+        
         % xr = xr(keep) ;
         % yr = yr(keep) ;
         % zr = zr(keep) ;
@@ -562,18 +630,24 @@ for tidx = tidx2do
         if preview
             % Make this number larger to sample more of the nearby mesh
             width = 4 ;
+            leaves = 1:50:szY ;
             % Show the cross-section
-            leaf = 500 ;
-            inds = find(abs(yy - leaf) < width) ;
-            clf
-            im = squeeze(IV{2}(leaf, :, :))' ;
-            imshow(mat2gray(im, [0, double(rms1d(im(:)))]))
-            hold on; 
-            if any(inds)
-                hold on;
-                plot(xx(inds), medz(inds), 'c.')
+            for leaf = leaves
+                inds = find(abs(yy - leaf) < width) ;
+                clf
+                if strcmpi(erase(axisOrder, 'c'), 'xyz')
+                    im = squeeze(IV{2}(:, leaf, :))' ;
+                elseif strcmpi(erase(axisOrder, 'c'), 'xyz')
+                    im = squeeze(IV{2}(leaf, :, :))' ;
+                end
+                imshow(mat2gray(im, [0, double(rms1d(im(:)))]))
+                hold on; 
+                if any(inds)
+                    hold on;
+                    plot(xx(inds), medz(inds), 'c.')
+                end
+                pause(0.1)
             end
-            pause(0.1)
         end
 
         % Triangulate the result
@@ -585,6 +659,9 @@ for tidx = tidx2do
             clf
             tri = triangulation(mesh.f, mesh.v) ;
             trisurf(tri, 'edgecolor', 'none')
+            view(2); title('triangulation of rescaled resampling')
+            axis equal
+            pause(1) ;
         end
 
         % Fix vertices that are off mesh or near the mesh boundary
@@ -593,11 +670,17 @@ for tidx = tidx2do
         bndId = tri.ConnectivityList(bndId, :) ;
         bndId = unique(bndId(:)) ;
         vsm0 = mesh.v ;
-        lam = 1 ;
         mesh.v = laplacian_smooth(mesh.v, mesh.f, 'cotan', bndId, lam, ...
             'implicit', mesh.v, 1000);
 
-
+        if preview
+            clf
+            tri = triangulation(mesh.f, mesh.v) ;
+            trisurf(tri, 'edgecolor', 'none')
+            view(2); title('smoothed triangulation of rescaled resampling')
+            axis equal
+        end
+        
         % Push non-mesh out of the image volume
         % mesh.v(out_of_frame, 3) = Z0 + 2 ;
 
@@ -615,34 +698,63 @@ for tidx = tidx2do
         m2d = mesh ;
         m2d.v = [xr, yr] ;
         mesh.vn = zeros(size(mesh.v)) ;
-        mesh.vn(:, 3) = 1 ;
+        mesh.vn(:, zdim) = 1 ;
         % mesh.vn(out_of_frame, 3) = 0 ;
         mesh.v = mesh.v ;
         if preview
             trisurf(triangulation(mesh.f, mesh.v), mesh.vn(:, 3), 'edgecolor', 'none')
+            title('normal vectors')
         end
 
         % TexturePatch
         Opts = struct() ;
-        Opts.imSize = [sz1, sz2] ;
-        Opts.numLayers = [nPos, nNeg] ;
+        if strcmpi(axisOrder, 'xyz')
+            Opts.imSize = [sz2, sz1] ;
+        else
+            Opts.imSize = [sz1, sz2] ;
+            error('handle here')
+        end
+        Opts.numLayers = [20, 20];  %[nPos, nNeg] ;
         Opts.layerSpacing = 1 ;
         Opts.vertexNormal = mesh.vn ;
-        Opts.extrapolationMethod = 'nearest' ;
-        [ patchIm, imref, zeroID, MIP, SIP ] = ...
-            texture_patch_to_image(mesh.f, m2d.v, mesh.f, ...
-            mesh.v(:, [2,1,3]), IV, Opts) ;
+        Opts.extrapolationMethod = 'nearest' ; % 'nearest' ;'none'; 
+        if contains(lower(axisOrder), 'zyx')
+            [ patchIm, imref, zeroID, MIP, SIP ] = ...
+                texture_patch_to_image(mesh.f, m2d.v, mesh.f, ...
+                mesh.v(:, [2,1,3]), IV, Opts) ;
+        elseif contains(lower(axisOrder), 'xyz')
+            IVtmp = IV ;
+            IVtmp{1} = permute(IVtmp{1}, [2,1,3]) ;
+            IVtmp{2} = permute(IVtmp{2}, [2,1,3]) ;
+            [ patchIm, imref, zeroID, MIP, SIP ] = ...
+                texture_patch_to_image(mesh.f, m2d.v(:, [2,1]), mesh.f, ...
+                mesh.v(:, [1,2,3]), IVtmp, Opts) ;            
+        else    
+            error('handle here')
+        end
+        if preview
+            imshow(permute(squeeze(max(patchIm, [], 4)), [2, 1, 3]))
+        end
 
         % texture_patch_3d(mesh.f, mesh.v, mesh.f, mesh.v(:, [2,1,3]), IV{2})
 
         if preview
+            figure(1)
             for ii = 1:size(patchIm, 4)
-                imshow(mat2gray(squeeze(patchIm(:, :, 2, ii)), [0, 0.25]))
+                imshow(mat2gray(squeeze(patchIm(:, :, 2, ii)), [0, 0.25])')
                 title(['ii= ' num2str(ii)])
                 pause(0.01)
             end
         end
-
+        
+        % Look at figure
+        if preview
+            figure(2)
+            trisurf(triangulation(mesh.f, mesh.v), mesh.v(:, 3), 'edgecolor', 'none')
+            view(2); axis equal
+            pause(0.01)
+        end
+        
         % imshow(patchIm(:,:,2, zeroID))
         % caxis([0, 0.2])
 
@@ -661,6 +773,10 @@ for tidx = tidx2do
 
         ch1 = uint8(mat2gray(ch1, [min(ch1(:)), max(ch1(:))]) * 2^8) ;
         ch2 = uint8(mat2gray(ch2, [min(ch2(:)), 0.25 * max(ch2(:))]) * 2^8) ;
+        
+        ch1 = permute(ch1, [2, 1,3]) ;
+        ch2 = permute(ch2, [2, 1,3]) ;
+        
         chs = {reshape(ch1, [size(ch1, 1), size(ch1, 2), 1, size(ch1, 3)]), ...
             reshape(ch2, [size(ch2, 1), size(ch2, 2), 1, size(ch2, 3)])} ;
 
@@ -683,11 +799,11 @@ for tidx = tidx2do
         imfn1 = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 1) ;
         imfn2 = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
         ims1 = loadtiff(imfn1) ;
-        im01 = squeeze(ims1(:, :, nNeg+1)) ;
+        im01 = squeeze(max(ims1(:, :, nNeg-layerWidth+midLayerOffset:nNeg+layerWidth+midLayerOffset), [], 3)) ;
         im01 = uint8(255 * mat2gray(im01, double([min(im01(:)), max(im01(:))]))) ;
         imwrite(im01, outfn1)
         ims2 = loadtiff(imfn2) ;
-        im02 = squeeze(ims2(:, :, nNeg+1)) ;
+        im02 = squeeze(max(ims2(:, :, nNeg-1+midLayerOffset:nNeg+1+midLayerOffset), [], 3)) ;
         im02 = uint8(255 * mat2gray(im02, double([min(im02(:)), max(im02(:))]))) ;
         imwrite(im02, outfn2)
     end
@@ -786,6 +902,7 @@ end
 %% Load in GIMP and export binary masks
 
 %% Read binary masks
+thres = 160 ; % 160
 timeInterval = 5 ;
 timeUnits = 'min' ;
 overwrite = false ;
@@ -799,8 +916,17 @@ textureDir = './texturePatches/';
 if ~exist(imDir, 'dir')
     mkdir(imDir)
 end
+if ~exist(imDir_seg, 'dir')
+    mkdir(imDir_seg)
+end
+if ~exist(imDir_bnd, 'dir')
+    mkdir(imDir_bnd)
+end
+if ~exist(imDir_bnd3d, 'dir')
+    mkdir(imDir_bnd3d)
+end
 
-tidx2do = [1,6,7,8,9,10,12,16,18,21,23,26] ;
+tidx2do = 1:16 ;
 
 for tidx = tidx2do
     tp = timepoints(tidx) ;
@@ -817,14 +943,17 @@ for tidx = tidx2do
             im = loadtiff(imfn) ;
 
             % Threshold for initial segmentation
-            bw = seg > 160 ;
+            bw = seg > thres ;
 
             % Convert segmentation into polygon ids
-            se2 = strel('disk', 5) ;
             se1 = strel('disk', 1) ;
-            bw2 = imdilate(bw, se2) ;
-            bw2 = bwskel(bw2) ;
-
+            
+            % If linewidth was 1 or 2, use this:
+            % se2 = strel('disk', 5) ;
+            % bw2 = imdilate(bw, se2) ;
+            
+            bw2 = bwskel(bw) ; 
+            
             % Check it 
             clf
             bwcheck = imoverlay(0.5*bw, bw2, 'r') ;
@@ -836,13 +965,22 @@ for tidx = tidx2do
             segIm = labelmatrix(CC) ;
             c2d = cell(max(segIm(:)), 1) ;
             props = regionprops(segIm, 'centroid') ;
+            
+            % Load single page image
+            singlePage = imread( ...
+                fullfile(textureDir, sprintf('layer0_T%03d_c2.png', tp))) ;
 
-
-            cmpQ = brewermap(max(segIm(:)), 'Paired') ;
+            % cmpQ = brewermap(max(segIm(:)), 'Paired') ;
+            nCells = double(max(segIm(:))) ;
+            modulation = repmat([-1,-1,-1; 1,1,1], ceil(nCells * 0.5), 1) ;
+            cmpQ = phasemap(double(max(segIm(:)))) + 0.1 * modulation(1:nCells, :) ;
+            cmpQ(cmpQ > 1) = 1;
+            cmpQ(cmpQ < 0) = 0;
+            % cmpQ = hsv(double(max(segIm(:)))) ;
             coloredLabelsImage = label2rgb(segIm, cmpQ, 'k', 'shuffle');
             % Display the pseudo-colored image.
             coloredLabelsImage = (coloredLabelsImage) .* uint8(segIm > 1) ;
-            outim = uint8(0.5 * coloredLabelsImage + squeeze(im(:,:,nNeg+5))) ;
+            outim = uint8(0.5 * coloredLabelsImage + singlePage) ;
             imfn = fullfile(imDir_seg, sprintf('T%03d_segcolor.png', tp)) ;
             imwrite(outim, imfn)
             clf
@@ -865,7 +1003,7 @@ for tidx = tidx2do
                 c2d{pId} = bnd ;
             end 
             imfn = fullfile(imDir_bnd, sprintf('T%03d_boundaries.png', tp)) ;
-            title(['t = ' num2str(tp * timeInterval) ' ' timeUnits])
+            title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits])
             saveas(gcf, imfn)
 
             % Extract polygon shapes
@@ -916,15 +1054,29 @@ for tidx = tidx2do
             
             % View 3d polygons
             clf
-            trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none')
+            minzum = min(mesh.v (:, 3) * pix2um) ;
+            trisurf(triangulation(mesh.f, ...
+                mesh.v * pix2um - [0, 0, minzum]), ...
+                'edgecolor', 'none')
             for pId = 2:max(segIm(:))
                 hold on;
-                plot3(c3d{pId}(:, 1), c3d{pId}(:, 2), c3d{pId}(:, 3), '-')
+                plot3(c3d{pId}(:, 1) * pix2um, ...
+                    c3d{pId}(:, 2) * pix2um, ...
+                    c3d{pId}(:, 3) * pix2um - minzum, '-')
             end
             view(2)
+            axis equal
             colormap gray
+            grid off
+            xlabel('ap position, [$\mu$m]', 'interpreter', 'latex')
+            ylabel('dv position, [$\mu$m]', 'interpreter', 'latex')
+            cb = colorbar ;
+            ylabel(cb, '$z$ depth, [$\mu$m]', 'interpreter', 'latex')
+            imfn = fullfile(imDir_bnd3d, sprintf('T%03d_boundaries3d.pdf', tp)) ;
+            title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits], ...
+                'interpreter', 'latex')
+            saveas(gcf, imfn)
             imfn = fullfile(imDir_bnd3d, sprintf('T%03d_boundaries3d.png', tp)) ;
-            title(['t = ' num2str(tp * timeInterval) ' ' timeUnits])
             saveas(gcf, imfn)
 
             disp(['Saving measurement to ', outfn])
@@ -951,18 +1103,22 @@ end
 %% Identify lobe2-3 divide via surfaces
 % for now just draw it
 tidx2do = 1:length(timepoints) ;
-fold2 = 665 * ones(length(timepoints), 1) ;
-offset = 0 * timepoints ;
-offset(4:end) = 1 ;
-offset(27:end) = 2 ;
-t0 = timepoints(8) - offset(8) ;
+% fold2 = 665 * ones(length(timepoints), 1) ;
+fold2 = 575 * ones(length(timepoints), 1) ;
+time_offset = 0 * timepoints ;
+time_offset(2:end) = 4 ;
+time_offset(3:end) = 5 ;
+t0 = tp0 * timeInterval - time_offset(tp0) ;
 
 %% plot Q as function of ap position
-exciteIdx = 1 ;
 clf
+exciteIdx = 2 ;
 % cmap0 = cividis() ;
 % cmap0 = cmap0(round(linspace(1, length(cmap0), length(tidx2do))), :) ;
 cmap0 = viridis(length(timepoints)) ;
+% Load an im for size
+imfn = fullfile(textureDir, sprintf('slice_T%03d_c%01d.tif', timepoints(1), 2)) ;
+im = loadtiff(imfn) ;
 xe = linspace(0, size(im, 2), 20) ;
 
 Qct_a = nan(length(tidx2do), 2) ;
@@ -1008,7 +1164,6 @@ for tidx = tidx2do
         h2=shadedErrorBar(midx, meanS, steS, 'lineProps', lineProps) ;
         hold on;
         
-        % Store everything interesting in a struct
         statStruct = struct() ;
         % Raw data sub-structure
         statStruct.raw = struct() ;
@@ -1017,8 +1172,8 @@ for tidx = tidx2do
         statStruct.raw.moment1 = m1 ;
         statStruct.raw.moment2 = m2 ;
         statStruct.raw.angle = tmp.ang1 ;
+        % Now ap statistics and lobe12 specifically
         statStruct.ap = struct() ;
-        statStruct.lobe12 = struct() ;
         % all cells
         statStruct.ap.midx = midx ;
         statStruct.ap.Qcos2t_avg = meanC ;
@@ -1030,6 +1185,7 @@ for tidx = tidx2do
         statStruct.ap.Qsin2t_ste = steS ;
         statStruct.ap.nS = nS ;
         % cells in lobes 1 and 2
+        statStruct.lobe12 = struct() ;
         statStruct.lobe12.Qcos2t_avg = meanC_L12(1) ;
         statStruct.lobe12.Qcos2t_std = stdC_L12(1) ;
         statStruct.lobe12.Qcos2t_ste = steC_L12(1) ;
@@ -1058,7 +1214,7 @@ subplot(1, 2, 2)
 xlabel('ap position [pixels]', 'interpreter', 'latex')
 ylabel('$\langle Q_{yy} \rangle$', 'interpreter', 'latex')
 imfn = fullfile(segDir, 'stats') ;
-disp(['Saving statistics figure (t): ' imfn])
+disp(['Saving statistics (x,t): ' imfn])
 saveas(gcf, [imfn '.pdf']) ;
 saveas(gcf, [imfn '.png']) ;
 
@@ -1070,7 +1226,7 @@ Qct_ek = Qct_e(keep, 1) ;
 Qst_ak = Qst_a(keep, 1) ;
 Qst_sk = Qst_s(keep, 1) ;
 Qst_ek = Qst_e(keep, 1) ;
-timestamps = (timepoints(keep) - t0 - offset(keep)) * timeInterval ;
+timestamps = (timepoints(keep) * timeInterval) - t0 - time_offset(keep) ;
 clf
 hold on;
 lineProps = {'.-', 'color', colors(1, :)} ;
@@ -1088,11 +1244,12 @@ legend([h1.patch, h2.patch], {'$Q_{xx}$', '$Q_{yy}$'}, 'interpreter', 'latex')
 xlabel('time [min]', 'interpreter', 'latex')
 ylabel('$Q_{xx}$, $Q_{yy}$', 'interpreter', 'latex')
 imfn = fullfile(segDir, 'stats_dynamics') ;
-disp(['Saving statistics figure (x,t): ' imfn])
+disp(['Saving statistics (x,t): ' imfn])
 saveas(gcf, [imfn '.pdf']) ;
 saveas(gcf, [imfn '.png']) ;
 
 % Save the data
+disp('saving the data')
 save('./cellSegmentation/results.mat', ...
     'keep', ...
     'Qct_ak', 'Qct_sk', 'Qst_ak', 'Qst_sk', ...
@@ -1104,7 +1261,7 @@ save('./cellSegmentation/results.mat', ...
 %% Compare to WT
 imfn = fullfile(segDir, 'stats_compareWT') ;
 % WTfn =  '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/cellSegmentation/seg3d_corrected/stats_summary.mat' ;
-WTfn =  '/mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/cellSegmentation/seg3d_corrected/stats_summary_L12.mat' ;
+WTfn =  '/mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/cellSegmentation/seg3d_corrected/stats_summary_L12.mat' ;
 tmp = load(WTfn) ;
 
 % Qxx

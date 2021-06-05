@@ -3,7 +3,7 @@ function [allVtx, allBonds] = nearestNeighborsAndBondsWithinKSteps(k, seeds, eID
 %
 % Parameters
 % ----------
-% k : int
+% k : int >= 0
 %   How many steps to search
 % seeds : ints
 %   seed vertex indices for which to find Neighbors and Bonds within K
@@ -17,7 +17,7 @@ function [allVtx, allBonds] = nearestNeighborsAndBondsWithinKSteps(k, seeds, eID
 
 allVtx = seeds(:) ;
 allBonds = [] ;
-for pp = 1:k
+if k == 0
     for qq = 1:length(seeds) 
         fixIdx = seeds(qq) ;
         [rows, ~ ] = find(eIDx == fixIdx) ;
@@ -25,8 +25,18 @@ for pp = 1:k
         allBonds = unique([allBonds; rows]) ;
         allVtx = unique([allVtx; toadd(:) ]); 
     end
-    fixedIDx = unique(allVtx) ;
+else
+    for pp = 1:k
+        for qq = 1:length(seeds) 
+            fixIdx = seeds(qq) ;
+            [rows, ~ ] = find(eIDx == fixIdx) ;
+            toadd = eIDx(rows, :) ;
+            allBonds = unique([allBonds; rows]) ;
+            allVtx = unique([allVtx; toadd(:) ]); 
+        end
+        fixedIDx = unique(allVtx) ;
 
-    % Prepare for next step by updating which seeds to cycle over
-    seeds = fixedIDx ;
+        % Prepare for next step by updating which seeds to cycle over
+        seeds = fixedIDx ;
+    end
 end
