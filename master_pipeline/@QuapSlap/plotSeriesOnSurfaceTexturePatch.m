@@ -7,7 +7,9 @@ function plotSeriesOnSurfaceTexturePatch(QS,...
 % ----------
 % QS : QuapSlap class instance
 % overwrite : bool
-% metadat : struct with fields
+% options : struct with fields
+%   texture_shift : float, 
+%       shift of texture mesh, but not physical mesh
 % TexturePatchOptions: struct with fields   
 %       - Options.PSize: default=5
 %       Special option, defines the image texture size
@@ -105,11 +107,13 @@ function plotSeriesOnSurfaceTexturePatch(QS,...
 
 %% Default options
 overwrite = false ;
+texture_shift = 0 ;
 plot_dorsal = true ;
 plot_ventral = true ;
 plot_left = true ;
 plot_right = true ;
 plot_perspective = true ;
+blackFigure = true ;
 channel = [] ;  % by default, plot all channels
 
 %% Unpack Options
@@ -118,6 +122,12 @@ if isfield(options, 'overwrite')
 end
 if isfield(options, 'channel')
     channel = options.channel ;
+end
+if isfield(options, 'texture_shift')
+    texture_shift = options.texture_shift ;
+end
+if isfield(options, 'blackFigure')
+    blackFigure = options.blackFigure ;
 end
 if isfield(options, 'plot_dorsal')
     plot_dorsal = options.plot_dorsal ;
@@ -187,6 +197,7 @@ if nargin < 3
         metadat.xyzlim = xyzbuff ;                          % xyzlimits
         metadat.texture_axis_order = QS.data.axisOrder ;    % texture space sampling
         metadat.reorient_faces = false ;                    % set to true if some normals may be inverted
+        metadat.texture_shift = texture_shift ;
         resave_metadat = true ;
     end
 else
@@ -200,6 +211,7 @@ end
 
 % pass metadat to options
 options.normal_shift = metadat.normal_shift ;
+options.texture_shift = metadat.texture_shift ;
 options.xyzlim = metadat.xyzlim ;
 options.texture_axis_order = metadat.texture_axis_order ;
 texture_axis_order = options.texture_axis_order ;
@@ -310,7 +322,7 @@ for tidx = tidx_todo
             num2str(texture_axis_order(1)), ...
             ' ', num2str(texture_axis_order(2)), ...
             ' ', num2str(texture_axis_order(3)) ']'])
-        TV = mesh.v(:, texture_axis_order) ;
+        TV = mesh.v(:, texture_axis_order) + texture_shift .* mesh.vn ;
         
         
         % Allow for overall flip
@@ -367,11 +379,13 @@ for tidx = tidx_todo
         set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
 
         % Make background black & Make tick labels white
-        set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w', 'zcol', 'w')
-        set(gcf, 'InvertHardCopy', 'off');
-        set(gcf, 'Color', 'k')
-        set(gcf, 'color', 'k')
-
+        if blackFigure
+            set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w', 'zcol', 'w')
+            set(gcf, 'InvertHardCopy', 'off');
+            set(gcf, 'Color', 'k')
+            set(gcf, 'color', 'k')
+        end
+        
         % Capture all four views
         disp(['saving figure...' num2str(tp, '%06d')])
         % Save each figure
