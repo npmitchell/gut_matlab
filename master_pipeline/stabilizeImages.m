@@ -59,6 +59,7 @@ function stabilizeImages(fileName, fileNameOut, rgbName, typename, ...
 
 %% Default options
 channel = 1;
+forceNoDx = false ;
 if count(fileName, '%') == 2
     timechannel = 'tc' ;
 elseif count(fileName, '%') == 1
@@ -140,6 +141,8 @@ else
                 error('Exiting.')
             end
         end
+    else
+        compute_shifts = true ;
     end
 end
 if compute_shifts
@@ -148,28 +151,60 @@ if compute_shifts
     
     disp('Loading MIP data for all times...')
     NTimes = length(timePoints);
-    % preallocate im_1 for speed
-    tmp = imread(fullfile(mipDir, sprintf(name1,timePoints(1),channel))) ;
-    im_1 = zeros([size(tmp) length(timePoints)]) ;
-    % preallocate im_2 for speed
-    tmp = imread(fullfile(mipDir, sprintf(name11,timePoints(1),channel))) ;
-    im_2 = zeros([size(tmp) length(timePoints)]) ;
-    for tid = 1:length(timePoints)
-        time = timePoints(tid) ;
-        % weight the different views equally
-        im1a = fullfile(mipDir, sprintf(name1, time, channel)) ;
-        im1b = fullfile(mipDir, sprintf(name2, time, channel)) ;
-        im_1(:,:,tid) = imread(im1a) + imread(im1b) ;
-
-        im2a = fullfile(mipDir, sprintf(name11, time, channel)) ;
-        im2b = fullfile(mipDir, sprintf(name21, time, channel)) ;
     
-        im_2(:,:,tid) = imread(im2a) + imread(im2b) ;
-        im3a = fullfile(mipDir, sprintf(name12, time, channel)) ;
-        im3b = fullfile(mipDir, sprintf(name22, time, channel)) ;
-        im_3(:,:,tid) = imread(im3a) + imread(im3b);
+    % preallocate im_1 for speed
+    if strcmpi(timechannel, 'tc')
+        tmp = imread(fullfile(mipDir, sprintf(name1,timePoints(1),channel))) ;
+        im_1 = zeros([size(tmp) length(timePoints)]) ;
+    
+        % preallocate im_2 for speed
+        tmp = imread(fullfile(mipDir, sprintf(name11,timePoints(1),channel))) ;
+        im_2 = zeros([size(tmp) length(timePoints)]) ;
+
+        for tid = 1:length(timePoints)
+            time = timePoints(tid) ;
+            % weight the different views equally
+            im1a = fullfile(mipDir, sprintf(name1, time, channel)) ;
+            im1b = fullfile(mipDir, sprintf(name2, time, channel)) ;
+            im_1(:,:,tid) = imread(im1a) + imread(im1b) ;
+
+            im2a = fullfile(mipDir, sprintf(name11, time, channel)) ;
+            im2b = fullfile(mipDir, sprintf(name21, time, channel)) ;
+
+            im_2(:,:,tid) = imread(im2a) + imread(im2b) ;
+            im3a = fullfile(mipDir, sprintf(name12, time, channel)) ;
+            im3b = fullfile(mipDir, sprintf(name22, time, channel)) ;
+            im_3(:,:,tid) = imread(im3a) + imread(im3b);
+        end
+        disp('done loading data into im_1 and im_2')
+
+    elseif strcmpi(timechannel, 't')
+        % preallocate im_1 for speed
+        tmp = imread(fullfile(mipDir, sprintf(name1,timePoints(1)))) ;
+        im_1 = zeros([size(tmp) length(timePoints)]) ;
+        
+        % preallocate im_2 for speed
+        tmp = imread(fullfile(mipDir, sprintf(name11,timePoints(1)))) ;
+        im_2 = zeros([size(tmp) length(timePoints)]) ;
+
+        for tid = 1:length(timePoints)
+            time = timePoints(tid) ;
+            % weight the different views equally
+            im1a = fullfile(mipDir, sprintf(name1, time)) ;
+            im1b = fullfile(mipDir, sprintf(name2, time)) ;
+            im_1(:,:,tid) = imread(im1a) + imread(im1b) ;
+
+            im2a = fullfile(mipDir, sprintf(name11, time)) ;
+            im2b = fullfile(mipDir, sprintf(name21, time)) ;
+
+            im_2(:,:,tid) = imread(im2a) + imread(im2b) ;
+            im3a = fullfile(mipDir, sprintf(name12, time)) ;
+            im3b = fullfile(mipDir, sprintf(name22, time)) ;
+            im_3(:,:,tid) = imread(im3a) + imread(im3b);
+        end
+        disp('done loading data into im_1 and im_2')
+
     end
-    disp('done loading data into im_1 and im_2')
     
     % Compute shifts via phase correlation
     disp('Computing/overwriting shifts')
