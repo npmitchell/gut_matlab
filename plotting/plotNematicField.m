@@ -83,9 +83,11 @@ if nargin > 2
 end
 
 if isempty(mesh)
-    [uu, vv] = meshgrid(linspace(0, 1, size(mag, 1)), ...
-        linspace(0, 1, size(mag, 2))) ;
+    % [uu, vv] = meshgrid(linspace(0, 1, size(mag, 1)), ...
+    %     linspace(0, 1, size(mag, 2))) ;
+    [uu, vv] = meshgrid(1:size(mag, 2), 1:size(mag, 1)) ;
     mesh.v = [uu(:), vv(:), 0*uu(:)] ;
+    mesh.f = defineFacesRectilinearGrid([], size(mag, 1), size(mag, 2)) ;
 end
 if ~isfield(mesh, 'f')
     mesh.f = defineFacesRectilinearGrid([], size(mag, 1), size(mag, 2)) ;
@@ -220,6 +222,7 @@ end
 
 % Set colorlimits
 if exist('clim', 'var')
+    error('why clim? should use clim_mag.')
     if numel(clim) == 1
         caxis([0, clim])
     elseif numel(clim) == 2
@@ -227,6 +230,8 @@ if exist('clim', 'var')
     else
         error('clim provided has > 2 elements')
     end
+else
+    caxis([0, clim_mag])
 end
 colormap(gca, gray) 
 
