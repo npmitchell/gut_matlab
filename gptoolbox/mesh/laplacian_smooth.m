@@ -5,6 +5,9 @@ function [U,Uall] = laplacian_smooth(V,F,L_method,b,lambda,method,S,max_iter)
   % [U] = laplacian_smooth(V,F,L_method,b,lambda,method,S)
   % [U,Uall] = laplacian_smooth(V,F,L_method,b,lambda,method,S,max_iter)
   % 
+  % Example Usage:
+  % [U,Uall] = laplacian_smooth(V,F,'cotan',[], 0.01 , 'implicit', [], 1000)
+  % 
   % Inputs:
   %   V  #V x 3 matrix of vertex coordinates
   %   F  #F x 3  matrix of indices of triangle corners

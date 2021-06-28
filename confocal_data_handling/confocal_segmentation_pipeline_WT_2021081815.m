@@ -731,8 +731,8 @@ nPos = 15 ;
 nNeg = 10 ;
 useFilteredMesh = false ;
 
-layerWidth = 2 ;
-midLayerOffset = 4 ;
+layerWidth = 1 ;
+midLayerOffset = 10 ;
 lam = 0.001 ;  % 0.01 for antpG4kOCRL, 0.001 for 48YG4k; 
 
 preview = true ;
@@ -788,7 +788,7 @@ for tidx = tidx2do
             if contains(lower(axisOrder), 'zyx')
                 uvz = [surfV(:, 3), surfV(:, 2), surfV(:, 1)] ;
             elseif contains(lower(axisOrder), 'xyz')
-                if strcmpi(embryoView, 'rd')        
+                if strcmpi(embryoView, 'rd') || strcmpi(embryoView, 'lv')        
                     uvz = [surfV(:, 1), surfV(:, 2), surfV(:, 3)] ;
                 else
                     error('handle here')
@@ -987,7 +987,7 @@ for tidx = tidx2do
         % end
 
         ch1 = uint8(mat2gray(ch1, [min(ch1(:)), max(ch1(:))]) * 2^8) ;
-        ch2 = uint8(mat2gray(ch2, [min(ch2(:)), 0.25 * max(ch2(:))]) * 2^8) ;
+        ch2 = uint8(mat2gray(ch2, [min(ch2(:)), 0.7 * max(ch2(:))]) * 2^8) ;
         
         ch1 = permute(ch1, [2, 1,3]) ;
         ch2 = permute(ch2, [2, 1,3]) ;
@@ -1017,10 +1017,14 @@ for tidx = tidx2do
         minLayer = max(nNeg-layerWidth+midLayerOffset, 1) ;
         maxLayer = min(nNeg+layerWidth+midLayerOffset, size(ims1, 3)) ;
         im01 = squeeze(max(ims1(:, :, minLayer:maxLayer), [], 3)) ;
+        im01 = adapthisteq(im01,'clipLimit',0.2,'Distribution','rayleigh');
         im01 = uint8(255 * mat2gray(im01, double([min(im01(:)), max(im01(:))]))) ;
+        imshow(im01)
+        
         imwrite(im01, outfn1)
         ims2 = loadtiff(imfn2) ;
         im02 = squeeze(max(ims2(:, :, minLayer:maxLayer), [], 3)) ;
+        im02 = adapthisteq(im02,'clipLimit',0.2,'Distribution','rayleigh');
         im02 = uint8(255 * mat2gray(im02, double([min(im02(:)), max(im02(:))]))) ;
         imwrite(im02, outfn2)
     end
@@ -1039,15 +1043,18 @@ for ii = 1:length(l0c1s)
     % cat to RGB
     outname = fullfile(l0c1s(ii).folder, 'rgb', ...
         [l0c1s(ii).name(1:end-6) 'rgb.png']) ;
-    rgbim = cat(3, im1, im2, 0*im1) ;
-    imwrite(rgbim, outname)
-    
-    % Fancy im
-    outname = fullfile(l0c1s(ii).folder, 'fancy', ...
-        [l0c1s(ii).name(1:end-6) 'rgb_cyan.png']) ;
-    rgbim = cat(3, im1, im2, im2) ;
-    imwrite(rgbim, outname)
-    
+    if ~exist(outname, 'file') || overwrite
+        rgbim = cat(3, im1, im2, 0*im1) ;
+        imwrite(rgbim, outname)
+
+        % Fancy im
+        outname = fullfile(l0c1s(ii).folder, 'fancy', ...
+            [l0c1s(ii).name(1:end-6) 'rgb_cyan.png']) ;
+        rgbim = cat(3, im1, im2, im2) ;
+        imwrite(rgbim, outname)
+    else
+        disp(['already on disk: t=' num2str(timepoints(ii))]) 
+    end
 end
 
 
@@ -1064,50 +1071,28 @@ tidx2do = 1:27 ;
 for tidx = tidx2do
     tp = timepoints(tidx) ;
     disp(['tp = ', num2str(tp)])
-    segfn1 = sprintf('./cellSegmentation/automask1_T%03d.png', tp) ;
-    segfn2 = sprintf('./cellSegmentation/automask2_T%03d.png', tp) ;
-    segfn3 = sprintf('./cellSegmentation/automask3_T%03d.png', tp) ;
+    segfn = sprintf('./cellSegmentation/automask_T%03d.png', tp) ;
+    % segfn2 = sprintf('./cellSegmentation/automask2_T%03d.png', tp) ;
+    % segfn3 = sprintf('./cellSegmentation/automask3_T%03d.png', tp) ;
     
-    if ~exist(segfn1, 'file') || overwrite
-        % Load image stack and manually create cell polygon at z stack
-        %imfn = sprintf('./texturePatches/layer0_T%03d_c2_Probabilities.h5', tp) ;
+    if ~exist(segfn, 'file') || overwrite
+        %% Load image ilastik probabilities
         imfn = sprintf('./texturePatches/rgb/layer0_T%03d_rgb_Probabilities.h5', tp) ;
         prob = h5read(imfn, '/exported_data/') ;
-        prob = squeeze(prob(1, :, :)) ;
+        im2segment = squeeze(prob(1, :, :)) ;
+        
+        %% Use raw
+        % imfn = sprintf('./texturePatches/rgb/layer0_T%03d_rgb.png', tp) ;
+        % im = imread(imfn) ;
+        % im2segment = squeeze(im(:, :, 2)) ;
 
-        seg = zeros(size(prob)) ;
-        overlay = zeros(size(prob, 1)) ;
-
-        % % TRY WATERSHED
-        % Filter output: laplacian of Gaussian sharpens, then Gaussian smooths        
-        h1 = fspecial('log', cellSize);
-        seD1 = strel('disk', strelRadius);
-        if gaussKernel > 0
-            gk = fspecial('gaussian', gaussKernel);
-        end
+        % NEW watershed segmentation
+        adaphisteqClip = 0.5 ;
+        strelRadius = 1 ;
+        [skel, DL] = segmentImageWatershed(im2segment, adaphisteqClip, strelRadius) ;
         
-        % Pack label image L with watershed results
-        mem = mat2gray(prob, [0, double(max(prob(:)))]) ;
-        L = zeros(size(mem));
-        disp(['memWS: segmenting timepoint ', num2str(tp)]) 
-        if gaussKernel > 0
-            gk = fspecial('gaussian', gaussKernel);
-            mem = imfilter(mem,gk);
-        end
-        cyto = 1 - mem;
+        % skel = segmentImageWatershedSimple(img, )
         
-        % mem = imfilter(mem,h1);
-        % mem(:,:,t) = imclose(mem(:,:,t),strel('disk',3));
-        
-        lev = graythresh(cyto);
-        seed = im2bw(cyto, lev);  % consider swapping to imbinarize
-        seed = imdilate(seed, seD1);
-        seed = bwareaopen(seed, 25);
-        
-        pre_water = imhmin(mem, heightMiminum);
-        pre_water = imimposemin(pre_water, seed);
-        LL = watershed(pre_water);
-
         % Mask the segmentation by depth of surface
         if useFilteredMesh
             surface = meshFilt{tidx} ;
@@ -1116,26 +1101,17 @@ for tidx = tidx2do
             surface = mesh.v ;
         end
         % resample surface onto image grid
-        [xx,yy] = meshgrid(1:size(LL, 1), 1:size(LL, 2)) ;
+        [xx,yy] = meshgrid(1:size(DL, 1), 1:size(DL, 2)) ;
         resurf = interpolate2Dpts_3Dmesh(mesh.f, surface(:, 1:2), surface, [xx(:), yy(:)]) ;
         maxZ = max(resurf(:, 3)) ;
-        keep = reshape(resurf(:, 3) < (maxZ - 1), [size(LL, 2), size(LL, 1)]) ;
+        keep = reshape(resurf(:, 3) < (maxZ - 1), [size(DL, 2), size(DL, 1)]) ;
         
-        mask1 = (LL==0)' .* keep ;
-        mask2 = (bwskel(pre_water > preThres))' .* keep ;
-        
-        seD0 = strel('disk', 1);
-        mask3 = imdilate(mask1 | mask2, seD0) ;
-        
+        mask1 = skel' .* keep ;
         imshow(mask1) ; pause(0.001)
-        imshow(mask2) ; pause(0.001)
-        imshow(mask3) ; pause(0.001)
         
         % Save the result
-        imwrite(mask1, segfn1)
-        imwrite(mask2, segfn2)
-        imwrite(mask3, segfn3)
-
+        imwrite(mask1, segfn)
+        
         disp(['Done with seg ' num2str(tp)])
     end
 end
@@ -1146,7 +1122,7 @@ end
 thres = 160 ; % 160
 timeInterval = 5 ;
 timeUnits = 'min' ;
-overwrite = false ;
+overwrite = true ;
 colors = define_colors ;
 imDir = './cellSegmentation/images/' ;
 imDir_seg = fullfile(imDir, 'segmentation') ;
@@ -1175,8 +1151,9 @@ for tidx = tidx2do
     if ~exist(outfn, 'file') || overwrite
         disp(['Processing t=' num2str(tp) ': ' outfn])
         % try
+            segfn = fullfile(segDir, sprintf('mask_T%03d.png', tp)) ;
             % segfn = fullfile(segDir, sprintf('T%03dmask.png', tp)) ;
-            segfn = fullfile(segDir, sprintf('automask1_T%03d.png', tp)) ;
+            % segfn = fullfile(segDir, sprintf('automask1_T%03d.png', tp)) ;
             seg = imread(segfn) ;
             load(fullfile(textureDir, sprintf('mesh_T%03d.mat', tp)), ...
                 'mesh', 'm2d', 'Opts') ;
@@ -1184,7 +1161,8 @@ for tidx = tidx2do
             im = loadtiff(imfn) ;
 
             % Threshold for initial segmentation
-            bw = seg > thres ;
+            bw = seg(:, :, 2) > thres ;
+            redIm = squeeze(seg(:, :, 1)) >  thres ;
 
             % Convert segmentation into polygon ids
             se1 = strel('disk', 1) ;
@@ -1204,6 +1182,27 @@ for tidx = tidx2do
             % Get all boundaries    
             CC = bwconncomp(~bw2, 4);
             segIm = labelmatrix(CC) ;
+            
+            % Mask out red cells
+            se = strel('disk', 5) ;
+            badCells = [] ;
+            for cid = 1:max(segIm(:))
+                % 
+                thisCell = segIm == cid ;
+                thisCell = imerode(thisCell, se) ;
+                if sum(sum(thisCell .* redIm)) > 20 
+                    badCells = [badCells, cid] ;
+                end
+            end
+            segOut = segIm ;
+            for bcid = badCells
+                currId = median(segOut(segIm == bcid));
+                segOut(segOut == currId) = 0 ;
+                segOut(segOut > currId) = segOut(segOut > currId) - 1 ;
+            end
+            segIm = segOut ;
+            
+            % Get properties of cells
             c2d = cell(max(segIm(:)), 1) ;
             props = regionprops(segIm, 'centroid') ;
             
@@ -1236,43 +1235,60 @@ for tidx = tidx2do
 
                 hold on;
                 plot(tmp{1}(:, 2), tmp{1}(:, 1), '.-', 'color', colors(2, :)) 
-                plot(centroids2d(:, 1), centroids2d(:, 2), '.', 'color', colors(3, :))
                 % pause(0.05) ;
 
                 bnd = [tmp{1}(:, 2), tmp{1}(:, 1)] ;
 
                 c2d{pId} = bnd ;
             end 
+            plot(centroids2d(:, 1), centroids2d(:, 2), '.', 'color', colors(3, :))
             imfn = fullfile(imDir_bnd, sprintf('T%03d_boundaries.png', tp)) ;
             title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits])
             saveas(gcf, imfn)
 
             % Extract polygon shapes
             % Get z position for each cell polygon
+            vx = laplacian_smooth(mesh.v, mesh.f,'cotan',[], 0.01 , 'implicit', mesh.v(:, 1), 1000) ;
+            vy = laplacian_smooth(mesh.v, mesh.f,'cotan',[], 0.01 , 'implicit', mesh.v(:, 2), 1000) ;
+            vz = laplacian_smooth(mesh.v, mesh.f,'cotan',[], 0.01 , 'implicit', mesh.v(:, 3), 1000) ;
+            smFaceNormals = faceNormal(triangulation(m2d.f, [vx, vy, vz])) ;
+            
+            clf
+            meshc3d = barycenter(mesh.v, mesh.f) ;
+            quiver3(meshc3d(:, 1), meshc3d(:, 2), meshc3d(:, 3), ...
+                smFaceNormals(:, 1), smFaceNormals(:, 2), smFaceNormals(:, 3), 1) ;
+            
             [c3d, centroids3d, areas, perim, moment1, ang1, ...
                 moment2, ang2, moinertia, cellQ2d, fieldfaces] = ...
-                polygon3dMeasurements(m2d.f, mesh.v, m2d.v, c2d, centroids2d) ;
+                polygon3dMeasurements(m2d.f, mesh.v, m2d.v, c2d, ...
+                centroids2d, smFaceNormals) ;
 
             % % Check this 
             % Color by aspect ratio
             clf
             aratioImage = double(0*segIm) ;
-            qstrength = sqrt(moment2 ./ moment1) -1 ;
+            qstrength = real(sqrt(moment2 ./ moment1)) -1 ;
+            QxxVals = zeros(length(c2d), 1) ;
             for cid = 1:length(c2d)
                 if ~isnan(moment2(cid))
                     aratioImage(segIm == cid) = qstrength(cid) * cos(2*ang1(cid)) ;
+                    QxxVals(cid) = qstrength(cid) * cos(2*ang1(cid)) ;
                 end
             end        
             aratioImage(segIm < 2) = NaN ;
+            
             [xL, yL] = size(aratioImage) ;
-            imagesc(1:yL*pix2um, 1:xL*pix2um, real(aratioImage)); 
+            imagesc(1:yL*pix2um, 1:xL*pix2um, real(aratioImage), ...
+                'AlphaData', ~isnan(aratioImage)) ; 
             axis equal
             grid off
             cb = colorbar ;
             xlabel('ap position, [$\mu$m]', 'interpreter', 'latex')
             ylabel('dv position, [$\mu$m]', 'interpreter', 'latex')
             caxis(max(abs(aratioImage(:))) * [-1,1])
+            caxis([-2,2])
             colormap(bwr)
+            set(gca,'Ydir','reverse')
             ylabel(cb, '$Q_{xx}$', 'interpreter', 'latex')
             title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits], ...
                 'interpreter', 'latex')
@@ -1312,6 +1328,10 @@ for tidx = tidx2do
             
             % View 3d polygons
             clf
+            cmapcolors = colormap ;
+            cmin = -2 ;
+            cmax = 2 ;
+            qxxCmap = linspace(cmin, cmax, length(cmapcolors)) ;
             minzum = min(mesh.v (:, 3) * pix2um) ;
             trisurf(triangulation(mesh.f, ...
                 mesh.v * pix2um - [0, 0, minzum]), ...
@@ -1333,8 +1353,63 @@ for tidx = tidx2do
             imfn = fullfile(imDir_bnd3d, sprintf('T%03d_boundaries3d.pdf', tp)) ;
             title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits], ...
                 'interpreter', 'latex')
+            set(gca,'Ydir','reverse')
             saveas(gcf, imfn)
             imfn = fullfile(imDir_bnd3d, sprintf('T%03d_boundaries3d.png', tp)) ;
+            saveas(gcf, imfn)
+            
+            %% View 3d polygons colored by Qxx
+            clf
+            colormap bwr
+            cmapcolors = colormap ;
+            cmin = -2 ;
+            cmax = 2 ;
+            qxxCmap = linspace(cmin, cmax, length(cmapcolors)) ;
+            minzum = min(mesh.v (:, 3) * pix2um) ;
+            % trisurf(triangulation(mesh.f, ...
+            %     mesh.v * pix2um - [0, 0, minzum] - [0,0,5]), ...
+            %     'edgecolor', 'none')
+            faceAlpha = 0.5 ;
+            for pId = 2:max(segIm(:))
+                hold on;
+                
+                % plot3(c3d{pId}(:, 1) * pix2um, ...
+                %     c3d{pId}(:, 2) * pix2um, ...
+                %     c3d{pId}(:, 3) * pix2um - minzum, '-')
+                plot3(c3d{pId}(:, 1) , ...
+                    c3d{pId}(:, 2) , ...
+                    c3d{pId}(:, 3) - minzum, '-')
+                
+                qxx4cell = qstrength(pId) * cos(2*ang1(pId)) ;
+                if qxx4cell > cmax
+                    cmapId = qxxCmap(end, :) ;
+                elseif qxx4cell < cmin
+                    cmapId = qxxCmap(1, :) ;                    
+                else
+                    color4cell = cmapcolors(find(qxxCmap > qxx4cell, 1), :) ;
+                end
+                % p = patch(c3d{pId}(:, 1) * pix2um, ...
+                %     c3d{pId}(:, 2) * pix2um, ...
+                %     c3d{pId}(:, 3) * pix2um - minzum, color4cell) ;
+                p = patch(c3d{pId}(:, 1) , ...
+                    c3d{pId}(:, 2) , ...
+                    c3d{pId}(:, 3) - minzum, color4cell) ;
+                p.FaceAlpha = faceAlpha ;
+            end
+            imshow(singlePage)
+            view(2)
+            axis equal
+            grid off
+            xlabel('ap position', 'interpreter', 'latex')
+            ylabel('dv position', 'interpreter', 'latex')
+            cb = colorbar ;
+            set(gca,'Ydir','reverse')
+            ylabel(cb, '$Q_{xx}$', 'interpreter', 'latex')
+            imfn = fullfile(imDir_bnd3d, sprintf('T%03d_qxx3d.pdf', tp)) ;
+            title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits], ...
+                'interpreter', 'latex')
+            saveas(gcf, imfn)
+            imfn = fullfile(imDir_bnd3d, sprintf('T%03d_qxx3d.png', tp)) ;
             saveas(gcf, imfn)
 
             disp(['Saving measurement to ', outfn])

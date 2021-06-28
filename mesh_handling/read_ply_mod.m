@@ -17,11 +17,7 @@ function mesh = read_ply_mod(filename)
 try
     [d,c] = plyread(filename);
 catch
-    try
-        error(['Could not read mesh: ' filename])
-    catch
-        error(['Filename is not a valid string: ', filename])
-    end
+    error(['Could not read mesh: ' filename])
 end
 vi = d.face.vertex_indices;
 nf = length(vi);

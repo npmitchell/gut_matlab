@@ -1,9 +1,9 @@
 function [c3d, cellCntrd3d, areas, perim, moment1, ang1, ...
     moment2, ang2, moinertia, cellQ2d, cellMeshFaces, vertexMeshFaces] = ...
-    polygon3dMeasurements(faces, v3D, v2D, polygonsXY, cntrds)
+    polygon3dMeasurements(faces, v3D, v2D, polygonsXY, cntrds, customFaceNormals)
 % [c3d, areas, perim, moment1, ang1, ...
 %     moment2, ang2, moinertia, cellQ2d, vertexMeshFaces] = ...
-%     polygon3dMeasurements(faces, v3D, v2D, cellVtx2D, polygons)
+%     polygon3dMeasurements(faces, v3D, v2D, cellVtx2D, polygonsm, centroids, customFaceNormals)
 % 
 % Parameters
 % ----------
@@ -18,6 +18,8 @@ function [c3d, cellCntrd3d, areas, perim, moment1, ang1, ...
 % cntrds : #polygons x 2 numeric array
 %   positions where cells are considered "centered" in 2D mesh. May be
 %   centroids of polygonsXY
+% customFaceNormals : optional (default=[])
+%   normals for each face of the mesh
 %
 % Returns
 % -------
@@ -27,11 +29,13 @@ function [c3d, cellCntrd3d, areas, perim, moment1, ang1, ...
 % perim = 'perimeter of each polygon in tangent plane';
 % moment1 = 'maximum moment of inertia (extremal #1)' ;
 % ang1 = 'angle of eigenvector of moment of inertia tensor of polygon in 3d in a frame rotated to the 2d pullback coordinate frame' ;
-% moment2 = 'minimum moment of inertia (extremal #2)';
+% moment2 = 'minimum moment of inertia (extremal #2)'; 
+% ang2 = 
 % moinertia = 'embeddingspace moment of inertia of pushed forward polygon in basis aligned with pullback' ;
 % cellQ2d = 'polygon as quasi-2d' ;
-% fieldfaces = 'indices of faces on 3d mesh of evaluation points (centroids)';
-%
+% cellMeshFaces = 'field faces for centroids, ie indices of faces on 3d mesh of evaluation points (centroids)';
+% vertexMeshFaces = 'field faces for polygon vertices'
+% 
 % See also
 % --------
 % polygonNetwork3dMeasurements()
@@ -65,9 +69,15 @@ for pp = 1:nCells
     end
 end
 
-% Get fieldfaces for centroids
+% Get fieldfaces -- here called cellMeshFaces -- for centroids
 [cellCntrd3d, cellMeshFaces] = interpolate2Dpts_3Dmesh(faces, v2D, v3D, cntrds) ;
-fN = faceNormal(triangulation(faces, v3D)) ;
+
+if isempty(customFaceNormals)
+    fN = faceNormal(triangulation(faces, v3D)) ;
+else
+    fN = customFaceNormals ./ vecnorm(customFaceNormals, 2, 2) ;
+    assert(max(vecnorm(fN, 2, 2) - 1) < 1e-14)
+end
 cellNormals = nan(nCells, 3) ;
 cellNormals(~isnan(cellMeshFaces), :) = fN(cellMeshFaces(~isnan(cellMeshFaces)), :) ; 
 % Not needed: already normalized by construction
@@ -88,6 +98,11 @@ ang2 = nan(nCells, 1) ;
 moinertia = nan(nCells, 2, 2) ;
 cellQ2d = {} ;
 
+% Check normals
+% quiver3(cellCntrd3d(:, 1), cellCntrd3d(:, 2), cellCntrd3d(:, 3), ...
+%           cellNormals(:, 1), cellNormals(:, 2), cellNormals(:, 3), 1)
+
+
 for cid = 1:nCells
     if ~isempty( c3d{cid} )
         cellVtx0 = c3d{cid} ;
@@ -103,7 +118,7 @@ for cid = 1:nCells
             % To figure out which direction to take to z, map vec to 3d
 
             % dzeta3d points towards the mapped z axis but in original 3d
-            % embedding space
+            % embedding space (ie I think this is the cell normal)
             dzeta3d = (jac2d3d{cellMeshFaces(cid)} * [0, 1]')' ;
             dzeta3d = dzeta3d / vecnorm(dzeta3d, 2, 2) ;
 
@@ -183,6 +198,13 @@ for cid = 1:nCells
             %     ang1 and ang2 are in radians.
             %     J is centroidal polar moment.  J = I1 + I2 = Iuu + Ivv
 
+            % if cid == 119
+            %     pause(1)
+            %     plot3(cell_quasi2d(:, 1), cell_quasi2d(:, 2), cell_quasi2d(:, 3), '.-')
+            %     xlabel('x'); ylabel('y'); zlabel('z')
+            %     axis equal
+            % end
+            
             % Discard 3d info (non-tangent plane info) and 
             % compute polygon geometry
             if size(cellVtx0, 1) > 2

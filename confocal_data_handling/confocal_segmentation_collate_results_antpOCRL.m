@@ -116,30 +116,32 @@ for shadingStyle = 1:2
     
     % %% Compare to WT Lightsheet
     % % WTfn =  '/mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/cellSegmentation/seg3d_corrected/stats_summary.mat' ;
-    % WTfn =  '/mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/cellSegmentation/seg3d_corrected/stats_summary_L12.mat' ;
-    % tmp = load(WTfn) ;
-    % 
-    % % Qxx
-    % subplot(1, 2, 1)
-    % lineProps = {'.-', 'color', colors(2, :)} ;
-    % h2 = shadedErrorBar(tmp.timeStamps, tmp.meanxsL12, tmp.stdxs, 'lineProps', lineProps) ;
-    % plot(tmp.timeStamps, tmp.meanxsL12 + tmp.stdmeanxs, '--', 'color', colors(2, :)) ;
-    % plot(tmp.timeStamps, tmp.meanxsL12 - tmp.stdmeanxs, '--', 'color', colors(2, :)) ;
-    % xlabel(['time [' timeUnits ']'], 'interpreter', 'latex')
-    % ylabel('$Q_{xx}$', 'interpreter', 'latex')
-    % 
-    % % Qyy
-    % subplot(1, 2, 2)
-    % lineProps = {'.-', 'color', colors(2, :)} ;
-    % h2 = shadedErrorBar(tmp.timeStamps, tmp.meanysL12, tmp.stdys, 'lineProps', lineProps) ;
-    % plot(tmp.timeStamps, tmp.meanysL12 + tmp.stdmeanys, '--', 'color', colors(2, :)) ;
-    % plot(tmp.timeStamps, tmp.meanysL12 - tmp.stdmeanys, '--', 'color', colors(2, :)) ;
-    % xlabel(['time [' timeUnits ']'], 'interpreter', 'latex')
-    % ylabel('$Q_{yy}$', 'interpreter', 'latex')
-    % 
-    % % Save figure
-    % saveas(gcf, fullfile(outdir, 'Q_results_OCRL_WT.png'))
-    % saveas(gcf, fullfile(outdir, 'Q_results_OCRL_WT.pdf'))
+    WTfn =  '/mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/cellSegmentation/seg3d_corrected/stats_summary_L12.mat' ;
+    tmp = load(WTfn) ;
+    
+    % Qxx
+    subplot(1, 2, 1)
+    lineProps = {'.-', 'color', colors(2, :)} ;
+    h2 = shadedErrorBar(tmp.timeStamps, 0.5 * tmp.meanxsL12, ...
+        0.5 * tmp.stdxs, 'lineProps', lineProps) ;
+    plot(tmp.timeStamps, 0.5 * (tmp.meanxsL12 + tmp.stdmeanxs), '--', 'color', colors(2, :)) ;
+    plot(tmp.timeStamps, 0.5 * (tmp.meanxsL12 - tmp.stdmeanxs), '--', 'color', colors(2, :)) ;
+    xlabel(['time [' timeUnits ']'], 'interpreter', 'latex')
+    ylabel('$Q_{xx}$', 'interpreter', 'latex')
+    
+    % Qyy
+    subplot(1, 2, 2)
+    lineProps = {'.-', 'color', colors(2, :)} ;
+    h2 = shadedErrorBar(tmp.timeStamps, 0.5 * tmp.meanysL12, ...
+        0.5 * tmp.stdys, 'lineProps', lineProps) ;
+    plot(tmp.timeStamps, 0.5 * (tmp.meanysL12 + tmp.stdmeanys), '--', 'color', colors(2, :)) ;
+    plot(tmp.timeStamps, 0.5 * (tmp.meanysL12 - tmp.stdmeanys), '--', 'color', colors(2, :)) ;
+    xlabel(['time [' timeUnits ']'], 'interpreter', 'latex')
+    ylabel('$Q_{yy}$', 'interpreter', 'latex')
+    
+    % Save figure
+    saveas(gcf, fullfile(outdir, 'Q_results_OCRL_WT_wLightsheet.png'))
+    saveas(gcf, fullfile(outdir, 'Q_results_OCRL_WT_wLightsheet.pdf'))
 
 end
 
