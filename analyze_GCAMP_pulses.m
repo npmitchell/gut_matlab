@@ -15,10 +15,12 @@ expts = {'20210206_e1', '20210206_e2', ...
     '202106211440_e1', '202106211440_e2', '202106211440_e3', ...
     } ;
 
+% poster frames: 202106211253_e3, 202106211440_e1, 202106211440_e2
+
 clipY0s = {[100, 350], [165, 415], ...
     [105, 105+250], ...
     [62, 62+250], [57, 57+250], [46, 46+250], ...
-    [37, 37+250], [57, 57+250], [49, 49+250]} ;
+    [37, 37+250], [57, 57+250], [66, 66+215]} ;
 clipYAdjs = {[0, 0], [50,-50], [100, -100]}; 
 clipXs = {[1, 410], [1, 410], ...
     [1, 410], ...
@@ -48,8 +50,8 @@ foldTs = [20, 34, ...
     29, ...                         % 06202207
     17,23,28,...                    % 06211253
     43,22,36] ;                     % 06211440
-% onset of anterior folding
-t0 = [1.5, 13.5, ...
+% onset of anterior folding in minutes
+t0 = [0, 4.5, ...
     29*90/60, ...                       % 06202207
     17*90/60,23*90/60,28*90/60,...      % 06211253 
     35*90/60,18*90/60,35*90/60] ;       % 06211440--> 35 or 36, not 33
@@ -69,7 +71,8 @@ medFiltDeltaXW = [0, 0, ...
     5, ...
     5, 5, 5, ...
     5, 5, 5] ;
-overwrite = false ;
+overwrite = true ;
+
 
 % Antp domain is about 40 microns, broadens on dorsal side.
 
@@ -85,7 +88,11 @@ for ee = 1:length(expts)
     for clipyPairIdx = 1:length(clipYAdjs)
         outfn = sprintf([expts{ee} '_results_Yrange%d.mat'], clipyPairIdx) ;
         if ~exist(fullfile(datdir, outfn), 'file') || overwrite
-            disp(['results not on disk: ee = ' num2str(ee)])
+            if ~exist(fullfile(datdir, outfn), 'file')  
+                disp(['results not on disk: ee = ' num2str(ee)])
+            else
+                disp(['overwriting: ee = ' num2str(ee)])
+            end
             % this y range is defined
             clipY = clipY0s{ee} + clipYAdjs{clipyPairIdx} ;
             clipX = clipXs{ee} ;
@@ -227,12 +234,17 @@ for ee = 1:length(expts)
                 % d23 = abs(sum(c2 - c3, 1)) ;
 
                 % Save as image
-                fn12 = fullfile(fns1(ii).folder, [fns1(ii).name(1:end-4) '_d12.png']) ;
-                fn23 = fullfile(fns1(ii).folder, [fns1(ii).name(1:end-4) '_d23.png']) ;
-                fn13 = fullfile(fns1(ii).folder, [fns1(ii).name(1:end-4) '_d13.png']) ;
-                imwrite(hatt12, fn12) ;
-                imwrite(hatt23, fn23) ;
-                imwrite(hatt13, fn13) ;
+                diffDir = sprintf(fullfile(fns1(ii).folder, 'diffs_clipY%02d'), clipyPairIdx) ;
+                if ~exist(diffDir, 'dir')
+                    mkdir(diffDir)
+                end
+                fn12 = fullfile(diffDir, [fns1(ii).name(1:end-4) '_d12.png']) ;
+                fn23 = fullfile(diffDir, [fns1(ii).name(1:end-4) '_d23.png']) ;
+                fn13 = fullfile(diffDir, [fns1(ii).name(1:end-4) '_d13.png']) ;
+                assert(max(hatt12(:)) < 255)
+                imwrite(uint16(hatt12 * 2^8), fn12) ;
+                imwrite(uint16(hatt23 * 2^8), fn23) ;
+                imwrite(uint16(hatt13 * 2^8), fn13) ;
                 
                 % Save transient signal in matrix
                 sh12 = sum(hatt12, 1) ;
@@ -367,7 +379,7 @@ for ee = 1:length(expts)
             ylim(ylimFixAll)
             saveas(gcf, ...
                 fullfile(datdir, sprintf('expt%02d_kymo_clipY%d.png', ...
-                ee, clipyPairIdx, expts{ee})))
+                ee, clipyPairIdx)))
 
             % Average over time
             % Get t=0 idx
@@ -444,17 +456,21 @@ end
 
 
 %% Average all experiments together
+expts2include = [1, 3,4,5,6,7,8];
 for clipyPairIdx = 1:3
     colors = define_colors ;
     fixTimeStamps = -10:1.5:31.5 ;  % minutes
     kymoM = zeros(length(xfixed), length(fixTimeStamps)) ;
+    nsamples = kymoM ;
     
     % For different averaging
     avgMin = [15, 20, 25] ;
     for avgID = 1:3
+        edmy = 1 ;
+        disp(['Performing ' num2str(avgMin(avgID)) ' min average'])
         close all
-        statAll = zeros(length(xfixed), length(expts)) ;
-        for ee = 1:length(expts)
+        statAll = zeros(length(xfixed), length(expts2include)) ;
+        for ee = expts2include
             disp(['loading ee = ' num2str(ee)])
             outfn = sprintf([expts{ee} '_results_Yrange%d.mat'], clipyPairIdx) ;
             resfn = fullfile(datdir, outfn) ;
@@ -473,25 +489,28 @@ for clipyPairIdx = 1:3
             % normIdx = (idx2keep(1) : idx2keep(1)+padd) ;
             % normIdx = [normIdx, idx2keep(end)-padd:idx2keep] ;
             
-            normVal = mean(activity) ;
+            normVal = nanmedian(activity) ;
+            bgVal = mean([activity(1:padd); activity(end-padd:end)]) ;
             maxVal = maxk(activity(1+padd:end-padd), 10) ;
             maxVal = mean(maxVal) ;
-            anorm = (activity - normVal) / (maxVal - normVal); 
+            anorm = (activity - bgVal) / (maxVal - bgVal); 
 
             % AVERAGE KYMO
             if avgID == 1
                 dnorm = (dinterp - normVal) / (maxVal - normVal) ;
-                intrp = griddedInterpolant({timestamps, xfixed'}, dnorm, 'nearest', 'nearest') ;
+                intrp = griddedInterpolant({timestamps, xfixed'}, dnorm, 'nearest', 'none') ;
                 [tt, xx] = ndgrid(fixTimeStamps, xfixed) ;
                 newKymo = intrp(tt, xx) ;
+                nsamples = nsamples + ~isnan(newKymo)' ;
+                newKymo(isnan(newKymo)) = 0 ;
                 kymoM = kymoM + newKymo' ;
             end
             
-            plot(xfixed, anorm, 'color', colors(ee, :)); 
-            statAll(:, ee) = anorm ;
+            plot(xfixed, anorm, 'color', colors(edmy, :)); 
+            statAll(:, edmy) = anorm ;
             hold on;
 
-            if ee == 1
+            if ee == expts2include(1)
                 xall = xfixed ;
             end
             % min(xfixed(keep))
@@ -499,7 +518,8 @@ for clipyPairIdx = 1:3
 
             % Collate all results into table
             % keep4all = ismember(xall, xfixed(keep)) ;
-            allres(:, ee) = anorm ;
+            allres(:, edmy) = anorm ;
+            edmy = edmy + 1;
         end
         xlabel('ap position from anterior fold [$\mu$m]', 'interpreter', 'latex')
         ylabel('normalized transient GCAMP activity [a.u.]', ...
@@ -530,7 +550,7 @@ for clipyPairIdx = 1:3
         if avgID == 1
             clf; 
             chelixMap = cubehelix(128,0.43,-0.68,1.3,0.4,[0,1.0],[0,1.0]) ;
-            kymoM = (kymoM - min(kymoM(:))) / length(expts) ;
+            kymoM = (kymoM - min(kymoM(:))) ./ nsamples  ;
             imagesc(xfixed, fixTimeStamps, kymoM' ); 
             cb = colorbar;
             xlabel('ap position from anterior fold [$\mu$m]', 'interpreter', 'latex')
