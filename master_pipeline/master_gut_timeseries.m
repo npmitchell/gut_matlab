@@ -1541,6 +1541,8 @@ options.overwriteImages = false;
 options.timePoints = [93:15:263] ;
 QS.generateCellSegmentation2D(options) 
 
+% PERFORM Manual corrections in GIMP
+
 options = struct() ;
 options.overwrite = false ;
 options.overwriteImages = true;
