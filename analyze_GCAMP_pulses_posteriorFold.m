@@ -2,7 +2,7 @@
 % NPMitchell 2021
 
 
-preview = true ;
+preview = false ;
 overwrite = false ;
 
 gutMatlabDir = '/mnt/data/code/gut_matlab/' ;
@@ -22,11 +22,11 @@ expts = {'202106221951_e2_1p5x40x_90spf_9sps_12pc_2p5um_hcOilMembrane_1p2usDwell
 
 clipY0s = {[70, 70+282], [70,70+300], ...
     [11,11+251], [27,27+300], ...
-    [73,73+283], [24, 24+310], [55, 55+310]} ;
+    [73,73+283], [24, 24+310], [55, 55+308]} ;
 clipYAdjs = {[0, 0], [50,-50]}; 
 clipXs = {[1, Inf], [1, Inf], ...
     [1, Inf], [1, Inf], ...
-    [1, Inf], [1, 410], [1, Inf]} ;
+    [1, Inf], [1, Inf], [1, Inf]} ;
 % Timestep in MINUTES
 dts = [1.5, 1.5, ...
     1.5, 1.5, ...
@@ -43,15 +43,15 @@ pix2um = [0.24235971346, 0.24235971346, ...     % 202106221951
 % DEFINE FOLD TIME AS time of 10 micron indentation on ventral side at
 % 16*2.5um = 40 um into the tissue -- this is basically the saggital plane
 % fold X position at frame foldT, in pixels
-foldXs = [558, 556, ...       % 202106221951 e2, e3
+foldXs = [556, 558, ...       % 202106221951 e2, e3
     524,600,...               % 202106211440 e1, e2
     600, 559, 542] ;          % 202106231830 e1, e2, e3
 % fold frame # at which position is measured
-foldTs = [28, 38, ...         % 202106221951 e2, e3
+foldTs = [38, 28, ...         % 202106221951 e2, e3
     18,37,...                 % 202106211440
     22,29,44] ;               % 202106231830
 % onset of anterior folding in minutes
-t0 = 1.5 * [28, 38, ...         % 202106221951 e2, e3
+t0 = 1.5 * [38, 28, ...         % 202106221951 e2, e3
     18,37,...                 % 202106211440
     22,29,44] ;               % 202106231830
 
@@ -63,12 +63,10 @@ fixXticks = [-40,-20,0, 20, 40] ;
 
 % Filtering of drift deltaX options
 capDeltaX = [0, 0, ...
-    0, ...
-    0, 0, 0, ...
+    0, 0, ...
     0, 0, 0] ;
 medFiltDeltaXW = [0, 0, ...
-    0, ...
-    0, 0, 0, ...
+    0, 0, ...
     0, 0, 0] ;
 
 
@@ -162,8 +160,8 @@ for ee = 1:length(expts)
                 % d12blur = (d12blur - mean(d12blur) > 0) .* d12blur ;
                 
                 % KEEP SMALLER
-                lOpening = 30 ;  % DV extent of opening
-                wOpening = 30 ;  % AP extent of opening
+                lOpening = 25 ;  % DV extent of opening
+                wOpening = 25 ;  % AP extent of opening
                 se_nlong = round(lOpening / pix2um(ee)) ;
                 se_nwide = round(wOpening / pix2um(ee)) ;
                 % se0 = strel('disk', se_nlong) ;
@@ -402,14 +400,19 @@ for ee = 1:length(expts)
             % Average over time
             % Get t=0 idx
             [~, tidx0] = min(abs(timestamps)) ;
-
+            end5 = find(timestamps - 5 > 0, 1);
+            end10 = find(timestamps - 10 > 0, 1);
+            end15 = find(timestamps - 15 > 0, 1);
+            end20 = find(timestamps - 20 > 0, 1);
+            end25 = find(timestamps - 25 > 0, 1);
+            end30 = find(timestamps - 30 > 0, 1);
             activity00 = mean(dinterp(1:tidx0, :))' ;
-            activity05 = mean(dinterp(tidx0:tidx0+5, :))' ;
-            activity10 = mean(dinterp(tidx0:tidx0+10, :))' ;
-            activity15 = mean(dinterp(tidx0:tidx0+15, :))' ;
-            activity20 = mean(dinterp(tidx0:tidx0+20, :))' ;
-            activity25 = mean(dinterp(tidx0:tidx0+25, :))' ;
-            activity30 = mean(dinterp(tidx0:tidx0+30, :))' ;
+            activity05 = mean(dinterp(tidx0:end5, :))' ;
+            activity10 = mean(dinterp(tidx0:end10, :))' ;
+            activity15 = mean(dinterp(tidx0:end15, :))' ;
+            activity20 = mean(dinterp(tidx0:end20, :))' ;
+            activity25 = mean(dinterp(tidx0:end25, :))' ;
+            activity30 = mean(dinterp(tidx0:end30, :))' ;
             legends = {'$\langle t<$0 minutes$\rangle$', ...
                 '$\langle 0<t<$5 minutes$\rangle$', ...
                 '$\langle 0<t<$10 minutes$\rangle$', ...
@@ -466,7 +469,83 @@ for ee = 1:length(expts)
                 'activity00', 'activity05', 'activity10', ...
                 'activity15', 'activity20', 'activity25', 'activity30')
         else
-            disp('already on disk')
+            load(fullfile(datdir, outfn), 'xx', 'xshifted', 'dd', 'deltaX', ...
+                'xfixed', 'dinterp', 'sinterp', 'timeGrid', 'apGrid')
+            timestamps = unique(timeGrid)' ;
+            
+            % Average over time
+            % Get t=0 idx
+            [~, tidx0] = min(abs(timestamps)) ;
+            end5 = find(timestamps - 5 > 0, 1);
+            end10 = find(timestamps - 10 > 0, 1);
+            end15 = find(timestamps - 15 > 0, 1);
+            end20 = find(timestamps - 20 > 0, 1);
+            end25 = find(timestamps - 25 > 0, 1);
+            end30 = find(timestamps - 30 > 0, 1);
+            activity00 = mean(dinterp(1:tidx0, :))' ;
+            activity05 = mean(dinterp(tidx0:end5, :))' ;
+            activity10 = mean(dinterp(tidx0:end10, :))' ;
+            activity15 = mean(dinterp(tidx0:end15, :))' ;
+            activity20 = mean(dinterp(tidx0:end20, :))' ;
+            activity25 = mean(dinterp(tidx0:end25, :))' ;
+            activity30 = mean(dinterp(tidx0:end30, :))' ;
+            legends = {'$\langle t<$0 minutes$\rangle$', ...
+                '$\langle 0<t<$5 minutes$\rangle$', ...
+                '$\langle 0<t<$10 minutes$\rangle$', ...
+                '$\langle 0<t<$15 minutes$\rangle$', ...
+                '$\langle 0<t<$20 minutes$\rangle$', ...
+                '$\langle 0<t<$25 minutes$\rangle$', ...
+                '$\langle 0<t<$30 minutes$\rangle$'} ;
+            colors = flipud(viridis(7)) ;
+
+            clf
+            plot(xfixed, activity00, 'color', colors(1, :)); hold on;
+            plot(xfixed, activity05, 'color', colors(2, :))
+            plot(xfixed, activity10, 'color', colors(3, :))
+            plot(xfixed, activity15, 'color', colors(4, :))
+            plot(xfixed, activity20, 'color', colors(5, :))
+            plot(xfixed, activity25, 'color', colors(6, :))
+            plot(xfixed, activity30, 'color', colors(7, :))
+            legend(legends, 'interpreter', 'latex')
+            xlabel('stabilized ap position [$\mu$m]', 'interpreter', 'latex')
+            ylabel('GCAMP transient activity [a.u.]', 'interpreter', 'latex')    
+            title('Transient GCAMP activity', ...
+                'interpreter', 'latex')
+            xlim(xlimFix)
+            outfigfn = sprintf(fullfile(datdir, expts{ee}, '07_difference_meanBgSub_Yrange%d.png'), clipyPairIdx) ;
+            saveas(gcf, outfigfn) 
+
+            % Filter in space
+            close all
+            w1um = round(1 / pix2um(ee)) ;
+            plot(xfixed, movmedian(activity00, w1um), 'color', colors(1, :)); 
+            hold on;
+            plot(xfixed, movmedian(activity05, w1um), 'color', colors(2, :)); 
+            plot(xfixed, movmedian(activity10, w1um), 'color', colors(3, :)); 
+            plot(xfixed, movmedian(activity15, w1um), 'color', colors(4, :)); 
+            plot(xfixed, movmedian(activity20, w1um), 'color', colors(5, :)); 
+            plot(xfixed, movmedian(activity25, w1um), 'color', colors(6, :)); 
+            plot(xfixed, movmedian(activity30, w1um), 'color', colors(7, :)); 
+            legend(legends, 'interpreter', 'latex')
+            xlabel('stabilized ap position [$\mu$m]', 'interpreter', 'latex')
+            ylabel('GCAMP transient activity [a.u.]', 'interpreter', 'latex')    
+            title('Transient GCAMP activity, filtered in space 1 $\mu$m', ...
+                'interpreter', 'latex')
+            xlim(xlimFix)
+            outfigfn = sprintf(fullfile(datdir, expts{ee}, '08_difference_meanBgSubSm_Yrange%d.png'), clipyPairIdx) ;
+            saveas(gcf, outfigfn) 
+            saveas(gcf, fullfile(datdir, ...
+                sprintf('expt%02d_means_clipY%d_%s.png', ...
+                ee, clipyPairIdx, expts{ee})))
+
+            clf;
+            plot(activity30)
+            
+            % Save result
+            save(fullfile(datdir, outfn), 'xx', 'xshifted', 'dd', 'deltaX', ...
+                'xfixed', 'dinterp', 'sinterp', 'timeGrid', 'apGrid', ...
+                'activity00', 'activity05', 'activity10', ...
+                'activity15', 'activity20', 'activity25', 'activity30')
         end
     end
     
@@ -474,8 +553,8 @@ end
 
 
 %% Average all experiments together
-expts2include = [1, 3,4,5,6,7,8];
-for clipyPairIdx = 1:3
+expts2include = 1:7;
+for clipyPairIdx = 1:2
     colors = define_colors ;
     fixTimeStamps = -10:1.5:31.5 ;  % minutes
     kymoM = zeros(length(xfixed), length(fixTimeStamps)) ;
@@ -483,7 +562,7 @@ for clipyPairIdx = 1:3
     
     % For different averaging
     avgMin = [15, 20, 25] ;
-    for avgID = 1:3
+    for avgID = 1:length(avgMin)
         edmy = 1 ;
         disp(['Performing ' num2str(avgMin(avgID)) ' min average'])
         close all
@@ -495,7 +574,7 @@ for clipyPairIdx = 1:3
             load(resfn, 'xfixed', 'activity15', ...
                 'activity20', 'activity25', 'timeGrid', 'dinterp')
             timestamps = unique(timeGrid) ;
-            acts = {activity15, activity20, activity25} ;
+            acts = {activity15, activity20, activity25, activity30} ;
 
             w1um = round(1 / pix2um(ee)) ;
             activity = movmedian(acts{avgID}, w1um) ;
@@ -508,7 +587,7 @@ for clipyPairIdx = 1:3
             % normIdx = [normIdx, idx2keep(end)-padd:idx2keep] ;
             
             normVal = nanmedian(activity) ;
-            bgVal = mean([activity(1:padd); activity(end-padd:end)]) ;
+            bgVal = mean(mink([activity(1:padd); activity(end-padd:end)], 10)) ;
             maxVal = maxk(activity(1+padd:end-padd), 10) ;
             maxVal = mean(maxVal) ;
             anorm = (activity - bgVal) / (maxVal - bgVal); 
@@ -524,6 +603,10 @@ for clipyPairIdx = 1:3
                 kymoM = kymoM + newKymo' ;
             end
             
+            if avgID == 4
+                pause(0.001)
+            end
+            hold on; 
             plot(xfixed, anorm, 'color', colors(edmy, :)); 
             statAll(:, edmy) = anorm ;
             hold on;
@@ -553,7 +636,10 @@ for clipyPairIdx = 1:3
         avgact = mean(statAll, 2) ;
         stdact = nanstd(statAll, [], 2) ;
         lineProps = {'-','color', colors(1, :)} ;
-        h1=shadedErrorBar(xfixed, avgact, stdact, 'lineProps', lineProps) ;
+        factor = 1.0 / max(avgact(:)) ;
+        avgact = movmean(avgact, 5) ;
+        stdact = movmedian(stdact, 5) ;
+        h1=shadedErrorBar(xfixed, avgact*factor, stdact*factor, 'lineProps', lineProps) ;
         xticks(fixXticks)
         xlabel('ap position from anterior fold [$\mu$m]', 'interpreter', 'latex')
         ylabel('normalized transient GCAMP activity [a.u.]', ...
