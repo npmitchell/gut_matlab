@@ -3,7 +3,7 @@
 
 
 preview = false ;
-overwrite = true ;
+overwrite = false ;
 resDirFn = 'middleFoldResults' ;
 pausetime = 3 ;
 
@@ -45,8 +45,9 @@ t0 = 1.5 * [17, 15, ...       % 202107041445 e2, e3
 % Fixed xlimits in microns
 xlimFix = [-50, 50] ;
 ylimFix = [] ;
-ylimFixAll = [-30, 30] ;
+ylimFixAll = [-20, 30] ;
 fixXticks = [-40,-20,0, 20, 40] ;
+cLimits = [0, 8] ;
 
 % Filtering of drift deltaX options
 capDeltaX = [0, 0, ...
@@ -644,19 +645,44 @@ for clipyPairIdx = 1:2
         saveas(gcf, [resfn sprintf('_clipY%d_avg%d.pdf', clipyPairIdx, avgMin(avgID))])
 
         % Take stats
-        clf
+        close all
+        fig = figure('units','centimeters','position',[0,0,6,10]);
+        
+        % kymo panel
+        subplot(2, 1, 1)
+        kymoM(~isfinite(kymoM)) = NaN;
+        kymoMean = (kymoM - min(kymoM(:))) ./ nsamples  ;
+        imagesc(xfixed, fixTimeStamps, kymoMean' ); 
+        caxis(cLimits)
+        % xlabel('ap position from anterior fold [$\mu$m]', 'interpreter', 'latex')
+        ylabel('time from fold onset [min]', 'interpreter', 'latex')
+        
+        hold on;
+        redcolor = colors(2, :) ;
+        plot(xlimFix, 0*xlimFix + 5, '--', 'color', redcolor)
+        plot(xlimFix, 0*xlimFix - 5, '--', 'color', redcolor)
+        plot(xlimFix, 0*xlimFix, '-', 'color', redcolor)
+        xticks(fixXticks)
+        set(gca, 'xticklabels', [])
+        ylim(ylimFixAll)
+        colormap(viridis)
+            
+        % curve panel
+        subplot(2, 1, 2)
         avgact = nanmean(statAll, 2) ;
         stdact = nanstd(statAll, 2) ;
         lineProps = {'-','color', colors(1, :)} ;
         factor = 1.0 / max(avgact(:)) ;
-        avgact = movmean(avgact, 5) ;
-        stdact = movmedian(stdact, 5) ;
+        avgact = movmean(avgact, 3) ;
+        stdact = movmedian(stdact, 15) ;
         h1=shadedErrorBar(xfixed, avgact*factor, stdact*factor, 'lineProps', lineProps) ;
+        % ylim([min(avgact*factor - stdact*factor), max(avgact*factor + stdact*factor)])
+        ylim([-0.25, 1.25])
         xticks(fixXticks)
         xlabel('ap position from anterior fold [$\mu$m]', 'interpreter', 'latex')
-        ylabel('normalized transient GCAMP activity [a.u.]', ...
+        ylabel('GCaMP activity [a.u.]', ...
             'interpreter', 'latex')
-        title(sprintf('transient calcium activity, %d min average', avgMin(avgID)), ...
+        title(sprintf('%d min average', avgMin(avgID)), ...
             'interpreter', 'latex')
         resfn = fullfile(datdir, resDirFn, 'gcamp_mean_results') ;
         saveas(gcf, [resfn sprintf('_clipY%d_avg%d.png', clipyPairIdx, avgMin(avgID))])
@@ -664,11 +690,12 @@ for clipyPairIdx = 1:2
         
         % Plot mean kymo for first pass
         if avgID == 1
-            clf; 
+            close all; 
             chelixMap = cubehelix(128,0.43,-0.68,1.3,0.4,[0,1.0],[0,1.0]) ;
-            kymoM = (kymoM - min(kymoM(:))) ./ nsamples  ;
-            imagesc(xfixed, fixTimeStamps, kymoM' ); 
+            kymoMean = (kymoM - min(kymoM(:))) ./ nsamples  ;
+            imagesc(xfixed, fixTimeStamps, kymoMean' ); 
             cb = colorbar;
+            caxis(cLimits)
             xlabel('ap position from anterior fold [$\mu$m]', 'interpreter', 'latex')
             ylabel('time from fold onset [min]', 'interpreter', 'latex')
             ylabel(cb,'transient GCAMP activity [a.u.]')
