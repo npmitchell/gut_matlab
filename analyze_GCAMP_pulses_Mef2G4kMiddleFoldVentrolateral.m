@@ -2,9 +2,9 @@
 % NPMitchell 2021
 
 
-preview = true ;
-overwrite = false ;
-resDirFn = 'anteriorFoldResults' ;
+preview = false ;
+overwrite = true ;
+resDirFn = 'middleFoldResults' ;
 pausetime = 3 ;
 
 % gutMatlabDir = '/mnt/data/code/gut_matlab/' ;
@@ -14,38 +14,33 @@ addpath(fullfile(gutMatlabDir, 'addpath_recurse')) ;
 addpath_recurse(gutMatlabDir) 
 % datdir = '/mnt/data/confocal_data/gut/Mef2GAL4klarUASGCAMP6sIII/analysis_mef2G4kGCaMP6sIII/' ;
 datdir = '/Users/npmitchell/Desktop/gut/GCaMP6sIII_analysis/Mef2GAL4klarGCaMP6sIII_analysis' ;
-expts = {'202106261342_e1_anteriorDorsal',...
-    '202106261342_e2_anteriorDorsal',...
-    '202106261342_e3_anteriorDorsal',...
-    '202106271653_e1_anteriorDorsal',...   % '202106271653_e2_anteriorDorsal',...
-    '202106271653_e3_anteriorDorsal_rotneg2',...
+expts = {'202107041445_e2_anterior_middle',...
+    '202107041445_e3_anterior_middle_rotneg5deg',...
     } ;
 
 % poster frames: 202106211253_e3, 202106211440_e1, 202106211440_e2
 
-clipY0s = {[80,80+210], [50,50+250], [55,55+264], ...   % 202106261342
-    [7,7+272], [27, 17+250]} ;                          % 202106271653
+clipY0s = {[105,105+205], [169,169+167]} ;         % 202107041445 e2, e3
 clipYAdjs = {[0, 0], [50,-50]}; 
 clipXs = {[1, Inf], [1, Inf], [1, Inf], ...
     [1, Inf], [1, Inf]} ;
 % Timestep in MINUTES
-dts = [1.5, 1.5, 1.5, ...
-    1.5, 1.5] ;
+dts = [1.5, 1.5 ] ;
 % Conversion in micron / XY pixels
-pix2um = [0.24314781, 0.24314781, 0.24314781, ...     % 202106261342
-    0.241965707, 0.241965707,] ;    % 202106271653
+pix2um = [0.31737909887, 0.31737909887, ...     % 202107041445
+    ] ;    % 
  
 % DEFINE FOLD TIME AS time of 10 micron indentation on ventral side at
 % 16*2.5um = 40 um into the tissue -- this is basically the saggital plane
 % fold X position at frame foldT, in pixels
-foldXs = [304,225,328, ...       % 202106261342 e1, e2, e3
-    365, 356] ;          % 202106271653 e1, XXX, e3
+foldXs = [429,415, ...       % 202107041445 e2, e3
+    ] ;          % 
 % fold frame # at which position is measured
-foldTs = [64,27,32, ...         % 202106261342 e1, e2, e3
-    39, 41] ;               % 202106271653 e1, XXX, e3
+foldTs = [17,15, ...         % 202107041445 e2, e3
+    ] ;               % 
 % onset of anterior folding in minutes
-t0 = 1.5 * [41,27,32, ...         % 202106261342 e1, e2, e3
-    39, 41] ;               % 202106271653 e1, XXX, e3
+t0 = 1.5 * [17, 15, ...       % 202107041445 e2, e3
+    ] ;               
 
 % Fixed xlimits in microns
 xlimFix = [-50, 50] ;
@@ -54,10 +49,10 @@ ylimFixAll = [-30, 30] ;
 fixXticks = [-40,-20,0, 20, 40] ;
 
 % Filtering of drift deltaX options
-capDeltaX = [0, 0, 0, ...
-    0, 0] ;
-medFiltDeltaXW = [0, 0, 0, ...
-    0, 0] ;
+capDeltaX = [0, 0, ...
+    ] ;
+medFiltDeltaXW = [4, 4, ...
+    ] ;
 
 % Antp domain is about 40 microns, broadens on dorsal side.
 
