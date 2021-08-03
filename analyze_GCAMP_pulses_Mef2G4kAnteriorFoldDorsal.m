@@ -2,24 +2,29 @@
 % NPMitchell 2021
 
 
-preview = true ;
-overwrite = false ;
+preview = false ;
+overwrite = true ;
 resDirFn = 'anteriorFoldResults' ;
 pausetime = 3 ;
 
-% gutMatlabDir = '/mnt/data/code/gut_matlab/' ;
-gutMatlabDir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/gut_matlab/' ;
+gutMatlabDir = '/mnt/data/code/gut_matlab/' ;
+% gutMatlabDir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/gut_matlab/' ;
 
 addpath(fullfile(gutMatlabDir, 'addpath_recurse')) ;
 addpath_recurse(gutMatlabDir) 
-% datdir = '/mnt/data/confocal_data/gut/Mef2GAL4klarUASGCAMP6sIII/analysis_mef2G4kGCaMP6sIII/' ;
-datdir = '/Users/npmitchell/Desktop/gut/GCaMP6sIII_analysis/Mef2GAL4klarGCaMP6sIII_analysis' ;
+
+datdir = '/mnt/data/confocal_data/gut/Mef2GAL4klarUASGCAMP6sIII/analysis_mef2G4kGCaMP6sIII/' ;
+% datdir = '/Users/npmitchell/Desktop/gut/GCaMP6sIII_analysis/Mef2GAL4klarGCaMP6sIII_analysis' ;
 expts = {'202106261342_e1_anteriorDorsal',...
     '202106261342_e2_anteriorDorsal',...
     '202106261342_e3_anteriorDorsal',...
     '202106271653_e1_anteriorDorsal',...   % '202106271653_e2_anteriorDorsal',...
     '202106271653_e3_anteriorDorsal_rotneg2',...
     } ;
+
+dates = [26, 26, 26, 27, 27] ;
+pcPower = [10, 10, 10, 10, 10] ;
+dz = [1.5, 1.5, 1.5, 2, 2] ;
 
 % poster frames: 202106211253_e3, 202106211440_e1, 202106211440_e2
 
@@ -61,10 +66,14 @@ capDeltaX = [0, 0, 0, ...
 medFiltDeltaXW = [0, 0, 0, ...
     0, 0] ;
 
-% Antp domain is about 40 microns, broadens on dorsal side.
-
-% If drift in X, define it here as [frame#, offsetX] 
 xfixed = linspace(-50, 50, 100/0.263) ;
+save(fullfile(datdir, resDirFn, 'Mef2G4kAnteriorFoldDorsalSettings.mat'), ...
+    'clipY0s', 'dts', 'pix2um', 'foldXs', 'foldTs', 't0', ...
+    'pcPower', 'dz', 'dates', 'expts', 'xfixed') ;
+
+
+% Antp domain is about 40 microns, broadens on dorsal side.
+% If drift in X, define it here as [frame#, offsetX] 
 for ee = 1:length(expts)
     fns1 = dir(fullfile(datdir, expts{ee}, 'images', '*c001.png')) ;
     fns2 = dir(fullfile(datdir, expts{ee}, 'images', '*c002.png')) ;
@@ -122,10 +131,18 @@ for ee = 1:length(expts)
                 % top-hat TRANSFORM 
                 % First do top-hat FILTERING, then subtract
                 % -- make an elliptical strel
-                d12 = abs(c1 - c2) ; 
-                d13 = abs(c1 - c3) ;
-                d23 = abs(c2 - c3) ;
+                % d12 = abs(c1 - c2) ; 
+                % d13 = abs(c1 - c3) ;
+                % d23 = abs(c2 - c3) ;
                 
+
+                c1fg = imgaussfilt(c1, 1 / pix2um(ee)) ;
+                c2fg = imgaussfilt(c2, 1 / pix2um(ee)) ;
+                c3fg = imgaussfilt(c3, 1 / pix2um(ee)) ;
+                d12 = abs(c1fg - c2fg) ; 
+                d13 = abs(c1fg - c3fg) ;
+                d23 = abs(c2fg - c3fg) ;
+
                 % KEEP BIGGER
                 % lOpening = 2 ;  % DV extent of opening
                 % wOpening = 2 ;  % AP extent of opening
@@ -229,6 +246,22 @@ for ee = 1:length(expts)
                     deltaXfn = sprintf([expts{ee} '_results_Yrange%d.mat'], 2) ;
                     load(fullfile(datdir, resDirFn, deltaXfn), 'deltaX')
                 end
+                
+                % Save as image
+                assert(max(hatt12(:)) < 255)
+                diffDir = sprintf(fullfile(fns1(ii).folder, 'diffs_clipY%02d'), clipyPairIdx) ;
+                if ~exist(diffDir, 'dir')
+                     mkdir(diffDir)
+                 end
+                 fn12 = fullfile(diffDir, [fns1(ii).name(1:end-4) '_d12' refStr '.png']) ;
+                 fn23 = fullfile(diffDir, [fns1(ii).name(1:end-4) '_d23' refStr '.png']) ;
+                 fn13 = fullfile(diffDir, [fns1(ii).name(1:end-4) '_d13' refStr '.png']) ;
+                 if ~exist(fn12, 'file') 
+                     disp('writing hatt12/23/13')
+                     imwrite(uint16(hatt12 * 2^8), fn12) ;
+                     imwrite(uint16(hatt23 * 2^8), fn23) ;
+                     imwrite(uint16(hatt13 * 2^8), fn13) ;
+                 end
 
                 % s1 = sum(c1, 1) ;
                 % s2 = sum(c2, 1) ;
@@ -239,19 +272,6 @@ for ee = 1:length(expts)
                 % d12 = abs(sum(c1 - c2, 1)) ; 
                 % d13 = abs(sum(c1 - c3, 1)) ;
                 % d23 = abs(sum(c2 - c3, 1)) ;
-
-                % Save as image
-                diffDir = sprintf(fullfile(fns1(ii).folder, 'diffs_clipY%02d'), clipyPairIdx) ;
-                if ~exist(diffDir, 'dir')
-                    mkdir(diffDir)
-                end
-                fn12 = fullfile(diffDir, [fns1(ii).name(1:end-4) '_d12.png']) ;
-                fn23 = fullfile(diffDir, [fns1(ii).name(1:end-4) '_d23.png']) ;
-                fn13 = fullfile(diffDir, [fns1(ii).name(1:end-4) '_d13.png']) ;
-                assert(max(hatt12(:)) < 255)
-                % imwrite(uint16(hatt12 * 2^8), fn12) ;
-                % imwrite(uint16(hatt23 * 2^8), fn23) ;
-                % imwrite(uint16(hatt13 * 2^8), fn13) ;
                 
                 % Save transient signal in matrix
                 sh12 = sum(hatt12, 1) ;
@@ -277,8 +297,8 @@ for ee = 1:length(expts)
             % Register the position so that (1) stabilized and (2) 0um is anterior fold
             for ii = 1:ntps
                 % recall dd and ss for this tp
-                ddii = dd(ii, :) ;
-                sii = ss(ii, :) ;
+                % ddii = dd(ii, :) ;
+                % sii = ss(ii, :) ;
 
                 % Save shifted ap positions in matrix
                 xshiftii = xx+sum(deltaX(1:ii)) ;

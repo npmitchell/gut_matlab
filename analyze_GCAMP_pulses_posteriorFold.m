@@ -4,6 +4,7 @@
 
 preview = false ;
 overwrite = false ;
+resDirFn = 'posteriorFoldResults' ;
 
 gutMatlabDir = '/mnt/data/code/gut_matlab/' ;
 % datdir = '/Users/npmitchell/Desktop/gut/48YGAL4klarGCAMPGFP/analysis' ;
@@ -557,7 +558,7 @@ end
 expts2include = 1:7;
 for clipyPairIdx = 1:2
     colors = define_colors ;
-    fixTimeStamps = -10:1.5:31.5 ;  % minutes
+    fixTimeStamps = -21:1.5:31.5 ;  % minutes
     kymoM = zeros(length(xfixed), length(fixTimeStamps)) ;
     nsamples = kymoM ;
     
@@ -659,7 +660,7 @@ for clipyPairIdx = 1:2
         % curve panel
         subplot(2, 1, 2)
         avgact = nanmean(statAll, 2) ;
-        stdact = nanstd(statAll, 2) ;
+        stdact = nanstd(statAll, 0, 2) ;
         lineProps = {'-','color', colors(1, :)} ;
         factor = 1.0 / max(avgact(:)) ;
         avgact = movmean(avgact, 3) ;

@@ -1778,6 +1778,10 @@ options.nmodes = 7 ;  %% bandwidth filtering
 options.zwidth = 2 ; 
 QS.measureMetricKinematics(options)
 
+%% Contraction rate to compare with GCaMP
+options = struct() ;
+QS.plotMetricKinematicsEulerianFrame(options)
+
 %% Metric Kinematics Kymographs & Correlations -- Bandwidth Filtered
 options = struct() ;
 options.overwrite = false ;

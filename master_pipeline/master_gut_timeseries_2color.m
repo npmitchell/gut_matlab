@@ -106,7 +106,8 @@ clear; close all; clc;
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
 % cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_180s/data/
-cd /mnt/data/antpGAL4UASCAAXmChHGFP/202103281352_1p4um_0p15ms0p25ms_1mW1mW_GFPRFP/Time3views_180s/data/
+% cd /mnt/data/antpGAL4UASCAAXmChHGFP/202103281352_1p4um_0p15ms0p25ms_1mW1mW_GFPRFP/Time3views_180s/data/
+cd /mnt/data/UbxGAL4UASCAAXmChHGFP/202105132247_UbxG4kCAAXHGFP_1p2um_0p1ms0p2ms_1mW1mW_3v300s/data
 
 % .=========.
 % |  VIP10  |
@@ -148,11 +149,11 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 2 ;
     channelsUsed = [1 2];
-    timePoints = 0:40 ;
+    timePoints = 0:75 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
-    timeInterval = 2 ;  % physical interval between timepoints
+    timeInterval = 5 ;  % physical interval between timepoints
     timeUnits = 'min' ; % physical unit of time between timepoints
     spaceUnits = '$\mu$m' ; % physical unit of time between timepoints
     scale = [0.3, 0.03] ; % [0.03 0.2] ;      % scale for conversion to 16 bit
@@ -163,6 +164,8 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     fnCombined = 'Time_%06d_stab' ;
     fn_prestab = 'Time_%06d_c%d.tif';
     set_preilastikaxisorder = 'xyzc' ;
+    tidx0_for_stab = 2 ;
+    t0_for_phi0 = 0 ;
     swapZT = 0 ;
     masterSettings = struct('stackResolution', stackResolution, ...
         'nChannels', nChannels, ...
@@ -180,8 +183,8 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'fn_prestab', fn_prestab, ...
         'swapZT', swapZT, ...
         'set_preilastikaxisorder', set_preilastikaxisorder, ...
-        't0_for_phi0', 0, ... % 40 for mef2 single channel, 110 for CAAX excellent
-        'tidx0_for_stab', 1, ... % t0 for stabilization of 16bit data
+        't0_for_phi0', t0_for_phi0, ... % 40 for mef2 single channel, 110 for CAAX excellent
+        'tidx0_for_stab', tidx0_for_stab, ... % t0 for stabilization of 16bit data
         'nU', 150, ...  % 150 for mef2 data with posterior midgut loop
         'nV', 100); 
     disp('Saving masterSettings to ./masterSettings.mat')
@@ -249,13 +252,13 @@ dir16bit_prestab = fullfile(dir16bit, 'data_pre_stabilization') ;
 convert32to16bit(timePoints, scale, dir32bit, dir16bit_prestab,...
     file32Base, fn_prestab, channelsUsed)
 
-%% Rename stab to prestab
+% Rename stab to prestab
 % fns = fullfile('./deconvolved_16bit/Time*stab')
 % for qq=1:length(fns)
 %     command = ['mv ' fullfile(fns.folder, fns.name) fullfile(dir16bit, fns.name
 % end
 
-%% -III. make MIPs for 16bit images
+% -III. make MIPs for 16bit images
 % Skip if already done
 mipDir = fullfile(dir16bit_prestab, 'mips') ;
 Options.overwrite_mips = false ;
@@ -279,7 +282,7 @@ fileNameIn = fullfile(dir16bit_prestab, fn_prestab) ;
 fileNameOut = fullfile(dir16bit_prestab, 'Time_%06d.tif') ;
 collateColors(fileNameIn, fileNameOut, timePoints, channelsUsed) ; 
 
-%  -II. stabilize images, based on script stabilizeImagesCorrect.m
+%%  -II. stabilize images, based on script stabilizeImagesCorrect.m
 % Skip if already done
 % name of directory to check the stabilization of mips
 mips_stab_check = fullfile(mipDir, 'stab_check') ;
@@ -296,7 +299,7 @@ typename = 'uint16' ;
 stabOptions.overwrite_mips = false ;
 stabOptions.overwrite_tiffs = false ;
 stabOptions.stabChannel = 1 ;
-stabOptions.forceNoDx = true ;
+stabOptions.forceNoDx = false ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     timePoints, timePoints, timePoints(tidx0_for_stab), ...
     mipDir, mipoutdir, mips_stab_check, stabOptions)
@@ -313,7 +316,7 @@ fileNameIn = fullfile(dir16bit, [fn '.tif']) ;
 fileNameOut = fullfile(dir16bit, [fnCombined '.tif']) ;
 collateColors(fileNameIn, fileNameOut, timePoints, channelsUsed) ; 
 
-%%   -I. master_gut_timeseries_prestab_for_training.m
+%   -I. master_gut_timeseries_prestab_for_training.m
 % Skip if already done
 cd(dir16bit)
 dataDir = cd ;
@@ -1209,7 +1212,11 @@ end
 
 % For antpGal4 ch2 (CAAX)
 QS.data.adjustlow = 0 ;
-QS.data.adjusthigh = 10000 ;
+% QS.data.adjusthigh = 10000 ;
+
+% For antpGal4 OCRL
+% QS.data.adjusthigh = 10000 ;
+QS.data.adjusthigh = 99.9 ; 
 
 %% Plot on surface for all TP 
 options = metadat ;
@@ -1220,6 +1227,7 @@ options.plot_right = true ;
 options.plot_left = true ;
 options.plot_perspective = true ;
 % options.channel = [2] ; % if empty, plot all channels
+% Options.numLayers = [35, 1];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
 % For ch1
 options.channel = [1] ; % if empty, plot all channels
 Options.numLayers = [10, 0];  % at layerSpacing=2, numLayers=2 marches ~0.5 um 
@@ -1257,7 +1265,7 @@ clearvars Options
 % Note: these just need to be 'reasonable' centerlines for topological
 % checks on the orbifold cuts.
 exponent = 1.0 ;
-res = 6.0 ; 
+res = 4.0 ; 
 cntrlineOpts.overwrite = overwrite_centerlines ;     % overwrite previous results
 cntrlineOpts.overwrite_ims = overwrite_centerlineIms ;     % overwrite previous results
 cntrlineOpts.weight = 0.6 ;              % for speedup of centerline extraction. Larger is less precise
@@ -1298,8 +1306,8 @@ if overwrite_endcapOpts || ~exist(QS.fileName.endcapOptions, 'file')
     
     % TRY OUT CONICAL THRESHOLD
     % 55 will work if 52 is too small.
-    endcapOpts = struct( 'adist_thres',2.9, ...  % 20, distance threshold for cutting off anterior in pix
-        'adist_thres2', 65, ...
+    endcapOpts = struct( 'adist_thres', 20, ...  % 20, distance threshold for cutting off anterior in pix
+        'adist_thres2', 22, ...
         'pdist_thres', 16, ...  % 15-20, distance threshold for cutting off posterior in pix
         'aOffset', [16, -1, -1], ...
         'aOffset2', [-5, -1, -1], ...
@@ -1341,9 +1349,11 @@ overwrite_spcutMesh = false ;
 % Plotting params
 washout2d = 0.5 ;
 
-%% Iterate Through Time Points to Create Pullbacks ========================
+%% Iterate Through Time Points to Create CutMeshes ========================
 % Skip if already done
 % outcutfn = fullfile(cutFolder, 'cutPaths_%06d.txt') ;
+
+% First make cutMeshes
 for tt = xp.fileMeta.timePoints(1:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
@@ -1368,11 +1378,11 @@ for tt = xp.fileMeta.timePoints(1:end)
         disp('Saving cutP image')
         % Plot the cutPath (cutP) in 3D
         QS.plotCutPath(QS.currentMesh.cutMesh, QS.currentMesh.cutPath)
-        compute_pullback = true ;
+        % compute_pullback = true ;
     else
         fprintf('Loading Cut Mesh from disk... ');
         QS.loadCurrentCutMesh()
-        compute_pullback = ~isempty(QS.currentMesh.cutPath) ;
+        % compute_pullback = ~isempty(QS.currentMesh.cutPath) ;
         
         cutfn = sprintf( fullfile(fullfile(QS.dir.cutMesh, 'images'), ...
             [QS.fileBase.name, '_cut.png']), tt ) ;
@@ -1382,12 +1392,16 @@ for tt = xp.fileMeta.timePoints(1:end)
     end
 end
 
-%%
+%% Iterate Through Time Points to Create Pullbacks ========================
+% Now make Pullbacks
 for tt = xp.fileMeta.timePoints(1:end)
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = xp.tIdx(tt);
     
     % Load the data for the current time point ------------------------
+    % HACK: adjustment for antpGal4 CAAX
+    QS.data.adjustlow = [80, 215] ;
+    QS.data.adjusthigh = [22000, 10000] ;
     QS.setTime(tt) ;
     
     %----------------------------------------------------------------------
@@ -1430,13 +1444,17 @@ for tt = xp.fileMeta.timePoints(1:end)
     
     % Compute the pullback if the cutMesh is ok
     if compute_pullback 
-        pbOptions.overwrite = false ;
+        pbOptions.overwrite = true ;
         pbOptions.generate_uv = true ;
         pbOptions.generate_uphi = false ;
         pbOptions.generate_relaxed = true ;
-        pbOptions.numLayers = [1,10] ;
-        pbOptions.layerSpacing = 1 ;
-        pbOptions.falseColors = {[0,1,1],[1,0,0]} ;
+        pbOptions.numLayers = {[1,1], [0,45]} ;
+        pbOptions.layerSpacing = 0.8 ;
+        pbOptions.falseColors = {[1,0,0], [0,1,1]} ;
+        
+        % For AntpGAL4 CAAX
+        pbOptions.smoothIter = 1000 ;
+        pbOptions.smoothLambda = 0.004 ;
         QS.generateCurrentPullbacks([], [], [], pbOptions) ;
     else
         disp('Skipping computation of pullback')
@@ -1513,12 +1531,12 @@ end
 %% FIND THE FOLDS SEPARATING COMPARTMENTS =================================
 % Skip if already done
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.preview = true ;
-options.first_tp_allowed = [42, 14, 63] ;  % enforce that no folds before this tp
-options.guess123 = [0.15, 0.4, 0.56] ;
+options.first_tp_allowed = [-1, -1, 2] ;  % enforce that no folds before this tp
+options.guess123 = [0.27, 0.54, 0.78] ; % [0.15, 0.4, 0.56] ;
 options.maxDistsFromGuess = 0.05 * [1,1,1] ;
-options.max_wander = 4 ;
+options.max_wander = 7 ;
 options.wander_units = 'pcAP' ;
 QS.identifyFolds(options)
 disp('done')
@@ -1528,14 +1546,15 @@ disp('done')
 % Note: doing this after fold identification so that t0 is defined for
 % plotting purposes
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 QS.measureSurfaceAreaVolume(options)
 disp('done')
 
 %% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
 % Skip if already done
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
+options.flipy_centerline = false ;
 QS.measureWrithe(options)
 disp('done')
 
@@ -1548,7 +1567,7 @@ QS.measureLobeDynamics(options) ;
 % plot length, area, and volume for each lobe ============================
 % Skip if already done
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 QS.plotLobes(options)
 
 % Plot motion of avgpts & DVhoops at folds in yz plane over time =========

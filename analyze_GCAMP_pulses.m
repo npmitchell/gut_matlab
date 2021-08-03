@@ -3,6 +3,7 @@
 
 
 preview = false ;
+overwrite = false ;
 
 gutMatlabDir = '/mnt/data/code/gut_matlab/' ;
 % datdir = '/Users/npmitchell/Desktop/gut/48YGAL4klarGCAMPGFP/analysis' ;
@@ -71,7 +72,6 @@ medFiltDeltaXW = [0, 0, ...
     5, ...
     5, 5, 5, ...
     5, 5, 5] ;
-overwrite = true ;
 
 
 % Antp domain is about 40 microns, broadens on dorsal side.
@@ -561,6 +561,9 @@ for clipyPairIdx = 1:3
             colormap(viridis)
             saveas(gcf, [resfn sprintf('_clipY%d.png', clipyPairIdx)])
             saveas(gcf, [resfn sprintf('_clipY%d.pdf', clipyPairIdx)])
+            caxis([0, 2.5])
+            saveas(gcf, [resfn sprintf('_clipY%d_clim2.png', clipyPairIdx)])
+            saveas(gcf, [resfn sprintf('_clipY%d_clim2.pdf', clipyPairIdx)])
             colormap(chelixMap)
             saveas(gcf, [resfn sprintf('_clipY%d_cubeHelix.png', clipyPairIdx)])
             saveas(gcf, [resfn sprintf('_clipY%d_cubeHelix.pdf', clipyPairIdx)])
