@@ -1,4 +1,4 @@
-
+% Simple (without data listed) analysis
 
 
 mCNTRL = 4 ;

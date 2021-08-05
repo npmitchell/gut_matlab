@@ -2,6 +2,8 @@
 %   SUPERBAR(X,Y) draws the columns of the M-by-N matrix Y as M groups of
 %   N vertical bars with location given by X and length given by Y. The
 %   vector X should not have duplicate values.
+% 
+%   -- edits by NPMitchell on asymmetric error bar handling 2021
 %
 %   SUPERBAR(Y) uses the default value of X=1:M. For vector inputs,
 %   SUPERBAR(X,Y) or SUPERBAR(Y) draws LENGTH(Y) bars.
@@ -673,8 +675,20 @@ if isempty(input.P)
     hpb = [];
 elseif numel(input.P)==numel(Y)
     % Add stars above bars
+    
+    % use only the upper errors
+    if numel(input.E) > numel(X)
+        if numel(input.E) == 2 * numel(X)
+            upperE = input.E(:, 2) ;
+        else
+            error('Errors should be same numel as X or 2x as many elements -- handle this case here')
+        end
+    else
+        upperE = input.E ;
+    end
+    
     hpt = plot_p_values_single(ax_or_empty, ...
-        X, Y, input.E, input.P, ...
+        X, Y, upperE, input.P, ...
         input.Orientation, input.BaseValue, input.PStarThreshold, ...
         input.PStarOffset, input.PStarShowNS, input.PStarShowGT, ...
         input.PStarFixedOrientation, input.PStarIcon, input.PStarLatex, ...
@@ -685,8 +699,20 @@ elseif numel(input.P)==numel(Y)
     hpb = [];
 elseif numel(input.P)==numel(Y)^2
     % Add lines and stars between pairs of bars
+    
+    % Use only the upper errors
+    if numel(input.E) > numel(X)
+        if numel(input.E) == 2 * numel(X)
+            upperE = input.E(:, 2) ;
+        else
+            error('Errors should be same numel as X or 2x as many elements -- handle this case here')
+        end
+    else
+        upperE = input.E ;
+    end
+    
     [hpt, hpl, hpb] = plot_p_values_pairs(ax_or_empty, ...
-        X, Y, input.E, input.P, ...
+        X, Y, upperE, input.P, ...
         input.Orientation, input.PStarThreshold, input.PLineOffset, ...
         input.PLineOffsetSource, input.PStarOffset, input.PStarShowNS, ...
         input.PStarShowGT, PLineSourceSpacing, PLineSourceBreadth, ...
