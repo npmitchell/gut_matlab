@@ -25,6 +25,9 @@ embryoID = 2 ;
 genotype = 3 ;
 stage = 4;
 score = 5; 
+minStage = 13.15 ;
+maxStage = 15.2 ;
+
 
 %% 202107211653: 67;15 x MLCK RNAi #4 (TRiP 20) 37C for 45min
 % 0 --> WT
@@ -188,8 +191,8 @@ results = [stage_result_mlck; stage_result_6715WT];
     
 
 %% STATS
-inBin = find(results(:, stage) > 13 & ...
-    results(:, stage) < 15.2) ;
+inBin = find(results(:, stage) > minStage & ...
+    results(:, stage) < maxStage) ;
 mutantIdx = intersect(inBin, find(results(:, genotype) == 1)) ;
 controlIdx = intersect(inBin, find(results(:, genotype) < 1)) ;
 

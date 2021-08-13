@@ -30,6 +30,8 @@ x = 100 ;
 scoreLowerLimit = 1 ;
 scoreUpperLimit = 6 ;
 outdir = '/mnt/data/analysis/sercaR751Q/';
+addpath('/mnt/data/code/gut_matlab/addpath_recurse')
+addpath_recurse('/mnt/data/code/gut_matlab/plotting/')
 
 %% continuous 37C heatshock for SERCA
 % Date, EmbryoID, Genotype, Stage, Result
@@ -38,16 +40,15 @@ embryoID = 2 ;
 genotype = 3 ;
 stage = 4;
 score = 5; 
+minStage = 13.1 ;
+maxStage = 15.2 ;
+genoM = 2; 
+genoC = 0.3 ;
 
 
 %% CONTINUOUS 37C heatshock
 
 % Date, EmbryoID, Genotype, Stage, Result
-date = 1 ;
-embryoID = 2 ; 
-genotype = 3 ;
-stage = 4;
-score = 5; 
 serca_stage_result_continuous = [...
     ... % 202107292013 continuous 37C 2 min /frame mef2G4kSERCA.R751Q and 48YG4kCAAXmCh
 202107292013, 1, 2, 14.2, 3 ; ... %e1
@@ -106,7 +107,7 @@ serca_stage_result_continuous = [...
 
 
 %% 3.5 hrs 37C
-serca_stage_result_3p5hrs37C = [serca_stage_result_continuous; ...
+serca_stage_result_3p5hrsOrMore37C = [serca_stage_result_continuous; ...
 ... % 20210720 -- 3.5 hrs at 37C
 20210720, 1, 2, 15.1, 0;...  %e1         
 20210720, 2, 2, 16.1, 0;...  %e2                 
@@ -124,7 +125,7 @@ serca_stage_result_3p5hrs37C = [serca_stage_result_continuous; ...
 20210720, 14, 2, 11, x;...    %e14 --> ends at 13
 20210720, 15, 2, 13.2, x;...  %e15 -> ends at 15.a
 20210720, 16, 2, 12, x;...    %e16 --> ends at 14
-...  % 202108021250 -- 3.5 hrs at 37C --> I have the timetrace of the temperature for this one!! one line per 2 seconds
+...  % 202108021250 -- 3.5 hrs at 37C --> I have the timetrace of the temperature for this one one line per 2.3 seconds
 202108021250, 1, 2, 13.2, 5;     % no folds until HS ends, but then folds somewhat
 202108021250, 2, 2, 16.1, 0;
 202108021250, 3, 2, 16.1, 0;
@@ -172,10 +173,52 @@ serca_stage_result_3p5hrs37C = [serca_stage_result_continuous; ...
 202108021250, 45, 2, 15.1, 0;
 202108021250, 46, 2, 15.1, 5;  % strikingly folds post HS
 202108021250, 47, 2, 13, 5;
-    ]; ...
+... % 202108042044_mef2G4kSERCA1_3mpf_7pc488_bioII_37Ccontinuous2044_2p5x10x.lif 
+202108042044, 1, 2, 15.1, 1;
+202108042044, 2, 2, 15.2, 1 ;
+202108042044, 3, 2, 14.1, 3;
+202108042044, 4, 2, 14.1, 0;
+202108042044, 5, 2, 13.2, 1;
+202108042044, 6, 2, 15.1, 1;
+202108042044, 7, 2, 15.1, 2;   %<-- revisit
+202108042044, 8, 2, 13, 5;
+202108042044, 9, 2, 14.2, 0;
+202108042044, 10, 2, 13, 1;
+202108042044, 11, 2, 16.1, 2 ;  % <--anterior fold did not finish
+202108042044, 12, 2, 14.2, 1;
+202108042044, 13, 2, 13, 1 ;
+202108042044, 14, 2, 13, 2;
+202108042044, 15, 2, 15.1, 0 ;
+202108042044, 16, 2, 15.1, 2;  %<-- could be 1, anterior fold is incomplete but does curl dorsally
+202108042044, 17, 2, 15.2, 0;
+202108042044, 18, 2, 14.1, 2;  %<-- anterior fold does not finish but does curl dorsally
+202108042044, 19, 2, 13, 1;
+202108042044, 20, 2, 13.2, 1;
+202108042044, 21, 2, 14.1, 4 ;   %<-- absolutely no anterior fold, posterior fold is much reduced
+202108042044, 22, 2, 14.1, 0 ; ...
+... % 20210808 Broida mef2G4k x SERCAR751Q table:
+202108081302, 1, 2, 14.1, 3; ...
+202108081302, 2, 2, 14.1, 3; ... % 13.2 or 14.1 ? Band complete
+202108081302, 3, 2, 14.1, 2; ...
+202108081302, 4, 2, 13, 5; ...
+202108081302, 5, 2, 15.1, 3; ...
+202108081302, 6, 2, 13, 4; ...
+202108081302, 7, 2, 15.1, 2; ...
+202108081302, 8, 2, 14.1, 3; ...
+202108081302, 9, 2, 13, 1; ...
+202108081302, 10, 2, 14.1, 3; ...  % 13.2 or 14.1? Band complete
+202108081302, 11, 2, 15.1, 2; ...
+202108081302, 12, 2, 15.1, 3; ...
+202108081302, 13, 2, 14.1, 1; ...
+202108081302, 14, 2, 15.2, 1; ...
+202108081302, 15, 2, 14.1, 0; ...
+202108081302, 16, 2, 15.1, 0; ...
+202108081302, 17, 2, 13.2, 3 ;...
+];
+
     
     
-serca_stage_result_3p5hrs37C = [serca_stage_result_3p5hrs37C;...
+serca_stage_result_3p5hrsOrMore37C = [serca_stage_result_3p5hrsOrMore37C;...
 ... % 20210803 bioII mef2 table: date, embryoID, initial HS stage, all normal development (0)
     202108031752, 1, 0.3, 13, 0 ; ... 
     202108031752, 2, 0.3, 14, 0 ; ... 
@@ -199,6 +242,65 @@ serca_stage_result_3p5hrs37C = [serca_stage_result_3p5hrs37C;...
     202108031752, 19, 0, 15.1, 0 ; ... 
     202108031752, 20, 0, 13, 0 ; ... 
     202108031752, 21, 0, 15.1, 0 ; ... 
+... % 20210805 Broida mef2;mef2 table:
+    202108051250, 1, 0.3, 16.1, 0; ...
+    202108051250, 2, 0.3, 15.1, 0; ...
+    202108051250, 3, 0.3, 15.1, 2; ...
+    202108051250, 4, 0.3, 15.1, 1; ...
+    202108051250, 5, 0.3, 13, 3; ...
+    202108051250, 6, 0.3, 13, 4; ...
+    202108051250, 7, 0.3, 15.2, 1; ...
+    202108051250, 8, 0.3, 15.1, 0; ...
+    202108051250, 9, 0.3, 13, 4; ...
+    202108051250, 10, 0.3, 14, 2; ...
+    202108051250, 11, 0.3, 14.1, 2 ;...
+    202108051250, 12, 0.3, 15.2, 0; ...
+    202108051250, 13, 0.3, 15.1, 0 ;...
+    202108051250, 14, 0.3, 15.2, 1 ;...
+    202108051250, 15, 0.3, 14.2, 1 ;...
+    202108051250, 16, 0.3, 15.1, 0 ;...
+    202108051250, 17, 0.3, 15.1, 0 ;...
+    202108051250, 18, 0.3, 14, 0 ;...
+    202108051250, 19, 0.3, 13, 4 ;...
+    202108051250, 20, 0.3, 13.2, 2 ;...
+    202108051250, 21, 0.3, 14.1, 0 ;...
+    202108051250, 22, 0.3, 15.1, 0 ;...
+    202108051250, 23, 0.3, 13.2, 3 ;...
+    202108051250, 24, 0.3, 13.2, 1 ;...
+...% 202108101608_mef2G4k_6715cntrl_37Ccontinuous_boiII_4mpf_20um_7pc488
+202108101608, 23, 0.3, 15.1, 1 ;
+202108101608, 24, 0.3, 13, 4 ;
+202108101608, 25, 0.3, 14.2, 2;
+202108101608, 26, 0.3, 13, 1;
+202108101608, 27, 0.3, 15.1, 1;
+202108101608, 28, 0.3, 15.1 , 1;
+202108101608, 29, 0.3, 13.2, 1;
+202108101608, 30, 0.3, 15.1, 0;
+202108101608, 31, 0.3, 13, 0;
+...% tub67;15 table:
+...% 202108101608_mef2G4k_6715cntrl_37Ccontinuous_boiII_4mpf_20um_7pc488
+202108101608, 1, 0, 16.1, 1;
+202108101608, 2, 0, 15.1, 2 ; % incomplete posterior
+202108101608, 3, 0, 15.1, 2;
+202108101608, 4, 0, 16.1, 1;
+202108101608, 5, 0, 14.2, 3;  % difficult to see, dark, but definitely not normal. At the very least incomplete posterior
+202108101608, 6, 0, 15.1, 1 ;
+202108101608, 7, 0, 13, 6;
+202108101608, 8, 0, 14.1, 1;
+202108101608, 9, 0, 13.2,  5;
+202108101608, 10, 0, 15.1, 2;
+202108101608, 11, 0, 15.2, 1;
+202108101608, 12, 0, 15.1, 0; 
+202108101608, 13, 0, 14.1, 0; 
+202108101608, 14, 0, 15.1, 0; 
+202108101608, 15, 0, 15.1, 0;
+202108101608, 16, 0, 15.1, 0
+202108101608, 17, 0, 13, 0;
+202108101608, 18, 0, 14.1, 0;
+202108101608, 19, 0, 15.1, 0;
+202108101608, 20, 0, 15.1, 0 ;
+202108101608, 21, 0, 14.2, 0;
+202108101608, 22, 0, 15.1, 0;
 ];
 
 
@@ -212,107 +314,129 @@ serca_stage_result_3p5hrs37C = [serca_stage_result_3p5hrs37C;...
 % 6 --> no gut closure
 % 7 --> dead before folds
 % x --> did not finish/ cannot interpret
-results = serca_stage_result_3p5hrs37C;
+results = serca_stage_result_3p5hrsOrMore37C;
 
 %% STATS
-inBin = find(results(:, stage) > 13 & ...
-    results(:, stage) < 15.2) ;
-mutantIdx = intersect(inBin, find(results(:, genotype) == 2)) ;
-controlIdx = intersect(inBin, find(results(:, genotype) < 1)) ;
-
-% Clean out those that are x or 7
-keepM = find(results(mutantIdx, score) < scoreUpperLimit) ;
-keepC = find(results(controlIdx, score) < scoreUpperLimit) ;
-mutantIdx = mutantIdx(keepM) ;
-controlIdx = controlIdx(keepC) ;
-
-% N mutant and N control
-nM = length(mutantIdx) ;
-nC = length(controlIdx) ;
-nT = nM + nC ;
-
-misMutant = intersect(mutantIdx, find(results(:, score) > scoreLowerLimit)) ;
-foldMutant = intersect(mutantIdx, find(results(:, score) <= scoreLowerLimit)) ;
-misControl = intersect(controlIdx, find(results(:, score) > scoreLowerLimit)) ;
-foldControl = intersect(controlIdx, find(results(:, score) <= scoreLowerLimit)) ;
-fracBadFolds_m = length(misMutant) / nM ;
-fracBadFolds_c = length(misControl) / nC ;
-
-assert(nM == length(misMutant) + length(foldMutant))
-assert(nC == length(misControl) + length(foldControl))
-
-nfoldM = length(foldMutant) ;
-nmisM = length(misMutant) ;
-nfoldC = length(foldControl) ;
-nmisC = length(misControl) ;
-
-% Significance
-xx = table([nfoldM; nmisM],[nfoldC;nmisC],...
-    'VariableNames',{'mutant','control'},'RowNames',{'folded','misfolded'}) ;
-
-[h,pval,stats] = fishertest(xx) ;
-
-success = [nfoldM / nM, nfoldC/nC] ;
-bar(success)
-hold on;
-yerr0 = sqrt((success .* (1-success)) ./ [nM, nC]) ;
-yneg = min(yerr0, success) ;
-ypos = min(yerr0, 1-success) ;
-errorbar([1,2], success, yneg, ypos , 'LineStyle','none')
-set(gca,'xticklabel',{'UAS-SERCA.R751Q', 'control'});
-ylabel('probablity of forming three folds')
+for ii = 1:2
     
-if ~exist(outdir, 'dir')
-    mkdir(outdir)
-end
-saveas(gcf, fullfile(outdir, 'serca_continuous37C.pdf')) ;
+    inBin = find(results(:, stage) > minStage & ...
+        results(:, stage) < maxStage) ;
+    mutantIdx = intersect(inBin, find(results(:, genotype) == genoM)) ;
+    
+    if ii == 1
+        exten = sprintf('_restricted_min%0.1f_max%0.1f', minStage, maxStage) ;
+        controlIdx = intersect(inBin, find(results(:, genotype) == genoC)) ;
+    else
+        exten = sprintf('_allControls_min%0.1f_max%0.1f', minStage, maxStage) ;
+        controlIdx = intersect(inBin, find(results(:, genotype) < 1)) ;
+    end
+    exten = strrep(exten, '.', 'p') ;
     
 
-%% superbar plot
-hf = figure('Position', [100 100 400 400], 'units', 'centimeters');
-clf;
-Y = success;
-E = cat(3, yneg, ypos) ;
+    % Clean out those that are x or 7
+    keepM = find(results(mutantIdx, score) < scoreUpperLimit) ;
+    keepC = find(results(controlIdx, score) < scoreUpperLimit) ;
+    mutantIdx = mutantIdx(keepM) ;
+    controlIdx = controlIdx(keepC) ;
 
-Colors = [
-    0.90    0.55    0.55
-    0.62    0.76    0.84
-    0.89    0.10    0.11
-    0.12    0.47    0.70
-    ];
-Colors = reshape(Colors, [2 2 3]);
+    % N mutant and N control
+    nM = length(mutantIdx) ;
+    nC = length(controlIdx) ;
+    nT = nM + nC ;
 
-P = [pval,  pval; pval, pval];
-% Make P symmetric, by copying the upper triangle onto the lower triangle
-% PT = P';
-% lidx = tril(true(size(P)), -1);
-% P(lidx) = PT(lidx);
+    misMutant = intersect(mutantIdx, find(results(:, score) > scoreLowerLimit)) ;
+    foldMutant = intersect(mutantIdx, find(results(:, score) <= scoreLowerLimit)) ;
+    misControl = intersect(controlIdx, find(results(:, score) > scoreLowerLimit)) ;
+    foldControl = intersect(controlIdx, find(results(:, score) <= scoreLowerLimit)) ;
+    fracBadFolds_m = length(misMutant) / nM ;
+    fracBadFolds_c = length(misControl) / nC ;
 
-superbar(Y, 'E', E, 'P', P, 'BarFaceColor', Colors, 'Orientation', 'v', ...
-    'ErrorbarStyle', 'I', 'PLineOffset', 0.1, 'PStarShowGT', false);
+    assert(nM == length(misMutant) + length(foldMutant))
+    assert(nC == length(misControl) + length(foldControl))
 
-xlim([0.5 2.5]);
-% ylim([0 1]);
-set(gca, 'YTick', [0, 0.5, 1])
-set(gca, 'XTick', [1, 2]);
-ylims = ylim;
-expVal = sprintf('%e', pval) ;
-keepDigits = expVal(end-1:end) ;
-text(1.5, ylims(2)-0.03, ...
-    ['$p=$' sprintf(['%0.' num2str(keepDigits) 'f'],pval)], 'interpreter', 'latex', 'horizontalalignment', 'center')
+    nfoldM = length(foldMutant) ;
+    nmisM = length(misMutant) ;
+    nfoldC = length(foldControl) ;
+    nmisC = length(misControl) ;
+
+    % Significance
+    xx = table([nfoldM; nmisM],[nfoldC;nmisC],...
+        'VariableNames',{'mutant','control'},'RowNames',{'folded','misfolded'}) ;
+
+    [h,pval,stats] = fishertest(xx) ;
+
+    success = [nfoldM / nM, nfoldC/nC] ;
+    bar(success)
+    hold on;
+    yerr0 = sqrt((success .* (1-success)) ./ [nM, nC]) ;
+    yneg = min(yerr0, success) ;
+    ypos = min(yerr0, 1-success) ;
+    errorbar([1,2], success, yneg, ypos , 'LineStyle','none')
+    set(gca,'xticklabel',{'UAS-SERCA.R751Q', 'Mef2-GAL4'});
+    ylabel('probablity of forming three folds')
+
+    if ~exist(outdir, 'dir')
+        mkdir(outdir)
+    end
+    saveas(gcf, fullfile(outdir, ['serca_continuous37C' exten '.pdf'])) ;
+    saveas(gcf, fullfile(outdir, ['serca_continuous37C' exten '.png'])) ;
 
 
-set(gca,'xticklabel',{'UAS-SERCA.R751Q', 'control'});
-ylabel('probablity of forming three folds')
-title('mef2-GAL4;klar x UAS-SERCA.R751Q')
+    %% superbar plot
+    hf = figure('Position', [100 100 400 400], 'units', 'centimeters');
+    clf;
+    Y = success;
+    E = cat(3, yneg, ypos) ;
 
-if ~exist(outdir, 'dir')
-    mkdir(outdir)
+    Colors = [
+        0.90    0.55    0.55
+        0.62    0.76    0.84
+        0.89    0.10    0.11
+        0.12    0.47    0.70
+        ];
+    Colors = reshape(Colors, [2 2 3]);
+
+    P = [pval,  pval; pval, pval];
+    % Make P symmetric, by copying the upper triangle onto the lower triangle
+    % PT = P';
+    % lidx = tril(true(size(P)), -1);
+    % P(lidx) = PT(lidx);
+
+    superbar(Y, 'E', E, 'P', P, 'BarFaceColor', Colors, 'Orientation', 'v', ...
+        'ErrorbarStyle', 'I', 'PLineOffset', 0.1, 'PStarShowGT', false);
+
+    xlim([0.5 2.5]);
+    ylims = ylim ;
+    if ylims(2) < 1
+        ylim([0 1]);
+    end
+    set(gca, 'YTick', [0, 0.5, 1])
+    set(gca, 'XTick', [1, 2]);
+    ylims = ylim;
+    expVal = sprintf('%e', pval) ;
+    keepDigits = expVal(end-1:end) ;
+        text(1.5, ylims(2)-0.03, ...
+        ['$p=$' sprintf(['%0.' num2str(keepDigits) 'f'],pval)], 'interpreter', 'latex', 'horizontalalignment', 'center')
+
+
+    set(gca,'xticklabel',{'UAS-SERCA.R751Q', 'control'});
+    ylabel('probablity of forming three folds')
+    title('mef2-GAL4;klar x UAS-SERCA.R751Q')
+
+    if ~exist(outdir, 'dir')
+        mkdir(outdir)
+    end
+    saveas(gcf, fullfile(outdir, ['serca_continuous37C_superbar' exten '.pdf'])) ;
+    saveas(gcf, fullfile(outdir, ['serca_continuous37C_superbar' exten '.png'])) ;
+
+
+    %% Print contingency table
+    xx
+
+    fn = fullfile(outdir, ['serca_continuous37C_contingency' exten '.txt']) ;
+    writetable( xx, fn, 'WriteRowNames', true)
+
 end
-saveas(gcf, fullfile(outdir, 'serca_continuous37C_superbar.pdf')) ;
-
-%% Print contingency table
-xx
 
 error('here')
 %% Util -- get temperature trace

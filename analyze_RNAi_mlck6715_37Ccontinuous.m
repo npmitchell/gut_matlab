@@ -28,6 +28,8 @@ outdir = '/mnt/data/analysis/mlckRNAi';
 x = 100 ;
 scoreLowerLimit = 1 ;
 scoreUpperLimit = 6 ;
+genoM = 1 ;
+genoC = 0 ;
 
 %% continuous 37C heatshock
 % Date, EmbryoID, Genotype, Stage, Result
@@ -36,6 +38,9 @@ embryoID = 2 ;
 genotype = 3 ;
 stage = 4;
 score = 5; 
+minStage = 13.1 ;
+maxStage = 15.2 ;
+
 
 stage_result_mlck = [...
 ... % 202107201643_6715MLCKRNAi4_37C_4mpf_15um_7pc488BioII_10x2p66x_bioII CONTINUOUS
@@ -116,158 +121,211 @@ stage_result_control_continuous = [...
     202108031752, 19, 0, 15.1, 0 ; ... 
     202108031752, 20, 0, 13, 0 ; ... 
     202108031752, 21, 0, 15.1, 0 ; ... 
+...% 202108101608_mef2G4k_6715cntrl_37Ccontinuous_boiII_4mpf_20um_7pc488
+202108101608, 23, 0.3, 15.1, 1 ;
+202108101608, 24, 0.3, 13, 4 ;
+202108101608, 25, 0.3, 14.2, 2;
+202108101608, 26, 0.3, 13, 1;
+202108101608, 27, 0.3, 15.1, 1;
+202108101608, 28, 0.3, 15.1 , 1;
+202108101608, 29, 0.3, 13.2, 1;
+202108101608, 30, 0.3, 15.1, 0;
+202108101608, 31, 0.3, 13, 0;
+...% tub67;15 table:
+...% 202108101608_mef2G4k_6715cntrl_37Ccontinuous_boiII_4mpf_20um_7pc488
+202108101608, 1, 0, 16.1, 1;
+202108101608, 2, 0, 15.1, 2 ; % incomplete posterior
+202108101608, 3, 0, 15.1, 2;
+202108101608, 4, 0, 16.1, 1;
+202108101608, 5, 0, 14.2, 3;  % difficult to see, dark, but definitely not normal. At the very least incomplete posterior
+202108101608, 6, 0, 15.1, 1 ;
+202108101608, 7, 0, 13, 6;
+202108101608, 8, 0, 14.1, 1;
+202108101608, 9, 0, 13.2,  5;
+202108101608, 10, 0, 15.1, 2;
+202108101608, 11, 0, 15.2, 1;
+202108101608, 12, 0, 15.1, 0; 
+202108101608, 13, 0, 14.1, 0; 
+202108101608, 14, 0, 15.1, 0; 
+202108101608, 15, 0, 15.1, 0;
+202108101608, 16, 0, 15.1, 0
+202108101608, 17, 0, 13, 0;
+202108101608, 18, 0, 14.1, 0;
+202108101608, 19, 0, 15.1, 0;
+202108101608, 20, 0, 15.1, 0 ;
+202108101608, 21, 0, 14.2, 0;
+202108101608, 22, 0, 15.1, 0;
 ];
 
-%%  202107241336 CONTROL 55min --  date, genotype, embryoID, starting stage, result
-stage_result_control_55min = [...
-202107241336, 1, 0,  13, 0; ...
-202107241336, 2, 0,  15.1,0 ; ...
-202107241336, 3, 0,  13, 4; ...
-202107241336, 4, 0,  14.2, 0; ...
-202107241336, 5, 0,  15.1, 0; ...
-202107241336, 6, 0,  14.1, 2; ...
-202107241336, 7, 0,  10, 5 ; ...
-202107241336, 8, 0,  15.1, 0; ...
-202107241336, 9, 0,  11, 5; ...
-202107241336, 10, 0,  14.2, 0 ; ...
-202107241336, 11, 0,  16.1, 0; ...
-202107241336, 12, 0,  13, 3; ...
-202107241336, 13, 0,  x, x; ...
-202107241336, 14, 0,  15.1, 0; ...
-202107241336, 15, 0,  14.2, 3; ...
-202107241336, 16, 0,  11, 0; ...
-202107241336, 17, 0,  11, 0; ...
-202107241336, 18, 0,  14.2, 3; ...
-202107241336, 19, 0,  12 , 5; ... % <--- initially upside down within vitelline
-202107241336, 20, 0,  15.1, 0; ...
-202107241336, 21, 0,  15.2, 0; ...
-202107241336, 22, 0,  15.2, 2; ... % <-- incomplete anterior forld
-202107241336, 23, 0,  15.1, 0; ...
-202107241336, 24, 0,  12,   3; ... % <-- irregular folds, as if gut is sideways but embryo is not
-202107241336, 25, 0,  15.1, 0; ...
-202107241336, 26, 0,  13,   5; ...
-202107241336, 27, 0,  15.1, 0; ...
-202107241336, 28, 0,  x ,   x; ...
-202107241336, 29, 0,  14.1, 3; ...
-202107241336, 30, 0,  16.1, 3; ...
-202107241336, 31, 0,  15.1, 0; ...
-202107241336, 32, 0,  15.1, 0; ...
-202107241336, 33, 0,  15.1, 0 ; ...
-202107241336, 34, 0,  12,   2;  ...% <-- folds out of order, anterior is very late as to be incomplete
-202107241336, 35, 0,  15.1, 0 ; ...
-202107241336, 36, 0,  15.1, 0; ...
-202107241336, 37, 0,  15.1, 0 ; ...
-202107241336, 38, 0,  15.1,1 ; ...
-202107241336, 39, 0,  12, 0; ...
-202107241336, 40, 0,  13, 0; ...
-202107241336, 41, 0,  15.1, 0 ; ...
-202107241336, 42, 0,  15.1, 0; ...
-202107241336, 43, 0,  11, 3 ;...
-202107241336, 44, 0,  10, 0 ;...
-202107241336, 45, 0,  15.1, 0 ;...
-202107241336, 46, 0,  13, 7 ;...
-202107241336, 47, 0,  15.2, 0;...
-];
+% %%  202107241336 CONTROL 55min --  date, genotype, embryoID, starting stage, result
+% stage_result_control_55min = [...
+% 202107241336, 1, 0,  13, 0; ...
+% 202107241336, 2, 0,  15.1,0 ; ...
+% 202107241336, 3, 0,  13, 4; ...
+% 202107241336, 4, 0,  14.2, 0; ...
+% 202107241336, 5, 0,  15.1, 0; ...
+% 202107241336, 6, 0,  14.1, 2; ...
+% 202107241336, 7, 0,  10, 5 ; ...
+% 202107241336, 8, 0,  15.1, 0; ...
+% 202107241336, 9, 0,  11, 5; ...
+% 202107241336, 10, 0,  14.2, 0 ; ...
+% 202107241336, 11, 0,  16.1, 0; ...
+% 202107241336, 12, 0,  13, 3; ...
+% 202107241336, 13, 0,  x, x; ...
+% 202107241336, 14, 0,  15.1, 0; ...
+% 202107241336, 15, 0,  14.2, 3; ...
+% 202107241336, 16, 0,  11, 0; ...
+% 202107241336, 17, 0,  11, 0; ...
+% 202107241336, 18, 0,  14.2, 3; ...
+% 202107241336, 19, 0,  12 , 5; ... % <--- initially upside down within vitelline
+% 202107241336, 20, 0,  15.1, 0; ...
+% 202107241336, 21, 0,  15.2, 0; ...
+% 202107241336, 22, 0,  15.2, 2; ... % <-- incomplete anterior forld
+% 202107241336, 23, 0,  15.1, 0; ...
+% 202107241336, 24, 0,  12,   3; ... % <-- irregular folds, as if gut is sideways but embryo is not
+% 202107241336, 25, 0,  15.1, 0; ...
+% 202107241336, 26, 0,  13,   5; ...
+% 202107241336, 27, 0,  15.1, 0; ...
+% 202107241336, 28, 0,  x ,   x; ...
+% 202107241336, 29, 0,  14.1, 3; ...
+% 202107241336, 30, 0,  16.1, 3; ...
+% 202107241336, 31, 0,  15.1, 0; ...
+% 202107241336, 32, 0,  15.1, 0; ...
+% 202107241336, 33, 0,  15.1, 0 ; ...
+% 202107241336, 34, 0,  12,   2;  ...% <-- folds out of order, anterior is very late as to be incomplete
+% 202107241336, 35, 0,  15.1, 0 ; ...
+% 202107241336, 36, 0,  15.1, 0; ...
+% 202107241336, 37, 0,  15.1, 0 ; ...
+% 202107241336, 38, 0,  15.1,1 ; ...
+% 202107241336, 39, 0,  12, 0; ...
+% 202107241336, 40, 0,  13, 0; ...
+% 202107241336, 41, 0,  15.1, 0 ; ...
+% 202107241336, 42, 0,  15.1, 0; ...
+% 202107241336, 43, 0,  11, 3 ;...
+% 202107241336, 44, 0,  10, 0 ;...
+% 202107241336, 45, 0,  15.1, 0 ;...
+% 202107241336, 46, 0,  13, 7 ;...
+% 202107241336, 47, 0,  15.2, 0;...
+% ];
 
 
-results = [stage_result_mlck; stage_result_control_continuous; ...
-    stage_result_control_55min];
+results = [stage_result_mlck; stage_result_control_continuous];
+    
+for ii = 1:2
+    
+    inBin = find(results(:, stage) > minStage & ...
+        results(:, stage) < maxStage) ;
+    mutantIdx = intersect(inBin, find(results(:, genotype) == genoM)) ;
+    
+    if ii == 1
+        exten = sprintf('_restricted_min%0.1f_max%0.1f', minStage, maxStage) ;
+        controlIdx = intersect(inBin, find(results(:, genotype) == genoC)) ;
+    else
+        exten = sprintf('_allControls_min%0.1f_max%0.1f', minStage, maxStage) ;
+        controlIdx = intersect(inBin, find(results(:, genotype) < 1)) ;
+    end
+    exten = strrep(exten, '.', 'p') ;
     
 
-clf; 
-close all;
-inBin = find(results(:, stage) > 12 & ...
-    results(:, stage) < 15.2) ;
-mutantIdx = intersect(inBin, find(results(:, genotype) == 1)) ;
-controlIdx = intersect(inBin, find(results(:, genotype) < 1)) ;
+    clf; 
+    close all;
 
-% Clean out those that are x or 7
-keepM = find(results(mutantIdx, score) < scoreUpperLimit) ;
-keepC = find(results(controlIdx, score) < scoreUpperLimit) ;
-mutantIdx = mutantIdx(keepM) ;
-controlIdx = controlIdx(keepC) ;
+    % Clean out those that are x or 7
+    keepM = find(results(mutantIdx, score) < scoreUpperLimit) ;
+    keepC = find(results(controlIdx, score) < scoreUpperLimit) ;
+    mutantIdx = mutantIdx(keepM) ;
+    controlIdx = controlIdx(keepC) ;
 
-% N mutant and N control
-nM = length(mutantIdx) ;
-nC = length(controlIdx) ;
+    % N mutant and N control
+    nM = length(mutantIdx) ;
+    nC = length(controlIdx) ;
 
-misMutant = intersect(mutantIdx, find(results(:, score) > scoreLowerLimit)) ;
-foldMutant = intersect(mutantIdx, find(results(:, score) <= scoreLowerLimit)) ;
-misControl = intersect(controlIdx, find(results(:, score) > scoreLowerLimit)) ;
-foldControl = intersect(controlIdx, find(results(:, score) <= scoreLowerLimit)) ;
-fracBadFolds_m = length(misMutant) / nM ;
-fracBadFolds_c = length(misControl) / nC ;
+    misMutant = intersect(mutantIdx, find(results(:, score) > scoreLowerLimit)) ;
+    foldMutant = intersect(mutantIdx, find(results(:, score) <= scoreLowerLimit)) ;
+    misControl = intersect(controlIdx, find(results(:, score) > scoreLowerLimit)) ;
+    foldControl = intersect(controlIdx, find(results(:, score) <= scoreLowerLimit)) ;
+    fracBadFolds_m = length(misMutant) / nM ;
+    fracBadFolds_c = length(misControl) / nC ;
 
-assert(nM == length(misMutant) + length(foldMutant))
-assert(nC == length(misControl) + length(foldControl))
+    assert(nM == length(misMutant) + length(foldMutant))
+    assert(nC == length(misControl) + length(foldControl))
 
-nfoldM = length(foldMutant) ;
-nmisM = length(misMutant) ;
-nfoldC = length(foldControl) ;
-nmisC = length(misControl) ;
+    nfoldM = length(foldMutant) ;
+    nmisM = length(misMutant) ;
+    nfoldC = length(foldControl) ;
+    nmisC = length(misControl) ;
 
-% Significance
-xx = table([nfoldM; nmisM],[nfoldC;nmisC],...
-    'VariableNames',{'RNAi','control'},'RowNames',{'folded','misfolded'}) ;
+    % Significance
+    xx = table([nfoldM; nmisM],[nfoldC;nmisC],...
+        'VariableNames',{'RNAi','control'},'RowNames',{'folded','misfolded'}) ;
 
-[h,pval,stats] = fishertest(xx) ;
+    [h,pval,stats] = fishertest(xx) ;
 
-success = [nfoldM / nM, nfoldC/nC] ;
-bar(success)
-hold on;
-yerr0 = sqrt((success .* (1-success)) ./ [nM, nC]) ;
-yneg = min(yerr0, success) ;
-ypos = min(yerr0, 1-success) ;
-errorbar([1,2], success, yneg, ypos , 'LineStyle','none')
-set(gca,'xticklabel',{'UAS-MLCK RNAi', 'control'});
-ylabel('probablity of forming three folds')
+    success = [nfoldM / nM, nfoldC/nC] ;
+    bar(success)
+    hold on;
+    yerr0 = sqrt((success .* (1-success)) ./ [nM, nC]) ;
+    yneg = min(yerr0, success) ;
+    ypos = min(yerr0, 1-success) ;
+    errorbar([1,2], success, yneg, ypos , 'LineStyle','none')
+    set(gca,'xticklabel',{'UAS-MLCK RNAi', 'control'});
+    ylabel('probablity of forming three folds')
 
-%% superbar plot
-hf = figure('Position', [100 100 400 400], 'units', 'centimeters');
-clf;
-Y = success;
-E = cat(3, yneg, ypos) ;
+    if ~exist(outdir, 'dir')
+        mkdir(outdir)
+    end
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C' exten '.pdf'])) ;
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C' exten '.png'])) ;
 
-Colors = [
-    0.90    0.55    0.55
-    0.62    0.76    0.84
-    0.89    0.10    0.11
-    0.12    0.47    0.70
-    ];
-Colors = reshape(Colors, [2 2 3]);
+    %% superbar plot
+    hf = figure('Position', [100 100 400 400], 'units', 'centimeters');
+    clf;
+    Y = success;
+    E = cat(3, yneg, ypos) ;
 
-P = [pval, pval; pval, pval];
-% Make P symmetric, by copying the upper triangle onto the lower triangle
-% PT = P';
-% lidx = tril(true(size(P)), -1);
-% P(lidx) = PT(lidx);
+    Colors = [
+        0.90    0.55    0.55
+        0.62    0.76    0.84
+        0.89    0.10    0.11
+        0.12    0.47    0.70
+        ];
+    Colors = reshape(Colors, [2 2 3]);
 
-superbar(Y, 'E', E, 'P', P, 'BarFaceColor', Colors, 'Orientation', 'v', ...
-    'ErrorbarStyle', 'I', 'PLineOffset', 0.1, 'PStarShowGT', false);
+    P = [pval, pval; pval, pval];
+    % Make P symmetric, by copying the upper triangle onto the lower triangle
+    % PT = P';
+    % lidx = tril(true(size(P)), -1);
+    % P(lidx) = PT(lidx);
 
-xlim([0.5 2.5]);
-% ylim([0 1]);
-set(gca, 'YTick', [0, 0.5, 1])
-set(gca, 'XTick', [1, 2]);
-ylims = ylim;
-expVal = sprintf('%e', pval) ;
-keepDigits = expVal(end-2:end) ;
-text(1.5, ylims(2)-0.03, ...
-    ['$p=$' sprintf(['%0.' num2str(keepDigits) 'f'],pval)], 'interpreter', 'latex', 'horizontalalignment', 'center')
+    superbar(Y, 'E', E, 'P', P, 'BarFaceColor', Colors, 'Orientation', 'v', ...
+        'ErrorbarStyle', 'I', 'PLineOffset', 0.1, 'PStarShowGT', false);
 
-set(gca,'xticklabel',{'UAS-MLCK RNAi', 'control'});
-ylabel('probablity of forming three folds')
-title('tub>67;tub>15 x UAS-MLCK RNAi')
+    xlim([0.5 2.5]);
+    % ylim([0 1]);
+    set(gca, 'YTick', [0, 0.5, 1])
+    set(gca, 'XTick', [1, 2]);
+    ylims = ylim;
+    expVal = sprintf('%e', pval) ;
+    keepDigits = expVal(end-2:end) ;
+    text(1.5, ylims(2)-0.03, ...
+        ['$p=$' sprintf(['%0.' num2str(keepDigits) 'f'],pval)], 'interpreter', 'latex', 'horizontalalignment', 'center')
 
-if ~exist(outdir, 'dir')
-    mkdir(outdir)
+    set(gca,'xticklabel',{'UAS-MLCK RNAi', 'control'});
+    ylabel('probablity of forming three folds')
+    title('tub>67;tub>15 x UAS-MLCK RNAi')
+
+    if ~exist(outdir, 'dir')
+        mkdir(outdir)
+    end
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_superbar' exten '.pdf'])) ;
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_superbar' exten '.png'])) ;
+    
+
+    %% Print contingency table
+    xx
+
+    fn = fullfile(outdir, ['rnai_continuous37C_contingency' exten '.txt']) ;
+    writetable( xx, fn, 'WriteRowNames', true)
+
+
 end
-saveas(gcf, fullfile(outdir, 'rnai_continuous37C_superbar.pdf')) ;
-
-
-
-%% Print contingency table
-xx
-
-    
-    
