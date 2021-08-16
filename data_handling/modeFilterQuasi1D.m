@@ -40,17 +40,20 @@ function [outGrid, modeData] = modeFilterQuasi1D(gridData, options)
 % ynew : numeric 1d array
 %   lowpass-filtered output signal reconstructed from lowest nmodes of DFT
 %   of input data yy
-% fft_output : optional output struct with fields
-%   Yin : 
-%       two-sided DFT of input data, with phases
-%   Yout : 
-%       two-sided DFT of filtered output data, with phases
-%   SSBand : 
-%       single-sided DFT band of filtered output data
-%   magnitudes :
-%       magnitudes of DFT of filtered output data
-%   readme : struct with same fields as above
-%       descriptions of output
+% modeData : optional output struct with fields
+%   amplitudes : nU x nModes float array
+%   phases : nU x nModes float array
+%   filter1D : struct with fields
+%       Yin : 
+%           two-sided DFT of input data, with phases
+%       Yout : 
+%           two-sided DFT of filtered output data, with phases
+%       SSBand : 
+%           single-sided DFT band of filtered output data
+%       magnitudes :
+%           magnitudes of DFT of filtered output data
+%       readme : struct with same fields as above
+%           descriptions of output
 %
 % See also
 % --------

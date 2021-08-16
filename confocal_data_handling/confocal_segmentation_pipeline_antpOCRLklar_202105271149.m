@@ -17,7 +17,10 @@ dataDir = [dataDir 'antpGAL4/huygens_deconvolution_withKlar/'] ;
 % dataDir = [dataDir '202103181730_antpG4OCRLGap43mCh_40x1p6x_5mpf_4pc3pc_to_12pc9pc_600ns_lav3_DC/'] ;
 
 % klar
-dataDir = fullfile(dataDir, '202105252111_AntpG4kOCRLgap43_0p75um_1p25x40x_lav3_3t6pc3t6pc_5mpf_480ns_LED4') ;
+% dataDir = fullfile(dataDir, '202105252111_AntpG4kOCRLgap43_0p75um_1p25x40x_lav3_3t6pc3t6pc_5mpf_480ns_LED4') ;
+% dataDir = fullfile(dataDir, '202105311838_AntpG4kOCRL_0p75um_1p5x40_3t6pc_lav3_86s_5mpf') ;
+dataDir = fullfile(dataDir, '202105271149_AntpG4kOCRLgap43_0p75um_1p25x40x_lav3_0pc3t6pc_480ns_LED4') ;
+
 cd(dataDir)
 gutDir = '/mnt/data/code/gut_matlab/' ;
 addpath(fullfile(gutDir, 'addpath_recurse'))
@@ -29,7 +32,7 @@ clear; close all; clc;
 
 % Configuration metadata for this dataset
 tp0 = 5 ;  % which timepoint (index) is the onset of folding?
-embryoView = 'RD' ; % 'RD'/RV/LD/LV --> which way is out of page (decreasing z) and up (increasing Y in Fiji)  
+embryoView = 'RV' ; % 'RD'/RV/LD/LV --> which way is out of page (decreasing z) and up (increasing Y in Fiji)  
 
 %% INITIALIZE ImSAnE PROJECT ==============================================
 %
@@ -45,10 +48,16 @@ projectDir = dataDir ;
 fn = '' ;
 % the 16 bit fn
 file16name = 'antpOCRLgap43_T%03d' ;     
-pix2um = 0.22669667644183772 ;
+
+% 1.5x40x with 1024
+% pix2um = 0.18990684474 ; 
+% 1.25x40x with 1024
+pix2um = 0.2281737769 ;   % 202105271149
+% pix2um = 0.22669667644183772 ;
+
 um2pix = 1 / pix2um ;
 resolution = [pix2um, pix2um, 0.75] ;
-timepoints = 1:20 ;
+timepoints = 1:40 ;
 
 %% Join data into stacks
 fns0 = dir('./splitChannels/*ch00.tif') ;
@@ -65,11 +74,13 @@ for tidx = 1:length(fns0)
         im1 = readTiff4D(fn1, 1) ;
         
         % Reorient the image
-        if strcmpi(embryoView, 'rd')
+        if strcmpi(embryoView, 'rv')
             im0 = fliplr(im0) ;
             im0 = flipud(im0) ;
             im1 = fliplr(im1) ;
             im1 = flipud(im1) ;
+        elseif strcmpi(embryoView, 'rd')
+            disp('no rotation or flip necessary')
         else
             error('handle here')
         end
@@ -282,7 +293,7 @@ normal_step = 10;
 % Define the surface detection parameters
 channel = 2;
 foreGroundChannel = 2;
-ssfactor = 2;
+ssfactor = 4;
 niter = 25 ;
 niter0 = 115 ;
 ofn_smoothply = 'mesh_' ;

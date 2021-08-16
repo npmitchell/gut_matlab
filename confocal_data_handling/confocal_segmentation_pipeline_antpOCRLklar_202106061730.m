@@ -11,13 +11,17 @@ addpath_recurse('/mnt/data/code/gut_matlab/')
 addpath('/mnt/data/code/TexturePatch_for_git/TexturePatch/')
 
 dataDir = '/mnt/data/optogenetics_confocal/' ;
-dataDir = [dataDir 'antpGAL4/huygens_deconvolution_withKlar/'] ;
+dataDir = [dataDir 'WTcontrol_48YG4kCAAXmCh/'] ;
+
+% WT
+dataDir = [dataDir '202106061730_48YCAAXmCh_0p75um_1p25x40x_2p5t5pc_lav3_615ns/'] ;
 
 % noKlar
 % dataDir = [dataDir '202103181730_antpG4OCRLGap43mCh_40x1p6x_5mpf_4pc3pc_to_12pc9pc_600ns_lav3_DC/'] ;
 
 % klar
-dataDir = fullfile(dataDir, '202105252111_AntpG4kOCRLgap43_0p75um_1p25x40x_lav3_3t6pc3t6pc_5mpf_480ns_LED4') ;
+% dataDir = fullfile(dataDir, '202105252111_AntpG4kOCRLgap43_0p75um_1p25x40x_lav3_3t6pc3t6pc_5mpf_480ns_LED4') ;
+% dataDir = fullfile(dataDir, '202105311838_AntpG4kOCRL_0p75um_1p5x40_3t6pc_lav3_86s_5mpf') ;
 cd(dataDir)
 gutDir = '/mnt/data/code/gut_matlab/' ;
 addpath(fullfile(gutDir, 'addpath_recurse'))
@@ -28,8 +32,10 @@ addpath_recurse(gutDir)
 clear; close all; clc;
 
 % Configuration metadata for this dataset
-tp0 = 5 ;  % which timepoint (index) is the onset of folding?
-embryoView = 'RD' ; % 'RD'/RV/LD/LV --> which way is out of page (decreasing z) and up (increasing Y in Fiji)  
+tp0 = 2 ;  % which timepoint (index) is the onset of folding?
+embryoView = 'RD' ; % 'RD'/RV/LD/LV --> 
+                     % which way is out of page (decreasing z) (R/L) 
+                     % and up (increasing Y in Fiji) (D/V)
 
 %% INITIALIZE ImSAnE PROJECT ==============================================
 %
@@ -44,50 +50,62 @@ projectDir = dataDir ;
 % the 32 bit fn
 fn = '' ;
 % the 16 bit fn
-file16name = 'antpOCRLgap43_T%03d' ;     
-pix2um = 0.22669667644183772 ;
+%file16name = 'antpOCRLgap43_T%03d' ;     
+file16name = 'wt_T%03d' ;     
+
+% 1.5x40x with 800 pixels
+pix2um = 0.2431478 ; 
+% 1.5x40x with 1024 pixels
+% pix2um = 0.18990684474 ;
+% 1.25x40x with 1024 pixels
+% pix2um = 0.22669667644183772 ;
 um2pix = 1 / pix2um ;
 resolution = [pix2um, pix2um, 0.75] ;
-timepoints = 1:20 ;
+timepoints = 1:52 ;
 
 %% Join data into stacks
-fns0 = dir('./splitChannels/*ch00.tif') ;
-fns1 = dir('./splitChannels/*ch01.tif') ;
-for tidx = 1:length(fns0)
-    fn0 = fullfile(fns0(tidx).folder, fns0(tidx).name) ;
-    fn1 = fullfile(fns1(tidx).folder, fns1(tidx).name) ;
-    fn2 = sprintf([file16name '.tif'], tidx) ;
-    
-    if ~exist(fn2, 'file')
-        disp(['stacking file for tidx = ' num2str(tidx)])
+data_is_split = false ;
+if data_is_split
+    fns0 = dir('./splitChannels/*C0*.tif') ;
+    fns1 = dir('./splitChannels/*C1*.tif') ;
+    for tidx = 1:length(fns0)
+        fn0 = fullfile(fns0(tidx).folder, fns0(tidx).name) ;
+        fn1 = fullfile(fns1(tidx).folder, fns1(tidx).name) ;
+        fn2 = sprintf([file16name '.tif'], tidx) ;
 
-        im0 = readTiff4D(fn0, 1) ;
-        im1 = readTiff4D(fn1, 1) ;
-        
-        % Reorient the image
-        if strcmpi(embryoView, 'rd')
-            im0 = fliplr(im0) ;
-            im0 = flipud(im0) ;
-            im1 = fliplr(im1) ;
-            im1 = flipud(im1) ;
+        if ~exist(fn2, 'file')
+            disp(['stacking file for tidx = ' num2str(tidx)])
+
+            im0 = readTiff4D(fn0, 1) ;
+            im1 = readTiff4D(fn1, 1) ;
+
+            % Reorient the image
+            if strcmpi(embryoView, 'rv')
+                im0 = fliplr(im0) ;
+                im0 = flipud(im0) ;
+                im1 = fliplr(im1) ;
+                im1 = flipud(im1) ;
+            elseif strcmpi(embryoView, 'rd')
+                disp('no rotation or flip necessary')
+            else
+                error('handle here')
+            end
+
+            im = cat(4, im0, im1) ;
+
+            writeTiff5D(permute(im, [1, 2, 4, 3]), fn2)
+
+            % % check it
+            % for qq = 1:size(im0, 3)
+            %   imagesc(squeeze(im0(:, :, qq))) ;
+            %   pause(0.01)
+            % end
         else
-            error('handle here')
+            disp('file exists')
         end
-        
-        im = cat(4, im0, im1) ;
-
-        writeTiff5D(permute(im, [1, 2, 4, 3]), fn2)
-
-        % % check it
-        % for qq = 1:size(im0, 3)
-        %   imagesc(squeeze(im0(:, :, qq))) ;
-        %   pause(0.01)
-        % end
-    else
-        disp('file exists')
     end
+    fn = file16name ;
 end
-fn = file16name ;
 
 %% CREATE EXPERIMENT
 % Start by creating an experiment object, optionally pass on the project
@@ -152,7 +170,7 @@ fileMeta.swapZT             = 0;
 % first_tp is also required, which sets the tp to do individually.
 first_tp = 1 ;
 expMeta                     = struct();
-expMeta.channelsUsed        = [1,2];
+expMeta.channelsUsed        = [1];
 expMeta.channelColor        = 1;
 expMeta.description         = 'Drosophila gut';
 expMeta.dynamicSurface      = 0;
@@ -282,7 +300,7 @@ normal_step = 10;
 % Define the surface detection parameters
 channel = 2;
 foreGroundChannel = 2;
-ssfactor = 2;
+ssfactor = 4;
 niter = 25 ;
 niter0 = 115 ;
 ofn_smoothply = 'mesh_' ;
@@ -501,41 +519,37 @@ nV = 150 ;
 uminmax = [0, sz1] ;
 vminmax = [0, sz2] ;
 %%
-midLayerOffset = -25;
 layerWidth = 5 ; % 1 for RFP
 subsample = 10 ;
 zOffset = 5 ; % 20 ;
 gaussSigma = 0.5 ; % 2;
-lam = 0.005 ;  % 1 ; 
 axisOrder = 'cxyz' ;
-
-nPos = 35 ;
-nNeg = 35 ;
-
-
-preview = false ;
 
 axisOrder = erase(axisOrder, 'c') ;
 zdim = find(axisOrder== 'z') ;
-timepoints = 1:20 ;
-tidx2do = 1:5:length(timepoints) ;
-tidx2do = [tidx2do, setdiff(1:length(timepoints), tidx2do)] ;
-for tidx = tidx2do
-    tp = timepoints(tidx) ;
-    imfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
-    if ~exist(imfn, 'file')
-        xp.loadTime(tp);
-        xp.rescaleStackToUnitAspect();
-        IV = xp.stack.image.apply() ;
-        sz1 = size(IV{1}, 1) ;
-        sz2 = size(IV{1}, 2) ;
-        sz3 = size(IV{1}, 3) ;
-        if contains(lower(axisOrder), 'xyz')
-            szX = sz1 ; szY = sz2 ; szZ = sz3 ;
-            zdim = 3 ;
-        else
-            error('handle here')
-        end
+
+%% Take median z(t) for each (x,y) and remake stacks
+preview = true ;
+filteredMeshFn = './msls_output/medianFilteredMeshes.mat' ;
+if ~exist(filteredMeshFn, 'file') || overwrite 
+    prevMesh0 = [] ;
+    prevMesh1 = [] ;
+    xp.loadTime(timepoints(1));
+    xp.rescaleStackToUnitAspect();
+    IV = xp.stack.image.apply() ;
+    sz1 = size(IV{1}, 1) ;
+    sz2 = size(IV{1}, 2) ;
+    sz3 = size(IV{1}, 3) ;
+    if contains(lower(axisOrder), 'xyz')
+        szX = sz1 ; szY = sz2 ; szZ = sz3 ;
+        zdim = 3 ;
+    else
+        error('handle here')
+    end
+    %% Consider each mesh, filter with adjacent timepoints
+    for tidx = 1:length(timepoints)
+        tp = timepoints(tidx) ;
+        disp(['t = ' num2str(tp)])
         meshfn = fullfile(mslsDir, sprintf('mesh_ms_%06d.ply', tp)) ;
         mesh = read_ply_mod(meshfn) ;
         % scatter3(mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), mesh.v(:, 1))
@@ -574,14 +588,14 @@ for tidx = tidx2do
             else
                 error('handle here')
             end
-            
+
             if preview
                 scatter3(uvz(:, 1), uvz(:, 2), uvz(:, 3), 5, uvz(:, 3))
                 axis equal
                 xlabel('x'); ylabel('y'); zlabel('z') ;
             end
         end
-        
+
         % subsample by binning and finding medians
         [zmeans, counts, zs, xidx, yidx] = ...
             binData2dGrid(uvz, uminmax, vminmax, nU, nV, false) ;
@@ -596,11 +610,11 @@ for tidx = tidx2do
         medz(out_of_frame) = Z0 ;
         % local minimum filter (lower z is further from midsagittal plane)
         medz = imerode(medz, true(5)) ;
-        medz = imgaussfilt(medz, gaussSigma) ;
+        % medz = imgaussfilt(medz, gaussSigma) ;
         [yy, xx] = meshgrid(linspace(1, sz1, nU), linspace(1, sz2, nV)) ;
         xx = xx';
         yy = yy';
-        
+
         % NOTE: This should look correct
         if preview
             imagesc( linspace(1, sz2, nV), linspace(1, sz1, nU), medz)
@@ -608,7 +622,7 @@ for tidx = tidx2do
             title('rescaled resampled surface')
             pause(1)
         end    
-        
+
         % Create ring of zeros around shape
         % se = strel('disk', 2);
         % keep = find(imdilate(~isnan(zmeans), se)) ;
@@ -618,7 +632,7 @@ for tidx = tidx2do
         yr = yy(:) ;
         zr = medz(:) ;
         scatter3(xr, yr, zr, 4, zr); view(2); axis equal
-        
+
         % xr = xr(keep) ;
         % yr = yr(keep) ;
         % zr = zr(keep) ;
@@ -627,7 +641,7 @@ for tidx = tidx2do
         % zr = [zr; Z0; Z0; Z0; Z0] ;
 
         % Inspect cross-section
-        if preview
+        if preview && false
             % Make this number larger to sample more of the nearby mesh
             width = 4 ;
             leaves = 1:50:szY ;
@@ -655,15 +669,88 @@ for tidx = tidx2do
         mesh = struct() ;
         mesh.f = faces ;
         mesh.v = [xr, yr, zr] ;
-        if preview
+
+        if tidx == 1
+            % Do not define mesh until next timepoint
+        elseif tidx == 2
+            % First mesh is average of first two unsmoothed meshes
+            meshFilt{tidx-1} = mesh.v ;
+            assert(all(mesh.v(:, 1) == prevMesh1.v(:, 1))) ;
+            assert(all(mesh.v(:, 2) == prevMesh1.v(:, 2))) ;
+            meshFilt{tidx-1}(:, 3) = mean( [mesh.v(:, 3), prevMesh1.v(:, 3)], 2) ;
+        else
+            % Take median of previous two and current meshes
+            meshFilt{tidx-1} = mesh.v ;
+            assert(all(mesh.v(:, 1) == prevMesh1.v(:, 1))) ;
+            assert(all(mesh.v(:, 2) == prevMesh1.v(:, 2))) ;
+            meshFilt{tidx-1}(:, 3) = mean( [mesh.v(:, 3),  ...
+                prevMesh0.v(:, 3), prevMesh1.v(:, 3)], 2) ;
+        end
+        out_of_frame_idx{tidx} = out_of_frame ;
+
+        % Prepare for next timepoint
+        prevMesh0 = prevMesh1 ;
+        prevMesh1 = mesh ;
+
+        if preview && tidx > 1
             clf
-            tri = triangulation(mesh.f, mesh.v) ;
+            tri = triangulation(mesh.f, meshFilt{tidx-1}) ;
             trisurf(tri, 'edgecolor', 'none')
             view(2); title('triangulation of rescaled resampling')
             axis equal
             pause(1) ;
         end
+    end
+    save(filteredMeshFn, 'meshFilt', 'faces', 'out_of_frame_idx')
+else
+    load(filteredMeshFn, 'meshFilt', 'faces', 'out_of_frame_idx')    
+end
 
+
+%% Onion stacks
+nPos = 35 ;
+nNeg = 20 ;
+
+layerWidth = 5 ;
+midLayerOffset = -2 ;
+lam = 0.01 ;  % 1 ; 
+
+preview = true ;
+overwrite = false ;
+
+timepoints = 1:19 ;
+tidx2do = 1:5:length(timepoints) ;
+tidx2do = [tidx2do, setdiff(1:length(timepoints), tidx2do)] ;
+
+% Load all filtered meshes
+load('./msls_output/medianFilteredMeshes.mat', 'meshFilt', 'faces', 'out_of_frame_idx')
+for tidx = tidx2do
+    tp = timepoints(tidx) ;
+    imfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
+    if ~exist(imfn, 'file') || overwrite
+        xp.loadTime(tp);
+        xp.rescaleStackToUnitAspect();
+        IV = xp.stack.image.apply() ;
+        sz1 = size(IV{1}, 1) ;
+        sz2 = size(IV{1}, 2) ;
+        sz3 = size(IV{1}, 3) ;
+        if contains(lower(axisOrder), 'xyz')
+            szX = sz1 ; szY = sz2 ; szZ = sz3 ;
+            zdim = 3 ;
+        else
+            error('handle here')
+        end
+        
+        % Could load original mesh
+        % meshfn = fullfile(mslsDir, sprintf('mesh_ms_%06d.ply', tp)) ;
+        % mesh = read_ply_mod(meshfn) ;
+        
+        % Instead use filtered mesh
+        mesh = struct() ;
+        mesh.f = faces ;
+        mesh.v = meshFilt{tidx} ;
+        out_of_frame = out_of_frame_idx{tidx} ;         
+        
         % Fix vertices that are off mesh or near the mesh boundary
         bndId = neighbors(tri, out_of_frame); % find(zr > max(medz(:))-5)) ;
         bndId = unique(bndId(~isnan(bndId))) ;
@@ -681,20 +768,6 @@ for tidx = tidx2do
             axis equal
         end
         
-        % Push non-mesh out of the image volume
-        % mesh.v(out_of_frame, 3) = Z0 + 2 ;
-
-        %     cla
-        %     trisurf(triangulation(faces, vsm), 'edgecolor', 'none'); axis equal
-        %     view(2) ;
-        %     pause(1)
-        % 
-        %     difference = mean(abs(vsm - vsm0) ./ (vsm0(:, 3)-285)) ;
-        %     disp(['diff = ' num2str(difference)])
-        %     vsmprev = vsm ;
-        % 
-        % end
-
         m2d = mesh ;
         m2d.v = [xr, yr] ;
         mesh.vn = zeros(size(mesh.v)) ;
@@ -714,7 +787,7 @@ for tidx = tidx2do
             Opts.imSize = [sz1, sz2] ;
             error('handle here')
         end
-        Opts.numLayers = [20, 20];  %[nPos, nNeg] ;
+        Opts.numLayers = [nPos, nNeg] ;
         Opts.layerSpacing = 1 ;
         Opts.vertexNormal = mesh.vn ;
         Opts.extrapolationMethod = 'nearest' ; % 'nearest' ;'none'; 
@@ -799,11 +872,13 @@ for tidx = tidx2do
         imfn1 = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 1) ;
         imfn2 = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
         ims1 = loadtiff(imfn1) ;
-        im01 = squeeze(max(ims1(:, :, nNeg-layerWidth+midLayerOffset:nNeg+layerWidth+midLayerOffset), [], 3)) ;
+        minLayer = max(nNeg-layerWidth+midLayerOffset, 1) ;
+        maxLayer = min(nNeg+layerWidth+midLayerOffset, size(ims1, 3)) ;
+        im01 = squeeze(max(ims1(:, :, minLayer:maxLayer), [], 3)) ;
         im01 = uint8(255 * mat2gray(im01, double([min(im01(:)), max(im01(:))]))) ;
         imwrite(im01, outfn1)
         ims2 = loadtiff(imfn2) ;
-        im02 = squeeze(max(ims2(:, :, nNeg-1+midLayerOffset:nNeg+1+midLayerOffset), [], 3)) ;
+        im02 = squeeze(max(ims2(:, :, minLayer:maxLayer), [], 3)) ;
         im02 = uint8(255 * mat2gray(im02, double([min(im02(:)), max(im02(:))]))) ;
         imwrite(im02, outfn2)
     end
@@ -811,6 +886,87 @@ end
 
 
 %% Segment the cells by selecting watershed seed points 
+overwrite = false ;
+preThres = 0.3 ;
+cellSize = 20;
+strelRadius = 0;
+gaussKernel = 0 ;
+heightMiminum = 1;
+tidx2do = 1:20 ;
+for tidx = tidx2do
+    tp = timepoints(tidx) ;
+    disp(['tp = ', num2str(tp)])
+    segfn1 = sprintf('./cellSegmentation/automask1_T%03d.png', tp) ;
+    segfn2 = sprintf('./cellSegmentation/automask2_T%03d.png', tp) ;
+    segfn3 = sprintf('./cellSegmentation/automask3_T%03d.png', tp) ;
+    
+    if ~exist(segfn1, 'file') || overwrite
+        % Load image stack and manually create cell polygon at z stack
+        imfn = sprintf('./texturePatches/layer0_T%03d_c2_Probabilities.h5', tp) ;
+        prob = h5read(imfn, '/exported_data/') ;
+        prob = squeeze(prob(1, :, :)) ;
+
+        seg = zeros(size(prob)) ;
+        overlay = zeros(size(prob, 1)) ;
+
+        % % TRY WATERSHED
+        % Filter output: laplacian of Gaussian sharpens, then Gaussian smooths        
+        h1 = fspecial('log', cellSize);
+        seD1 = strel('disk', strelRadius);
+        if gaussKernel > 0
+            gk = fspecial('gaussian', gaussKernel);
+        end
+        
+        % Pack label image L with watershed results
+        mem = mat2gray(prob, [0, double(max(prob(:)))]) ;
+        L = zeros(size(mem));
+        disp(['memWS: segmenting timepoint ', num2str(t)]) 
+        if gaussKernel > 0
+            gk = fspecial('gaussian', gaussKernel);
+            mem = imfilter(mem,gk);
+        end
+        cyto = 1 - mem;
+        
+        % mem = imfilter(mem,h1);
+        % mem(:,:,t) = imclose(mem(:,:,t),strel('disk',3));
+        
+        lev = graythresh(cyto);
+        seed = im2bw(cyto, lev);  % consider swapping to imbinarize
+        seed = imdilate(seed, seD1);
+        seed = bwareaopen(seed, 25);
+        
+        pre_water = imhmin(mem, heightMiminum);
+        pre_water = imimposemin(pre_water, seed);
+        LL = watershed(pre_water);
+
+        % Mask the segmentation by depth of surface
+        surface = meshFilt{tidx} ;
+        % resample surface onto image grid
+        [xx,yy] = meshgrid(1:size(LL, 1), 1:size(LL, 2)) ;
+        resurf = interpolate2Dpts_3Dmesh(mesh.f, surface(:, 1:2), surface, [xx(:), yy(:)]) ;
+        maxZ = max(resurf(:, 3)) ;
+        keep = reshape(resurf(:, 3) < (maxZ - 1), [size(LL, 2), size(LL, 1)]) ;
+        
+        mask1 = (LL==0)' .* keep ;
+        mask2 = (bwskel(pre_water > preThres))' .* keep ;
+        
+        seD0 = strel('disk', 1);
+        mask3 = imdilate(mask1 | mask2, seD0) ;
+        
+        imshow(mask1) ; pause(0.001)
+        imshow(mask2) ; pause(0.001)
+        imshow(mask3) ; pause(0.001)
+        
+        % Save the result
+        imwrite(mask1, segfn1)
+        imwrite(mask2, segfn2)
+        imwrite(mask3, segfn3)
+
+        disp(['Done with seg ' num2str(tp)])
+    end
+end
+
+%% OLD: Segment the cells by selecting watershed seed points 
 % for tidx = tidx2do
 %     tp = timepoints(tidx) ;
 %     segfn = sprintf('./cellSegmentation/cells_T%03d.mat', tp) ;
@@ -905,7 +1061,7 @@ end
 thres = 160 ; % 160
 timeInterval = 5 ;
 timeUnits = 'min' ;
-overwrite = true ;
+overwrite = false ;
 colors = define_colors ;
 imDir = './cellSegmentation/images/' ;
 imDir_seg = fullfile(imDir, 'segmentation') ;
@@ -926,7 +1082,7 @@ if ~exist(imDir_bnd3d, 'dir')
     mkdir(imDir_bnd3d)
 end
 
-tidx2do = 1:16 ;
+tidx2do = 1:18 ;
 
 for tidx = tidx2do
     tp = timepoints(tidx) ;
@@ -935,7 +1091,8 @@ for tidx = tidx2do
     if ~exist(outfn, 'file') || overwrite
         disp(['Processing t=' num2str(tp) ': ' outfn])
         % try
-            segfn = fullfile(segDir, sprintf('T%03dmask.png', tp)) ;
+            % segfn = fullfile(segDir, sprintf('T%03dmask.png', tp)) ;
+            segfn = fullfile(segDir, sprintf('automask1_T%03d.png', tp)) ;
             seg = imread(segfn) ;
             load(fullfile(textureDir, sprintf('mesh_T%03d.mat', tp)), ...
                 'mesh', 'm2d', 'Opts') ;
@@ -1126,8 +1283,8 @@ tidx2do = 1:length(timepoints) ;
 % fold2 = 665 * ones(length(timepoints), 1) ;
 fold2 = 575 * ones(length(timepoints), 1) ;
 time_offset = 0 * timepoints ;
-time_offset(2:end) = 4 ;
-time_offset(3:end) = 5 ;
+time_offset(2) = 3 ;
+time_offset(3:end) = 6 ;
 t0 = tp0 * timeInterval - time_offset(tp0) ;
 
 %% plot Q as function of ap position

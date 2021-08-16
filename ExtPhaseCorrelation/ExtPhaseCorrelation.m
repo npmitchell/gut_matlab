@@ -100,6 +100,25 @@ if ysp > N
     ysp = N-1;
 end
 
+try
+    assert(max(xsp) < size(icp, 1) + 1)
+    assert(max(ysp) < size(icp, 2) + 1)
+catch
+    error('indexing out of range')
+    %two side-peaks
+    xsp = x + 1;
+    ysp = y + 1;
+
+    %if the peaks outsize the image, then use xs-1 and/or ys-1 for the two
+    %side-peaks
+    if xsp > M
+        xsp = M-1;
+    end
+    if ysp > N
+        ysp = N-1;
+    end
+end
+
 %Calculate the translational shift
 deltaX1 = ((icp(xsp,y) * xsp + icp(x,y) * x) / (icp(xsp,y) + icp(x,y)))-1;
 deltaY1 = ((icp(x,ysp) * ysp + icp(x,y) * y) / (icp(x,ysp) + icp(x,y)))-1;

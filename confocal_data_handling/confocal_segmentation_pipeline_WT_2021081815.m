@@ -11,13 +11,18 @@ addpath_recurse('/mnt/data/code/gut_matlab/')
 addpath('/mnt/data/code/TexturePatch_for_git/TexturePatch/')
 
 dataDir = '/mnt/data/optogenetics_confocal/' ;
-dataDir = [dataDir 'antpGAL4/huygens_deconvolution_withKlar/'] ;
+dataDir = [dataDir 'WTcontrol_48YG4kCAAXmCh/'] ;
+
+% WT
+% dataDir = [dataDir '202106061730_48YCAAXmCh_0p75um_1p25x40x_2p5t5pc_lav3_615ns/'] ;
+dataDir = [dataDir '202106081815_48YG4kCAAXmCh_0p75um_1p5x40x_3t6pc3t6pc_lav3_615ns_5mpf/'] ;
 
 % noKlar
 % dataDir = [dataDir '202103181730_antpG4OCRLGap43mCh_40x1p6x_5mpf_4pc3pc_to_12pc9pc_600ns_lav3_DC/'] ;
 
 % klar
-dataDir = fullfile(dataDir, '202105252111_AntpG4kOCRLgap43_0p75um_1p25x40x_lav3_3t6pc3t6pc_5mpf_480ns_LED4') ;
+% dataDir = fullfile(dataDir, '202105252111_AntpG4kOCRLgap43_0p75um_1p25x40x_lav3_3t6pc3t6pc_5mpf_480ns_LED4') ;
+% dataDir = fullfile(dataDir, '202105311838_AntpG4kOCRL_0p75um_1p5x40_3t6pc_lav3_86s_5mpf') ;
 cd(dataDir)
 gutDir = '/mnt/data/code/gut_matlab/' ;
 addpath(fullfile(gutDir, 'addpath_recurse'))
@@ -28,8 +33,10 @@ addpath_recurse(gutDir)
 clear; close all; clc;
 
 % Configuration metadata for this dataset
-tp0 = 5 ;  % which timepoint (index) is the onset of folding?
-embryoView = 'RD' ; % 'RD'/RV/LD/LV --> which way is out of page (decreasing z) and up (increasing Y in Fiji)  
+tp0 = 8 ;  % which timepoint (index) is the onset of folding?
+embryoView = 'LV' ; % 'RD'/RV/LD/LV --> 
+                     % which way is out of page (decreasing z) (R/L) 
+                     % and up (increasing Y in Fiji) (D/V)
 
 %% INITIALIZE ImSAnE PROJECT ==============================================
 %
@@ -44,50 +51,67 @@ projectDir = dataDir ;
 % the 32 bit fn
 fn = '' ;
 % the 16 bit fn
-file16name = 'antpOCRLgap43_T%03d' ;     
-pix2um = 0.22669667644183772 ;
+%file16name = 'antpOCRLgap43_T%03d' ;     
+file16name = 'wt_T%03d' ;     
+
+% 1.5x40x with 800 pixels
+% pix2um = 0.2431478 ; % 202106061730
+pix2um = 0.2427533166 ; % 202106081815
+
+% 1.5x40x with 1024 pixels
+% pix2um = 0.18990684474 ;
+% 1.25x40x with 1024 pixels
+% pix2um = 0.22669667644183772 ;
 um2pix = 1 / pix2um ;
 resolution = [pix2um, pix2um, 0.75] ;
-timepoints = 1:20 ;
+timepoints = 1:28 ;
 
 %% Join data into stacks
-fns0 = dir('./splitChannels/*ch00.tif') ;
-fns1 = dir('./splitChannels/*ch01.tif') ;
-for tidx = 1:length(fns0)
-    fn0 = fullfile(fns0(tidx).folder, fns0(tidx).name) ;
-    fn1 = fullfile(fns1(tidx).folder, fns1(tidx).name) ;
-    fn2 = sprintf([file16name '.tif'], tidx) ;
-    
-    if ~exist(fn2, 'file')
-        disp(['stacking file for tidx = ' num2str(tidx)])
+data_is_split = true ;
+if data_is_split
+    fns0 = dir('./splitChannels/*C0*.tif') ;
+    fns1 = dir('./splitChannels/*C1*.tif') ;
+    for tidx = 1:length(fns0)
+        fn0 = fullfile(fns0(tidx).folder, fns0(tidx).name) ;
+        fn1 = fullfile(fns1(tidx).folder, fns1(tidx).name) ;
+        fn2 = sprintf([file16name '.tif'], tidx) ;
 
-        im0 = readTiff4D(fn0, 1) ;
-        im1 = readTiff4D(fn1, 1) ;
-        
-        % Reorient the image
-        if strcmpi(embryoView, 'rd')
-            im0 = fliplr(im0) ;
-            im0 = flipud(im0) ;
-            im1 = fliplr(im1) ;
-            im1 = flipud(im1) ;
+        if ~exist(fn2, 'file')
+            disp(['stacking file for tidx = ' num2str(tidx)])
+
+            im0 = readTiff4D(fn0, 1) ;
+            im1 = readTiff4D(fn1, 1) ;
+
+            % Reorient the image
+            if strcmpi(embryoView, 'rv')
+                im0 = fliplr(im0) ;
+                im0 = flipud(im0) ;
+                im1 = fliplr(im1) ;
+                im1 = flipud(im1) ;
+            elseif strcmpi(embryoView, 'rd')
+                disp('no rotation or flip necessary')
+            elseif strcmpi(embryoView, 'ld')
+                im0 = fliplr(im0) ;
+                im1 = fliplr(im1) ; 
+            else
+                error('handle here')
+            end
+
+            im = cat(4, im0, im1) ;
+
+            writeTiff5D(permute(im, [1, 2, 4, 3]), fn2, 8)
+
+            % % check it
+            % for qq = 1:size(im0, 3)
+            %   imagesc(squeeze(im0(:, :, qq))) ;
+            %   pause(0.01)
+            % end
         else
-            error('handle here')
+            disp('file exists')
         end
-        
-        im = cat(4, im0, im1) ;
-
-        writeTiff5D(permute(im, [1, 2, 4, 3]), fn2)
-
-        % % check it
-        % for qq = 1:size(im0, 3)
-        %   imagesc(squeeze(im0(:, :, qq))) ;
-        %   pause(0.01)
-        % end
-    else
-        disp('file exists')
     end
+    fn = file16name ;
 end
-fn = file16name ;
 
 %% CREATE EXPERIMENT
 % Start by creating an experiment object, optionally pass on the project
@@ -282,7 +306,7 @@ normal_step = 10;
 % Define the surface detection parameters
 channel = 2;
 foreGroundChannel = 2;
-ssfactor = 2;
+ssfactor = 4;
 niter = 25 ;
 niter0 = 115 ;
 ofn_smoothply = 'mesh_' ;
@@ -501,29 +525,232 @@ nV = 150 ;
 uminmax = [0, sz1] ;
 vminmax = [0, sz2] ;
 %%
-midLayerOffset = -25;
-layerWidth = 5 ; % 1 for RFP
+layerWidth = 2 ; % 1 for RFP
 subsample = 10 ;
 zOffset = 5 ; % 20 ;
 gaussSigma = 0.5 ; % 2;
-lam = 0.005 ;  % 1 ; 
 axisOrder = 'cxyz' ;
-
-nPos = 35 ;
-nNeg = 35 ;
-
-
-preview = false ;
+takeMedianMaxMin = 'min' ;
 
 axisOrder = erase(axisOrder, 'c') ;
 zdim = find(axisOrder== 'z') ;
-timepoints = 1:20 ;
-tidx2do = 1:5:length(timepoints) ;
+
+%% Take median/min z(t) for each (x,y) and remake stacks
+filterMeshesInTime = false ;
+if filterMeshesInTime
+    preview = true ;
+    filteredMeshFn = './msls_output/medianFilteredMeshes.mat' ;
+    if ~exist(filteredMeshFn, 'file') || overwrite 
+        prevMesh0 = [] ;
+        prevMesh1 = [] ;
+        xp.loadTime(timepoints(1));
+        xp.rescaleStackToUnitAspect();
+        IV = xp.stack.image.apply() ;
+        sz1 = size(IV{1}, 1) ;
+        sz2 = size(IV{1}, 2) ;
+        sz3 = size(IV{1}, 3) ;
+        if contains(lower(axisOrder), 'xyz')
+            szX = sz1 ; szY = sz2 ; szZ = sz3 ;
+            zdim = 3 ;
+        else
+            error('handle here')
+        end
+        %% Consider each mesh, filter with adjacent timepoints
+        for tidx = 1:length(timepoints)
+            tp = timepoints(tidx) ;
+            disp(['t = ' num2str(tp)])
+            meshfn = fullfile(mslsDir, sprintf('mesh_ms_%06d.ply', tp)) ;
+            mesh = read_ply_mod(meshfn) ;
+            % scatter3(mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), mesh.v(:, 1))
+
+            % Floor is max(x)
+            plane = find(mesh.v(:, zdim) > max(mesh.v(:, zdim))-0.1) ;
+            % surfId = setdiff(1:length(mesh.v), plane) ;
+
+            % % Sample some of the planar points
+            % p4bnd = plane(1:10:end) ;
+            % % Keep only boundary of planar points
+            % p4bndV = mesh.v(p4bnd, :) ;
+            % p4bndF = delaunay(p4bndV(:, 2), p4bndV(:, 3)) ;
+            % tri = triangulation(p4bndF, p4bndV)  ;
+            % bnd = freeBoundary(tri) ;
+            % bndV = p4bndV(bnd(:, 1), :) ;
+
+            % Subsample the surface 
+            [face, vertex] = remove_vertex_from_mesh(mesh.f, mesh.v, plane) ;
+            [ surfF, surfV, oldVertexIDx ] = ...
+                 remove_isolated_mesh_components( face, vertex ) ;
+
+            % check it
+            if preview
+                trisurf(triangulation(surfF, surfV), surfV(:, 3), 'edgecolor', 'none')
+                axis equal;
+                view(2)
+            end
+
+            % surfV = mesh.v(surfId, :) ;
+            if contains(lower(axisOrder), 'zyx')
+                uvz = [surfV(:, 3), surfV(:, 2), surfV(:, 1)] ;
+            elseif contains(lower(axisOrder), 'xyz')
+                if strcmpi(embryoView, 'rd')        
+                    uvz = [surfV(:, 1), surfV(:, 2), surfV(:, 3)] ;
+                else
+                    error('handle here')
+                end
+
+                if preview
+                    scatter3(uvz(:, 1), uvz(:, 2), uvz(:, 3), 5, uvz(:, 3))
+                    axis equal
+                    xlabel('x'); ylabel('y'); zlabel('z') ;
+                end
+            end
+
+            % subsample by binning and finding medians
+            [zmeans, counts, zs, xidx, yidx] = ...
+                binData2dGrid(uvz, uminmax, vminmax, nU, nV, false) ;
+            medz = zeros(nU, nV) ;
+            for pp = 1:size(zs, 1)
+                for qq = 1:size(zs, 2)
+                    if isempty(zs{pp, qq})
+                        medz(pp, qq) = NaN ;
+                    else
+                        if strcmpi(takeMedianMaxMin, 'median')
+                            medz(pp, qq) = median(zs{pp, qq}) - zOffset ;
+                        elseif strcmpi(takeMedianMaxMin, 'max')
+                            medz(pp, qq) = max(zs{pp, qq}) - zOffset ;
+                        elseif strcmpi(takeMedianMaxMin, 'min')
+                            medz(pp, qq) = min(zs{pp, qq}) - zOffset ;
+                        end
+                    end
+                end
+            end
+            Z0 = sz3; 
+            out_of_frame = find(isnan(medz)) ;
+            medz(out_of_frame) = Z0 ;
+            % local minimum filter (lower z is further from midsagittal plane)
+            medz = imerode(medz, true(5)) ;
+            % medz = imgaussfilt(medz, gaussSigma) ;
+            [yy, xx] = meshgrid(linspace(1, sz1, nU), linspace(1, sz2, nV)) ;
+            xx = xx';
+            yy = yy';
+
+            % NOTE: This should look correct
+            if preview
+                imagesc( linspace(1, sz2, nV), linspace(1, sz1, nU), medz)
+                axis equal ;
+                title('rescaled resampled surface')
+                pause(1)
+            end    
+
+            % Create ring of zeros around shape
+            % se = strel('disk', 2);
+            % keep = find(imdilate(~isnan(zmeans), se)) ;
+            % assert(all(size(medz) == size(zmeans)))
+
+            xr = xx(:) ;
+            yr = yy(:) ;
+            zr = medz(:) ;
+            scatter3(xr, yr, zr, 4, zr); view(2); axis equal
+
+            % xr = xr(keep) ;
+            % yr = yr(keep) ;
+            % zr = zr(keep) ;
+            % xr = [xr; 0; sz1; sz1; 0] ;
+            % yr = [yr; 0; 0; sz2; sz2] ;
+            % zr = [zr; Z0; Z0; Z0; Z0] ;
+
+            % Inspect cross-section
+            if preview && false
+                % Make this number larger to sample more of the nearby mesh
+                width = 4 ;
+                leaves = 1:50:szY ;
+                % Show the cross-section
+                for leaf = leaves
+                    inds = find(abs(yy - leaf) < width) ;
+                    clf
+                    if strcmpi(erase(axisOrder, 'c'), 'xyz')
+                        im = squeeze(IV{2}(:, leaf, :))' ;
+                    elseif strcmpi(erase(axisOrder, 'c'), 'xyz')
+                        im = squeeze(IV{2}(leaf, :, :))' ;
+                    end
+                    imshow(mat2gray(im, [0, double(rms1d(im(:)))]))
+                    hold on; 
+                    if any(inds)
+                        hold on;
+                        plot(xx(inds), medz(inds), 'c.')
+                    end
+                    pause(0.1)
+                end
+            end
+
+            % Triangulate the result
+            faces = delaunay(xr, yr) ;
+            mesh = struct() ;
+            mesh.f = faces ;
+            mesh.v = [xr, yr, zr] ;
+
+            if tidx == 1
+                % Do not define mesh until next timepoint
+            elseif tidx == 2
+                % First mesh is average of first two unsmoothed meshes
+                meshFilt{tidx-1} = mesh.v ;
+                assert(all(mesh.v(:, 1) == prevMesh1.v(:, 1))) ;
+                assert(all(mesh.v(:, 2) == prevMesh1.v(:, 2))) ;
+                meshFilt{tidx-1}(:, 3) = mean( [mesh.v(:, 3), prevMesh1.v(:, 3)], 2) ;
+            else
+                % Take median of previous two and current meshes
+                meshFilt{tidx-1} = mesh.v ;
+                assert(all(mesh.v(:, 1) == prevMesh1.v(:, 1))) ;
+                assert(all(mesh.v(:, 2) == prevMesh1.v(:, 2))) ;
+                meshFilt{tidx-1}(:, 3) = mean( [mesh.v(:, 3),  ...
+                    prevMesh0.v(:, 3), prevMesh1.v(:, 3)], 2) ;
+            end
+            out_of_frame_idx{tidx} = out_of_frame ;
+
+            % Prepare for next timepoint
+            prevMesh0 = prevMesh1 ;
+            prevMesh1 = mesh ;
+
+            if preview && tidx > 1
+                clf
+                tri = triangulation(mesh.f, meshFilt{tidx-1}) ;
+                trisurf(tri, 'edgecolor', 'none')
+                view(2); title('triangulation of rescaled resampling')
+                axis equal
+                pause(1) ;
+            end
+        end
+        save(filteredMeshFn, 'meshFilt', 'faces', 'out_of_frame_idx')
+    else
+        load(filteredMeshFn, 'meshFilt', 'faces', 'out_of_frame_idx')    
+    end
+end
+
+%% Onion stacks
+nPos = 15 ;
+nNeg = 10 ;
+useFilteredMesh = false ;
+
+layerWidth = 1 ;
+midLayerOffset = 10 ;
+lam = 0.001 ;  % 0.01 for antpG4kOCRL, 0.001 for 48YG4k; 
+
+preview = true ;
+overwrite = false ;
+
+timepoints = 1:27 ;
+tidx2do = 8:5:length(timepoints) ;
 tidx2do = [tidx2do, setdiff(1:length(timepoints), tidx2do)] ;
+
+% Load all filtered meshes
+if useFilteredMesh
+    load('./msls_output/medianFilteredMeshes.mat', 'meshFilt', 'faces', 'out_of_frame_idx')
+end
 for tidx = tidx2do
     tp = timepoints(tidx) ;
     imfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
-    if ~exist(imfn, 'file')
+    if ~exist(imfn, 'file') || overwrite
+        
         xp.loadTime(tp);
         xp.rescaleStackToUnitAspect();
         IV = xp.stack.image.apply() ;
@@ -536,134 +763,136 @@ for tidx = tidx2do
         else
             error('handle here')
         end
-        meshfn = fullfile(mslsDir, sprintf('mesh_ms_%06d.ply', tp)) ;
-        mesh = read_ply_mod(meshfn) ;
-        % scatter3(mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), mesh.v(:, 1))
-
-        % Floor is max(x)
-        plane = find(mesh.v(:, zdim) > max(mesh.v(:, zdim))-0.1) ;
-        % surfId = setdiff(1:length(mesh.v), plane) ;
-
-        % % Sample some of the planar points
-        % p4bnd = plane(1:10:end) ;
-        % % Keep only boundary of planar points
-        % p4bndV = mesh.v(p4bnd, :) ;
-        % p4bndF = delaunay(p4bndV(:, 2), p4bndV(:, 3)) ;
-        % tri = triangulation(p4bndF, p4bndV)  ;
-        % bnd = freeBoundary(tri) ;
-        % bndV = p4bndV(bnd(:, 1), :) ;
-
-        % Subsample the surface 
-        [face, vertex] = remove_vertex_from_mesh(mesh.f, mesh.v, plane) ;
-        [ surfF, surfV, oldVertexIDx ] = ...
-             remove_isolated_mesh_components( face, vertex ) ;
-
-        % check it
-        if preview
-            trisurf(triangulation(surfF, surfV), surfV(:, 3), 'edgecolor', 'none')
-            axis equal;
-            view(2)
-        end
-
-        % surfV = mesh.v(surfId, :) ;
-        if contains(lower(axisOrder), 'zyx')
-            uvz = [surfV(:, 3), surfV(:, 2), surfV(:, 1)] ;
-        elseif contains(lower(axisOrder), 'xyz')
-            if strcmpi(embryoView, 'rd')        
-                uvz = [surfV(:, 1), surfV(:, 2), surfV(:, 3)] ;
-            else
-                error('handle here')
-            end
+        
+        if ~useFilteredMesh
+            % Could load original mesh
+            meshfn = fullfile(mslsDir, sprintf('mesh_ms_%06d.ply', tp)) ;
+            mesh = read_ply_mod(meshfn) ;
             
+            % Floor is max(x)
+            plane = find(mesh.v(:, zdim) > max(mesh.v(:, zdim))-0.1) ;
+            
+            % Subsample the surface 
+            [face, vertex] = remove_vertex_from_mesh(mesh.f, mesh.v, plane) ;
+            [ surfF, surfV, oldVertexIDx ] = ...
+                 remove_isolated_mesh_components( face, vertex, 1000) ;
+
+            % check it
             if preview
-                scatter3(uvz(:, 1), uvz(:, 2), uvz(:, 3), 5, uvz(:, 3))
-                axis equal
-                xlabel('x'); ylabel('y'); zlabel('z') ;
+                trisurf(triangulation(surfF, surfV), surfV(:, 3), 'edgecolor', 'none')
+                axis equal;
+                view(2)
             end
-        end
-        
-        % subsample by binning and finding medians
-        [zmeans, counts, zs, xidx, yidx] = ...
-            binData2dGrid(uvz, uminmax, vminmax, nU, nV, false) ;
-        medz = zeros(nU, nV) ;
-        for pp = 1:size(zs, 1)
-            for qq = 1:size(zs, 2)
-                medz(pp, qq) = median(zs{pp, qq}) - zOffset ;
-            end
-        end
-        Z0 = sz3; 
-        out_of_frame = find(isnan(medz)) ;
-        medz(out_of_frame) = Z0 ;
-        % local minimum filter (lower z is further from midsagittal plane)
-        medz = imerode(medz, true(5)) ;
-        medz = imgaussfilt(medz, gaussSigma) ;
-        [yy, xx] = meshgrid(linspace(1, sz1, nU), linspace(1, sz2, nV)) ;
-        xx = xx';
-        yy = yy';
-        
-        % NOTE: This should look correct
-        if preview
-            imagesc( linspace(1, sz2, nV), linspace(1, sz1, nU), medz)
-            axis equal ;
-            title('rescaled resampled surface')
-            pause(1)
-        end    
-        
-        % Create ring of zeros around shape
-        % se = strel('disk', 2);
-        % keep = find(imdilate(~isnan(zmeans), se)) ;
-        % assert(all(size(medz) == size(zmeans)))
 
-        xr = xx(:) ;
-        yr = yy(:) ;
-        zr = medz(:) ;
-        scatter3(xr, yr, zr, 4, zr); view(2); axis equal
-        
-        % xr = xr(keep) ;
-        % yr = yr(keep) ;
-        % zr = zr(keep) ;
-        % xr = [xr; 0; sz1; sz1; 0] ;
-        % yr = [yr; 0; 0; sz2; sz2] ;
-        % zr = [zr; Z0; Z0; Z0; Z0] ;
-
-        % Inspect cross-section
-        if preview
-            % Make this number larger to sample more of the nearby mesh
-            width = 4 ;
-            leaves = 1:50:szY ;
-            % Show the cross-section
-            for leaf = leaves
-                inds = find(abs(yy - leaf) < width) ;
-                clf
-                if strcmpi(erase(axisOrder, 'c'), 'xyz')
-                    im = squeeze(IV{2}(:, leaf, :))' ;
-                elseif strcmpi(erase(axisOrder, 'c'), 'xyz')
-                    im = squeeze(IV{2}(leaf, :, :))' ;
+            % surfV = mesh.v(surfId, :) ;
+            if contains(lower(axisOrder), 'zyx')
+                uvz = [surfV(:, 3), surfV(:, 2), surfV(:, 1)] ;
+            elseif contains(lower(axisOrder), 'xyz')
+                if strcmpi(embryoView, 'rd') || strcmpi(embryoView, 'lv')        
+                    uvz = [surfV(:, 1), surfV(:, 2), surfV(:, 3)] ;
+                else
+                    error('handle here')
                 end
-                imshow(mat2gray(im, [0, double(rms1d(im(:)))]))
-                hold on; 
-                if any(inds)
-                    hold on;
-                    plot(xx(inds), medz(inds), 'c.')
+
+                if preview
+                    scatter3(uvz(:, 1), uvz(:, 2), uvz(:, 3), 5, uvz(:, 3))
+                    axis equal
+                    xlabel('x'); ylabel('y'); zlabel('z') ;
                 end
-                pause(0.1)
             end
-        end
 
-        % Triangulate the result
-        faces = delaunay(xr, yr) ;
-        mesh = struct() ;
-        mesh.f = faces ;
-        mesh.v = [xr, yr, zr] ;
-        if preview
-            clf
-            tri = triangulation(mesh.f, mesh.v) ;
-            trisurf(tri, 'edgecolor', 'none')
-            view(2); title('triangulation of rescaled resampling')
-            axis equal
-            pause(1) ;
-        end
+            % subsample by binning and finding medians
+            [zmeans, counts, zs, xidx, yidx] = ...
+                binData2dGrid(uvz, uminmax, vminmax, nU, nV, false) ;
+            medz = zeros(nU, nV) ;
+            for pp = 1:size(zs, 1)
+                for qq = 1:size(zs, 2)
+                    if isempty(zs{pp, qq})
+                        medz(pp, qq) = NaN ;
+                    else
+                        if strcmpi(takeMedianMaxMin, 'median')
+                            medz(pp, qq) = median(zs{pp, qq}) - zOffset ;
+                        elseif strcmpi(takeMedianMaxMin, 'max')
+                            medz(pp, qq) = max(zs{pp, qq}) - zOffset ;
+                        elseif strcmpi(takeMedianMaxMin, 'min')
+                            medz(pp, qq) = min(zs{pp, qq}) - zOffset ;
+                        end
+                    end
+                end
+            end
+            Z0 = sz3; 
+            out_of_frame = find(isnan(medz)) ;
+            medz(out_of_frame) = Z0 ;
+            % local minimum filter (lower z is further from midsagittal plane)
+            medz = imerode(medz, true(5)) ;
+            % medz = imgaussfilt(medz, gaussSigma) ;
+            [yy, xx] = meshgrid(linspace(1, sz1, nU), linspace(1, sz2, nV)) ;
+            xx = xx';
+            yy = yy';
 
+            % NOTE: This should look correct
+            if preview
+                imagesc( linspace(1, sz2, nV), linspace(1, sz1, nU), medz)
+                axis equal ;
+                title('rescaled resampled surface')
+                pause(1)
+            end    
+
+            % Create ring of zeros around shape
+            % se = strel('disk', 2);
+            % keep = find(imdilate(~isnan(zmeans), se)) ;
+            % assert(all(size(medz) == size(zmeans)))
+
+            xr = xx(:) ;
+            yr = yy(:) ;
+            zr = medz(:) ;
+            scatter3(xr, yr, zr, 4, zr); view(2); axis equal
+
+            % xr = xr(keep) ;
+            % yr = yr(keep) ;
+            % zr = zr(keep) ;
+            % xr = [xr; 0; sz1; sz1; 0] ;
+            % yr = [yr; 0; 0; sz2; sz2] ;
+            % zr = [zr; Z0; Z0; Z0; Z0] ;
+
+            % Inspect cross-section
+            if preview && false
+                % Make this number larger to sample more of the nearby mesh
+                width = 4 ;
+                leaves = 1:50:szY ;
+                % Show the cross-section
+                for leaf = leaves
+                    inds = find(abs(yy - leaf) < width) ;
+                    clf
+                    if strcmpi(erase(axisOrder, 'c'), 'xyz')
+                        im = squeeze(IV{2}(:, leaf, :))' ;
+                    elseif strcmpi(erase(axisOrder, 'c'), 'xyz')
+                        im = squeeze(IV{2}(leaf, :, :))' ;
+                    end
+                    imshow(mat2gray(im, [0, double(rms1d(im(:)))]))
+                    hold on; 
+                    if any(inds)
+                        hold on;
+                        plot(xx(inds), medz(inds), 'c.')
+                    end
+                    pause(0.1)
+                end
+            end
+
+            % Triangulate the result
+            faces = delaunay(xr, yr) ;
+            mesh = struct() ;
+            mesh.f = faces ;
+            mesh.v = [xr, yr, zr] ;
+        else
+            % Instead use filtered mesh
+            mesh = struct() ;
+            mesh.f = faces ;
+            mesh.v = meshFilt{tidx} ;
+            out_of_frame = out_of_frame_idx{tidx} ;         
+        end
+        tri = triangulation(mesh.f, mesh.v) ;
+        
         % Fix vertices that are off mesh or near the mesh boundary
         bndId = neighbors(tri, out_of_frame); % find(zr > max(medz(:))-5)) ;
         bndId = unique(bndId(~isnan(bndId))) ;
@@ -681,20 +910,6 @@ for tidx = tidx2do
             axis equal
         end
         
-        % Push non-mesh out of the image volume
-        % mesh.v(out_of_frame, 3) = Z0 + 2 ;
-
-        %     cla
-        %     trisurf(triangulation(faces, vsm), 'edgecolor', 'none'); axis equal
-        %     view(2) ;
-        %     pause(1)
-        % 
-        %     difference = mean(abs(vsm - vsm0) ./ (vsm0(:, 3)-285)) ;
-        %     disp(['diff = ' num2str(difference)])
-        %     vsmprev = vsm ;
-        % 
-        % end
-
         m2d = mesh ;
         m2d.v = [xr, yr] ;
         mesh.vn = zeros(size(mesh.v)) ;
@@ -714,7 +929,7 @@ for tidx = tidx2do
             Opts.imSize = [sz1, sz2] ;
             error('handle here')
         end
-        Opts.numLayers = [20, 20];  %[nPos, nNeg] ;
+        Opts.numLayers = [nPos, nNeg] ;
         Opts.layerSpacing = 1 ;
         Opts.vertexNormal = mesh.vn ;
         Opts.extrapolationMethod = 'nearest' ; % 'nearest' ;'none'; 
@@ -772,7 +987,7 @@ for tidx = tidx2do
         % end
 
         ch1 = uint8(mat2gray(ch1, [min(ch1(:)), max(ch1(:))]) * 2^8) ;
-        ch2 = uint8(mat2gray(ch2, [min(ch2(:)), 0.25 * max(ch2(:))]) * 2^8) ;
+        ch2 = uint8(mat2gray(ch2, [min(ch2(:)), 0.7 * max(ch2(:))]) * 2^8) ;
         
         ch1 = permute(ch1, [2, 1,3]) ;
         ch2 = permute(ch2, [2, 1,3]) ;
@@ -799,105 +1014,107 @@ for tidx = tidx2do
         imfn1 = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 1) ;
         imfn2 = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
         ims1 = loadtiff(imfn1) ;
-        im01 = squeeze(max(ims1(:, :, nNeg-layerWidth+midLayerOffset:nNeg+layerWidth+midLayerOffset), [], 3)) ;
+        minLayer = max(nNeg-layerWidth+midLayerOffset, 1) ;
+        maxLayer = min(nNeg+layerWidth+midLayerOffset, size(ims1, 3)) ;
+        im01 = squeeze(max(ims1(:, :, minLayer:maxLayer), [], 3)) ;
+        im01 = adapthisteq(im01,'clipLimit',0.2,'Distribution','rayleigh');
         im01 = uint8(255 * mat2gray(im01, double([min(im01(:)), max(im01(:))]))) ;
+        imshow(im01)
+        
         imwrite(im01, outfn1)
         ims2 = loadtiff(imfn2) ;
-        im02 = squeeze(max(ims2(:, :, nNeg-1+midLayerOffset:nNeg+1+midLayerOffset), [], 3)) ;
+        im02 = squeeze(max(ims2(:, :, minLayer:maxLayer), [], 3)) ;
+        im02 = adapthisteq(im02,'clipLimit',0.2,'Distribution','rayleigh');
         im02 = uint8(255 * mat2gray(im02, double([min(im02(:)), max(im02(:))]))) ;
         imwrite(im02, outfn2)
     end
 end
 
+%% Combine c1 and c2
+l0c1s = dir('./texturePatches/layer0_T*_c1.png') ;
+l0c2s = dir('./texturePatches/layer0_T*_c2.png') ;
+mkdir(fullfile(l0c1s(1).folder, 'rgb'))
+mkdir(fullfile(l0c1s(1).folder, 'fancy'))
+
+for ii = 1:length(l0c1s)
+    im1 = imread(fullfile(l0c1s(ii).folder, l0c1s(ii).name)) ;
+    im2 = imread(fullfile(l0c2s(ii).folder, l0c2s(ii).name)) ;
+    
+    % cat to RGB
+    outname = fullfile(l0c1s(ii).folder, 'rgb', ...
+        [l0c1s(ii).name(1:end-6) 'rgb.png']) ;
+    if ~exist(outname, 'file') || overwrite
+        rgbim = cat(3, im1, im2, 0*im1) ;
+        imwrite(rgbim, outname)
+
+        % Fancy im
+        outname = fullfile(l0c1s(ii).folder, 'fancy', ...
+            [l0c1s(ii).name(1:end-6) 'rgb_cyan.png']) ;
+        rgbim = cat(3, im1, im2, im2) ;
+        imwrite(rgbim, outname)
+    else
+        disp(['already on disk: t=' num2str(timepoints(ii))]) 
+    end
+end
+
 
 %% Segment the cells by selecting watershed seed points 
-% for tidx = tidx2do
-%     tp = timepoints(tidx) ;
-%     segfn = sprintf('./cellSegmentation/cells_T%03d.mat', tp) ;
-%     
-%     if ~exist(segfn, 'file')
-%         % Load image stack and manually create cell polygon at z stack
-%         imfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
-%         im = loadtiff(imfn) ;
-% 
-%         seg = zeros(size(im)) ;
-%         overlay = zeros(size(im, 1), size(im, 2)) ;
-% 
-%         % Label all cells
-%         cellID = length(polygons) ;
-%         polygons = {} ;
-%         next_cell = true ;
-%         fig = gcf() ;
-%         k0 = round(0.5 * size(im, 3)) ;
-%         set(gcf, 'visible', 'on')
-%         while next_cell
-%             [k] = flipThroughStackFindLayerOverlay(im, overlay, ...
-%                 'Find a good z for segmentation', 3, 10, fig, k0) ;
-% 
-%             % draw the segmentation of the cell in this layer
-%             slice = squeeze(im(:, :, k)) ;
-%             xlims = xlim() ;
-%             ylims = ylim() ;
-%             disp('adjust zoom now, then press any key for ROI selection')
-%             %button = waitforbuttonpress;
-%             %box = rbbox ;
-%             
-%             
-% 
-%             % % TRY WATERSHED
-%             % % Filter output: laplacian of Gaussian sharpens, then Gaussian smooths
-%             % cellSize = 20;
-%             % strelRadius = 1;
-%             % gaussKernel = 2;
-%             % heightMiminum = 1;
-%             % 
-%             % h1 = fspecial('log', cellSize);
-%             % seD1 = strel('disk', strelRadius);
-%             % g = fspecial('gaussian', gaussKernel);
-%             % 
-%             % % Pack label image L with watershed results
-%             % mem = mat2gray(slice, [0, double(max(slice(:)))]) ;
-%             % L = zeros(size(mem));
-%             % disp(['memWS: segmenting timepoint ', num2str(t)]) 
-%             % mem = imfilter(mem,g);
-%             % cyto = 1 - mem;
-%             % 
-%             % % mem = imfilter(mem,h1);
-%             % % mem(:,:,t) = imclose(mem(:,:,t),strel('disk',3));
-%             % 
-%             % lev = graythresh(cyto);
-%             % % seed = im2bw(cyto, lev);  % consider swapping to imbinarize
-%             % % seed = imdilate(seed, seD1);
-%             % % seed = bwareaopen(seed, 25);
-%             % 
-%             % pre_water = imhmin(mem, heightMiminum);
-%             % pre_water = imimposemin(pre_water, seed);
-%             % LL = watershed(mem);
-%             
-%             
-%             [BW1,xi2,yi2] = roipoly() ;
-%             se = strel('disk', 1) ;
-%             BW = imerode(BW1, se) ;
-%             thispolygon = [xi2, yi2, k*ones(size(xi2))] ;
-%             polygons = {polygons, thispolygon} ;
-% 
-%             % Update segmentation
-%             segLayer = seg(:, :, k) ;
-%             segLayer(BW) = cellID ;
-%             seg(:, :, k) = segLayer ;
-% 
-%             % Update overlay
-%             overlay = sum(seg, 3) > 0 ;
-% 
-%             % Save the result
-%             save(segfn, 'seg', 'overlay', 'polygons')
-%             
-%             inseg = input('Done with seg?', 's') ;
-%             next_cell = ~contains(lower(inseg), 'y') ;
-%         end
-% 
-%     end
-% end
+overwrite = false ;
+preThres = 0.3 ;
+cellSize = 20;
+strelRadius = 0;
+gaussKernel = 0 ;
+heightMiminum = 1;
+
+mkdir('./cellSegmentation/')
+tidx2do = 1:27 ;
+for tidx = tidx2do
+    tp = timepoints(tidx) ;
+    disp(['tp = ', num2str(tp)])
+    segfn = sprintf('./cellSegmentation/automask_T%03d.png', tp) ;
+    % segfn2 = sprintf('./cellSegmentation/automask2_T%03d.png', tp) ;
+    % segfn3 = sprintf('./cellSegmentation/automask3_T%03d.png', tp) ;
+    
+    if ~exist(segfn, 'file') || overwrite
+        %% Load image ilastik probabilities
+        imfn = sprintf('./texturePatches/rgb/layer0_T%03d_rgb_Probabilities.h5', tp) ;
+        prob = h5read(imfn, '/exported_data/') ;
+        im2segment = squeeze(prob(1, :, :)) ;
+        
+        %% Use raw
+        % imfn = sprintf('./texturePatches/rgb/layer0_T%03d_rgb.png', tp) ;
+        % im = imread(imfn) ;
+        % im2segment = squeeze(im(:, :, 2)) ;
+
+        % NEW watershed segmentation
+        adaphisteqClip = 0.5 ;
+        strelRadius = 1 ;
+        [skel, DL] = segmentImageWatershed(im2segment, adaphisteqClip, strelRadius) ;
+        
+        % skel = segmentImageWatershedSimple(img, )
+        
+        % Mask the segmentation by depth of surface
+        if useFilteredMesh
+            surface = meshFilt{tidx} ;
+        else
+            load(sprintf('./texturePatches/mesh_T%03d.mat', tp), 'mesh') ;
+            surface = mesh.v ;
+        end
+        % resample surface onto image grid
+        [xx,yy] = meshgrid(1:size(DL, 1), 1:size(DL, 2)) ;
+        resurf = interpolate2Dpts_3Dmesh(mesh.f, surface(:, 1:2), surface, [xx(:), yy(:)]) ;
+        maxZ = max(resurf(:, 3)) ;
+        keep = reshape(resurf(:, 3) < (maxZ - 1), [size(DL, 2), size(DL, 1)]) ;
+        
+        mask1 = skel' .* keep ;
+        imshow(mask1) ; pause(0.001)
+        
+        % Save the result
+        imwrite(mask1, segfn)
+        
+        disp(['Done with seg ' num2str(tp)])
+    end
+end
 
 %% Load in GIMP and export binary masks
 
@@ -926,8 +1143,7 @@ if ~exist(imDir_bnd3d, 'dir')
     mkdir(imDir_bnd3d)
 end
 
-tidx2do = 1:16 ;
-
+tidx2do = 1:length(timepoints) ;
 for tidx = tidx2do
     tp = timepoints(tidx) ;
     outfn = fullfile(segDir, sprintf('T%03d_polygons3d.mat', tp)) ; 
@@ -935,7 +1151,9 @@ for tidx = tidx2do
     if ~exist(outfn, 'file') || overwrite
         disp(['Processing t=' num2str(tp) ': ' outfn])
         % try
-            segfn = fullfile(segDir, sprintf('T%03dmask.png', tp)) ;
+            segfn = fullfile(segDir, sprintf('mask_T%03d.png', tp)) ;
+            % segfn = fullfile(segDir, sprintf('T%03dmask.png', tp)) ;
+            % segfn = fullfile(segDir, sprintf('automask1_T%03d.png', tp)) ;
             seg = imread(segfn) ;
             load(fullfile(textureDir, sprintf('mesh_T%03d.mat', tp)), ...
                 'mesh', 'm2d', 'Opts') ;
@@ -943,7 +1161,8 @@ for tidx = tidx2do
             im = loadtiff(imfn) ;
 
             % Threshold for initial segmentation
-            bw = seg > thres ;
+            bw = seg(:, :, 2) > thres ;
+            redIm = squeeze(seg(:, :, 1)) >  thres ;
 
             % Convert segmentation into polygon ids
             se1 = strel('disk', 1) ;
@@ -963,6 +1182,27 @@ for tidx = tidx2do
             % Get all boundaries    
             CC = bwconncomp(~bw2, 4);
             segIm = labelmatrix(CC) ;
+            
+            % Mask out red cells
+            se = strel('disk', 5) ;
+            badCells = [] ;
+            for cid = 1:max(segIm(:))
+                % 
+                thisCell = segIm == cid ;
+                thisCell = imerode(thisCell, se) ;
+                if sum(sum(thisCell .* redIm)) > 20 
+                    badCells = [badCells, cid] ;
+                end
+            end
+            segOut = segIm ;
+            for bcid = badCells
+                currId = median(segOut(segIm == bcid));
+                segOut(segOut == currId) = 0 ;
+                segOut(segOut > currId) = segOut(segOut > currId) - 1 ;
+            end
+            segIm = segOut ;
+            
+            % Get properties of cells
             c2d = cell(max(segIm(:)), 1) ;
             props = regionprops(segIm, 'centroid') ;
             
@@ -995,43 +1235,60 @@ for tidx = tidx2do
 
                 hold on;
                 plot(tmp{1}(:, 2), tmp{1}(:, 1), '.-', 'color', colors(2, :)) 
-                plot(centroids2d(:, 1), centroids2d(:, 2), '.', 'color', colors(3, :))
                 % pause(0.05) ;
 
                 bnd = [tmp{1}(:, 2), tmp{1}(:, 1)] ;
 
                 c2d{pId} = bnd ;
             end 
+            plot(centroids2d(:, 1), centroids2d(:, 2), '.', 'color', colors(3, :))
             imfn = fullfile(imDir_bnd, sprintf('T%03d_boundaries.png', tp)) ;
             title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits])
             saveas(gcf, imfn)
 
             % Extract polygon shapes
             % Get z position for each cell polygon
+            vx = laplacian_smooth(mesh.v, mesh.f,'cotan',[], 0.01 , 'implicit', mesh.v(:, 1), 1000) ;
+            vy = laplacian_smooth(mesh.v, mesh.f,'cotan',[], 0.01 , 'implicit', mesh.v(:, 2), 1000) ;
+            vz = laplacian_smooth(mesh.v, mesh.f,'cotan',[], 0.01 , 'implicit', mesh.v(:, 3), 1000) ;
+            smFaceNormals = faceNormal(triangulation(m2d.f, [vx, vy, vz])) ;
+            
+            clf
+            meshc3d = barycenter(mesh.v, mesh.f) ;
+            quiver3(meshc3d(:, 1), meshc3d(:, 2), meshc3d(:, 3), ...
+                smFaceNormals(:, 1), smFaceNormals(:, 2), smFaceNormals(:, 3), 1) ;
+            
             [c3d, centroids3d, areas, perim, moment1, ang1, ...
                 moment2, ang2, moinertia, cellQ2d, fieldfaces] = ...
-                polygon3dMeasurements(m2d.f, mesh.v, m2d.v, c2d, centroids2d) ;
+                polygon3dMeasurements(m2d.f, mesh.v, m2d.v, c2d, ...
+                centroids2d, smFaceNormals) ;
 
             % % Check this 
             % Color by aspect ratio
             clf
             aratioImage = double(0*segIm) ;
-            qstrength = sqrt(moment2 ./ moment1) -1 ;
+            qstrength = real(sqrt(moment2 ./ moment1)) -1 ;
+            QxxVals = zeros(length(c2d), 1) ;
             for cid = 1:length(c2d)
                 if ~isnan(moment2(cid))
                     aratioImage(segIm == cid) = qstrength(cid) * cos(2*ang1(cid)) ;
+                    QxxVals(cid) = qstrength(cid) * cos(2*ang1(cid)) ;
                 end
             end        
             aratioImage(segIm < 2) = NaN ;
+            
             [xL, yL] = size(aratioImage) ;
-            imagesc(1:yL*pix2um, 1:xL*pix2um, aratioImage); 
+            imagesc(1:yL*pix2um, 1:xL*pix2um, real(aratioImage), ...
+                'AlphaData', ~isnan(aratioImage)) ; 
             axis equal
             grid off
             cb = colorbar ;
             xlabel('ap position, [$\mu$m]', 'interpreter', 'latex')
             ylabel('dv position, [$\mu$m]', 'interpreter', 'latex')
             caxis(max(abs(aratioImage(:))) * [-1,1])
+            caxis([-2,2])
             colormap(bwr)
+            set(gca,'Ydir','reverse')
             ylabel(cb, '$Q_{xx}$', 'interpreter', 'latex')
             title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits], ...
                 'interpreter', 'latex')
@@ -1071,6 +1328,10 @@ for tidx = tidx2do
             
             % View 3d polygons
             clf
+            cmapcolors = colormap ;
+            cmin = -2 ;
+            cmax = 2 ;
+            qxxCmap = linspace(cmin, cmax, length(cmapcolors)) ;
             minzum = min(mesh.v (:, 3) * pix2um) ;
             trisurf(triangulation(mesh.f, ...
                 mesh.v * pix2um - [0, 0, minzum]), ...
@@ -1092,8 +1353,63 @@ for tidx = tidx2do
             imfn = fullfile(imDir_bnd3d, sprintf('T%03d_boundaries3d.pdf', tp)) ;
             title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits], ...
                 'interpreter', 'latex')
+            set(gca,'Ydir','reverse')
             saveas(gcf, imfn)
             imfn = fullfile(imDir_bnd3d, sprintf('T%03d_boundaries3d.png', tp)) ;
+            saveas(gcf, imfn)
+            
+            %% View 3d polygons colored by Qxx
+            clf
+            colormap bwr
+            cmapcolors = colormap ;
+            cmin = -2 ;
+            cmax = 2 ;
+            qxxCmap = linspace(cmin, cmax, length(cmapcolors)) ;
+            minzum = min(mesh.v (:, 3) * pix2um) ;
+            % trisurf(triangulation(mesh.f, ...
+            %     mesh.v * pix2um - [0, 0, minzum] - [0,0,5]), ...
+            %     'edgecolor', 'none')
+            faceAlpha = 0.5 ;
+            for pId = 2:max(segIm(:))
+                hold on;
+                
+                % plot3(c3d{pId}(:, 1) * pix2um, ...
+                %     c3d{pId}(:, 2) * pix2um, ...
+                %     c3d{pId}(:, 3) * pix2um - minzum, '-')
+                plot3(c3d{pId}(:, 1) , ...
+                    c3d{pId}(:, 2) , ...
+                    c3d{pId}(:, 3) - minzum, '-')
+                
+                qxx4cell = qstrength(pId) * cos(2*ang1(pId)) ;
+                if qxx4cell > cmax
+                    cmapId = qxxCmap(end, :) ;
+                elseif qxx4cell < cmin
+                    cmapId = qxxCmap(1, :) ;                    
+                else
+                    color4cell = cmapcolors(find(qxxCmap > qxx4cell, 1), :) ;
+                end
+                % p = patch(c3d{pId}(:, 1) * pix2um, ...
+                %     c3d{pId}(:, 2) * pix2um, ...
+                %     c3d{pId}(:, 3) * pix2um - minzum, color4cell) ;
+                p = patch(c3d{pId}(:, 1) , ...
+                    c3d{pId}(:, 2) , ...
+                    c3d{pId}(:, 3) - minzum, color4cell) ;
+                p.FaceAlpha = faceAlpha ;
+            end
+            imshow(singlePage)
+            view(2)
+            axis equal
+            grid off
+            xlabel('ap position', 'interpreter', 'latex')
+            ylabel('dv position', 'interpreter', 'latex')
+            cb = colorbar ;
+            set(gca,'Ydir','reverse')
+            ylabel(cb, '$Q_{xx}$', 'interpreter', 'latex')
+            imfn = fullfile(imDir_bnd3d, sprintf('T%03d_qxx3d.pdf', tp)) ;
+            title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits], ...
+                'interpreter', 'latex')
+            saveas(gcf, imfn)
+            imfn = fullfile(imDir_bnd3d, sprintf('T%03d_qxx3d.png', tp)) ;
             saveas(gcf, imfn)
 
             disp(['Saving measurement to ', outfn])
@@ -1124,10 +1440,8 @@ end
 % for now just draw it
 tidx2do = 1:length(timepoints) ;
 % fold2 = 665 * ones(length(timepoints), 1) ;
-fold2 = 575 * ones(length(timepoints), 1) ;
+fold2 = 345 * ones(length(timepoints), 1) ;
 time_offset = 0 * timepoints ;
-time_offset(2:end) = 4 ;
-time_offset(3:end) = 5 ;
 t0 = tp0 * timeInterval - time_offset(tp0) ;
 
 %% plot Q as function of ap position
@@ -1165,11 +1479,17 @@ for tidx = tidx2do
         qcos2 = (sqrt(m2./m1)-1) .* cos(2 * a1) ;
         % qcos2 = -(sqrt(m2./m1)-1) ; % .* cos(2 * a1) ;
         qsin2 = (sqrt(m2./m1)-1) .* sin(2 * a1) ;
-        [midx, meanC, stdC, nC] = binDataMeanStdWeighted(cx, qcos2, xe, weights) ;
-        [~, meanS, stdS, nS] = binDataMeanStdWeighted(cx, qsin2, xe, weights) ;
+        % [midx, meanC, stdC, nC] = binDataMeanStdWeighted(cx, qcos2, xe, weights) ;
+        % [~, meanS, stdS, nS] = binDataMeanStdWeighted(cx, qsin2, xe, weights) ;
         
-        [~, meanC_L12, stdC_L12, nC_L12] = binDataMeanStdWeighted(cx, qcos2, lobe12, weights) ;
-        [~, meanS_L12, stdS_L12, nS_L12] = binDataMeanStdWeighted(cx, qsin2, lobe12, weights) ;
+        [midx, medianC, meanC, stdC, nC] = binDataMedianStd(cx, qcos2, xe, weights) ;
+        [~, medianS, meanS, stdS, nS] = binDataMedianStd(cx, qsin2, xe, weights) ;
+        
+        % [~, meanC_L12, stdC_L12, nC_L12] = binDataMeanStdWeighted(cx, qcos2, lobe12, weights) ;
+        % [~, meanS_L12, stdS_L12, nS_L12] = binDataMeanStdWeighted(cx, qsin2, lobe12, weights) ;
+        
+        [~, medianC_L12, meanC_L12, stdC_L12, nC_L12] = binDataMedianStd(cx, qcos2, lobe12, weights) ;
+        [~, medianS_L12, meanS_L12, stdS_L12, nS_L12] = binDataMedianStd(cx, qsin2, lobe12, weights) ;
         
         assert(all(nC == nS)) ;
         steC = stdC ./ max(1, sqrt(nC-1)) ;
@@ -1196,30 +1516,77 @@ for tidx = tidx2do
         statStruct.ap = struct() ;
         % all cells
         statStruct.ap.midx = midx ;
+        statStruct.ap.Qcos2t_med = medianC ;
         statStruct.ap.Qcos2t_avg = meanC ;
         statStruct.ap.Qcos2t_std = stdC ;
         statStruct.ap.Qcos2t_ste = steC ;
         statStruct.ap.nC = nC ;
+        statStruct.ap.Qsin2t_med = medianS ;
         statStruct.ap.Qsin2t_avg = meanS ;
         statStruct.ap.Qsin2t_std = stdS ;
         statStruct.ap.Qsin2t_ste = steS ;
         statStruct.ap.nS = nS ;
         % cells in lobes 1 and 2
         statStruct.lobe12 = struct() ;
-        statStruct.lobe12.Qcos2t_avg = meanC_L12(1) ;
-        statStruct.lobe12.Qcos2t_std = stdC_L12(1) ;
-        statStruct.lobe12.Qcos2t_ste = steC_L12(1) ;
-        statStruct.lobe12.nC = nC_L12(1) ;
-        statStruct.lobe12.Qsin2t_avg = meanS_L12(1) ;
-        statStruct.lobe12.Qsin2t_std = stdS_L12(1) ;
-        statStruct.lobe12.Qcos2t_ste = steC_L12(1) ;
-        statStruct.lobe12.nS = nS_L12(1) ;
+        
+        if contains(lower(embryoView), 'r')
+            % Take left side (anterior pointing to the left)
+            statStruct.lobe12.Qcos2t_med = medianC_L12(1) ;
+            statStruct.lobe12.Qcos2t_avg = meanC_L12(1) ;
+            statStruct.lobe12.Qcos2t_std = stdC_L12(1) ;
+            statStruct.lobe12.Qcos2t_ste = steC_L12(1) ;
+            statStruct.lobe12.nC = nC_L12(1) ;
+            statStruct.lobe12.Qsin2t_med = medianS_L12(1) ;
+            statStruct.lobe12.Qsin2t_avg = meanS_L12(1) ;
+            statStruct.lobe12.Qsin2t_std = stdS_L12(1) ;
+            statStruct.lobe12.Qcos2t_ste = steC_L12(1) ;
+            statStruct.lobe12.nS = nS_L12(1) ;
+            
+            % Take right side as lobes 3-4 (anterior pointing to the right)
+            statStruct.lobe34.Qcos2t_med = medianC_L12(2) ;
+            statStruct.lobe34.Qcos2t_avg = meanC_L12(2) ;
+            statStruct.lobe34.Qcos2t_std = stdC_L12(2) ;
+            statStruct.lobe34.Qcos2t_ste = steC_L12(2) ;
+            statStruct.lobe34.nC = nC_L12(2) ;
+            statStruct.lobe34.Qsin2t_med = medianS_L12(2) ;
+            statStruct.lobe34.Qsin2t_avg = meanS_L12(2) ;
+            statStruct.lobe34.Qsin2t_std = stdS_L12(2) ;
+            statStruct.lobe34.Qcos2t_ste = steC_L12(2) ;
+            statStruct.lobe34.nS = nS_L12(2) ;
+        else
+            % Take right side (anterior pointing to the right)
+            statStruct.lobe12.Qcos2t_med = medianC_L12(2) ;
+            statStruct.lobe12.Qcos2t_avg = meanC_L12(2) ;
+            statStruct.lobe12.Qcos2t_std = stdC_L12(2) ;
+            statStruct.lobe12.Qcos2t_ste = steC_L12(2) ;
+            statStruct.lobe12.nC = nC_L12(2) ;
+            statStruct.lobe12.Qsin2t_med = medianS_L12(2) ;
+            statStruct.lobe12.Qsin2t_avg = meanS_L12(2) ;
+            statStruct.lobe12.Qsin2t_std = stdS_L12(2) ;
+            statStruct.lobe12.Qcos2t_ste = steC_L12(2) ;
+            statStruct.lobe12.nS = nS_L12(2) ;
+            
+            % Take left side as lobes 3-4 (anterior pointing to the right)
+            statStruct.lobe34.Qcos2t_med = medianC_L12(1) ;
+            statStruct.lobe34.Qcos2t_avg = meanC_L12(1) ;
+            statStruct.lobe34.Qcos2t_std = stdC_L12(1) ;
+            statStruct.lobe34.Qcos2t_ste = steC_L12(1) ;
+            statStruct.lobe34.nC = nC_L12(1) ;
+            statStruct.lobe34.Qsin2t_med = medianS_L12(1) ;
+            statStruct.lobe34.Qsin2t_avg = meanS_L12(1) ;
+            statStruct.lobe34.Qsin2t_std = stdS_L12(1) ;
+            statStruct.lobe34.Qcos2t_ste = steC_L12(1) ;
+            statStruct.lobe34.nS = nS_L12(1) ;
+        end
+        
         
         stats{tidx} = statStruct ;
         
+        Qct_m(tidx, :) = medianC_L12 ;
         Qct_a(tidx, :) = meanC_L12 ;
         Qct_s(tidx, :) = stdC_L12 ;
         Qct_e(tidx, :) = steC_L12 ;
+        Qst_m(tidx, :) = medianS_L12 ;
         Qst_a(tidx, :) = meanS_L12 ;
         Qst_s(tidx, :) = stdS_L12 ;
         Qst_e(tidx, :) = steS_L12 ;
@@ -1240,9 +1607,11 @@ saveas(gcf, [imfn '.png']) ;
 
 % Plot over time
 keep = ~isnan(Qct_a(:, 1)) ;
+Qct_mk = Qct_m(keep, 1) ;
 Qct_ak = Qct_a(keep, 1) ;
 Qct_sk = Qct_s(keep, 1) ;
 Qct_ek = Qct_e(keep, 1) ;
+Qst_mk = Qst_m(keep, 1) ;
 Qst_ak = Qst_a(keep, 1) ;
 Qst_sk = Qst_s(keep, 1) ;
 Qst_ek = Qst_e(keep, 1) ;
@@ -1250,9 +1619,9 @@ timestamps = (timepoints(keep) * timeInterval) - t0 - time_offset(keep) ;
 clf
 hold on;
 lineProps = {'.-', 'color', colors(1, :)} ;
-h1=shadedErrorBar(timestamps, Qct_ak, Qct_sk, 'lineProps', lineProps) ;
+h1=shadedErrorBar(timestamps, Qct_mk, Qct_sk, 'lineProps', lineProps) ;
 lineProps = {'.-', 'color', colors(2, :)} ;
-h2=shadedErrorBar(timestamps, Qst_ak, Qst_sk, 'lineProps', lineProps) ;
+h2=shadedErrorBar(timestamps, Qst_mk, Qst_sk, 'lineProps', lineProps) ;
 
 plot(timestamps, Qct_ak-Qct_ek, '--', 'color', colors(1, :)) ;
 plot(timestamps, Qct_ak+Qct_ek, '--', 'color', colors(1, :)) ;

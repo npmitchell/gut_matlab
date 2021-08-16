@@ -29,7 +29,7 @@ clear; close all; clc;
 
 % Configuration metadata for this dataset
 tp0 = 5 ;  % which timepoint (index) is the onset of folding?
-embryoView = 'RD' ; % 'RD'/RV/LD/LV --> which way is out of page (decreasing z) and up (increasing Y in Fiji)  
+embryoView = 'RV' ; % 'RD'/RV/LD/LV --> which way is out of page (decreasing z) and up (increasing Y in Fiji)  
 
 %% INITIALIZE ImSAnE PROJECT ==============================================
 %
@@ -65,11 +65,13 @@ for tidx = 1:length(fns0)
         im1 = readTiff4D(fn1, 1) ;
         
         % Reorient the image
-        if strcmpi(embryoView, 'rd')
+        if strcmpi(embryoView, 'rv')
             im0 = fliplr(im0) ;
             im0 = flipud(im0) ;
             im1 = fliplr(im1) ;
             im1 = flipud(im1) ;
+        elseif strcmpi(embryoView, 'rd')
+            disp('no rotation necessary')
         else
             error('handle here')
         end
@@ -523,6 +525,8 @@ tidx2do = [tidx2do, setdiff(1:length(timepoints), tidx2do)] ;
 for tidx = tidx2do
     tp = timepoints(tidx) ;
     imfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
+    outmeshfn = fullfile(mslsDir, sprintf('./texturePatches/mesh_resample_%03d.ply', tp)) ;
+    
     if ~exist(imfn, 'file')
         xp.loadTime(tp);
         xp.rescaleStackToUnitAspect();
@@ -663,6 +667,9 @@ for tidx = tidx2do
             axis equal
             pause(1) ;
         end
+        
+        % Output the mesh before smoothing
+        plywrite(outmeshfn, mesh.f, mesh.v)
 
         % Fix vertices that are off mesh or near the mesh boundary
         bndId = neighbors(tri, out_of_frame); % find(zr > max(medz(:))-5)) ;
@@ -811,93 +818,101 @@ end
 
 
 %% Segment the cells by selecting watershed seed points 
-% for tidx = tidx2do
-%     tp = timepoints(tidx) ;
-%     segfn = sprintf('./cellSegmentation/cells_T%03d.mat', tp) ;
-%     
-%     if ~exist(segfn, 'file')
-%         % Load image stack and manually create cell polygon at z stack
-%         imfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
-%         im = loadtiff(imfn) ;
-% 
-%         seg = zeros(size(im)) ;
-%         overlay = zeros(size(im, 1), size(im, 2)) ;
-% 
-%         % Label all cells
-%         cellID = length(polygons) ;
-%         polygons = {} ;
-%         next_cell = true ;
-%         fig = gcf() ;
-%         k0 = round(0.5 * size(im, 3)) ;
-%         set(gcf, 'visible', 'on')
-%         while next_cell
-%             [k] = flipThroughStackFindLayerOverlay(im, overlay, ...
-%                 'Find a good z for segmentation', 3, 10, fig, k0) ;
-% 
-%             % draw the segmentation of the cell in this layer
-%             slice = squeeze(im(:, :, k)) ;
-%             xlims = xlim() ;
-%             ylims = ylim() ;
-%             disp('adjust zoom now, then press any key for ROI selection')
-%             %button = waitforbuttonpress;
-%             %box = rbbox ;
-%             
-%             
-% 
-%             % % TRY WATERSHED
-%             % % Filter output: laplacian of Gaussian sharpens, then Gaussian smooths
-%             % cellSize = 20;
-%             % strelRadius = 1;
-%             % gaussKernel = 2;
-%             % heightMiminum = 1;
-%             % 
-%             % h1 = fspecial('log', cellSize);
-%             % seD1 = strel('disk', strelRadius);
-%             % g = fspecial('gaussian', gaussKernel);
-%             % 
-%             % % Pack label image L with watershed results
-%             % mem = mat2gray(slice, [0, double(max(slice(:)))]) ;
-%             % L = zeros(size(mem));
-%             % disp(['memWS: segmenting timepoint ', num2str(t)]) 
-%             % mem = imfilter(mem,g);
-%             % cyto = 1 - mem;
-%             % 
-%             % % mem = imfilter(mem,h1);
-%             % % mem(:,:,t) = imclose(mem(:,:,t),strel('disk',3));
-%             % 
-%             % lev = graythresh(cyto);
-%             % % seed = im2bw(cyto, lev);  % consider swapping to imbinarize
-%             % % seed = imdilate(seed, seD1);
-%             % % seed = bwareaopen(seed, 25);
-%             % 
-%             % pre_water = imhmin(mem, heightMiminum);
-%             % pre_water = imimposemin(pre_water, seed);
-%             % LL = watershed(mem);
-%             
-%             
-%             [BW1,xi2,yi2] = roipoly() ;
-%             se = strel('disk', 1) ;
-%             BW = imerode(BW1, se) ;
-%             thispolygon = [xi2, yi2, k*ones(size(xi2))] ;
-%             polygons = {polygons, thispolygon} ;
-% 
-%             % Update segmentation
-%             segLayer = seg(:, :, k) ;
-%             segLayer(BW) = cellID ;
-%             seg(:, :, k) = segLayer ;
-% 
-%             % Update overlay
-%             overlay = sum(seg, 3) > 0 ;
-% 
-%             % Save the result
-%             save(segfn, 'seg', 'overlay', 'polygons')
-%             
-%             inseg = input('Done with seg?', 's') ;
-%             next_cell = ~contains(lower(inseg), 'y') ;
-%         end
-% 
-%     end
-% end
+overwrite = true ;
+useMeshFilt = false ;
+preThres = 0.3 ;
+cellSize = 20;
+strelRadius = 0;
+gaussKernel = 0 ;
+heightMiminum = 1;
+tidx2do = 1:20 ;
+for tidx = tidx2do
+    tp = timepoints(tidx) ;
+    disp(['tp = ', num2str(tp)])
+    segfn1 = sprintf('./cellSegmentation/automask1_T%03d.png', tp) ;
+    segfn2 = sprintf('./cellSegmentation/automask2_T%03d.png', tp) ;
+    segfn3 = sprintf('./cellSegmentation/automask3_T%03d.png', tp) ;
+    segfn4 = sprintf('./cellSegmentation/images/overlay_automask3_T%03d.png', tp) ;
+    
+    if ~exist(segfn1, 'file') || overwrite
+        % Load image stack and manually create cell polygon at z stack
+        imfn = sprintf('./texturePatches/layer0_T%03d_c2_Probabilities.h5', tp) ;
+        prob = h5read(imfn, '/exported_data/') ;
+        prob = squeeze(prob(1, :, :)) ;
+
+        seg = zeros(size(prob)) ;
+        overlay = zeros(size(prob, 1)) ;
+
+        % % TRY WATERSHED
+        % Filter output: laplacian of Gaussian sharpens, then Gaussian smooths        
+        h1 = fspecial('log', cellSize);
+        seD1 = strel('disk', strelRadius);
+        if gaussKernel > 0
+            gk = fspecial('gaussian', gaussKernel);
+        end
+        
+        % Pack label image L with watershed results
+        mem = mat2gray(prob, [0, double(max(prob(:)))]) ;
+        L = zeros(size(mem));
+        disp(['memWS: segmenting timepoint ', num2str(t)]) 
+        if gaussKernel > 0
+            gk = fspecial('gaussian', gaussKernel);
+            mem = imfilter(mem,gk);
+        end
+        cyto = 1 - mem;
+        
+        % mem = imfilter(mem,h1);
+        % mem(:,:,t) = imclose(mem(:,:,t),strel('disk',3));
+        
+        lev = graythresh(cyto);
+        seed = im2bw(cyto, lev);  % consider swapping to imbinarize
+        seed = imdilate(seed, seD1);
+        seed = bwareaopen(seed, 25);
+        
+        pre_water = imhmin(mem, heightMiminum);
+        pre_water = imimposemin(pre_water, seed);
+        LL = watershed(pre_water);
+
+        % Mask the segmentation by depth of surface
+        if useMeshFilt
+            surface = meshFilt{tidx} ;
+        else
+            meshfn = sprintf('./texturePatches/mesh_T%03d.mat', tp) ;
+            tmp = load(meshfn) ;
+            mesh = tmp.mesh ;
+            surface = mesh.v ;
+        end
+        % resample surface onto image grid
+        [xx,yy] = meshgrid(1:size(LL, 1), 1:size(LL, 2)) ;
+        resurf = interpolate2Dpts_3Dmesh(mesh.f, surface(:, 1:2), surface, [xx(:), yy(:)]) ;
+        maxZ = max(resurf(:, 3)) ;
+        keep = reshape(resurf(:, 3) < (maxZ - 1), [size(LL, 2), size(LL, 1)]) ;
+        
+        mask1 = (LL==0)' .* keep ;
+        mask2 = (bwskel(pre_water > preThres))' .* keep ;
+        
+        seD0 = strel('disk', 1);
+        mask3 = imdilate(mask1 | mask2, seD0) ;
+        
+        imshow(mask1) ; pause(0.001)
+        imshow(mask2) ; pause(0.001)
+        imshow(mask3) ; pause(0.001)
+        
+        % Save the result
+        imwrite(mask1, segfn1)
+        imwrite(mask2, segfn2)
+        imwrite(mask3, segfn3)
+        
+        % Save overlay
+        imfn = sprintf('./texturePatches/layer0_T%03d_c%01d.png', tp, 2) ;
+        im = imread(imfn) ;
+        imC = imoverlay(im, mask1) ;
+        imshow(imC); pause(0.001) ;
+        imwrite(imC, segfn4)
+
+        disp(['Done with seg ' num2str(tp)])
+    end
+end
 
 %% Load in GIMP and export binary masks
 
@@ -935,12 +950,16 @@ for tidx = tidx2do
     if ~exist(outfn, 'file') || overwrite
         disp(['Processing t=' num2str(tp) ': ' outfn])
         % try
-            segfn = fullfile(segDir, sprintf('T%03dmask.png', tp)) ;
+            % segfn = fullfile(segDir, sprintf('T%03dmask.png', tp)) ;
+            segfn = fullfile(segDir, sprintf('automask1_T%03d.png', tp)) ;
+            
             seg = imread(segfn) ;
             load(fullfile(textureDir, sprintf('mesh_T%03d.mat', tp)), ...
                 'mesh', 'm2d', 'Opts') ;
-            imfn = fullfile(textureDir, sprintf('slice_T%03d_c%01d.tif', tp, 2)) ;
-            im = loadtiff(imfn) ;
+            
+            % Load single page image
+            singlePage = imread( ...
+                fullfile(textureDir, sprintf('layer0_T%03d_c2.png', tp))) ;
 
             % Threshold for initial segmentation
             bw = seg > thres ;
@@ -966,10 +985,6 @@ for tidx = tidx2do
             c2d = cell(max(segIm(:)), 1) ;
             props = regionprops(segIm, 'centroid') ;
             
-            % Load single page image
-            singlePage = imread( ...
-                fullfile(textureDir, sprintf('layer0_T%03d_c2.png', tp))) ;
-
             % cmpQ = brewermap(max(segIm(:)), 'Paired') ;
             nCells = double(max(segIm(:))) ;
             modulation = repmat([-1,-1,-1; 1,1,1], ceil(nCells * 0.5), 1) ;

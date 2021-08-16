@@ -2,7 +2,7 @@ function [colors, names] = define_colors(varargin)
 %DEFINE_COLORS Define a set of pleasant colors
 %   Define a set of colors to use
 
-if length(varargin) > 1
+if length(varargin) > 0
     ncolors = varargin{1} ;
     disp(['Defining ' num2str(ncolors) ' colors...'])
 else
@@ -26,6 +26,10 @@ colors = [blue; red; yellow; purple; green; ...
           sky; maroon; gray; brown; teal; pink; dark_green] ;
 
 if ncolors < 11
+    colors = colors(1:ncolors, :) ;
+elseif colors < 14
+    next = [0.5 * (blue + red); 0.5 * (red+yellow); 0.5*(yellow+purple)] ;
+    colors = [colors; next];
     colors = colors(1:ncolors, :) ;
 else
     error('Need to define more colors for this')
