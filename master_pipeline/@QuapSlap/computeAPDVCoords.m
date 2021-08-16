@@ -6,6 +6,9 @@ function [acom,pcom,dcom, rot,trans] = computeAPDVCoords(QS, opts)
 % along the shortest linesegment emanating from the AP axis to the dorsal
 % point. 
 %
+% Chirality: note that the probabilties field is assumed to be meshlike so
+% the first two axis are swapped within com_region(). 
+%
 % Todo: back-save acom_for_rot and pcom_for_rot for datasets already
 % processed, inferred from rot and trans
 %
@@ -141,6 +144,9 @@ if redo_rot_calc || overwrite
     elseif strcmpi(ilastikOutputAxisOrder, 'yxzc')
         ddat = squeeze(ddatM(:, :, :, dorsalChannel)) ;
         ddat = permute(ddat, [2, 1, 3]) ;
+    elseif strcmpi(ilastikOutputAxisOrder, 'czxy')
+        ddat = squeeze(ddatM(dorsalChannel, :, :, :)) ;
+        ddat = permute(ddat, [3, 1, 2]) ;
     else
         error('Did not recognize ilastikOutputAxisOrder')
     end
@@ -347,10 +353,10 @@ if redo_rot_calc || overwrite
                 % move along the inward normal of the mesh from the matched vertex
                 vtx = [vtx_sub(aind, 1), vtx_sub(aind, 2), vtx_sub(aind, 3)]' ;
                 normal = fvsub.normals(aind, :) ;
-                startpt = vtx + normal;
+                startpt = vtx(:) + normal(:);
                 if ~inpolyhedron(fvsub, startpt(1), startpt(2), startpt(3)) 
                     % this didn't work, check point in reverse direction
-                    startpt = vtx - normal * normal_step ;
+                    startpt = vtx(:) - normal(:) * normal_step ;
                     if ~inpolyhedron(fvsub, startpt(1), startpt(2), startpt(3))
                         % Can't seem to jitter into the mesh, so use vertex
                         disp("Can't seem to jitter into the mesh, so using vertex for startpt")
