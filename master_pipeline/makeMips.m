@@ -13,6 +13,8 @@ function makeMips(timePoints, dir16bit, fileName, mipDir, Options)
 %       overwrite the MIPS on file with newly computed
 %   channels : #channels x 1 int array (default=[1])
 %       the channels for which to make mips, ex [1,2] or [0, 1] if 2color
+%   allowMissingFiles : bool
+%       skip MIP file if 32 bit version is missing
 %
 % Outputs
 % -------
@@ -35,6 +37,7 @@ function makeMips(timePoints, dir16bit, fileName, mipDir, Options)
 overwrite_mips = true ;
 use_scale = false ; 
 channels = [1] ;
+allowMissingFiles = true ;
 if nargin < 5
     Options = struct() ;
 end
@@ -49,6 +52,9 @@ if isfield(Options, 'scale')
 end
 if isfield(Options, 'channels')
     channels = Options.channels ;
+end
+if isfield(Options, 'allowMissingFiles')
+    allowMissingFiles = Options.allowMissingFiles ;
 end
 
 msgLevel = 1;
@@ -149,10 +155,12 @@ for channel = channels
             clearvars im2
             disp(['finished mips for ' fullFileName])
         else
-            if ~exist(fullFileName, 'file') 
+            if ~exist(fullFileName, 'file') && allowMissingFiles
                 disp(['WARNING: file does not exist, skipping: ', fullFileName])
             elseif mexist
                 disp(['MIPs skipped for ' fullFileName, ' -- skipping'])
+            elseif ~exist(fullFileName, 'file')
+                error(['File does not exist: ', fullFileName])
             else 
                 error('Somehow the file exists and mips do not, but failed to execute. Investigate here.')
             end

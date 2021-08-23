@@ -202,6 +202,12 @@ if ~load_from_disk || overwrite
                 disp('permuting zyx')
                 adat = permute(adat, [3,2,1]);
                 pdat = permute(pdat, [3,2,1]);
+            elseif contains(lower(ilastikOutputAxisOrder), 'yzx')
+                disp('permuting zyx')
+                adat = permute(adat, [2,3,1]);
+                pdat = permute(pdat, [2,3,1]);
+            else
+                error('unrecognized permutation in ilastikOutputAxisOrder')
             end
             
             % define axis order: 

@@ -8,7 +8,7 @@ function plotSeriesOnSurfaceTexturePatch(QS,...
 % QS : QuapSlap class instance
 % overwrite : bool
 % options : struct with fields
-%   texture_shift : float, 
+%   texture_shift : float (optional, default=0)
 %       shift of texture mesh, but not physical mesh
 % TexturePatchOptions: struct with fields   
 %       - Options.PSize: default=5
@@ -114,7 +114,10 @@ plot_left = true ;
 plot_right = true ;
 plot_perspective = true ;
 blackFigure = true ;
+smoothing_lambda = 0.0 ;
 channel = [] ;  % by default, plot all channels
+figoutdir = QS.dir.texturePatchIm ;
+normal_shift = QS.normalShift ;
 
 %% Unpack Options
 if isfield(options, 'overwrite')
@@ -128,6 +131,12 @@ if isfield(options, 'texture_shift')
 end
 if isfield(options, 'blackFigure')
     blackFigure = options.blackFigure ;
+end
+if isfield(options, 'figOutDir')
+    % Note that default value inherited from QS is above!
+    figoutdir = options.figOutDir ;
+elseif isfield(options, 'outDir')
+    figoutdir = options.outDir ;
 end
 if isfield(options, 'plot_dorsal')
     plot_dorsal = options.plot_dorsal ;
@@ -144,14 +153,18 @@ end
 if isfield(options, 'plot_perspective')
     plot_perspective = options.plot_perspective ;
 end
+if isfield(options, 'smoothing_lambda')
+    smoothing_lambda = options.smoothing_lambda ;
+end
+if isfield(options, 'normal_shift')
+    normal_shift = options.normal_shift ;
+end
 % Collate boolean plot indicators to decide which views to plot
 plot_view = [plot_dorsal, plot_ventral, plot_left, ...
     plot_right, plot_perspective] ;
 
 %% Unpack QS
 meshFileBase = QS.fullFileBase.mesh ;
-figoutdir = QS.dir.texturePatchIm ;
-normal_shift = QS.normalShift ;
 flipy = QS.flipy ;
 % texture_axis_order = QS.data.axisOrder ;
 
@@ -197,11 +210,22 @@ if nargin < 3
         metadat.xyzlim = xyzbuff ;                          % xyzlimits
         metadat.texture_axis_order = QS.data.axisOrder ;    % texture space sampling
         metadat.reorient_faces = false ;                    % set to true if some normals may be inverted
-        metadat.texture_shift = texture_shift ;
+        metadat.texture_shift = texture_shift ;             % shifts the texturepatch vertices along the 
+                                                            % normal direction without shifting 
+                                                            % the mesh on which texture is rendered
         resave_metadat = true ;
+        
+        % pass metadat to options
+        options.normal_shift = metadat.normal_shift ;
+        options.texture_shift = metadat.texture_shift ;
+        options.xyzlim = metadat.xyzlim ;
+        options.texture_axis_order = metadat.texture_axis_order ;
+        options.reorient_faces = metadat.reorient_faces ;
+
     end
 else
     metadat = options ;
+    normal_shift = options.normal_shift ;
 end
 
 % Save it
@@ -209,13 +233,7 @@ if resave_metadat
     save(metafn, 'metadat', 'Options')
 end
 
-% pass metadat to options
-options.normal_shift = metadat.normal_shift ;
-options.texture_shift = metadat.texture_shift ;
-options.xyzlim = metadat.xyzlim ;
-options.texture_axis_order = metadat.texture_axis_order ;
 texture_axis_order = options.texture_axis_order ;
-options.reorient_faces = metadat.reorient_faces ;
 
 %% Name output directories
 figdDir = fullfile(figoutdir, 'dorsal') ;
@@ -294,6 +312,15 @@ for tidx = tidx_todo
         meshfn = sprintf( meshFileBase, tp );
         mesh = read_ply_mod( meshfn );
 
+        % If we smooth before pushing along the normal
+        if smoothing_lambda > 0 
+            disp('smoothing mesh via laplacian filter')
+            mesh.v = laplacian_smooth(...
+                mesh.v, mesh.f, 'cotan', [], smoothing_lambda, 'implicit') ;
+            
+        end
+        
+        
         % Make sure vertex normals are normalized
         mesh.vn = mesh.vn ./ sqrt( sum( mesh.vn.^2, 2 ) );
         % Normally evolve vertices
@@ -322,7 +349,7 @@ for tidx = tidx_todo
             num2str(texture_axis_order(1)), ...
             ' ', num2str(texture_axis_order(2)), ...
             ' ', num2str(texture_axis_order(3)) ']'])
-        TV = mesh.v(:, texture_axis_order) + texture_shift .* mesh.vn ;
+        TV = mesh.v(:, texture_axis_order) + texture_shift .* mesh.vn(:, texture_axis_order) ;
         
         
         % Allow for overall flip
@@ -386,6 +413,11 @@ for tidx = tidx_todo
             set(gcf, 'color', 'k')
         end
         
+        % Check that mesh is oriented correctly
+        % trisurf(triangulation(mesh.f, VV), 'edgecolor', 'none')
+        % xlabel('x'); ylabel('y'); zlabel('z')
+        % axis equal 
+        
         % Capture all four views
         disp(['saving figure...' num2str(tp, '%06d')])
         % Save each figure
@@ -394,23 +426,23 @@ for tidx = tidx_todo
             if plot_view(ii)
                 if ii == 1
                     % dorsal
-                    disp('saving dorsal image...')
+                    disp(['saving dorsal image: ' sprintf(fns{ii}, tp)])
                     view(0, 90)
                 elseif ii == 2
                     % ventral
-                    disp('saving ventral image...')
+                    disp(['saving ventral image ' sprintf(fns{ii}, tp)])
                     view(0, 270)
                 elseif ii == 3
                     % Lateral views
-                    disp('saving lateral image...')
+                    disp(['saving lateral image: ' sprintf(fns{ii}, tp)])
                     view(0, 0)
                 elseif ii == 4
                     % lateral view 2
-                    disp('saving second lateral image...')
+                    disp(['saving second lateral image: ' sprintf(fns{ii}, tp)])
                     view(0, 180)
                 elseif ii == 5
                     % perspective view
-                    disp('saving perspective image...')
+                    disp(['saving perspective image: ' sprintf(fns{ii}, tp)])
                     view(-20, 20)
                 else
                     error(['Exhausted DorsalVentralLeftRight indices. ',...
