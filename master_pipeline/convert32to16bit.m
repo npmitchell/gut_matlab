@@ -71,56 +71,60 @@ for time = timePoints
         if exist(out16name, 'file')
             disp(' --> 16bit file exists, skipping')
         else
-            % Read the 32 bit data and convert
-            data = readSingleTiff(fileName);
-            im2 = mat2gray(data, [0 scale]);
-            im2 = uint16(2^16*im2);
-            imSize = size(im2);
+            try
+                % Read the 32 bit data and convert
+                data = readSingleTiff(fileName);
+                im2 = mat2gray(data, [0 scale]);
+                im2 = uint16(2^16*im2);
+                imSize = size(im2);
 
-            % Could stabilize based on near half of the image 
-            mip_1 = max(im2(:,:,1:round(imSize(end)/2)),[],3);
-            mip_2 = max(im2(:,:,round(imSize(end)/2):end),[],3);
-            mip_11 = squeeze(max(im2(1:round(imSize(1)/2),:,:),[],1));
-            mip_21 = squeeze(max(im2(round(imSize(1)/2):end,:,:),[],1));
-            mip_12 = squeeze(max(im2(:,1:round(imSize(2)/2),:),[],2));
-            mip_22 = squeeze(max(im2(:,round(imSize(2)/2):end,:),[],2));
+                % Could stabilize based on near half of the image 
+                mip_1 = max(im2(:,:,1:round(imSize(end)/2)),[],3);
+                mip_2 = max(im2(:,:,round(imSize(end)/2):end),[],3);
+                mip_11 = squeeze(max(im2(1:round(imSize(1)/2),:,:),[],1));
+                mip_21 = squeeze(max(im2(round(imSize(1)/2):end,:,:),[],1));
+                mip_12 = squeeze(max(im2(:,1:round(imSize(2)/2),:),[],2));
+                mip_22 = squeeze(max(im2(:,round(imSize(2)/2):end,:),[],2));
 
-            m1fn = fullfile(mipsDir, 'view1', sprintf('mip_1_%03d_c%d.tif',  time, channel)) ;
-            m2fn = fullfile(mipsDir, 'view2', sprintf('mip_2_%03d_c%d.tif',  time, channel)) ;
-            m11fn = fullfile(mipsDir, 'view11', sprintf('mip_11_%03d_c%d.tif',time, channel)) ;
-            m21fn = fullfile(mipsDir, 'view21', sprintf('mip_21_%03d_c%d.tif',time, channel)) ;
-            m12fn = fullfile(mipsDir, 'view12', sprintf('mip_12_%03d_c%d.tif',time, channel)) ;
-            m22fn = fullfile(mipsDir, 'view22', sprintf('mip_22_%03d_c%d.tif',time, channel)) ;
+                m1fn = fullfile(mipsDir, 'view1', sprintf('mip_1_%03d_c%d.tif',  time, channel)) ;
+                m2fn = fullfile(mipsDir, 'view2', sprintf('mip_2_%03d_c%d.tif',  time, channel)) ;
+                m11fn = fullfile(mipsDir, 'view11', sprintf('mip_11_%03d_c%d.tif',time, channel)) ;
+                m21fn = fullfile(mipsDir, 'view21', sprintf('mip_21_%03d_c%d.tif',time, channel)) ;
+                m12fn = fullfile(mipsDir, 'view12', sprintf('mip_12_%03d_c%d.tif',time, channel)) ;
+                m22fn = fullfile(mipsDir, 'view22', sprintf('mip_22_%03d_c%d.tif',time, channel)) ;
 
-            imwrite(mip_1, m1fn, 'tiff', 'Compression', 'none');
-            imwrite(mip_2, m2fn, 'tiff', 'Compression', 'none');
-            imwrite(mip_11, m11fn, 'tiff', 'Compression', 'none');
-            imwrite(mip_21, m21fn, 'tiff', 'Compression', 'none');
-            imwrite(mip_12, m12fn, 'tiff', 'Compression', 'none');
-            imwrite(mip_22, m22fn, 'tiff', 'Compression', 'none');
+                imwrite(mip_1, m1fn, 'tiff', 'Compression', 'none');
+                imwrite(mip_2, m2fn, 'tiff', 'Compression', 'none');
+                imwrite(mip_11, m11fn, 'tiff', 'Compression', 'none');
+                imwrite(mip_21, m21fn, 'tiff', 'Compression', 'none');
+                imwrite(mip_12, m12fn, 'tiff', 'Compression', 'none');
+                imwrite(mip_22, m22fn, 'tiff', 'Compression', 'none');
 
-            for z = 1:imSize(3)
-                % write the first page as overwrite mode, then append
-                if z == 1
-                    imwrite(im2(:,:,z), out16name, 'tiff', 'Compression','none');
-                else
-                    imwrite(im2(:,:,z), out16name, 'tiff', 'Compression','none','WriteMode','append');    
+                for z = 1:imSize(3)
+                    % write the first page as overwrite mode, then append
+                    if z == 1
+                        imwrite(im2(:,:,z), out16name, 'tiff', 'Compression','none');
+                    else
+                        imwrite(im2(:,:,z), out16name, 'tiff', 'Compression','none','WriteMode','append');    
+                    end
                 end
-            end
 
-            % append the metadata used for this timepoint to scale.mat
-            tconv = datestr(datetime, 'yyyy-mm-dd(HH:MM:SS)') ;
-            tstamp = [sprintf('%06d: ', time) tconv ] ;
-            fullstamp = [tstamp ' scale=' num2str(scale) '\n'] ;
-            if exist(logfn, 'file')
-                load(logfn, 'metadata')
-                metadata = [metadata fullstamp] ;
-                save(logfn, 'metadata')
-            else
-                metadata = tstamp ;
-                save(logfn, 'metadata')
+                % append the metadata used for this timepoint to scale.mat
+                tconv = datestr(datetime, 'yyyy-mm-dd(HH:MM:SS)') ;
+                tstamp = [sprintf('%06d: ', time) tconv ] ;
+                fullstamp = [tstamp ' scale=' num2str(scale) '\n'] ;
+                if exist(logfn, 'file')
+                    load(logfn, 'metadata')
+                    metadata = [metadata fullstamp] ;
+                    save(logfn, 'metadata')
+                else
+                    metadata = tstamp ;
+                    save(logfn, 'metadata')
+                end
+                sprintf(fullstamp)
+            catch
+                disp('WARNING! Could not convert timepoint!')
             end
-            sprintf(fullstamp)
         end
     end
 end

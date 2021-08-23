@@ -63,6 +63,8 @@ skipErrors = true ;             % skip timepoints that return errors
 epsilon = eps ;                 % small value to give as weight of outside region
 useSavedAPDVMeshes = false ;    % load APDV meshes instead of transforming the data space meshes on the fly
 meshAPDVFileName = QS.fullFileBase.alignedMesh ; 
+permuteDataAxisOrder = 'xyz' ;
+
 if isfield(cntrlineOptions, 'overwrite')
     overwrite = cntrlineOptions.overwrite ;
 end
@@ -107,6 +109,10 @@ end
 if isfield(cntrlineOptions, 'saveImages')
     saveImages = cntrlineOptions.saveImages ;
 end
+if isfield(cntrlineOptions, 'permuteDataAxisOrder')
+    permuteDataAxisOrder = cntrlineOptions.permuteDataAxisOrder ;
+end
+
 
 % Figure options
 colors = define_colors ;
@@ -142,15 +148,43 @@ else
             mesh = read_ply_mod(meshfn) ;
             vv = mesh.v ;
             xmax = max(xmax, max(vv(:, 1))) ;
-            ymax = max(ymax, max(vv(:, 1))) ;
-            zmax = max(zmax, max(vv(:, 1))) ;
+            ymax = max(ymax, max(vv(:, 2))) ;
+            zmax = max(zmax, max(vv(:, 3))) ;
         end
         disp('done computing xmax ymax zmax from meshes')
     end
     xx = 0:res:ceil(xmax + res) ;
     yy = 0:res:ceil(ymax + res) ;
     zz = 0:res:ceil(zmax + res) ;
-end 
+    
+    % PERMUTE WRT DATA if desired/needed
+    if ~strcmp(permuteDataAxisOrder, 'xyz')
+        x1 = xx ;
+        y1 = yy ; 
+        z1 = zz ;
+        if strcmp(permuteDataAxisOrder, 'xzy')
+            yy = z1;
+            zz = y1 ;
+        elseif strcmp(permuteDataAxisOrder, 'yxz')
+            xx = y1 ;
+            yy = x1 ;
+        elseif strcmp(permuteDataAxisOrder, 'yzx')
+            xx = y1 ;
+            yy = z1 ;
+            zz = x1 ;
+        elseif strcmp(permuteDataAxisOrder, 'zxy')
+            xx = z1 ;
+            yy = x1 ;
+            zz = y1 ;
+        elseif strcmp(permuteDataAxisOrder, 'zyx')
+            xx = z1 ;
+            zz = x1 ;
+        else
+            error('did not recognize desired permutation')
+        end
+    end
+end
+
 
 % Unpack output directories && ensure they exist
 outdir = QS.dir.cntrline ;
@@ -193,7 +227,7 @@ for tt = timePoints
     
     %% Compute centerline if has not been saved 
     if overwrite || (~exist(outname, 'file') && ~other_exist)
-        disp(['timepoint = ' num2str(tt)])
+        disp(['no centerline for timepoint = ' num2str(tt)])
         % Load startpoint and endpoint
         tifname = sprintf(fn, tt) ;
         disp(['loading /' tifname '/spt,ept,dpt from ' startendptH5FileName])
@@ -228,10 +262,20 @@ for tt = timePoints
         % set(gcf, 'visible', 'on')
         % error('df')
         
+        
         disp(['Identifying pts in mesh with inpolyhedron: ' name]) ;
+        % note that inpolyhedron outputs YXZ format
         insideM = inpolyhedron(fv, xx, yy, zz) ;
         disp('> Computed segmentation:')
         toc ; 
+        
+        % Preview insideM
+        if preview
+            for page = 1:size(insideM, 3)
+                imagesc(squeeze(insideM(:,:,page)))
+                pause(0.01)
+            end
+        end
 
         % Optionally dilate the solid segmentation
         if cntrlineOptions.dilation > 0
@@ -270,6 +314,7 @@ for tt = timePoints
         DD(logical(outside)) = epsilon ;
         disp('> Computed DT:')
         toc ; 
+        
 
         if preview
             % Preview DD
@@ -312,6 +357,7 @@ for tt = timePoints
         % Convert here to the gridspacing of xx,yy,zz
         startpt_transposed = [startpt(2), startpt(1), startpt(3)]' / res ;
         endpt_transposed = [endpt(2), endpt(1), endpt(3)]' / res ;
+        
         [D2,S] = perform_fast_marching(DD, startpt_transposed, options);
         
         try

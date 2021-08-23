@@ -670,8 +670,12 @@ classdef QuapSlap < handle
             QS.data.adjusthigh = adjusthigh ;
         end
         
+        function IV = loadCurrentData(QS, adjustIV)
+            IV = getCurrentData(QS, adjustIV) ;
+        end
+        
         function IV = getCurrentData(QS, adjustIV)
-            % IV = getCurrentData(QS, adjustIV)
+            % IV = getCurrentData(QS, adjustIV) 
             % Load/return volumetric intensity data for current timepoint
             % Note: axis order permutation is applied here upon loading and
             % assignment to self (current QS instance). 
@@ -710,6 +714,8 @@ classdef QuapSlap < handle
                         for ch = 1:length(IVtmp)
                             QS.currentData.IV{ch} = permute(IVtmp{ch}, QS.data.axisOrder) ;
                         end
+                    else
+                        QS.currentData.IV = IVtmp ;
                     end
                 else
                     if ~all(QS.data.axisOrder == [1 2 3])

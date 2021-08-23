@@ -483,7 +483,7 @@ for tidx = 1:length(timePoints)
         dptrs = [dptrs(1), -dptrs(2), dptrs(3)] ;           % flip dorsalpt
     else
         vn_rs = -vn_rs ;    % flip normals > normals point inward 
-        mesh.f = mesh.f(:, [1, 3, 2]) ;
+        % mesh.f = mesh.f(:, [1, 3, 2]) ;
     end
     
     %% Update our estimate for the true xyzlims
