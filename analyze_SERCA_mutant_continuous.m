@@ -442,8 +442,9 @@ error('here')
 %% Util -- get temperature trace
 temp_fn = '/mnt/data/RNAi/Mef2GAL4klarUASSERCA1/20210802_temperature_trace_until2416ish_startingAround1250.txt' ;
 %temp_fn = '/mnt/data/RNAi/Mef2GAL4klarUASSERCA1/20210802_temperature_trace_until1904.txt' ;
-temperatures = dlmread(temp_fn, ' ', 2, 0);
-temperatures = temperatures((17*60*0.5+30*90):90:end) ;
+temperatures0 = dlmread(temp_fn, ' ', 2, 0);
+idx = round(4200:180/2.35:length(temperatures0)) ;
+temperatures = temperatures0(idx) ;
 timestamp = 0:3:3*(length(temperatures)-1) ;
 plot(timestamp/60, temperatures, '.-')
 dlmwrite([temp_fn(1:end-4) '_every3min.txt'], temperatures, ' ')

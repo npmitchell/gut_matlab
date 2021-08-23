@@ -21,7 +21,11 @@ dimensionOrder = 'XYCZT' ;   % must be in {'XYZCT', 'XYZTC', 'XYCTZ', ...
 disp('defining stackSize (which is number of valid matching files)...')
 done = false ;
 stackSize = 0 ;
-name_ref = sprintf(fileNameIn, timePoints(1), channels(1)) ;
+if isempty(timePoints)
+    name_ref = sprintf(fileNameIn, channels(1)) ;
+else
+    name_ref = sprintf(fileNameIn, timePoints(1), channels(1)) ;
+end
 while ~done
     stackSize = stackSize + 1 ;
     try 
@@ -35,19 +39,32 @@ stackSize = stackSize - 1 ;
 
 %% Build image for each timepoint =========================================
 disp('Running through timepoints to build ims...')
-tidx_todoA = 1:10:length(timePoints) ;
-tidx_todoB = setdiff(1:length(timePoints), tidx_todoA) ;
-tidx_todo = [tidx_todoA, tidx_todoB] ;
+if isempty(timePoints)
+    tidx_todo = 1 ;
+else
+    tidx_todoA = 1:10:length(timePoints) ;
+    tidx_todoB = setdiff(1:length(timePoints), tidx_todoA) ;
+    tidx_todo = [tidx_todoA, tidx_todoB] ;
+end
 for tid = tidx_todo    
     disp(['considering tidx = ' num2str(tid)])
-    time = timePoints(tid);
-    name_out = sprintf(fileNameOut, time) ;
+    if ~isempty(timePoints)
+        time = timePoints(tid);
+        name_out = sprintf(fileNameOut, time) ;
+    else
+        time = 1 ;
+        name_out = fileNameOut ;
+    end
     
     tiff_exists = exist(name_out, 'file') ;
     if ~tiff_exists
         for cid = 1:length(channels)
             channel = channels(cid) ;
-            imfn = sprintf(fileNameIn, time, channel); 
+            if isempty(timePoints)
+                imfn = sprintf(fileNameIn, channel);
+            else
+                imfn = sprintf(fileNameIn, time, channel);
+            end
             if channel == channels(1)
                 tmp = imread(imfn, 1) ;
                 if strcmpi(dimensionOrder, 'xyzc')
