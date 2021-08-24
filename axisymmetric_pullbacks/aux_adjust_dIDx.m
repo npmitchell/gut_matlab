@@ -1,5 +1,10 @@
-function [adIDx, pdIDx] = aux_adjust_dIDx(mesh, t, dpFile, ADBase, PDBase, cylinderMeshCleanBase, outadIDxfn, outpdIDxfn, timePoints) 
-
+function [adIDx, pdIDx] = aux_adjust_dIDx(mesh, cylmesh, t, dpFile, ADBase, PDBase, cylinderMeshCleanBase, outadIDxfn, outpdIDxfn, timePoints) 
+%
+% Parameters
+% ----------
+% mesh: cylinder cut mesh with Cleaned Ears (cleanCylCutMesh)
+% cylmesh: cylinder cut mesh before ear cleaning
+%
 % Auxilliary function for adjusting adIDx and pdIDx in
 % Generate_Axisymmetric_Pullbacks_Orbifold.m script
 
@@ -10,8 +15,8 @@ if t == timePoints(1)
     adIDx = h5read( dpFile, sprintf( ADBase, t ) );
     pdIDx = h5read( dpFile, sprintf( PDBase, t ) );
 
-    ad3D = mesh.v( adIDx, : );
-    pd3D = mesh.v( pdIDx, : );
+    ad3D = cylmesh.v( adIDx, : );
+    pd3D = cylmesh.v( pdIDx, : );
 else
     % Load previous mesh and previous adIDx, pdIDx
     prevcylmeshfn = sprintf( cylinderMeshCleanBase, t -1 ) ;
