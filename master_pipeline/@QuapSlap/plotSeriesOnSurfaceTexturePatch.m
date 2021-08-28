@@ -349,7 +349,20 @@ for tidx = tidx_todo
             num2str(texture_axis_order(1)), ...
             ' ', num2str(texture_axis_order(2)), ...
             ' ', num2str(texture_axis_order(3)) ']'])
-        TV = mesh.v(:, texture_axis_order) + texture_shift .* mesh.vn(:, texture_axis_order) ;
+        
+        % Shift the texture vertices by a custom amount without affecting
+        % the mesh embedding
+        if any(abs(texture_shift) > 0)
+            if numel(texture_shift) == numel(mesh.v(:, 1)) || numel(texture_shift(:)) == 1
+                TV = mesh.v(:, texture_axis_order) + texture_shift .* mesh.vn(:, texture_axis_order) ;
+            elseif numel(texture_shift) == numel(mesh.v)
+                TV = mesh.v(:, texture_axis_order) + texture_shift(:, texture_axis_order) ;
+            else
+                error('options.texture_shift should be scalar, #vertices x 1, or #vertices x dimension')
+            end    
+        else
+            TV = mesh.v(:, texture_axis_order)  ;
+        end
         
         
         % Allow for overall flip

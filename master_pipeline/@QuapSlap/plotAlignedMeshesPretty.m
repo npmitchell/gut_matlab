@@ -49,8 +49,10 @@ plot_right = true ;
 plot_perspective = true ;
 channel = [] ;  % by default, plot all channels
 AOSamples = 1000 ;
-normal_shift = -QS.normalShift ;
+normal_shift = QS.normalShift ;
 blackFigure = false ;
+smoothIter = 1000 ;
+smoothing_lambda = 0.0 ;
 
 %% Unpack Options
 if isfield(options, 'overwrite')
@@ -78,10 +80,15 @@ if isfield(options, 'AOSamples')
     AOSamples = options.AOSamples ;
 end
 if isfield(options, 'normalShift')
-    normal_shift = -options.normalShift ;
+    normal_shift = options.normalShift ;
+elseif isfield(options, 'normal_shift')
+    normal_shift = options.normal_shift ;
 end
 if isfield(options, 'blackFigure')
     blackFigure = options.blackFigure ;
+end 
+if isfield(options, 'smoothing_lambda')
+    smoothing_lambda = options.smoothing_lambda ;
 end
 
 % Collate boolean plot indicators to decide which views to plot
@@ -207,6 +214,14 @@ for tidx = tidx_todo
         meshfn = sprintf( meshFileBase, tp );
         mesh = read_ply_mod( meshfn );
 
+        % If we smooth before pushing along the normal
+        if smoothing_lambda > 0 
+            disp('smoothing mesh via laplacian filter')
+            mesh.v = laplacian_smooth(...
+                mesh.v, mesh.f, 'cotan', [], smoothing_lambda, 'implicit', mesh.v, smoothIter) ;
+            
+        end
+        
         % Make sure vertex normals are normalized
         mesh.vn = mesh.vn ./ sqrt( sum( mesh.vn.^2, 2 ) );
         % Normally evolve vertices

@@ -2,6 +2,12 @@ function generateCellSegmentation3D(QS, options)
 % generateCellSegmentation3D(QS, options)
 % 
 %
+% The Q tensor is related to the aspect ratio of cells via:
+%   abs(norm(Q)) * 2 = |ar| - 1
+% The factor of two arises on the LHS since the 
+% norm(n'*n - Identity*0.5) = 0.5 for any unit vector n, and an isotropic
+% cell will have norm(Q) = 0.  
+%
 % NPMitchell 2021
 
 
