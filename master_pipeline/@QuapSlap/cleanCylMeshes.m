@@ -43,17 +43,17 @@ for t = QS.xp.fileMeta.timePoints
         disp('Overwriting/Computing clean cylinderMesh')
         % Load the cylinder mesh
         cylmeshfn = sprintf( cylinderMeshBase, t ) ;
-        mesh = read_ply_mod( cylmeshfn );
+        cylmesh = read_ply_mod( cylmeshfn );
         % Clean the mesh, including averaging normals onto vertices using
         % angle-weighted scheme
-        mesh = cleanCylMesh(mesh) ;   
+        mesh = cleanCylMesh(cylmesh) ;   
 
         % The dataset name base for the AD and PD points
         ADBase = ['/' QS.fileBase.mesh '/adorsal'];
         PDBase = ['/' QS.fileBase.mesh '/pdorsal'];
         
         % Point-match the AD and PD points to nearest clean-boundary pt
-        [adIDx, pdIDx] = aux_adjust_dIDx(mesh, t, dpFile, ...
+        [adIDx, pdIDx] = aux_adjust_dIDx(mesh, cylmesh, t, dpFile, ...
             ADBase, PDBase, cylinderMeshCleanBase, ...
             outadIDxfn, outpdIDxfn, QS.xp.fileMeta.timePoints) ;
 
