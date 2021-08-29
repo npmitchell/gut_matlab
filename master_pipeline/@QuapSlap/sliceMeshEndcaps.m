@@ -164,9 +164,26 @@ end
 trefIDx = QS.xp.tIdx(tref) ;
 
 %% Iterate through each mesh
-todo = trefIDx:50:length(timePoints); % first preview how slices will look
-todo2 = trefIDx:20:length(timePoints) ;
-todo3 = trefIDx:10:length(timePoints) ;
+
+% Set up timepoint sequence to quickly scan through all timepoints (every
+% 50), then more finely (every 20), then more finely (every 10), then do
+% every timepoint. Since the pointmatching is serial, each subsequent pass
+% recomputes meshes for previously done timepoints.
+if length(timePoints) > 49
+    todo = trefIDx:50:length(timePoints); % first preview how slices will look
+else
+    todo = [] ;
+end
+if length(timePoints) > 19
+    todo2 = trefIDx:20:length(timePoints) ;
+else
+    todo2 = [];
+end
+if length(timePoints) > 9
+    todo3 = trefIDx:10:length(timePoints) ;
+else
+    todo3 = [] ;
+end
 % NOTE: begin with tref, advance to end, then return to tref and go
 % backwards
 todo4 = [trefIDx:length(timePoints), fliplr(1:(trefIDx-1)) ] ;
@@ -293,17 +310,20 @@ for ii=todo
         end
         
         % Check it
-        % clf
-        % trisurf(triangulation(mesh.f,vtx), orth_dist, ...
-        %     'edgecolor', 'none', 'facealpha', 0.1); hold on;
-        % scatter3(acom(1), acom(2), acom(3), 30, 'filled')
-        % scatter3(acom(1)+aOff(1), acom(2)+aOff(2), ...
-        %     acom(3)+aOff(3), 30, 'filled')
-        % scatter3(vtx(pts_to_remove, 1), vtx(pts_to_remove,2), ...
-        %     vtx(pts_to_remove, 3), 'markeredgealpha', 0.1)
-        % axis equal
-        % pause(0.01)
-        % close all
+        if preview
+            clf
+            trisurf(triangulation(mesh.f,vtx), ...
+                'edgecolor', 'none', 'facealpha', 0.1); hold on;
+            scatter3(acom(1), acom(2), acom(3), 30, 'filled')
+            scatter3(acom(1)+aOff(1), acom(2)+aOff(2), ...
+                acom(3)+aOff(3), 30, 'filled')
+            scatter3(vtx(pts_to_remove, 1), vtx(pts_to_remove,2), ...
+                vtx(pts_to_remove, 3), 'markeredgealpha', 0.1)
+            axis equal
+            title('Points to remove for anterior face')
+            pause(1)
+            close all
+        end
         
         % Make sure that we are removing a connected component
         % form a mesh from the piece(s) to be removed

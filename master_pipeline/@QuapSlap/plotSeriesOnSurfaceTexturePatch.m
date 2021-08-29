@@ -119,6 +119,8 @@ channel = [] ;  % by default, plot all channels
 figoutdir = QS.dir.texturePatchIm ;
 normal_shift = QS.normalShift ;
 
+timePoints = QS.xp.fileMeta.timePoints ;
+
 %% Unpack Options
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
@@ -158,6 +160,9 @@ if isfield(options, 'smoothing_lambda')
 end
 if isfield(options, 'normal_shift')
     normal_shift = options.normal_shift ;
+end
+if isfield(options, 'timePoints')
+    timePoints = options.timePoints ;
 end
 % Collate boolean plot indicators to decide which views to plot
 plot_view = [plot_dorsal, plot_ventral, plot_left, ...
@@ -260,7 +265,6 @@ xyzlim = options.xyzlim ;
 reorient_faces = options.reorient_faces ;
 timeinterval = QS.timeInterval ;
 timeunits = QS.timeUnits ;
-timePoints = QS.xp.fileMeta.timePoints ;
 
 % Unpack xyzlim
 xmin = xyzlim(1, 1); xmax = xyzlim(1, 2) ;

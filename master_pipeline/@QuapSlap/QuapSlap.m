@@ -949,7 +949,8 @@ classdef QuapSlap < handle
         [rot, trans, xyzlim_raw, xyzlim, xyzlim_um, xyzlim_um_buff] = ...
             alignMeshesAPDV(QS, alignAPDVOpts) 
         
-        % Plot aligned meshes for pretty presentation
+        % Plot aligned meshes for pretty presentation 
+        % -- for ex, for optogenetic figures
         plotAlignedMeshesPretty(QS, options)
 
         % Load raw mesh or rawMeshRS (rotated & scaled to APDV)
