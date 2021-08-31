@@ -65,6 +65,9 @@ useSavedAPDVMeshes = false ;    % load APDV meshes instead of transforming the d
 meshAPDVFileName = QS.fullFileBase.alignedMesh ; 
 permuteDataAxisOrder = 'xyz' ;
 
+if isfield(cntrlineOptions, 'timePoints')
+    timePoints = cntrlineOptions.timePoints ;
+end
 if isfield(cntrlineOptions, 'overwrite')
     overwrite = cntrlineOptions.overwrite ;
 end
@@ -273,6 +276,7 @@ for tt = timePoints
         if preview
             for page = 1:size(insideM, 3)
                 imagesc(squeeze(insideM(:,:,page)))
+                axis equal
                 pause(0.01)
             end
         end
@@ -407,6 +411,22 @@ for tt = timePoints
                 caxis([0,  max(D2(D2(:) < Inf), 1)])
                 pause(0.01)
             end
+            
+            % A better way to plot it
+            clf
+            p = patch(isosurface(insideM,0.5));
+            hold on;
+            scatter3(startpt(1)/res, startpt(2)/res, startpt(3)/res, 30, 'filled')
+            scatter3(endpt(1)/res, endpt(2)/res, endpt(3)/res, 30, 'filled')
+            % isonormals(x,y,z,v,p)
+            p.FaceColor = 'red';
+            p.EdgeColor = 'none';
+            p.FaceAlpha = 0.2 ;
+            daspect([1 1 1])
+            view(3); 
+            axis tight
+            plot3(path(2,:), path(1, :), path(3,:), '-')
+            pause(1)
         end
 
         % Convert skeleton's rows to columns and flip start/end

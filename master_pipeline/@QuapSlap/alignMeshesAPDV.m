@@ -344,7 +344,7 @@ for tidx = 1:length(timePoints)
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %% Define start point and endpoint 
-        disp('Defining start point and endpoint for first TP')
+        disp(['Defining start point and endpoint for tp = ' num2str(tt)])
         % Check if acom is inside mesh. If so, use that as starting point.
         ainside = inpolyhedron(fvsub, acom(1), acom(2), acom(3)) ;
         pinside = inpolyhedron(fvsub, pcom(1), pcom(2), pcom(3)) ;

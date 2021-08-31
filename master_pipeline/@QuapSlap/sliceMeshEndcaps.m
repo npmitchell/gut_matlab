@@ -169,20 +169,27 @@ trefIDx = QS.xp.tIdx(tref) ;
 % 50), then more finely (every 20), then more finely (every 10), then do
 % every timepoint. Since the pointmatching is serial, each subsequent pass
 % recomputes meshes for previously done timepoints.
-if length(timePoints) > 49
-    todo = trefIDx:50:length(timePoints); % first preview how slices will look
+% ONLY DO THIS IS WE ARE THEN GOING TO OVERWRITE THE QUICK SCAN.
+if overwrite
+    if length(timePoints) > 49
+        todo = trefIDx:50:length(timePoints); % first preview how slices will look
+    else
+        todo = [] ;
+    end
+    if length(timePoints) > 19
+        todo2 = trefIDx:20:length(timePoints) ;
+    else
+        todo2 = [];
+    end
+    if length(timePoints) > 9
+        todo3 = trefIDx:10:length(timePoints) ;
+    else
+        todo3 = [] ;
+    end
 else
-    todo = [] ;
-end
-if length(timePoints) > 19
-    todo2 = trefIDx:20:length(timePoints) ;
-else
+    todo = [] ; 
     todo2 = [];
-end
-if length(timePoints) > 9
-    todo3 = trefIDx:10:length(timePoints) ;
-else
-    todo3 = [] ;
+    todo3 = []; 
 end
 % NOTE: begin with tref, advance to end, then return to tref and go
 % backwards
@@ -221,9 +228,14 @@ for ii=todo
         end
         disp(['Computing endcaps for ' name])
                
-        mesh = read_ply_mod(sprintf(meshfn, tt));
+        mesh = read_ply_mod(meshfn);
         % subsample the mesh to match acom, pcom
         vtx = mesh.v / ssfactor ;
+        
+        if eulerCharacteristic(mesh) ~= 2
+            disp(['WARNING: input mesh is not topological sphere: Euler Characteristic = ' num2str(eulerCharacteristic(mesh))])
+            disp('...attempting to continue...')
+        end
         
         % Remove unreferenced vertices
         [ mesh.f, vtx, ~, oldVertexIDx] = remove_unreferenced_vertices_from_mesh( mesh.f, vtx ) ;
@@ -397,7 +409,17 @@ for ii=todo
             disp(['finding points within ' num2str(pdist_thres_ii) ' of pcom'])
             pts_to_remove = find(pdist2 < pdist_thres_ii^2) ;
 
+            loopIdx = 1 ;
+            while numel(pts_to_remove) == 0 && loopIdx < 10
+                disp('Increasing radius by 10% since no points enclosed in pdist')
+                pts_to_remove = find(pdist2 < (pdist_thres_ii * (1 + 0.1 * loopIdx))^2) ;
+                loopIdx = loopIdx + 1 ;
+            end
 
+            if numel(pts_to_remove) == 0
+                error('Cannot find any piece of the mesh near p point even after increasing threshold ball radius by 10% 10 times')
+            end
+            
             % Remove the posterior cap and check if result is topological
             % cylinder
             [faces_postpcut, vtx_postpcut, keep_pcut] = ...
