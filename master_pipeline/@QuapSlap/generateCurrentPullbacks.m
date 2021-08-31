@@ -155,6 +155,12 @@ if generate_uvprime || generate_ruvprime
     end
 end
 
+if generate_ricci
+    if isfield(pbOptions, 'ricciMesh')
+        ricciMesh = pbOptions.ricciMesh ;
+    end
+end
+
 %% Unpack QS
 tt = QS.currentTime ;
 a_fixed = QS.a_fixed ;
@@ -184,6 +190,7 @@ if QS.dynamic
 end
 imfn_uvprime = sprintf( QS.fullFileBase.im_uvprime, tt) ;
 imfn_ruvprime = sprintf( QS.fullFileBase.im_r_uvprime, tt) ;
+imfn_ricci = sprintf( QS.fullFileBase.im_ricci, tt) ;
 do_pb1 = ~exist(imfn_uv, 'file') && generate_uv ;
 do_pb2 = ~exist(imfn_r, 'file') && generate_relaxed ;
 do_pb3 = ~exist(imfn_sp, 'file') && generate_sphi ;
@@ -197,8 +204,9 @@ else
 end
 do_pb7 = ~exist(imfn_uvprime, 'file') && generate_uvprime ;
 do_pb8 = ~exist(imfn_ruvprime, 'file') && generate_ruvprime ;
+do_pb9 = ~exist(imfn_ricci, 'file') && generate_ricci;
 
-do_pb = [do_pb1, do_pb2, do_pb3, do_pb4, do_pb5, do_pb6, do_pb7, do_pb8] ;
+do_pb = [do_pb1, do_pb2, do_pb3, do_pb4, do_pb5, do_pb6, do_pb7, do_pb8, do_pb9] ;
 do_pullbacks = (any(do_pb) || overwrite) ;
 
 if do_pullbacks
@@ -230,6 +238,9 @@ if do_pullbacks
         if do_pb8
             disp(['Smooth relaxed uvprime PB will be generated: ', imfn_ruvprime])
         end
+        if do_pb8
+            disp(['Ricci PB will be generated: ', imfn_ricci])
+        end
     end     
     
     % Load 3D data for coloring mesh pullback
@@ -260,6 +271,18 @@ if (~exist(imfn_up, 'file') || overwrite) && generate_uphi
     % Assigning field spcutMesh.u to be [s, phi] (ringpath
     % and azimuthal angle)
     spcutMesh.u = spcutMesh.uphi ;
+    aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_up, ...
+        pbOptions, axisorder, save_as_stack)
+    spcutMesh = rmfield(spcutMesh, 'u') ;
+else
+    disp('Skipping UP pullback image generation ')
+end
+
+if (~exist(imfn_ricci, 'file') || overwrite) && generate_ricci
+    fprintf(['Loading mesh for generating ricci output image: ' imfn_ricci]);
+    % Assigning field ricciMesh.u to be [s, phi] (ringpath
+    % and azimuthal angle)
+    spcutMesh.u = ricciMesh.uphi ;
     aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_up, ...
         pbOptions, axisorder, save_as_stack)
     spcutMesh = rmfield(spcutMesh, 'u') ;
@@ -343,6 +366,19 @@ if (~exist(imfn_ruvprime, 'file') || overwrite) && generate_ruvprime
 else
     disp('Skipping relaxed UVPrimeSm pullback image generation ')
 end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Save ricci pullback image
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+if (~exist(imfn_ricci, 'file') || overwrite) && generate_ricci
+    disp(['Generating image for ricci coords: ' imfn_ricci])
+    aux_generate_orbifold(ricciMesh.rectangle, IV, imfn_ricci, ...
+        pbOptions, axisorder, save_as_stack)
+else
+    disp('Skipping Ricci pullback image generation ')
+end
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Save submesh array. Each cell element contains all the 

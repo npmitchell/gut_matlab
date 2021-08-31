@@ -39,10 +39,16 @@ mexten = ['_' method] ;
 
 % Plot kymograph
 close all; figure('visible', 'off'); hold on
-plot(folds(:, 1), (timePoints - t0) * timeInterval)
-plot(folds(:, 2), (timePoints - t0) * timeInterval)
-plot(folds(:, 3), (timePoints - t0) * timeInterval)
-ylim([(timePoints(1)- t0) * timeInterval, (timePoints(end)- t0) * timeInterval])
+if length(timePoints) > 1
+    plot(folds(:, 1), (timePoints - t0) * timeInterval)
+    plot(folds(:, 2), (timePoints - t0) * timeInterval)
+    plot(folds(:, 3), (timePoints - t0) * timeInterval)
+    ylim([(timePoints(1)- t0) * timeInterval, (timePoints(end)- t0) * timeInterval])
+else
+    plot(folds(:, 1), (timePoints - t0) * timeInterval, 'o')
+    plot(folds(:, 2), (timePoints - t0) * timeInterval, 's')
+    plot(folds(:, 3), (timePoints - t0) * timeInterval, '^')
+end
 xlim([0, nU])
 ylabel('time [min]')
 xlabel('position index')
@@ -52,11 +58,19 @@ saveas(gcf, fullfile(lobeDir, ['fold_idx' dvexten mexten '.png']))
 
 % Plot the locations as a fraction of the total length as a kymograph
 close all; figure('visible', 'off'); hold on
-plot(ssfold_frac(:, 1), (timePoints - t0) * timeInterval)
-plot(ssfold_frac(:, 2), (timePoints - t0) * timeInterval)
-plot(ssfold_frac(:, 3), (timePoints - t0) * timeInterval)
+if length(timePoints) > 1
+    plot(ssfold_frac(:, 1), (timePoints - t0) * timeInterval)
+    plot(ssfold_frac(:, 2), (timePoints - t0) * timeInterval)
+    plot(ssfold_frac(:, 3), (timePoints - t0) * timeInterval)
+    ylim([(timePoints(1)- t0) * timeInterval, (timePoints(end)- t0) * timeInterval])
+else
+    plot(ssfold_frac(:, 1), (timePoints - t0) * timeInterval, 'o')
+    plot(ssfold_frac(:, 2), (timePoints - t0) * timeInterval, 's')
+    plot(ssfold_frac(:, 3), (timePoints - t0) * timeInterval, '^')
+    
+end
 xlim([0, 1])
-ylim([(timePoints(1)- t0) * timeInterval, (timePoints(end)- t0) * timeInterval])
+
 ylabel('time [min]')
 xlabel('position [x/L]')
 title('Fold positions')
@@ -65,11 +79,19 @@ saveas(gcf, fullfile(lobeDir, ['fold_ssfrac' dvexten mexten '.png']))
 
 % Plot the locations (pathlength) as a kymograph
 close all; figure('visible', 'off'); hold on
-plot(ssfold(:, 1), (timePoints - t0) * timeInterval)
-plot(ssfold(:, 2), (timePoints - t0) * timeInterval)
-plot(ssfold(:, 3), (timePoints - t0) * timeInterval)
-plot(ssmax, (timePoints - t0) * timeInterval, 'k--')
-ylim([(timePoints(1)- t0) * timeInterval, (timePoints(end)- t0) * timeInterval])
+if length(timePoints) > 1
+    plot(ssfold(:, 1), (timePoints - t0) * timeInterval)
+    plot(ssfold(:, 2), (timePoints - t0) * timeInterval)
+    plot(ssfold(:, 3), (timePoints - t0) * timeInterval)
+    plot(ssmax, (timePoints - t0) * timeInterval, 'k--')
+    ylim([(timePoints(1)- t0) * timeInterval, (timePoints(end)- t0) * timeInterval])
+else
+    plot(ssfold(:, 1), (timePoints - t0) * timeInterval, 'o')
+    plot(ssfold(:, 2), (timePoints - t0) * timeInterval, 's')
+    plot(ssfold(:, 3), (timePoints - t0) * timeInterval, '^')
+    plot(ssmax, (timePoints - t0) * timeInterval, 'ks')
+end
+xlim([0, max(ssmax)])
 ylabel('time [min]')
 xlabel('position [\mum]')
 title('Fold positions')

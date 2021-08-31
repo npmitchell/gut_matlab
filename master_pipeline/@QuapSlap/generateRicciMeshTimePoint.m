@@ -1,6 +1,10 @@
 function [ricciMesh, ricciMu] = generateRicciMeshTimePoint(QS, tp, options)
 % generateRicciMeshTimePoint(QS, tp, options)
 % 
+% Compute solution to Ricci flow for each timepoint. If there is only one
+% timepoint, we by default flow the spcutMesh. Otherwise we by default flow
+% the spcutMeshSm
+% 
 % Parameters
 % ----------
 % QS : quapSlap class instance
@@ -14,6 +18,12 @@ function [ricciMesh, ricciMu] = generateRicciMeshTimePoint(QS, tp, options)
 %       inner radius, fixed outer radius of 1)
 %   save_ims : bool (default = true)
 %       save images of the ricci flow solution
+%   pathline_computation : bool
+%       compute the ricci flow for the pathline mesh of this timepoint
+%   t0Pathlines
+%       only used if pathline_computation, which pathline to look onto for
+%       this timpoint (for example load the mesh for t=50 advected along
+%       pathlines from t0=1).
 %
 % Returns
 % -------
@@ -56,6 +66,11 @@ maxIter = 200 ;
 save_ims = true ;
 pathline_computation = false ;  % compute the ricci flow for the pathline mesh of this timepoint
 t0Pathlines = t0 ;              % only used if pathline_computation 
+if numel(QS.xp.fileMeta.timePoints) > 1
+    coordSys = 'spsm' ;
+else
+    coordSys = 'sp' ;
+end
 
 %% Unpack parameters
 if nargin < 2
@@ -130,8 +145,22 @@ if pathline_computation
     pathlineRicciDir = sprintf(QS.dir.pathlines.ricci.data, t0Pathlines) ;
     imDir = fullfile(pathlineRicciDir, 'images', sprintf('%04diter', maxIter)) ;
 else
-    cutMesh = load(sprintf(QS.fullFileBase.spcutMeshSmRS, tp)) ;
-    cutMesh = cutMesh.spcutMeshSmRS ;
+    if strcmpi(coordSys, strrep('spsm', '_', ''))
+        cutMesh = load(sprintf(QS.fullFileBase.spcutMeshSmRS, tp)) ;
+        cutMesh = cutMesh.spcutMeshSmRS ;
+    elseif strcmpi(coordSys, strrep('sp', '_', ''))
+        cutMesh = load(sprintf(QS.fullFileBase.spcutMesh, tp)) ;
+        tmp = cutMesh.spcutMesh ;
+        cutMesh = struct() ;
+        cutMesh.nU = tmp.nU ;
+        cutMesh.nV = tmp.nV ;
+        cutMesh.u = tmp.sphi ;
+        cutMesh.pathPairs = tmp.pathPairs ;
+        cutMesh.f = tmp.f ;
+        cutMesh.v = QS.xyz2APDV( tmp.v ) ;
+    else
+        error('did not recognize coordSys upon which we perform Ricci flow')
+    end
     glueMesh = glueCylinderCutMeshSeam(cutMesh) ;
     nU = cutMesh.nU ;
     nV = cutMesh.nV ;

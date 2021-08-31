@@ -102,7 +102,6 @@ else
 end
 
 if redo_rot_calc || overwrite
-
     %% Dorsal COM for first timepoint
     % load the probabilities for anterior posterior dorsal
     afn = sprintf(aProbFileName, tt);

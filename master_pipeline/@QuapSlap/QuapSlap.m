@@ -380,7 +380,11 @@ classdef QuapSlap < handle
                     load(QS.fileName.fold, 'fold_onset') ;
                     QS.t0 = min(fold_onset) ;
                 else
-                    error('No folding times saved to disk')
+                    if numel(QS.xp.fileMeta.timePoints) == 1
+                        QS.t0 = QS.xp.fileMeta.timePoints ;
+                    else
+                        error('No folding times saved to disk')
+                    end
                 end
             else
                 QS.t0 = t0 ;
@@ -1130,12 +1134,20 @@ classdef QuapSlap < handle
             if isfield(options, 'coordSys')
                 coordSys = options.coordSys ;
             else
-                coordSys = 'spcutMeshSmRSC' ;
+                if length(QS.xp.fileMeta.timePoints) > 1
+                    coordSys = 'spcutMeshSmRSC' ;
+                else
+                    coordSys = 'spcutMesh' ;
+                end
             end
             if strcmpi(coordSys, 'spcutMeshSmRSC')
                 QS.loadCurrentSPCutMeshSmRSC() ;
                 radii = QS.currentMesh.spcutMeshSmRSC.radius_um ;
                 radius_cline = mean(QS.currentMesh.spcutMeshSmRSC.radius_um, 2) ;
+            elseif strcmpi(coordSys, 'spcutMesh')
+                QS.loadCurrentSPCutMesh() 
+                radii = QS.currentMesh.spcutMesh.radii_from_mean_uniform_rs ;
+                radius_cline = mean(QS.currentMesh.spcutMesh.radii_from_mean_uniform_rs, 2) ;
             else
                 error(['Have not coded for this coord sys yet:' coordSys])
             end
