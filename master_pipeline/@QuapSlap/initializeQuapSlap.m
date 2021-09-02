@@ -81,11 +81,12 @@ QS.plotting.markers = {'o', 's', '^', 'v', '*', '>', '<'} ;
 QS.dir.data = xp.fileMeta.dataDir ;
 QS.fileName.apdv_options = fullfile(QS.dir.data, 'alignAPDV_Opts.mat') ;
 QS.dir.mesh = meshDir ;
-QS.dir.maskedData = fullfile(meshDir, 'masked_data') ;
-QS.dir.alignedMesh = fullfile(meshDir, 'aligned_meshes') ;
+QS.dir.maskedData = fullfile(meshDir, 'maskedData') ;
+QS.dir.alignedMesh = fullfile(meshDir, 'alignedMesh') ;
 QS.dir.cntrline = fullfile(meshDir, 'centerline') ;
-QS.dir.cylinderMesh = fullfile(meshDir, 'cylinder_meshes') ;
+QS.dir.cylinderMesh = fullfile(meshDir, 'cylinderMesh') ;
 QS.dir.cutMesh = fullfile(meshDir, 'cutMesh') ;
+QS.dir.rawRicciMesh = fullfile(meshDir, 'rawRicciMesh') ;
 QS.dir.cylinderMeshClean = fullfile(QS.dir.cylinderMesh, 'cleaned') ;
 QS.dir.texturePatchIm = fullfile(meshDir, 'images_texturepatch') ;
 QS.dir.mip = fullfile(meshDir, 'mips', 'dim%d_pages%04dto%04d') ;
@@ -371,6 +372,12 @@ QS.dir.ricci.data = ricciMeshDir ;
 QS.dir.ricci.mesh = fullfile(ricciMeshDir, 'meshes') ;
 QS.dir.ricci.solution = fullfile(ricciMeshDir, 'ricciSolutions') ;
 QS.dir.ricci.mu = fullfile(ricciMeshDir, 'beltramiCoefficients') ;
+QS.dir.rawRicci = struct() ;
+rawRicciMeshDir = QS.dir.rawRicciMesh ;
+QS.dir.rawRicci.data = QS.dir.rawRicciMesh ;
+QS.dir.rawRicci.mesh = fullfile(rawRicciMeshDir, 'meshes') ;
+QS.dir.rawRicci.solution = fullfile(rawRicciMeshDir, 'ricciSolutions') ;
+QS.dir.rawRicci.mu = fullfile(rawRicciMeshDir, 'beltramiCoefficients') ;
 
 %% UVprime coordinates (twist-adjusted conformal maps of sp-smoothed meshes)
 QS.dir.uvpcutMesh = fullfile(uvDir, ['uvprime_cutMesh' shiftstr]) ;
@@ -378,7 +385,15 @@ QS.fileBase.uvpcutMesh = 'uvpcutMesh_%06d' ;
 QS.fullFileBase.uvpcutMesh = fullfile(QS.dir.uvpcutMesh, ...
     [QS.fileBase.uvpcutMesh '.mat']) ;
 
-%% Ricci mesh coordinates (truly conformal via Ricci flow)
+%% Raw Ricci mesh coordinates (truly conformal via Ricci flow from cleaned cylinder mesh)
+QS.fileBase.rawRicciMesh = 'rawRicciMesh_%04diter_%06d.mat' ;
+QS.fullFileBase.rawRicciMesh = fullfile(QS.dir.rawRicci.mesh, QS.fileBase.rawRicciMesh) ;
+QS.fileBase.rawRicciSolution = 'rawRicciSolution_%04diter_%06d.mat' ;
+QS.fullFileBase.rawRicciSolution = fullfile(QS.dir.rawRicci.solution, QS.fileBase.rawRicciSolution) ;
+QS.fileBase.rawRicciMu = 'rawRicciMesh_mus_%04diter_%06d.mat' ;
+QS.fullFileBase.rawRicciMu = fullfile(QS.dir.rawRicci.mu, QS.fileBase.rawRicciMu) ;
+
+%% Ricci mesh coordinates (truly conformal via Ricci flow from reparameterized gridCoords mesh (spsm uv or sp))
 QS.fileBase.ricciMesh = 'ricciMesh_%04diter_%06d.mat' ;
 QS.fullFileBase.ricciMesh = fullfile(QS.dir.ricci.mesh, QS.fileBase.ricciMesh) ;
 QS.fileBase.ricciSolution = 'ricciSolution_%04diter_%06d.mat' ;
@@ -513,6 +528,9 @@ QS.fileBase.im_speLUT = [QS.fileBase.name, '_pbspe_LUT.tif'] ;
 QS.fullFileBase.im_speLUT = fullfile(QS.dir.im_spe, QS.fileBase.im_speLUT);
 QS.fileBase.im_up = [QS.fileBase.name, '_pbup.tif'] ;
 QS.fullFileBase.im_up = fullfile(QS.dir.im_up, QS.fileBase.im_up) ;
+QS.fileBase.im_ricci = [QS.fileBase.name, '_ricci.tif'] ;
+QS.fullFileBase.im_ricci = fullfile(QS.dir.im_ricci, QS.fileBase.im_ricci) ;
+
 
  %% Smoothed pullbacks (pb)
 if dynamic

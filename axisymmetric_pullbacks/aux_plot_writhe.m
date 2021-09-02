@@ -334,7 +334,11 @@ for ii=1:length(wr_densities)
     end
     
     timepointstr = sprintf('%06d', timepoints(ii));
-    keep = omit_endpts:(length(xpt) - omit_endpts) ;
+    if length(omit_endpts) == 1
+        keep = omit_endpts:(length(xpt) - omit_endpts) ;
+    else
+        keep = omit_endpts(1):(length(xpt) - omit_endpts(2)) ;
+    end
     scatter3(xpt(keep), ypt(keep), zpt(keep), 10, wr_densities{ii}, 'fill')
     hold on; 
     % Load the mesh

@@ -19,6 +19,13 @@ function generateCurrentSPCutMesh(QS, cutMesh, spcutMeshOptions)
 %     spcutMesh.phi0s       % 
 %     spcutMesh.phi0_fit    %
 %
+% Note that depending on the relative axisorder between data frame (TIFFs)
+% and the APDV frame, you might need to set phi0_sign to true which would
+% flip the sign of phi0 (added rather than subtracted from v in (u,v)).
+% This can be true even if QS.flipy is false for some nonstandard 
+% circumstances.
+%
+%
 % Parameters
 % ----------
 % QS : QuapSlap class instance
@@ -37,6 +44,8 @@ function generateCurrentSPCutMesh(QS, cutMesh, spcutMeshOptions)
 %       iteratively determine phi0 until convergence
 %   smoothingMethod : str specifier (default='none')
 %       method for smoothing phi0 wrt AP axis coordinate (ss)
+%   textureAxisOrder : 'xyz', 'yxz', etc
+%       
 %
 % Returns
 % -------
@@ -50,6 +59,13 @@ overwrite = false ;
 save_phi0patch = false ;
 iterative_phi0 = false ;
 smoothingMethod = 'none' ;
+maxPhiIterations = 10 ;     % maximum # iterations of minimizing phi via phi -> phi-phi0(s) 
+textureAxisOrder = QS.data.axisOrder ;
+save_ims = QS.plotting.save_ims ;
+phi0_sign = QS.flipy ;  % NOTE: our convention is that new phi = v - phi_0 but for
+                        % some reason when flipy is true even though we have
+                        % flipped cutMesh, we must add a minus sign so that phiv_kk
+                        % becomes phi_kk = v + phi0. 
 
 %% Unpack options
 if nargin < 2 || isempty(cutMesh)
@@ -86,7 +102,24 @@ if nargin > 2
             t0_for_phi0 = QS.xp.fileMeta.timePoints(1) ; 
         end
     end
+    if isfield(spcutMeshOptions, 'maxPhiIterations')
+        maxPhiIterations = spcutMeshOptions.maxPhiIterations ;
+    end
+    if isfield(spcutMeshOptions, 'textureAxisOrder')
+        textureAxisOrder = spcutMeshOptions.textureAxisOrder ;
+    end
+    if isfield(spcutMeshOptions, 'save_ims')
+        save_ims = spcutMeshOptions.save_ims ;
+    end
+    if isfield(spcutMeshOptions, 'phi0_sign')
+        phi0_sign = spcutMeshOptions.phi0_sign ;
+    end
 end
+
+% populate patchOpts from pbOptions
+pbOptions = struct() ;
+pbOptions.resolution = QS.xp.fileMeta.stackResolution(1) ;
+pbOptions.axisorder = textureAxisOrder ;
 
 %% Unpack QS
 tt = QS.currentTime ;
@@ -108,12 +141,6 @@ preview = QS.plotting.preview ;
 clineDVhoopDir = QS.dir.clineDVhoop ;
 clineDVhoopBase = QS.fullFileBase.clineDVhoop ;
 sphiDir = QS.dir.spcutMesh ;
-save_ims = QS.plotting.save_ims ;
-axisorder = QS.data.axisOrder ;
-phi0_sign = QS.flipy ;  % NOTE: our convention is that new phi = v - phi_0 but for
-                        % some reason when flipy is true even though we have
-                        % flipped cutMesh, we must add a minus sign so that phiv_kk
-                        % becomes phi_kk = v + phi0. 
 
 % Check that options are consistent
 if strcmp(phi_method, '3dcurves') && strcmp(smoothingMethod, 'none') && iterative_phi0 
@@ -398,12 +425,15 @@ if ~exist(spcutMeshfn, 'file') || overwrite
             phi0_fit_kk = 1 ; % for first pass, so that we enter loop              
             phiv_kk = (vspace .* ones(nU, nV))' ;
             ensureDir(fullfile(sphiDir, 'phi0_correction'))
+            
             % Note: the last boolean ensures that if iterative_phi0 is
             % false, we only do one pass. 
+            % If iterative_phi0 is true, then we do a second/third/etc pass
+            % if the adjustment from the fit is large.
             do_iteration = true ;
             while any(phi0_fit_kk > 0.005) && do_iteration
                 % Make sure we do only one pass if not iterative
-                if ~iterative_phi0 
+                if ~iterative_phi0 || dmyk > maxPhiIterations
                     do_iteration = false ;
                 end
                 disp(['Iteration ' num2str(dmyk)])
@@ -452,13 +482,11 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                     Options.yLim = [0 1];
 
                     % Roll options into a struct
-                    patchOpts = struct() ;
-                    patchOpts.resolution = QS.xp.fileMeta.stackResolution(1) ;
+                    patchOpts = pbOptions ;
                     patchOpts.patchImFn = patchImFn ;
                     patchOpts.patchImFnRes = patchImFnRes ;
                     patchOpts.imfn_sp_prev = imfn_sp_prev ;
                     patchOpts.IV = IV ;
-                    patchOpts.axisorder = axisorder ;
                     patchOpts.ringpath_ss = ringpath_ss ;
                     patchOpts.v3d = uvgrid3d ;
                     patchOpts.vvals4plot = phi4plot ;
@@ -487,10 +515,6 @@ if ~exist(spcutMeshfn, 'file') || overwrite
                 %     uspace * cutMesh.umax, phiv_kk, prev3d_sphi, ...
                 %     -0.45, 0.45, {preview}) ;
                 % phi0_fit_kk = phi0s_kk;
-                % 
-                % error('debug within debug')
-                % error('debug end inner')
-                % error('debug end')
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 
                 % Update the result

@@ -11,9 +11,10 @@ function [Wr, Wr_density, dWr, Length_t, clines_resampled] = ...
 % timepoints : int array
 % filter_curve : int
 %   window size for polynomial filter (cubic) and fitting
-% omit_endpts : int
+% omit_endpts : int or two ints
 %   how many points on either end of the centerline to omit in writhe
-%   calculation
+%   calculation. If length == 2, then interpret as [anterior endpoint 
+%   omission, posterior endpoint omission].
 % flipy : bool
 %   invert the sign of the y coordinate of the curve
 % preview : bool
@@ -40,6 +41,7 @@ clines_resampled = cell(nTPs, 1) ;
 if preview
     close all
     fig = figure('Visible', 'on') ;
+    pausetime = 1;
 end
 
 for ii = 1:nTPs 
@@ -98,8 +100,9 @@ for ii = 1:nTPs
             xlabel(['s [\mu' 'm]'])
             % set(fig, 'PaperUnits', 'centimeters');
             % set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
-            waitfor(gcf)
-
+            % waitfor(gcf)
+            pause(pausetime)
+            
             % Save the polynomial fit
             % fig = figure;
             % set(fig, 'Visible', 'Off')
@@ -118,7 +121,8 @@ for ii = 1:nTPs
             axis equal
             % set(fig, 'PaperUnits', 'centimeters');
             % set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
-            waitfor(gcf)
+            % waitfor(gcf)
+            pause(pausetime)
         end
     end
 
@@ -175,7 +179,11 @@ for ii = 1:nTPs
     %     wr(jj) = sum(integrand) ;
     % end
     
-    keep = omit_endpts:(length(yzxp)-omit_endpts) ;
+    if length(omit_endpts) == 1
+        keep = omit_endpts:(length(yzxp)-omit_endpts) ;
+    else
+        keep = omit_endpts(1):(length(yzxp)-omit_endpts(2)) ;
+    end
     ssxkeep = ssx(keep) ;
     [Wrp(ii), wrp_local, wrp_nl, turns, segments, seg_pairs] = polarWrithe(yzxp(keep, :), ssxkeep(:)) ;
     % Store the first segment writhe: sum of wrp_local of first segment
@@ -195,13 +203,18 @@ for ii = 1:nTPs
         % Plot the writhe 
         % fig = figure('Visible', 'Off');
         clf
-        plot(ssx, wrp_local)
-        % xlim([0, smax])
-        ylim([-0.05, 0.05])
+        scatter3(yzxp(keep, 1), yzxp(keep, 2), yzxp(keep, 3), 55, wrp_local', 'filled')
+        cb = colorbar ;
+        caxis([-0.01, 0.01])
+        colormap(blueblackred)
         title('Writhe density')
-        xlabel('pathlength, $s$ [$\mu$m]', 'Interpreter', 'Latex') ;
-        ylabel('writhe density, $wr$ [$\mu$m$^{-1}$]', 'Interpreter', 'Latex') ;
-        waitfor(gcf)
+        xlabel('ap position [$\mu$m]', 'Interpreter', 'Latex') ;
+        ylabel('lateral position [$\mu$m]', 'Interpreter', 'Latex') ;
+        zlabel('dv position [$\mu$m]', 'Interpreter', 'Latex') ;
+        ylabel(cb, 'writhe density, $wr$ [$\mu$m$^{-1}$]', 'Interpreter', 'Latex') ;
+        axis equal
+        %  waitfor(gcf)
+        pause(pausetime)
     end
 end
 

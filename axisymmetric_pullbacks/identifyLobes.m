@@ -402,7 +402,7 @@ else
             end
 
             if verbose
-                disp(['folds = ', num2str(folds(kk + 1, :))])
+                disp(['folds = ', num2str(folds(kk, :))])
             end
         end
 

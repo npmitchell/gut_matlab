@@ -101,8 +101,8 @@ catch
     waitfor(gcf)
 
     % Find offending indices
-    ids = find(cutMesh.f == 18)
-    [rows, cols] = ind2sub(size(cutMesh.f), ids)
+    ids = find(cutMesh.f == 18) ; % hard coding the offending indices here for inspection
+    [rows, cols] = ind2sub(size(cutMesh.f), ids) ;
     tris = cutMesh.f(rows,:) ;
     clf
     trisurf(cutMesh.f, cutMesh.v(:, 1), cutMesh.v(:, 2), cutMesh.v(:, 3), ...

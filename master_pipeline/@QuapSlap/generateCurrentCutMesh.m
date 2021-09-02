@@ -29,6 +29,9 @@ nsegs4path = 2 ;
 maxJitter = 100 ;
 maxTwChange = 0.40 ;
 preview = false ;
+definePDviaRicci_t0 = true ;
+definePDviaRicci = false ;
+ricciOptions = struct() ;
 try
     t0 = QS.t0set() ;
 catch
@@ -51,7 +54,14 @@ if nargin > 1
     if isfield(cutMeshOptions, 't0')
         t0 = cutMeshOptions.t0 ;
     end
+    if isfield(cutMeshOptions, 'definePDviaRicci')
+        definePDviaRicci = cutMeshOptions.definePDviaRicci ;
+    end
+    if isfield(cutMeshOptions, 'ricciOptions')
+        ricciOptions = cutMeshOptions.ricciOptions ;
+    end
 end
+ricciOptions.t0 = t0 ;
 
 % Unpack parameters
 tt = QS.currentTime ;
@@ -80,6 +90,39 @@ pdIDx = h5read(QS.fileName.pBoundaryDorsalPtsClean,...
 % try geodesic if first timepoint
 if tt == t0
     cutPath_ok = false ;
+    
+    % Modify adIDx/pdIDx if desired (for removing possible twist)
+    if definePDviaRicci_t0
+        [rawRicciMesh, ~] = ...
+            QS.generateRawRicciMeshTimePoint(tt, ricciOptions) ;
+
+        % Assert that adIDx vertex is very near phi= 0
+        assert(rawRicciMesh.rectangle.u(adIDx,2) == 0)
+        
+        % Find pIDx nearest to phi = 0
+        bnd = freeBoundary(triangulation(mesh.f, mesh.v)) ;
+        [bnds, hairpins] = separateClosedCurveComponents(bnd) ;
+        try
+            assert(~any(isempty(hairpins)))
+        catch
+            error('There should be no hairpins in cleaned cylinder meshes')
+        end
+        assert(length(bnds) == 2)
+        
+        % Find anterior dorsal vertex in one of the boundary rings
+        if ismember(adIDx, bnds{1}(:, 1))
+            pInds = bnds{2} ;
+        elseif ismember(adIdx, bnds{2}(:, 1))
+            pInds = bnds{1} ;
+        else
+            error('could not find anterior dorsal vertex index in either boundary list')
+        end
+        
+        % Find min phi in posterior vertex indices
+        [~, minId] = min(rawRicciMesh.rectangle.u(pInds, 2)) ;
+        pdIDx = pInds(minId) ; 
+    end
+        
     dmyk = 0 ;
     bbWeight = 10 ;
     while ~cutPath_ok
@@ -140,6 +183,40 @@ if tt == t0
         % quiver3(cc(:, 1), cc(:, 2), cc(:, 3), nn(:, 1), nn(:, 2), nn(:, 3), 1)
     end
 else
+    
+    % Modify adIDx/pdIDx if desired (for removing possible twist)
+    if definePDviaRicci
+        [rawRicciMesh, ~] = ...
+            QS.generateRawRicciMeshTimePoint(tt, ricciOptions) ;
+
+        % Assert that adIDx vertex is very near phi= 0
+        assert(rawRicciMesh.rectangle.u(adIDx,2) == 0)
+        
+        % Find pIDx nearest to phi = 0
+        bnd = freeBoundary(triangulation(mesh.f, mesh.v)) ;
+        [bnds, hairpins] = separateClosedCurveComponents(bnd) ;
+        try
+            assert(~any(isempty(hairpins)))
+        catch
+            error('There should be no hairpins in cleaned cylinder meshes')
+        end
+        assert(length(bnds) == 2)
+        
+        % Find anterior dorsal vertex in one of the boundary rings
+        if ismember(adIDx, bnds{1}(:, 1))
+            pInds = bnds{2} ;
+        elseif ismember(adIdx, bnds{2}(:, 1))
+            pInds = bnds{1} ;
+        else
+            error('could not find anterior dorsal vertex index in either boundary list')
+        end
+        
+        % Find min phi in posterior vertex indices
+        [~, minId] = min(rawRicciMesh.rectangle.u(pInds, 2)) ;
+        pdIDx = pInds(minId) ; 
+    end
+       
+    
     if tt > t0
         prevTP = tt - 1 ;
     elseif tt < t0 

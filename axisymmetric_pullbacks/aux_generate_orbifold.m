@@ -141,86 +141,93 @@ end
 %   correct. To do that, we set the direction of v earlier based on flipy.
 
 % Now use the axis orders specified
-if iscell(Options.numLayers)
-    if length(Options.numLayers) == 1
-        % this is a boring case: the cell just contains one pair of values,
-        % so do the usual stack with a single channel or uniform numLayers
-        % across all channels
+if isfield(Options, 'numLayers')
+    if iscell(Options.numLayers)
+        if length(Options.numLayers) == 1
+            % this is a boring case: the cell just contains one pair of values,
+            % so do the usual stack with a single channel or uniform numLayers
+            % across all channels
+            patchIm = texture_patch_to_image( TF, TV2D,...
+                TF, TV3D(:, axisorder), IV, Options );
+            % profile viewer
+        else
+            % There is a different Layer setting for each channel
+
+            % Check that the #(layer settings) == #channels
+            try
+                assert(iscell(IV))
+                assert(length(IV) == length(Options.numLayers))
+            catch
+                error('If numLayers is a cell, there must be one pair of integers for numLayers per channel of IV')
+            end
+
+            % If save_as_stack is true, we need the number of image planes to
+            % be the same across channels. 
+            if save_as_stack
+                try
+                    nplanes = zeros(length(Options.numLayers), 1) ;
+                    for ch = 1:length(IV)
+                        nplanes(ch) = 1 + sum(Options.numLayers{ch}) ;
+                    end
+                    assert(all(nplanes == nplanes(1)))
+                catch
+                    error('If saving as stack, #image planes in numLayers must be the same across channels')
+                end
+            end
+
+            % Obtain each channel's stack, with different numLayers param
+            for ch = 1:length(IV)
+                disp(['selected layer pullback on channel ' num2str(ch)])
+                Options2 = Options ;
+                Options2.numLayers = Options.numLayers{ch} ;
+                patchIms{ch} = texture_patch_to_image( TF, TV2D,...
+                    TF, TV3D(:, axisorder), IV{ch}, Options2 );
+            end
+
+            % Prepare colors for each channel
+            if isfield(Options, 'falseColors')
+                falseColors = Options.falseColors ;
+            else
+                if length(IV) == 2
+                    disp('aux_generate_orbifold: falseColors not supplied --> Using default 2-color channels of red and cyan')
+                    falseColors{1} = [1, 0, 0] ;
+                    falseColors{2} = [0, 1, 1] ;
+                elseif length(IV) == 3
+                    falseColors{1} = [1, 0, 0] ;
+                    falseColors{2} = [0, 1, 0] ;
+                    falseColors{3} = [0, 0, 1] ; 
+                else
+                    error('aux_generate_orbifold: For texture spaces with more than 3 channels, please supply colors for each channel in Options.falseColors')
+                end
+            end
+
+            % Apply color to each channel
+            if save_as_stack
+                patchIm = zeros(size(patchIms{1})) ;
+                for ch = 1:length(IV)
+                    patchIm(:, :, 1, :) = patchIm(:, :, 1, :) + falseColors{ch}(:, 1) * patchIms{ch} ;
+                    patchIm(:, :, 2, :) = patchIm(:, :, 2, :) + falseColors{ch}(:, 2) * patchIms{ch} ;
+                    patchIm(:, :, 3, :) = patchIm(:, :, 3, :) + falseColors{ch}(:, 3) * patchIms{ch} ;
+                end
+            else
+                tmp = max(patchIms{1}, [], 3) ;
+                patchIm = zeros(size(tmp, 1), size(tmp, 2), 3) ;
+                for ch = 1:length(IV)
+                    dat = max(patchIms{ch}, [], 3) ;
+                    patchIm(:, :, 1) = patchIm(:, :, 1) + falseColors{ch}(:, 1) * dat ;
+                    patchIm(:, :, 2) = patchIm(:, :, 2) + falseColors{ch}(:, 2) * dat ;
+                    patchIm(:, :, 3) = patchIm(:, :, 3) + falseColors{ch}(:, 3) * dat ;
+                end
+            end
+        end
+
+    else
         patchIm = texture_patch_to_image( TF, TV2D,...
             TF, TV3D(:, axisorder), IV, Options );
         % profile viewer
-    else
-        % There is a different Layer setting for each channel
-        
-        % Check that the #(layer settings) == #channels
-        try
-            assert(iscell(IV))
-            assert(length(IV) == length(Options.numLayers))
-        catch
-            error('If numLayers is a cell, there must be one pair of integers for numLayers per channel of IV')
-        end
-
-        % If save_as_stack is true, we need the number of image planes to
-        % be the same across channels. 
-        if save_as_stack
-            try
-                nplanes = zeros(length(Options.numLayers), 1) ;
-                for ch = 1:length(IV)
-                    nplanes(ch) = 1 + sum(Options.numLayers{ch}) ;
-                end
-                assert(all(nplanes == nplanes(1)))
-            catch
-                error('If saving as stack, #image planes in numLayers must be the same across channels')
-            end
-        end
-        
-        % Obtain each channel's stack, with different numLayers param
-        for ch = 1:length(IV)
-            disp(['selected layer pullback on channel ' num2str(ch)])
-            Options2 = Options ;
-            Options2.numLayers = Options.numLayers{ch} ;
-            patchIms{ch} = texture_patch_to_image( TF, TV2D,...
-                TF, TV3D(:, axisorder), IV{ch}, Options2 );
-        end
-
-        % Prepare colors for each channel
-        if isfield(Options, 'falseColors')
-            falseColors = Options.falseColors ;
-        else
-            if length(IV) == 2
-                disp('aux_generate_orbifold: falseColors not supplied --> Using default 2-color channels of red and cyan')
-                falseColors{1} = [1, 0, 0] ;
-                falseColors{2} = [0, 1, 1] ;
-            elseif length(IV) == 3
-                falseColors{1} = [1, 0, 0] ;
-                falseColors{2} = [0, 1, 0] ;
-                falseColors{3} = [0, 0, 1] ; 
-            else
-                error('aux_generate_orbifold: For texture spaces with more than 3 channels, please supply colors for each channel in Options.falseColors')
-            end
-        end
-            
-        % Apply color to each channel
-        if save_as_stack
-            patchIm = zeros(size(patchIms{1})) ;
-            for ch = 1:length(IV)
-                patchIm(:, :, 1, :) = patchIm(:, :, 1, :) + falseColors{ch}(:, 1) * patchIms{ch} ;
-                patchIm(:, :, 2, :) = patchIm(:, :, 2, :) + falseColors{ch}(:, 2) * patchIms{ch} ;
-                patchIm(:, :, 3, :) = patchIm(:, :, 3, :) + falseColors{ch}(:, 3) * patchIms{ch} ;
-            end
-        else
-            tmp = max(patchIms{1}, [], 3) ;
-            patchIm = zeros(size(tmp, 1), size(tmp, 2), 3) ;
-            for ch = 1:length(IV)
-                dat = max(patchIms{ch}, [], 3) ;
-                patchIm(:, :, 1) = patchIm(:, :, 1) + falseColors{ch}(:, 1) * dat ;
-                patchIm(:, :, 2) = patchIm(:, :, 2) + falseColors{ch}(:, 2) * dat ;
-                patchIm(:, :, 3) = patchIm(:, :, 3) + falseColors{ch}(:, 3) * dat ;
-            end
-        end
     end
-    
-else
+else    
+    disp('no numLayers defined, using default...')
     patchIm = texture_patch_to_image( TF, TV2D,...
         TF, TV3D(:, axisorder), IV, Options );
     % profile viewer

@@ -3,7 +3,12 @@ function [ricciMesh, ricciMu] = generateRicciMeshTimePoint(QS, tp, options)
 % 
 % Compute solution to Ricci flow for each timepoint. If there is only one
 % timepoint, we by default flow the spcutMesh. Otherwise we by default flow
-% the spcutMeshSm
+% the spcutMeshSm.
+% 
+% See also
+% --------
+%  generateRawRicciMeshTimePoint(QS, tp, options) --> for raw Ricci mesh
+%  before re-parameterization of the mesh into spcutMesh or uv coords etc
 % 
 % Parameters
 % ----------

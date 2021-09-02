@@ -1022,6 +1022,10 @@ classdef QuapSlap < handle
             QS.currentMesh.cylinderMeshClean = read_ply_mod( cylmeshfn );
         end
         
+        % RawRicci meshes -- can be used to form cutMeshes
+        [rawRicciMesh, rawRicciMu] = ...
+            generateRawRicciMeshTimePoint(QS, tp, options)
+        
         % cutMesh
         generateCurrentCutMesh(QS, options)
         plotCutPath(QS, cutMesh, cutPath)

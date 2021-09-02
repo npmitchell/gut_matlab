@@ -35,7 +35,6 @@ function identifyFolds(QS, options)
 lobeDir = QS.dir.lobe ;
 nU = QS.nU ;
 nV = QS.nV ;
-t0 = QS.t0set() ;
 timeInterval = QS.timeInterval ;
 uvexten = QS.uvexten ;  % string like sprintf('_nU%04d_nV%04d', nU, nV) ;
 timePoints = QS.xp.fileMeta.timePoints ;
@@ -134,6 +133,10 @@ else
         'ssmax', 'fold_onset', 'readme')
 end
 clearvars guess123 maxwander
+
+% Set t0 based on fold timestamp (fold_onset is index)
+t0 = min(fold_onset) ;
+QS.t0set(t0)
 
 % Plot results as both avgpts and ringpath distances
 fold_ofn = dir(fullfile(lobeDir, ['radii_folds' uvexten '_avgpts*.png'])) ;

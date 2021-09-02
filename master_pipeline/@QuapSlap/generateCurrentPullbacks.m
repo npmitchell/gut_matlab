@@ -29,6 +29,13 @@ function generateCurrentPullbacks(QS, cutMesh, spcutMesh, ...
 %       color of mesh edges in pullback image
 %   YLim : 1x2 float (default=[0 1])
 %       Y extent of pullback image in v or phi coords
+%   axisorder : length 3 ints (default = [1 2 3 ])
+%       axis permutation for the texture mesh
+%   preTextureLambda : float (default = 0)
+%       If nonzero, apply laplacian smooth to mesh before rendering and
+%       before moving along normal_shift (which occurs before texture
+%       mapping)
+%
 %   Additional options as fields are
 %       - Options.imSize:       The size of the output image
 %       - Options.baseSize:     The side length in pixels of the smallest
@@ -68,6 +75,10 @@ generate_ruvprime = false ;  % generate a (u',v') coord sys pullback, where u',v
 % Other options
 save_as_stack    = false ;  % save data as stack for each timepoint, not MIP
 channels = [] ;             % default is to image all channels (empty list)
+axisorder = [1 2 3 ];   % Note: we should NOT use QS.data.axisOrder here, 
+                        % since that is invoked upon loading IV instead of applying in post
+normal_shift = 0 ;          % how much to shift mesh along vertex normals before rendering
+preTextureLambda = 0 ;      % how much to smooth mesh before rendering
 
 % Replace defaults
 if nargin > 4
@@ -116,6 +127,18 @@ if nargin > 4
         channels = pbOptions.channels ;
         pbOptions = rmfield(pbOptions, 'channels') ;
     end
+    if isfield(pbOptions, 'axisorder')
+        axisorder = pbOptions.axisorder ;
+        pbOptions = rmfield(pbOptions, 'axisorder') ;
+    end
+    if isfield(pbOptions, 'preTextureLambda')
+        preTextureLambda = pbOptions.preTextureLambda ;
+        pbOptions = rmfield(pbOptions, 'preTextureLambda') ;
+    end
+    if isfield(pbOptions, 'normal_shift')
+        normal_shift = pbOptions.normal_shift ;
+        pbOptions = rmfield(pbOptions, 'normal_shift') ;
+    end
 end
 
 %% Unpack options
@@ -126,11 +149,32 @@ if nargin < 2 || isempty(cutMesh)
     cutMesh = QS.currentMesh.cutMesh ;
 end
 
-if nargin < 3 || isempty(spcutMesh)
+if (nargin < 3 || isempty(spcutMesh)) && (generate_uv || generate_relaxed || generate_sphi)
     if isempty(QS.currentMesh.spcutMesh)
         QS.loadCurrentSPCutMesh()
     end
     spcutMesh = QS.currentMesh.spcutMesh ;
+    
+    % Smooth embedding coordinates (optional)
+    if preTextureLambda > 0
+        tmpCutMesh = struct('f', spcutMesh.f, ...
+            'v', spcutMesh.v, 'u', spcutMesh.sphi, ...
+            'nU', spcutMesh.nU, 'nV', spcutMesh.nV, 'vn', spcutMesh.vn) ;
+        glueMesh = glueRectCylinderCutMeshSeam(tmpCutMesh) ;
+        glueMesh.v = laplacian_smooth(glueMesh.v, glueMesh.f, 'cotan', [], preTextureLambda, 'implicit') ;
+        spcutMesh2 = cutRectilinearCylMesh(glueMesh) ;
+        spcutMesh2.uv = spcutMesh.uv ;
+        spcutMesh2.sphi = spcutMesh.sphi ;
+        spcutMesh2.uphi = spcutMesh.uphi ;
+        spcutMesh2.ar = spcutMesh.ar ;
+        spcutMesh2.pathPairs = spcutMesh.pathPairs ;
+        spcutMesh2.vn = per_vertex_normals(spcutMesh2.v, spcutMesh2.f, 'Weighting', 'angle') ;
+        spcutMesh = spcutMesh2 ;
+    end
+    % Shift embedding coordinates along normal (optional)
+    if abs(normal_shift) > 0
+        spcutMesh.v = spcutMesh.v + normal_shift * spcutMesh.vn ;
+    end
 end
 
 if (nargin < 4 || isempty(spcutMeshSm)) && (generate_rsm || generate_spsm)
@@ -138,6 +182,24 @@ if (nargin < 4 || isempty(spcutMeshSm)) && (generate_rsm || generate_spsm)
         QS.loadCurrentSPCutMeshSm()
     end
     spcutMeshSm = QS.currentMesh.spcutMeshSm ;
+    
+    % Smooth embedding coordinates (optional)
+    if preTextureLambda > 0
+        tmpCutMesh = struct('f', spcutMeshSm.f, ...
+            'v', spcutMeshSm.v, 'u', spcutMeshSm.u, ...
+            'nU', spcutMeshSm.nU, 'nV', spcutMeshSm.nV, 'vn', spcutMeshSm.vn) ;
+        glueMesh = glueRectCylinderCutMeshSeam(tmpCutMesh) ;
+        glueMesh.v = laplacian_smooth(glueMesh.v, glueMesh.f, 'cotan', [], preTextureLambda, 'implicit') ;
+        spcutMeshSm2 = cutRectilinearCylMesh(glueMesh) ;
+        spcutMeshSm2.ar = spcutMeshSm.ar ;
+        spcutMeshSm2.pathPairs = spcutMeshSm.pathPairs ;
+        spcutMeshSm2.vn = per_vertex_normals(spcutMeshSm2.v, spcutMeshSm2.f, 'Weighting', 'angle') ;
+        spcutMeshSm = spcutMeshSm2 ;
+    end
+    % Shift embedding coordinates along normal (optional)
+    if abs(normal_shift) > 0
+        spcutMeshSm.v = spcutMeshSm.v + normal_shift * spcutMeshSm.vn ;
+    end
 end
 
 if generate_uvprime || generate_ruvprime
@@ -152,6 +214,16 @@ if generate_uvprime || generate_ruvprime
             QS.loadCurrentUVPrimeCutMesh()
         end
         uvpcutMesh = QS.currentMesh.uvpcutMesh ;
+    end
+    
+    % Smooth embedding coordinates (optional)
+    if preTextureLambda > 0
+        uvpcutMesh.v = laplacian_smooth(uvpcutMesh.v, uvpcutMesh.f, 'cotan', [], preTextureLambda, 'implicit') ;
+        uvpcutMesh.vn = per_vertex_normals(uvpcutMesh.v, uvpcutMesh.f, 'Weighting', 'angle') ;
+    end
+    % Shift embedding coordinates along normal (optional)
+    if abs(normal_shift) > 0
+        uvpcutMesh.v = uvpcutMesh.v + normal_shift * uvpcutMesh.vn ;
     end
 end
 
@@ -171,8 +243,6 @@ a_fixed = QS.a_fixed ;
 % imFolder_up = QS.dir.im_up ;
 % imFolder_spsm = QS.dir.im_sp_sm ;
 % imFolder_rsm = QS.dir.im_r_sm ;
-axisorder = [1 2 3 ];   % Note: we should NOT use QS.data.axisOrder here, 
-                        % since that is invoked upon loading IV instead of applying in post
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('Checking whether to create pullback \n');

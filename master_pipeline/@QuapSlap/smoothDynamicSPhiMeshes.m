@@ -134,7 +134,8 @@ if redo_meshsmooth
                 nqqrs(:, 1) = -nqqrs(:, 1) ;
                 nqqrs(:, 3) = -nqqrs(:, 3) ;
             else
-                error('Should we flip normals here?')
+                disp('Keeping normals as they are. I think this is right...')
+                % error('Should we flip normals here? I think we want normals to be outward in APDV coords?')
             end
 
             % check normals by plotting the meshes colored by normals

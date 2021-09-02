@@ -253,7 +253,8 @@ if save_phi0patch
     opts.label = '$\phi_0$' ;
     opts.qsubsample = 2 ;
     opts.qscale = 1000 ;
-    [~, ~, ~, ax, ~] = vectorFieldHeatPhaseOnImage(tmp, xx, yy', ...
+    xyfstruct = struct('x', xx, 'y', yy) ;
+    [~, ~, ~, ax, ~] = vectorFieldHeatPhaseOnImage(tmp, xyfstruct, ...
         0*phi0grid, phi0grid, max(abs(phi0_fit))*2, opts) ;
     titlestr =  ['Blue = $t - 1$, yellow is current. ', ...
         '$\phi_0$ is to be subtracted from $v$.' ] ;
