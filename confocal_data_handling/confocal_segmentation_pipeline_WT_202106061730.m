@@ -1,6 +1,8 @@
 %% Segment out a Monge-form "slab" [z0(x,y), z1(x,y)] from confocal data 
 % NPMitchell 2020
 %
+% NOTE: THIS DATASET IS SINGLE COLOR
+%
 % This is a pipeline to segment confocal data & take MIPs
 
 % temporary path def
@@ -62,7 +64,7 @@ pix2um = 0.242753316645 ;   % 06061730
 % pix2um = 0.22669667644183772 ;
 um2pix = 1 / pix2um ;
 resolution = [pix2um, pix2um, 0.75] ;
-timepoints = 0:52 ;
+timepoints = 0:16 ;
 
 %% Join data into stacks
 data_is_split = false ;
@@ -105,6 +107,8 @@ if data_is_split
             disp('file exists')
         end
     end
+    fn = file16name ;
+else
     fn = file16name ;
 end
 
@@ -524,13 +528,15 @@ layerWidth = 5 ; % 1 for RFP
 subsample = 10 ;
 zOffset = 5 ; % 20 ;
 gaussSigma = 0.5 ; % 2;
-axisOrder = 'cxyz' ;
+axisOrder = 'zyx' ;
 
 axisOrder = erase(axisOrder, 'c') ;
 zdim = find(axisOrder== 'z') ;
 
+
 %% Take median z(t) for each (x,y) and remake stacks
 preview = true ;
+overwrite = true ;
 filteredMeshFn = './msls_output/medianFilteredMeshes.mat' ;
 if ~exist(filteredMeshFn, 'file') || overwrite 
     prevMesh0 = [] ;
@@ -544,10 +550,13 @@ if ~exist(filteredMeshFn, 'file') || overwrite
     if contains(lower(axisOrder), 'xyz')
         szX = sz1 ; szY = sz2 ; szZ = sz3 ;
         zdim = 3 ;
+    elseif contains(lower(axisOrder), 'zyx') 
+        szX = sz3 ; szY = sz2 ; szZ = sz1 ;
+        zdim = 1 ;
     else
         error('handle here')
     end
-    %% Consider each mesh, filter with adjacent timepoints
+    %% Consider each mesh, resample. OPTIONAL: filter with adjacent timepoints 
     for tidx = 1:length(timepoints)
         tp = timepoints(tidx) ;
         disp(['t = ' num2str(tp)])
@@ -568,6 +577,14 @@ if ~exist(filteredMeshFn, 'file') || overwrite
         % bnd = freeBoundary(tri) ;
         % bndV = p4bndV(bnd(:, 1), :) ;
 
+        % check it
+        if preview
+            trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none')
+            axis equal
+            xlabel('x'); ylabel('y'); zlabel('z') ;
+            pause(0.1);
+        end
+        
         % Subsample the surface 
         [face, vertex] = remove_vertex_from_mesh(mesh.f, mesh.v, plane) ;
         [ surfF, surfV, oldVertexIDx ] = ...
@@ -578,6 +595,8 @@ if ~exist(filteredMeshFn, 'file') || overwrite
             trisurf(triangulation(surfF, surfV), surfV(:, 3), 'edgecolor', 'none')
             axis equal;
             view(2)
+            xlabel('x'); ylabel('y'); zlabel('z') ;
+            pause(0.1);
         end
 
         % surfV = mesh.v(surfId, :) ;
@@ -671,22 +690,25 @@ if ~exist(filteredMeshFn, 'file') || overwrite
         mesh.f = faces ;
         mesh.v = [xr, yr, zr] ;
 
-        if tidx == 1
-            % Do not define mesh until next timepoint
-        elseif tidx == 2
-            % First mesh is average of first two unsmoothed meshes
-            meshFilt{tidx-1} = mesh.v ;
-            assert(all(mesh.v(:, 1) == prevMesh1.v(:, 1))) ;
-            assert(all(mesh.v(:, 2) == prevMesh1.v(:, 2))) ;
-            meshFilt{tidx-1}(:, 3) = mean( [mesh.v(:, 3), prevMesh1.v(:, 3)], 2) ;
-        else
-            % Take median of previous two and current meshes
-            meshFilt{tidx-1} = mesh.v ;
-            assert(all(mesh.v(:, 1) == prevMesh1.v(:, 1))) ;
-            assert(all(mesh.v(:, 2) == prevMesh1.v(:, 2))) ;
-            meshFilt{tidx-1}(:, 3) = mean( [mesh.v(:, 3),  ...
-                prevMesh0.v(:, 3), prevMesh1.v(:, 3)], 2) ;
-        end
+        % SMOOTH IN TIME (SKIPPING THIS SINCE MESHES ARE CLEAN)
+        % if tidx == 1
+        %     % Do not define mesh until next timepoint
+        % elseif tidx == 2
+        %     % First mesh is average of first two unsmoothed meshes
+        %     meshFilt{tidx-1} = mesh.v ;
+        %     assert(all(mesh.v(:, 1) == prevMesh1.v(:, 1))) ;
+        %     assert(all(mesh.v(:, 2) == prevMesh1.v(:, 2))) ;
+        %     meshFilt{tidx-1}(:, 3) = mean( [mesh.v(:, 3), prevMesh1.v(:, 3)], 2) ;
+        % else
+        %     % Take median of previous two and current meshes
+        %     meshFilt{tidx-1} = mesh.v ;
+        %     assert(all(mesh.v(:, 1) == prevMesh1.v(:, 1))) ;
+        %     assert(all(mesh.v(:, 2) == prevMesh1.v(:, 2))) ;
+        %     meshFilt{tidx-1}(:, 3) = mean( [mesh.v(:, 3),  ...
+        %         prevMesh0.v(:, 3), prevMesh1.v(:, 3)], 2) ;
+        % end
+        
+        meshFilt{tidx} = mesh.v ;
         out_of_frame_idx{tidx} = out_of_frame ;
 
         % Prepare for next timepoint
@@ -709,17 +731,19 @@ end
 
 
 %% Onion stacks
-nPos = 35 ;
-nNeg = 20 ;
+nPos = 25 ;
+nNeg = 10 ;
+dataAxisOrder = 'xyz' ;
 
-layerWidth = 5 ;
-midLayerOffset = -2 ;
+layerWidth = 4 ;
+midLayerOffset = 7 ;
 lam = 0.01 ;  % 1 ; 
 
-preview = true ;
-overwrite = false ;
+preview = false ;
+preview_final = true ;
+overwrite = true ;
 
-timepoints = 0:52 ;
+timepoints = 0:16 ;
 tidx2do = 1:5:length(timepoints) ;
 tidx2do = [tidx2do, setdiff(1:length(timepoints), tidx2do)] ;
 
@@ -735,9 +759,12 @@ for tidx = tidx2do
         sz1 = size(IV{1}, 1) ;
         sz2 = size(IV{1}, 2) ;
         sz3 = size(IV{1}, 3) ;
-        if contains(lower(axisOrder), 'xyz')
+        if contains(lower(dataAxisOrder), 'xyz')
             szX = sz1 ; szY = sz2 ; szZ = sz3 ;
             zdim = 3 ;
+        elseif contains(lower(dataAxisOrder), 'xyz')
+            szX = sz3 ; szY = sz2 ; szZ = sz1 ;
+            zdim = 1 ;
         else
             error('handle here')
         end
@@ -764,9 +791,11 @@ for tidx = tidx2do
         if preview
             clf
             tri = triangulation(mesh.f, mesh.v) ;
-            trisurf(tri, 'edgecolor', 'none')
+            trisurf(tri, mesh.v(:, 3), 'edgecolor', 'none')
             view(2); title('smoothed triangulation of rescaled resampling')
             axis equal
+            xlabel('x'); ylabel('y'); zlabel('z') ;
+            pause(0.1)
         end
         
         m2d = mesh ;
@@ -778,14 +807,19 @@ for tidx = tidx2do
         if preview
             trisurf(triangulation(mesh.f, mesh.v), mesh.vn(:, 3), 'edgecolor', 'none')
             title('normal vectors')
+            axis equal
+            caxis([-1, 1])
+            xlabel('x'); ylabel('y'); zlabel('z') ;
+            pause(0.1)
         end
 
         % TexturePatch
         Opts = struct() ;
         if strcmpi(axisOrder, 'xyz')
             Opts.imSize = [sz2, sz1] ;
-        else
+        elseif strcmpi(axisOrder, 'zyx')
             Opts.imSize = [sz1, sz2] ;
+        else
             error('handle here')
         end
         Opts.numLayers = [nPos, nNeg] ;
@@ -807,15 +841,15 @@ for tidx = tidx2do
             error('handle here')
         end
         if preview
-            imshow(permute(squeeze(max(patchIm, [], 4)), [2, 1, 3]))
+            imshow(permute(squeeze(max(patchIm, [], 3)), [2, 1, 3]))
         end
 
         % texture_patch_3d(mesh.f, mesh.v, mesh.f, mesh.v(:, [2,1,3]), IV{2})
 
-        if preview
-            figure(1)
-            for ii = 1:size(patchIm, 4)
-                imshow(mat2gray(squeeze(patchIm(:, :, 2, ii)), [0, 0.25])')
+        if preview_final
+            figure(1); clf
+            for ii = 1:size(patchIm, 3)
+                imshow(mat2gray(squeeze(patchIm(:, :, ii)), [0, 0.25])')
                 title(['ii= ' num2str(ii)])
                 pause(0.01)
             end
@@ -835,9 +869,8 @@ for tidx = tidx2do
         if ~exist('./texturePatches/', 'dir')
             mkdir('./texturePatches/')
         end
-        ch1 = squeeze(patchIm(:, :, 1, :)) ;
-        ch2 = squeeze(patchIm(:, :, 2, :)) ;
-
+        ch1 = patchIm ;
+        
         % % Preview cross-section of stack
         % for ii = 100:1:450 % size(ch2, 2)
         %     imshow(mat2gray(squeeze(ch2(ii, :, :)), [0, 0.1 * max(ch2(:))])')
@@ -846,16 +879,11 @@ for tidx = tidx2do
         % end
 
         ch1 = uint8(mat2gray(ch1, [min(ch1(:)), max(ch1(:))]) * 2^8) ;
-        ch2 = uint8(mat2gray(ch2, [min(ch2(:)), 0.25 * max(ch2(:))]) * 2^8) ;
-        
-        ch1 = permute(ch1, [2, 1,3]) ;
-        ch2 = permute(ch2, [2, 1,3]) ;
-        
-        chs = {reshape(ch1, [size(ch1, 1), size(ch1, 2), 1, size(ch1, 3)]), ...
-            reshape(ch2, [size(ch2, 1), size(ch2, 2), 1, size(ch2, 3)])} ;
+        % ch1 = permute(ch1, [2, 1, 3]) ;
+        chs = {ch1} ;
 
         % Save image stack
-        for ch = 1:2
+        for ch = 1
             outfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, ch) ;
             writeTiff5D(chs{ch}, outfn, 8) ;
         end
@@ -868,22 +896,18 @@ for tidx = tidx2do
     end
     
     outfn1 = sprintf('./texturePatches/layer0_T%03d_c%01d.png', tp, 1) ;
-    outfn2 = sprintf('./texturePatches/layer0_T%03d_c%01d.png', tp, 2) ;
-    if ~exist(outfn1, 'file') || ~exist(outfn2, 'file')
+    if ~exist(outfn1, 'file') || overwrite
         imfn1 = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 1) ;
-        imfn2 = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
         ims1 = loadtiff(imfn1) ;
         minLayer = max(nNeg-layerWidth+midLayerOffset, 1) ;
         maxLayer = min(nNeg+layerWidth+midLayerOffset, size(ims1, 3)) ;
         im01 = squeeze(max(ims1(:, :, minLayer:maxLayer), [], 3)) ;
         im01 = uint8(255 * mat2gray(im01, double([min(im01(:)), max(im01(:))]))) ;
         imwrite(im01, outfn1)
-        ims2 = loadtiff(imfn2) ;
-        im02 = squeeze(max(ims2(:, :, minLayer:maxLayer), [], 3)) ;
-        im02 = uint8(255 * mat2gray(im02, double([min(im02(:)), max(im02(:))]))) ;
-        imwrite(im02, outfn2)
     end
 end
+
+%% Open images in iLastik, train on membrane for segmentation
 
 
 %% Segment the cells by selecting watershed seed points 
@@ -893,168 +917,58 @@ cellSize = 20;
 strelRadius = 0;
 gaussKernel = 0 ;
 heightMiminum = 1;
-tidx2do = 1:20 ;
+
+mkdir('./cellSegmentation/')
+tidx2do = 1:27 ;
 for tidx = tidx2do
     tp = timepoints(tidx) ;
     disp(['tp = ', num2str(tp)])
-    segfn1 = sprintf('./cellSegmentation/automask1_T%03d.png', tp) ;
-    segfn2 = sprintf('./cellSegmentation/automask2_T%03d.png', tp) ;
-    segfn3 = sprintf('./cellSegmentation/automask3_T%03d.png', tp) ;
+    segfn = sprintf('./cellSegmentation/automask_T%03d.png', tp) ;
+    % segfn2 = sprintf('./cellSegmentation/automask2_T%03d.png', tp) ;
+    % segfn3 = sprintf('./cellSegmentation/automask3_T%03d.png', tp) ;
     
-    if ~exist(segfn1, 'file') || overwrite
-        % Load image stack and manually create cell polygon at z stack
-        imfn = sprintf('./texturePatches/layer0_T%03d_c2_Probabilities.h5', tp) ;
+    if ~exist(segfn, 'file') || overwrite
+        %% Load image ilastik probabilities
+        imfn = sprintf('./texturePatches/rgb/layer0_T%03d_rgb_Probabilities.h5', tp) ;
         prob = h5read(imfn, '/exported_data/') ;
-        prob = squeeze(prob(1, :, :)) ;
+        im2segment = squeeze(prob(1, :, :)) ;
+        
+        %% Use raw
+        % imfn = sprintf('./texturePatches/rgb/layer0_T%03d_rgb.png', tp) ;
+        % im = imread(imfn) ;
+        % im2segment = squeeze(im(:, :, 2)) ;
 
-        seg = zeros(size(prob)) ;
-        overlay = zeros(size(prob, 1)) ;
-
-        % % TRY WATERSHED
-        % Filter output: laplacian of Gaussian sharpens, then Gaussian smooths        
-        h1 = fspecial('log', cellSize);
-        seD1 = strel('disk', strelRadius);
-        if gaussKernel > 0
-            gk = fspecial('gaussian', gaussKernel);
-        end
+        % NEW watershed segmentation
+        adaphisteqClip = 0.5 ;
+        strelRadius = 1 ;
+        [skel, DL] = segmentImageWatershed(im2segment, adaphisteqClip, strelRadius) ;
         
-        % Pack label image L with watershed results
-        mem = mat2gray(prob, [0, double(max(prob(:)))]) ;
-        L = zeros(size(mem));
-        disp(['memWS: segmenting timepoint ', num2str(t)]) 
-        if gaussKernel > 0
-            gk = fspecial('gaussian', gaussKernel);
-            mem = imfilter(mem,gk);
-        end
-        cyto = 1 - mem;
+        % skel = segmentImageWatershedSimple(img, )
         
-        % mem = imfilter(mem,h1);
-        % mem(:,:,t) = imclose(mem(:,:,t),strel('disk',3));
-        
-        lev = graythresh(cyto);
-        seed = im2bw(cyto, lev);  % consider swapping to imbinarize
-        seed = imdilate(seed, seD1);
-        seed = bwareaopen(seed, 25);
-        
-        pre_water = imhmin(mem, heightMiminum);
-        pre_water = imimposemin(pre_water, seed);
-        LL = watershed(pre_water);
-
         % Mask the segmentation by depth of surface
-        surface = meshFilt{tidx} ;
+        if useFilteredMesh
+            surface = meshFilt{tidx} ;
+        else
+            load(sprintf('./texturePatches/mesh_T%03d.mat', tp), 'mesh') ;
+            surface = mesh.v ;
+        end
         % resample surface onto image grid
-        [xx,yy] = meshgrid(1:size(LL, 1), 1:size(LL, 2)) ;
+        [xx,yy] = meshgrid(1:size(DL, 1), 1:size(DL, 2)) ;
         resurf = interpolate2Dpts_3Dmesh(mesh.f, surface(:, 1:2), surface, [xx(:), yy(:)]) ;
         maxZ = max(resurf(:, 3)) ;
-        keep = reshape(resurf(:, 3) < (maxZ - 1), [size(LL, 2), size(LL, 1)]) ;
+        keep = reshape(resurf(:, 3) < (maxZ - 1), [size(DL, 2), size(DL, 1)]) ;
         
-        mask1 = (LL==0)' .* keep ;
-        mask2 = (bwskel(pre_water > preThres))' .* keep ;
-        
-        seD0 = strel('disk', 1);
-        mask3 = imdilate(mask1 | mask2, seD0) ;
-        
+        mask1 = skel' .* keep ;
         imshow(mask1) ; pause(0.001)
-        imshow(mask2) ; pause(0.001)
-        imshow(mask3) ; pause(0.001)
         
         % Save the result
-        imwrite(mask1, segfn1)
-        imwrite(mask2, segfn2)
-        imwrite(mask3, segfn3)
-
+        imwrite(mask1, segfn)
+        
         disp(['Done with seg ' num2str(tp)])
     end
 end
 
-%% OLD: Segment the cells by selecting watershed seed points 
-% for tidx = tidx2do
-%     tp = timepoints(tidx) ;
-%     segfn = sprintf('./cellSegmentation/cells_T%03d.mat', tp) ;
-%     
-%     if ~exist(segfn, 'file')
-%         % Load image stack and manually create cell polygon at z stack
-%         imfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
-%         im = loadtiff(imfn) ;
-% 
-%         seg = zeros(size(im)) ;
-%         overlay = zeros(size(im, 1), size(im, 2)) ;
-% 
-%         % Label all cells
-%         cellID = length(polygons) ;
-%         polygons = {} ;
-%         next_cell = true ;
-%         fig = gcf() ;
-%         k0 = round(0.5 * size(im, 3)) ;
-%         set(gcf, 'visible', 'on')
-%         while next_cell
-%             [k] = flipThroughStackFindLayerOverlay(im, overlay, ...
-%                 'Find a good z for segmentation', 3, 10, fig, k0) ;
-% 
-%             % draw the segmentation of the cell in this layer
-%             slice = squeeze(im(:, :, k)) ;
-%             xlims = xlim() ;
-%             ylims = ylim() ;
-%             disp('adjust zoom now, then press any key for ROI selection')
-%             %button = waitforbuttonpress;
-%             %box = rbbox ;
-%             
-%             
-% 
-%             % % TRY WATERSHED
-%             % % Filter output: laplacian of Gaussian sharpens, then Gaussian smooths
-%             % cellSize = 20;
-%             % strelRadius = 1;
-%             % gaussKernel = 2;
-%             % heightMiminum = 1;
-%             % 
-%             % h1 = fspecial('log', cellSize);
-%             % seD1 = strel('disk', strelRadius);
-%             % g = fspecial('gaussian', gaussKernel);
-%             % 
-%             % % Pack label image L with watershed results
-%             % mem = mat2gray(slice, [0, double(max(slice(:)))]) ;
-%             % L = zeros(size(mem));
-%             % disp(['memWS: segmenting timepoint ', num2str(t)]) 
-%             % mem = imfilter(mem,g);
-%             % cyto = 1 - mem;
-%             % 
-%             % % mem = imfilter(mem,h1);
-%             % % mem(:,:,t) = imclose(mem(:,:,t),strel('disk',3));
-%             % 
-%             % lev = graythresh(cyto);
-%             % % seed = im2bw(cyto, lev);  % consider swapping to imbinarize
-%             % % seed = imdilate(seed, seD1);
-%             % % seed = bwareaopen(seed, 25);
-%             % 
-%             % pre_water = imhmin(mem, heightMiminum);
-%             % pre_water = imimposemin(pre_water, seed);
-%             % LL = watershed(mem);
-%             
-%             
-%             [BW1,xi2,yi2] = roipoly() ;
-%             se = strel('disk', 1) ;
-%             BW = imerode(BW1, se) ;
-%             thispolygon = [xi2, yi2, k*ones(size(xi2))] ;
-%             polygons = {polygons, thispolygon} ;
-% 
-%             % Update segmentation
-%             segLayer = seg(:, :, k) ;
-%             segLayer(BW) = cellID ;
-%             seg(:, :, k) = segLayer ;
-% 
-%             % Update overlay
-%             overlay = sum(seg, 3) > 0 ;
-% 
-%             % Save the result
-%             save(segfn, 'seg', 'overlay', 'polygons')
-%             
-%             inseg = input('Done with seg?', 's') ;
-%             next_cell = ~contains(lower(inseg), 'y') ;
-%         end
-% 
-%     end
-% end
+
 
 %% Load in GIMP and export binary masks
 
@@ -1476,758 +1390,3 @@ saveas(gcf, [imfn '.png'])
 saveas(gcf, [imfn '.pdf'])
 
 
-%% Now use planar detector -- this doesn't work well at all
-
-expMeta.detectorType = 'surfaceDetection.planarEdgeDetector';
-expMeta.fitterType = 'surfaceFitting.tpsFitter';
-
-xp.setFileMeta(fileMeta);
-xp.setExpMeta(expMeta);
-xp.initNew();
-
-% Make some filler options for now
-detectOptions = xp.detector.defaultOptions;
-% Calling detectSurface runs the surface detector and creates the point
-% cloud in detector.pointCloud.
-xp.setDetectOptions(detectOptions);
-
-
-%% Load a time point from the data
-%
-% Now that we have set up the project, we can load a time point.
-% loadTime sets xp.currentTime, loads the stack into xp.stack 
-% and resets detector and fitter with the default options for that time.
-%
-% We rescale to unit aspect ratio to make detection work better later and
-% visualize in the right proportions.
-
-xp.loadTime(1);
-xp.rescaleStackToUnitAspect();
-
-
-%% planarDetector.detectSurface detects the surface as the position of the 
-% maximal Gaussian z-derivative in some direction, i.e. the position of the
-% largest intensity jump along some direction and smoothened over some
-% scale.
-%
-% A number of detection options directly affect detection:
-%
-% * sigma :     Width of the Gaussian z-derivative.
-% * channels :  Channels (summed) to use for detection.
-% * zdir :      Dimension corresponding to z, minus flips direction.
-% Flipping the direction can sometimes improve detection.
-%
-% Then there are options which filter the result and can be modified
-% without redetecting:
-%
-% * maxIthresh:     Throw out points with MIP dimmer than this.
-% * summedIthresh:  Throw out points with SIP dimmer than this.
-% * sigZoutliers:   Remove height outliers after all other masks.
-% * scaleZoutliers: Spatial scale of outlier removal.
-%
-% scaleZoutliers is the linear size of a region over which the
-% distribution of height is computed, sigZoutliers is then a cutoff in
-% units of standard deviation of this distribution to remove misdetected
-% points far above or below the other points in the region.
-
-detectOptions = xp.detector.defaultOptions;
-detectOptions.sigma = 1;
-detectOptions.zdir = 3;
-detectOptions.maxIthresh = 0.1; 
-detectOptions.sigZoutliers = 2; 
-detectOptions.scaleZoutliers = 30; 
-
-% Calling detectSurface runs the surface detector and creates the point
-% cloud in detector.pointCloud.
-
-xp.setDetectOptions(detectOptions);
-xp.detectSurface();
-
-% Different from the other detectors, the detected surface is
-% represented not only by a PointCloud object but also by an image
-% surfaceMatrix, containing z values for each xy.
-% Looking at this height map masked by the filters specified in
-% detectOptions one can judge how well the surface was detected.
-
-imshow(xp.detector.mask.*xp.detector.surfaceMatrix, [],...
-                                            'InitialMagnification', 40);
-
-%% 
-% One can then find better filter parameters without redetecting the
-% surface by changing the second block of options in detectOptions and 
-% calling resetMask and applyMasks. 
-% 
-% xp.detector.resetMask();
-% 
-% detectOptions.maxIthresh = 0.1; 
-% detectOptions.sigZoutliers = 2; 
-% detectOptions.scaleZoutliers = 30; 
-% 
-% xp.detector.setOptions(detectOptions);    
-% xp.detector.applyMasks();
-% 
-% imshow(xp.detector.mask.*xp.detector.surfaceMatrix, [],...
-%                                             'InitialMagnification', 40);
-
-%%
-% We can also inspect a point cloud cross section over the data with
-% detector.inspectQuality. In the pointCloud option, 'c' specifies the 
-% color cyan.
-
-inspectOptions= struct('dimension', 'x', 'value', 200, 'pointCloud', 'c');
-xp.detector.inspectQuality(inspectOptions, xp.stack);
-
-%% 
-% Or we can look at the point cloud in 3d, with some subsampling factor.
-ssfactor = 50;
-xp.detector.pointCloud.inspect(ssfactor);
-
-
-%% Fit the surface for the disc proper cells
-%
-% By detecting the largest intensity jump along z for each x,y in the
-% E-cad channel and filtering out local outliers we have found the apical
-% surface of the disc proper cells. We can now fit a smooth surface
-% representation to that.
-%
-% tpsFitter fits the pointcloud using a thin plate spline fit. It has the
-% following options:
-%
-% * gridSize:     Size of grid on which to generate fitted surface
-%               default [50 50], full size takes long.
-% * smoothing:    TPS smoothing parameter (default 1000).
-
-fitOptions = struct('smoothing', 500, 'gridSize', [100 100]);
-xp.setFitOptions(fitOptions);
-xp.fitSurface();
-
-%%
-% We can visualize the result on a cross section with
-% fitter.inspectQuality.
-
-xp.fitter.inspectQuality(inspectOptions, xp.detector, xp.stack);
-
-%%
-% The detector picks up the edge of the E-cad signal but the best read out
-% goes solidly through it so we want to move the surface down a little. For
-% this we use zEvolve, with a shift specified in pixels.
-
-shift = 12;
-xp.zEvolve(shift);
-
-xp.fitter.inspectQuality(inspectOptions, xp.detector, xp.stack);
-
-%%
-% We now generate the Surface Of Interest. The charts to be generated are 
-% specified in xp.fitter.charts. In this case there is only one, called
-% 'xy'. 
-
-xp.generateSOI();
-
-%% Pull back the data to the surface
-% 
-% We pull back the data to the SOI using pullbackStack.
-
-xp.SOI.pullbackStack(xp.stack, xp.currentROI, xp.currentTime);
-
-%%
-% To look at the pullback, we call the data field of the SOI at the right
-% time, and get a particular patch from that with getPatch. A patch is a 
-% part of a surface. In this case, there is only one called xy_index.
-% Then we get the data in some patch in a particular coordinate system with
-% getTransform. In this case there is only one coordinate system: xy.
-% What we get is an object not only holding the image data but also
-% metadata and methods to manipulate it. The actual data is obtained by
-% calling the method apply. This returns a cell array with entries for each
-% channel.
-
-% xp.tIdx converts the time into an index in a list of time points
-tidx = xp.tIdx(0);
-
-% the first channel is Ecad
-channel = 1;
-
-discProperPatch = xp.SOI.data(tidx).getPatch('xy_index');
-discProperImage = discProperPatch.getTransform('xy').apply{channel};
-figure, imshow(discProperImage, [], 'InitialMagnification', 50);
-
-%% Save the result
-%
-% Finally we save the SOI using SOI.save. We set the following options:
-%
-% * dir:            The directory to save the SOI to.
-% * imwriteOptions: Pullbacks are saved to image files using imwrite, we
-% can pass options to change file format, compression etc. For example we
-% could change this option to
-% imwriteOptions = {'jp2', 'Mode', 'lossless'}; 
-% * make8bit:       Often absolute intensities don't matter and 8 bit offers
-% a large enough dynamic range. This options rescales the lookup table and
-% converts to 8 bit before saving.
-
-imwriteOptions = {'tif', 'Compression', 'deflate'};
-savedir = fullfile(scriptPath, 'discProperApicalSOI');
-
-options = struct(   'dir',              savedir,...
-                    'imwriteOptions',   {imwriteOptions},...
-                    'make8bit',         true);
-xp.SOI.save(options)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-%%
-error()
-
-%% MASK TIFFs with subsampled Probabilities
-probChannel = 1 ;  % which channel to use as mask
-clip = 0.0 ;
-outdirs = {'./mips/foreground', './mips/background', './mips/all_channels'} ;
-for qq = 1:length(outdirs)
-    if ~exist(outdirs{qq}, 'dir')
-        mkdir(outdirs{qq})
-    end
-end
-for t = xp.fileMeta.timePoints
-    % TIFF filename output
-    outfnF = sprintf([ file16name '_foreground.tif'], t) ;
-    outfnB = sprintf([ file16name '_background.tif'], t) ;
-    tif_exist = exist(outfnF, 'file') && exist(outfnB, 'file') ;
-     
-    if ~tif_exist
-        % Load the data first to set time
-        xp.loadTime(t);
-        xp.rescaleStackToUnitAspect();
-        IV = xp.stack.image.apply() ;
-
-        % Probabilities filename input
-        probfn = sprintf(file16name, xp.currentTime) ;
-
-        probField = h5read([sprintf(probfn, tt), '_Probabilities.h5'], '/exported_data') ; % outputed prob from Ilastik corresponding to this timepoint
-        probField = squeeze(probField(:,:,:,probChannel) ) ;
-        % Full scale resolution now
-        probFull = superkron(probField, ones(ssfactor, ssfactor, ssfactor)) ;
-
-        % Preallocate the masked data arrays
-        datmF = uint16(zeros(size(IV{1},1), size(IV{1}, 2), length(IV), size(IV{1}, 3), 1)) ;
-        datmB = datmF ;
-
-        for ch = 1:length(IV)
-            dat = IV{ch} ;
-            if any(size(dat) ~= size(probFull))
-                % resize probFull a bit -- missing row or column
-                smallDim = find(size(probFull) < size(dat)) ;
-                % Prob array is too small in some dimensions
-                if ~isempty(smallDim)
-                    for dim = smallDim
-                        firstID = size(probFull, dim) ;
-                        lastID = size(dat, dim) ;
-                        % Build larger array with more rows/cols/slices
-                        for ind = firstID:lastID
-                            if dim == 1
-                                probFull(ind, :, :) = probFull(lastID, :, :) ;
-                            elseif dim == 2
-                                probFull(:, ind, :) = probFull(:, lastID, :) ;
-                            elseif dim == 3
-                                probFull(:, :, ind) = probFull(:, :, lastID) ;
-                            end
-                        end
-                    end
-                end
-
-                % Trim probabilities if too big
-                bigDim = find(size(probFull) > size(dat)) ;
-                % Prob array is too big in some dimensions
-                if ~isempty(bigDim)
-                    for dim = bigDim
-                        if dim == 1
-                            probFull = probFull(1:size(dat, dim), :, :) ;
-                        elseif dim == 2
-                            probFull = probFull(:, 1:size(dat, dim), :) ;
-                        elseif dim == 3
-                            probFull = probFull(:, :, 1:size(dat, dim)) ;
-                        else
-                            error('What dimension is this?')
-                        end
-                    end
-                end
-            end
-
-            % Now, clip probabilities field (do this after resizing so that
-            % can resize just once instead of resizing both F & B)
-            probF = probFull ;
-            probF(probF < clip) = 0 ;
-            probF = single(probF - clip) / single(1 - clip) ;
-
-            probB = 1 - probFull ;
-            probB(probB < clip) = 0 ;
-            probB = single(probB - clip) / single(1 - clip) ;
-
-            datmF(:, :, ch, :, 1) = uint16(probF .* single(dat)) ;
-            datmB(:, :, ch, :, 1) = uint16(probB .* single(dat)) ;
-
-        end
-
-        % Save the masked data as TIFF
-        writeTiff5D(uint16(datmF), outfnF)
-        writeTiff5D(uint16(datmB), outfnB)
-    end    
-end
-
-%% Get MIPS normalization curves
-for tidx = 1:length(xp.fileMeta.timePoints)
-    t = xp.fileMeta.timePoints(tidx) ;
-    disp(['t = ' num2str(t)])
-    
-    % mip output fn
-    outMIPF = fullfile('./mips', 'foreground', sprintf(['mip_' file16name '_foreground.mat'], t)) ;
-    outMIPB = fullfile('./mips', 'background', sprintf(['mip_' file16name '_background.mat'], t)) ;
-    
-    if ~exist(outMIPF, 'file') || ~exist(outMIPB, 'file') 
-        % TIFF filename output
-        outfnF = sprintf([ file16name '_foreground.tif'], t) ;
-        outfnB = sprintf([ file16name '_background.tif'], t) ;
-        % Load the tiffs
-        datmF = readTiff4D(outfnF, 2) ;
-        datmB = readTiff4D(outfnB, 2) ;
-
-        % Make mip of this channel with designated colors
-        for ch = 1:length(datmF)
-            imF{ch} = squeeze(max(squeeze(datmF{ch}), [], 3)) ;
-            imB{ch} = squeeze(max(squeeze(datmB{ch}), [], 3)) ;
-        end
-        
-        % Save the mip to mat file
-        save(outMIPF, 'imF')
-        save(outMIPB, 'imB')
-    end
-end
-    
-%% Load/compute statistics of each mip
-for tidx = 1:length(xp.fileMeta.timePoints)
-    t = xp.fileMeta.timePoints(tidx) ;
-    
-    % mip output fn
-    mipfnF = fullfile('./mips', 'foreground_mat', sprintf(['mip_' file16name '_foreground.mat'], t)) ;
-    mipfnB = fullfile('./mips', 'background_mat', sprintf(['mip_' file16name '_background.mat'], t)) ;
-    
-    % Load the tiff
-    load(mipfnF, 'imF')
-    load(mipfnB, 'imB')
-    if tidx == 1
-        mF = zeros(length(xp.fileMeta.timePoints), 2) ;
-        mB = zeros(length(xp.fileMeta.timePoints), 2) ;
-        sF = zeros(length(xp.fileMeta.timePoints), 2) ;
-        sB = zeros(length(xp.fileMeta.timePoints), 2) ;
-    end
-    
-    % Take stats
-    for ch = 1:length(imF)
-        mF(tidx, ch) = mean(double(imF{ch}(:))) ;
-        sF(tidx, ch) = std(double(imF{ch}(:)))  ;
-        mB(tidx, ch) = mean(double(imB{ch}(:))) ;
-        sB(tidx, ch) = std(double(imB{ch}(:)))  ;
-    end
-end
-% Save as plot -- FOREGROUND
-clf
-colors = [0,1,1; ...  % cyan
-          1,0,0];     % red
-for ch = 1:size(mF, 2)
-    lineProps = {'-','color', colors(ch, :)} ;
-    hs{ch} = shadedErrorBar(xp.fileMeta.timePoints, mF(:,ch), sF(:,ch), 'lineProps', lineProps) ;
-end
-xlabel(['time ' timeUnits])
-ylabel('Mean intensity')
-title('Midgut signal')
-legend({'sqh', 'membrane'})
-saveas(gcf, './mips/means_stdevs_foreground.png')
-
-% BACKGROUND
-clf
-for ch = 1:size(mB, 2)
-    lineProps = {'-','color', colors(ch, :)} ;
-    hs{ch} = shadedErrorBar(xp.fileMeta.timePoints, mB(:,ch), sB(:,ch), 'lineProps', lineProps) ;
-end
-xlabel(['time ' timeUnits])
-ylabel('Mean intensity')
-title('Background signal')
-legend({'sqh', 'membrane'})
-saveas(gcf, './mips/means_stdevs_background.png')
-
-% Save means and stdevs
-save('./mips/means_stdevs.mat', 'mF', 'sF', 'mB', 'sB')
-
-%% MAKE MIPS
-invert = false
-for tidx = 1:length(xp.fileMeta.timePoints)
-    t = xp.fileMeta.timePoints(tidx) ;
-    disp(['t = ', num2str(t)])
-    
-    % TIFF filename output
-    outfnF = sprintf([ file16name '_foreground.tif'], t) ;
-    outfnB = sprintf([ file16name '_background.tif'], t) ;
-    mipMatF = fullfile('./mips', 'foreground_mat', sprintf(['mip_' file16name '_foreground.mat'], t)) ;
-    mipMatB = fullfile('./mips', 'background_mat', sprintf(['mip_' file16name '_background.mat'], t)) ;
-    outMIPF = fullfile('./mips', 'foreground', sprintf(['mip_' file16name '_foreground.tif'], t)) ;
-    outMIPB = fullfile('./mips', 'background', sprintf(['mip_' file16name '_background.tif'], t)) ;
-    totalfn = fullfile('./mips', 'all_channels', sprintf(['mip_all_' file16name '.tif'], t)) ;
-    
-    mip_exist = exist(outMIPF, 'file') && exist(outMIPB, 'file') ;
-    if ~mip_exist || ~exist(totalfn, 'file') || true
-               
-        % Load the tiffs
-        load(mipMatF, 'imF') ;
-        load(mipMatB, 'imB') ;
-        
-        % Make mip of this channel with designated colors
-        % imF{ch} = squeeze(max(squeeze(datmF(:, :, ch, :, 1)), [], 3)) ;
-        % imB{ch} = squeeze(max(squeeze(datmB(:, :, ch, :, 1)), [], 3)) ;
-
-        for ch = 1:length(imF)
-            imF{ch} = double(imF{ch}) ./ double(mF(tidx,ch) + 2 * sF(tidx,ch)) ;
-            imB{ch} = double(imB{ch}) ./ double(mF(tidx,ch) + 2 * sF(tidx,ch)) ;
-%             imF{ch} = double(imF{ch}) ./ double(max(imF{ch}(:))) ;
-%             imB{ch} = double(imB{ch}) ./ double(max(imB{ch}(:))) ;
-        end
-        
-        % Write MIP as RGB with falsecolors
-        imoutF = uint8(zeros(size(imF{1}, 1), size(imF{1}, 2), 3)) ;
-        imoutB = uint8(zeros(size(imF{1}, 1), size(imF{1}, 2), 3)) ;
-        maxI = 255 ;
-        for ch = 1:length(IV)
-            if invert
-                disp('inverting')
-                colors = [1, 0, 0; ...  % cyan
-                          0, 1, 1];     % red
-                imoutF(:, :, 1) = imoutF(:, :, 1) + uint8(maxI * (1-imF{ch}) * colors(ch, 1)) ;
-                imoutF(:, :, 2) = imoutF(:, :, 2) + uint8(maxI * (1-imF{ch}) * colors(ch, 2)) ;
-                imoutF(:, :, 3) = imoutF(:, :, 3) + uint8(maxI * (1-imF{ch}) * colors(ch, 3)) ;
-                imoutB(:, :, 1) = imoutB(:, :, 1) + uint8(maxI * (1-imB{ch}) * colors(ch, 1)) ;
-                imoutB(:, :, 2) = imoutB(:, :, 2) + uint8(maxI * (1-imB{ch}) * colors(ch, 2)) ;
-                imoutB(:, :, 3) = imoutB(:, :, 3) + uint8(maxI * (1-imB{ch}) * colors(ch, 3)) ;
-            else
-                colors = [0, 1, 1; ...  % cyan
-                          1, 0, 0];     % red
-                imoutF(:, :, 1) = imoutF(:, :, 1) + uint8(maxI * imF{ch} * colors(ch, 1)) ;
-                imoutF(:, :, 2) = imoutF(:, :, 2) + uint8(maxI * imF{ch} * colors(ch, 2)) ;
-                imoutF(:, :, 3) = imoutF(:, :, 3) + uint8(maxI * imF{ch} * colors(ch, 3)) ;
-                imoutB(:, :, 1) = imoutB(:, :, 1) + uint8(maxI * imB{ch} * colors(ch, 1)) ;
-                imoutB(:, :, 2) = imoutB(:, :, 2) + uint8(maxI * imB{ch} * colors(ch, 2)) ;
-                imoutB(:, :, 3) = imoutB(:, :, 3) + uint8(maxI * imB{ch} * colors(ch, 3)) ;
-            end
-        end
-        imwrite(imoutF, outMIPF)
-        imwrite(imoutB, outMIPB)
-        
-        % Write total
-        colors = [0.8500, 0.3250, 0.0980 ; % red
-                 0.9290, 0.6940, 0.1250 ; % yellow
-                 0.0000, 0.4470, 0.7410 ; % blue
-                 0.4940, 0.1840, 0.5560 ] ; % purple
-        imout = uint8(zeros(size(imF{1}, 1), size(imF{1}, 2), 3)) ;
-        maxI = 255 ;
-        for ch = 1:length(IV)
-            imout(:, :, 1) = imout(:, :, 1) + uint8(maxI * imF{ch} * colors(ch, 1)) ;
-            imout(:, :, 2) = imout(:, :, 2) + uint8(maxI * imF{ch} * colors(ch, 2)) ;
-            imout(:, :, 3) = imout(:, :, 3) + uint8(maxI * imF{ch} * colors(ch, 3)) ;
-            imout(:, :, 1) = imout(:, :, 1) + uint8(maxI * imB{ch} * colors(ch+2, 1)) ;
-            imout(:, :, 2) = imout(:, :, 2) + uint8(maxI * imB{ch} * colors(ch+2, 2)) ;
-            imout(:, :, 3) = imout(:, :, 3) + uint8(maxI * imB{ch} * colors(ch+2, 3)) ;
-        end
-        imwrite(imout, totalfn)
-    end
-end
-
-%% INSTANTIATE EXPERIMENT CLASS AGAIN WITH MASKED STACKS
-% Now set the meta data in the experiment.
-fileMeta.filenameFormat = [file16name '_foreground.tif'] ;
-xp.setFileMeta(fileMeta);
-xp.setExpMeta(expMeta);
-xp.initNew();
-
-%% Take ratio of two channels
-timeInterval = 4 ;
-timeUnits = 'min' ;
-chRGB = [3, 1] ;
-clip = 2 ;
-clipDir = fullfile('./diffs', ['clip' num2str(clip)]) ;
-if ~exist(clipDir, 'dir')
-    mkdir(clipDir)
-end
-for t = xp.fileMeta.timePoints
-    
-    % TIFF filename output
-    dFfn0 = fullfile(clipDir, sprintf(['mip_diff_' file16name '.tif'], t)) ;
-    if ~exist(dFfn0, 'file')
-        % Load the data for this timepoint
-        % xp.loadTime(t);
-        % xp.rescaleStackToUnitAspect();
-        % IV = xp.stack.image.apply() ;
-        % 
-        % mean1 = double(mean(IV{1}(IV{1} > 0))) ;
-        % mean2 = double(mean(IV{2}(IV{2} > 0))) ;
-        % dF = double(IV{1})/mean1 - double(IV{2})/mean2 ;
-        % dFmip = mean(dF, 3) ;
-        
-        % OPTION 2: Load the mips and subtract
-        mipfn = fullfile('./mips', sprintf(['mip_' file16name '_foreground.tif'], t)) ;
-        im = imread(mipfn) ;
-        im1 = squeeze(im(:, :, chRGB(1))) ;
-        im2 = squeeze(im(:, :, chRGB(2))) ;
-        mean1 = double(mean(im1(im1 > 0))) ;
-        mean2 = double(mean(im2(im2 > 0))) ;
-        im1 = double(im1) / mean1 ;
-        im2 = double(im2) / mean2 ;
-        dFmip = im1 - im2 ;
-        
-        % Optional: flip the image
-        dFmip = fliplr(dFmip) ;        
-        imagesc(dFmip)
-
-        % Formatting and output
-        caxis([-1, 1])
-        colormap blueblackred
-        axis off
-        axis equal
-        title(['t = ' num2str(t * timeInterval) ' ' timeUnits])
-        cbar = colorbar() ;
-        ylabel(cbar, '$I_{sqh}- I_{mem}$', 'Interpreter', 'latex')
-        caxis([-clip, clip])
-        % caxis(max(abs(dFmip(:))) * [-1,1])
-        saveas(gcf, dFfn0)
-    end
-end
-
-
-%% Take ratio of two channels, averaged over DV
-chRGB = [3, 1] ;
-clip = 2 ;
-modN = 5 ;
-colors = parula(ceil(length(xp.fileMeta.timePoints) / modN)) ;
-% TIFF filename output
-dFfn0 = fullfile('./mips', ['diffDV_compare.png']) ;
-dFfn1 = fullfile('./mips', ['diffDV_substract.png']) ;
-kk = 1 ;
-if ~exist(dFfn0, 'file') || true
-    for tidx = 1:40
-        t = xp.fileMeta.timePoints(tidx) ;
-        disp(['t = ', num2str(t)])
-        % OPTION 2: Load the mips and subtract
-        mipMatF = fullfile('./mips', 'foreground_mat', sprintf(['mip_' file16name '_foreground.mat'], t)) ;
-        load(mipMatF, 'imF') ;
-        im1 = squeeze(imF{1}) ;
-        im2 = squeeze(imF{2}) ;
-        mean1 = double(mean(im1(im1 > 0))) ;
-        mean2 = double(mean(im2(im2 > 0))) ;
-        im1 = double(im1) / mean1 ;
-        im2 = double(im2) / mean2 ;
-        midband = round(0.3*size(im1, 1)):round(0.66*size(im1, 1));
-        I1 = sum(im1(midband, :), 1) ;
-        I2 = sum(im2(midband, :), 1) ;
-        dFmip = I1 - I2 ;
-        
-        % Optional: flip the image
-        I1 = fliplr(I1) ;
-        I2 = fliplr(I2) ;
-        dFnet = fliplr(dFnet) ;
-        
-        if t == xp.fileMeta.timePoints(1)
-            I1net = I1 ;
-            I2net = I2 ;
-            dFnet = dFmip ;
-        end
-        I1net = I1net + I1 ;        
-        I2net = I2net + I2 ;   
-        dFnet = dFnet + dFmip ;
-        
-        if mod(tidx-1, modN) == 0
-            if kk == 1
-                Io1 = double(mean(I1net)) ;
-                Io2 = double(mean(I2net)) ;
-            end
-            % Formatting and output
-            xL = linspace(0, 1, length(I1)) ;
-            
-            figure(1)
-            subplot(2,1,1)
-            plot(xL, double(I1net) / Io1, 'color', colors(kk, :))
-            hold on;
-            subplot(2,1,2)
-            plot(xL, double(I2net) / Io2, 'color', colors(kk, :))    
-            hold on;
-            
-            figure(2)
-            plot(xL, double(dFnet) / Io1, 'color', colors(kk, :))
-            hold on
-            I1net = 0*I1net ;
-            I2net = 0*I2net ;
-            kk = kk + 1;
-        end
-    end
-    
-    figure(1)
-    subplot(2, 1, 1)
-    ylabel('$I_{sqh}$ [au]', 'Interpreter', 'latex')
-    subplot(2, 1, 2)
-    ylabel('$I_{mem}$ [au]', 'Interpreter', 'latex')
-    xlabel('AP position, $x/L$', 'interpreter', 'latex')
-    saveas(gcf, dFfn0)
-    
-    figure(2)
-    % legend({'sqh', 'membrane'})
-    ylabel('$I_{sqh} - I_{mem}$ [au]', 'Interpreter', 'latex')
-    xlabel('AP position, $x/L$', 'interpreter', 'latex')
-    saveas(gcf, dFfn1)
-end
-
-%% Show cross section
-% % Now set the meta data in the experiment.
-fileMeta.filenameFormat = '202010191649_T%02d_foreground.tif' ;
-xp.setFileMeta(fileMeta);
-xp.setExpMeta(expMeta);
-xp.initNew();
-
-slices = 220:230 ;
-clearvars im
-for t = xp.fileMeta.timePoints
-    % TIFF filename output
-    outdir = ['./mips_sliceY' num2str(slices(1)) '_' num2str(slices(end))] ;
-    if ~exist(outdir, 'dir')
-        mkdir(outdir)
-    end
-    outmip = fullfile(outdir, sprintf(['mip_' file16name '_sliceY.tif'], t)) ;
-    
-    mip_exist = exist(outmip, 'file') ;
-    if ~mip_exist 
-        % Load the data first to set time
-        xp.loadTime(t);
-        xp.rescaleStackToUnitAspect();
-        IV = xp.stack.image.apply() ;
-        
-        for ch = 1:length(IV)
-            % Make mip of this channel with designated colors
-            im{ch} = squeeze(max(squeeze(IV{ch}(slices, :, :)), [], 1)) ;
-            im{ch} = double(im{ch}) ./ double(max(im{ch}(:))) ;
-        end
-        
-        % Write MIP as RGB with falsecolors
-        colors = [0, 1, 1; ...  % cyan
-                  1, 0, 0];     % red
-        imout = uint8(zeros(size(im{1}, 1), size(im{1}, 2), 3)) ;
-        maxI = 255 ;
-        for ch = 1:length(IV)
-            imout(:, :, 1) = imout(:, :, 1) + uint8(maxI * im{ch} * colors(ch, 1)) ;
-            imout(:, :, 2) = imout(:, :, 2) + uint8(maxI * im{ch} * colors(ch, 2)) ;
-            imout(:, :, 3) = imout(:, :, 3) + uint8(maxI * im{ch} * colors(ch, 3)) ;
-        end
-        imwrite(permute(imout, [2, 1, 3]), outmip)
-    end
-end
-
-%% COMPARING FLOW FIELDS MASTER -- single dataset
-% Isaac Breinyn 2020
-%
-% Run setup.m before this script
-%
-% This is a script that loads multichannel confocal images and then (with
-% user input and training along the way) can analyze the likeness of the
-% flow between the two channels.
-%
-% Naming conventions must remain consistent across all datasets for this
-% pipeline to work reliably. Access the flowExperiment.m file for
-% information on how to name files.
-%
-% NOTE: The PIV data used in this script is formated into arrays of u and v
-% component of the velocities for EACH channel. Therefore, arrays with a
-% first dim of 4 will be in the order of u1, v1, u2, then v2. The letter
-% corresponds to the component of the velocity vector, and the number to
-% the prevelant channel.
-
-%% Run setup.m from imsane path 
-% setup
-
-%% Clean Matlab and add Paths
-clear; close all; clc ;
-
-% add paths to where the code lives
-% addpath_recurse('L:\\Streichan\\code\\gut_matlab\\') ;
-% addpath_recurse('L:\\Streichan\\code\\') ;
-addpath_recurse('/mnt/data/code/gut_matlab/') ;
-addpath('/mnt/data/code/isaac_code/')
-
-%% WARNING: Users should ONLY make changes to this section of the script.
-
-%%% Assign paramaters for class flowExperiment %%%
-
-% options.dataDir = 'L:\\Streichan\\data\\202003111630_mef2gal4klarUASCAAXmChHiFP_wo_great\\1644_folding_30s_2um_la8_4p5zoom_63x\\' ; % the directory where the data lives
-options.dataDir = fullfile([filesep 'mnt'],'data','confocal_data',...
-    'gut', 'relative_motion', 'mef2Gal4klarUASCAAXmChHiFP', ...
-    '202003111630_mef2gal4klarUASCAAXmChHiFP_wo_great',...
-    '1644_folding_30s_2um_la8_4p5zoom_63x') ; % the directory where the data lives
-options.dataSetName = '1644_folding' ; % the "label" of this dataset (the prefix to the file names)
-options.lastTimePoint = 32 ; % "last timepoint" or the number of TPs in your dataset
-options.fileSize = [512 512] ; % the size of the file
-options.trackFileName = fullfile('Ch2_MIPs','1644_folding_Ch2_T01_MIP_smoothed_stack-myData_Object Identities.h5') ; % the name of the object identities file (from ilastik)
-options.res = 0.0802 ; % the data resolution in um/px
-options.lobeSplit = 256 ; % define where you want to put the barrier that defines where the two lobes seperate
-options.dt = 0.5 ;  % time resolution in minutes
-
-% todo: add mirrored boolean
-
-save(fullfile(options.dataDir, 'options.mat'), 'options')
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-cd(options.dataDir)
-%% Instantiate the class flowExperiment and populate necessary properties
-
-flex = flowExperiment(options) ;
-
-%% The first step is to acquire data that you would like to analyze. This data must be split into two channels and seperate timepoints.
-% NOTE: MAKE SURE DATA IS IN THIS ORIENTATION
-%
-%      D
-%  A      P
-%      V
-%
-% Open LIF in ImageJ, Flip/rotate in imageJ, save as separate tiff for each
-% timepoint and channel. 
-% 
-% Once in the correct orientation, rescale the data to unit aspect ratio 
-% and then convert into h5s for ilastik training using 
-% muscle_surface_pipeline.m. Only the membrane channel (channel 1)
-% should be used for ilastik training. This is the step necessary to remove
-% any glial cells or non-gut structures from the FOV. 
-
-%% ILASTIK: Train on ch1 and extract probabilities
-% foreground channel (ch1 of the training) is the membrane, background (ch2
-% of the training) is else. 
-
-%% Mask data and then extract MIPs 
-% Once you have the probabilities for channel 1 of your data, you can mask
-% both channels and make MIPs of the data. These MIPs will then be used
-% later in the pipeline.
-
-flex.makeMaskedMIPs() ; 
-
-% After running, you should have a collection of masked tiffs as well as
-% MIPs of those masked tiffs.
-
-%% Smooth the MIPs from last step
-% This gets rid of any salt-and-pepper noise and allows for higher quality
-% PIV analysis.
-
-flex.smoothMIPs() ;
