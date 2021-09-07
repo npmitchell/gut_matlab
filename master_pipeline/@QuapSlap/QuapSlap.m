@@ -1493,6 +1493,14 @@ classdef QuapSlap < handle
                     ofn = QS.fileBase.im_spe ;
                 end
                 
+                % Customization of the paths
+                if isfield(options, 'subdir')
+                    imDir = fullfile(imDir, options.subdir) ;
+                end
+                if isfield(options, 'fn0')
+                    fn0 = options.fn0 ;
+                end
+                
                 % pack options if missing fields
                 if ~isfield(options, 'histeq')
                     % equalize the histogram in patches of the image

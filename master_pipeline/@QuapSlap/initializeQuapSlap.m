@@ -439,6 +439,7 @@ QS.dir.im_ricci = imFolder_ricci ;
 QS.dir.im_ricci_e = imFolder_ricci_e ;
 QS.dir.im_re_stack = imFolder_re_stack ;
 QS.dir.segmentation = fullfile(QS.dir.mesh, 'cellSegmentation') ;
+QS.dir.tracking = fullfile(QS.dir.mesh, 'cellTracking') ;
 
 if dynamic
     QS.dir.cellProbabilities = fullfile(QS.dir.im_r_sme, 'cellProbabilities') ;

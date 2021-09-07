@@ -36,28 +36,28 @@ function generateCurrentPullbacks(QS, cutMesh, spcutMesh, ...
 %       before moving along normal_shift (which occurs before texture
 %       mapping)
 %
-%   Additional options as fields are
-%       - Options.imSize:       The size of the output image
-%       - Options.baseSize:     The side length in pixels of the smallest
+%   Additional options as fields passed to texturePatch are
+%       - pbOptions.imSize:       The size of the output image
+%       - pbOptions.baseSize:     The side length in pixels of the smallest
 %                               side of the output image when using the
 %                               tight mesh bounding box
-%       - Options.xLim:         The x-bounds of the output image
-%       - Options.yLim:         The y-bounds of the output image
-%       - Options.pixelSearch:  The method of searching for the faces
+%       - pbOptions.xLim:         The x-bounds of the output image
+%       - pbOptions.yLim:         The y-bounds of the output image
+%       - pbOptions.pixelSearch:  The method of searching for the faces
 %                               containing pixel centers
 %                                   - 'AABB' (requires GPToolBox)
 %                                   - 'Default' (MATLAB built-ins, faster than AABB)
-%       - Options.numLayers:    The number of onion layers to create
+%       - pbOptions.numLayers:    The number of onion layers to create
 %                               Format is [ (num +), (num -) ]
-%       - Options.layerSpacing: The spacing between adjacent onion layers
+%       - pbOptions.layerSpacing: The spacing between adjacent onion layers
 %                               in units of pixels
-%       - Options.smoothIter:   Number of iterations of Laplacian mesh
+%       - pbOptions.smoothIter:   Number of iterations of Laplacian mesh
 %                               smoothing to run on the mesh prior to
 %                               vertex normal displacement (requires
 %                               GPToolBox) (Default is 0)
-%       - Options.vertexNormal: User supplied vertex unit normals to the
+%       - pbOptions.vertexNormal: User supplied vertex unit normals to the
 %                               texture triangulation
-%       - Options.Interpolant:  A pre-made texture image volume interpolant
+%       - pbOptions.Interpolant:  A pre-made texture image volume interpolant
 %
 % NPMitchell 2020
 
@@ -86,6 +86,10 @@ if nargin > 4
     if isfield(pbOptions, 'overwrite')
         overwrite = pbOptions.overwrite ;
         pbOptions = rmfield(pbOptions, 'overwrite') ;
+    end
+    if isfield(pbOptions, 'save_as_stack')
+        save_as_stack = pbOptions.save_as_stack ;
+        pbOptions = rmfield(pbOptions, 'save_as_stack') ;
     end
     if isfield(pbOptions, 'generate_sphi')
         generate_sphi = pbOptions.generate_sphi ;
