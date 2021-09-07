@@ -383,8 +383,13 @@ plotGraphTrackingVoronoi(GG, rawImFileBase, saveDir, Options)
 saveDir = fullfile(outDir, 'graph_result_scatter') ;
 plotGraphTrackingScatter(GG, rawImFileBase, saveDir, Options)
 
-    
-    
+%% Manual acquisition for muscle tracks
+subdir = 'muscle_normalShiftn10_p05_n50_s1p00_lambda0p005_maxProj';
+imDir = fullfile(QS.dir.im_sp_sm, subdir, 'muscle_imagestack_LUT') ;
+trackOutfn = fullfile(QS.dir.tracking, 'muscle', 'muscle_tracks.mat') ;
+
+manualTrack2D()
+
 %% Open manual tracking gui
 addpath_recurse('/mnt/data/code/ParhyaleCellTracker/')
 close all
