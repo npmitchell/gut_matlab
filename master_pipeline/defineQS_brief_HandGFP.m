@@ -388,7 +388,19 @@ subdir = 'muscle_normalShiftn10_p05_n50_s1p00_lambda0p005_maxProj';
 imDir = fullfile(QS.dir.im_sp_sm, subdir, 'muscle_imagestack_LUT') ;
 trackOutfn = fullfile(QS.dir.tracking, 'muscle', 'muscle_tracks.mat') ;
 
-manualTrack2D()
+codeDir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/';
+addpath(fullfile(codeDir, 'ParhyaleCellTracker/external/subtightplot/'))
+addpath(fullfile(codeDir, 'gut_matlab/addpath_recurse/'))
+addpath_recurse('/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/gut_matlab/')
+subdir = 'muscle_normalShiftn10_p05_n50_s1p00_lambda0p005_maxProj';
+imDir = fullfile('./', subdir, 'muscle_imagestack_LUT') ;
+trackOutfn = fullfile('./muscle_tracks.mat') ;
+
+load('./muscle_tracks.mat', 'tracks')
+timePoints = 1:60 ;
+nTracks = 300 ;
+fileBase = fullfile(imDir, 'Time_%06d_c1_stab_pbspsm_LUT.tif') ;
+manualTrack2D(tracks, fileBase, timePoints, trackOutfn, nTracks) ;
 
 %% Open manual tracking gui
 addpath_recurse('/mnt/data/code/ParhyaleCellTracker/')
