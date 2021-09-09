@@ -471,6 +471,7 @@ track1fn = fullfile(QS.dir.tracking, 'endoderm_tracks_correction.mat') ;
 track2fn = fullfile(QS.dir.tracking, 'muscle_tracks.mat') ;
 
 relMotionFn = fullfile(QS.dir.tracking, 'relative_motion_tracks.mat') ;
+relMotionStartFn = fullfile(QS.dir.tracking, 'relative_motion_trackStart.png') ;
 if exist(relMotionFn, 'file')
     movefile(relMotionFn, [relMotionFn '_backup'])
 end
@@ -510,25 +511,36 @@ if isfield(Options, 'coordSys')
     coordSys = Options.coordSys ;
 end
 
+% Colormap
+nTracks = length(tracks2) ;
+colors = jetshuffle(nTracks) ;
+
 % For each track in tracks2, find initially nearest track in tracks1
-dus = zeros(length(tracks2), length(timePoints)) ;
-pairIDs = zeros(length(tracks2), 1) ;
-for ii = 1:length(tracks2)
+dus = zeros(nTracks, length(timePoints)) ;
+pairIDs = zeros(nTracks, 1) ;
+U0s = zeros(nTracks, 2) ;
+V0s = zeros(nTracks, 2) ;
+
+% Pre-allocate positions of starting points in tracks of tracks1 (endoderm)
+nearby = zeros(n1, 2) ;
+for trackID = 1:n1
+    nearby(trackID, :) = tracks1{trackID}(1, 1:2) ;
+end
+
+for ii = 1:nTracks
     
     % Get starting positions u0 and v0 for layer1 and 2
-    v0 = tracks2{ii}(1, 1:2) ;
+    V0 = tracks2{ii}(1, 1:2) ;
+    V0s(ii, :) = V0 ;
     VV = tracks2{ii}(:, 1:2) ;
     
     % Look for initially nearby nuclei in pullback space
-    nearby = zeros(n1, 2) ;
-    for trackID = 1:n1
-        nearby(trackID, :) = tracks1{trackID}(1, 1:2) ;
-    end
     farAway = 1000 ;
-    dists = vecnorm(nearby - v0, 2, 2) ;
+    dists = vecnorm(nearby - V0, 2, 2) ;
     dists(ii) = farAway ;
     [~, minID] = nanmin(dists) ;
     UU = tracks1{minID}(:, 1:2) ;
+    U0s(ii, :) = UU(1, 1:2) ;
     
     % Project into 3D
     if strcmpi(coordSys, 'spsm') || strcmpi(coordSys, 'spsmrs')
@@ -543,7 +555,7 @@ for ii = 1:length(tracks2)
     
     % For each timepoint, project into 3d for that mesh
     du = zeros(length(timePoints), 1) ;
-    for tidx = 1:length(timePoints)
+    for tidx = [] % 1:length(timePoints)
         tp = timePoints(tidx) ;
         QS.setTime(tp) 
         
@@ -576,7 +588,37 @@ for ii = 1:length(tracks2)
     end
     dus(ii, :) = du ;
     pairIDs(ii) = minID ;
-    save(relMotionFn, 'dus', 'tracks', 'pairIDs')
+    % save(relMotionFn, 'dus', 'tracks', 'pairIDs', 'U0s', 'V0s')
+    
+    % Plot starting correspondences
+    clf
+    sz = 20 ;
+    % Axis 1
+    ax0 = subtightplot(2, 2, 1) ;
+    imshow(0.25*im);
+    hold on;
+    scatter(nearby(:, 1), nearby(:, 2), sz*0.2, [0, 0.447, 0.741])
+    scatter(U0s(:, 1), U0s(:, 2), sz, colors, 'filled')
+    title([subdir1 ' positions'])
+    % Axis 2
+    ax1 = subtightplot(2, 2, 2) ;
+    imshow(im2);
+    hold on;
+    scatter(V0s(:, 1), V0s(:, 2), sz*2, colors, 's')
+    title([subdir2 ' positions'])
+    % Axis 3
+    ax2 = subtightplot(2, 1, 2) ;
+    imshow(min(0.25*im+im2, 255));
+    hold on;
+    scatter(U0s(:, 1), U0s(:, 2), sz, colors, 'filled')
+    scatter(V0s(:, 1), V0s(:, 2), sz*2, colors, 's')
+    for jj = 1:nTracks
+        plot([U0s(jj, 1), V0s(jj, 1)], [U0s(jj, 2), V0s(jj, 2)], '-', ...
+            'color', colors(jj, :))
+    end
+    hold off;
+    saveas(gcf, relMotionStartFn)
+    
 end
 
 
