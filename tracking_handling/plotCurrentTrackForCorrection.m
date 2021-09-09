@@ -1,4 +1,5 @@
-function [ax0, ax1, ax2, minX, maxX, minY, maxY] = plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
+function [ax0, ax1, ax2, minX, maxX, minY, maxY] = ...
+    plotCurrentTrackForCorrection(ii, tidx, timePoints, fileBase, trackii, ...
                 currentTracks, Xlim, Ylim)
 %plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
 %         currentTracks, bluecolor, orange, lwidth, markerSize, Xlim, Ylim)
@@ -42,6 +43,10 @@ lwidth = 3 ;
 markerSize = 20 ;
 mode = 0 ;  % full (1) or crop (0)
 
+% Process some input
+nTracks = length(currentTracks) ;
+otherIDs = setdiff(1:nTracks, ii) ;
+
 %-----------------------------
 % Image loading
 %-----------------------------
@@ -61,21 +66,24 @@ if ~mode
         imCrop = im(minY:maxY, minX:maxX) ;
         im0 = im0(minY:maxY, minX:maxX) ;
         exten1 = ' [do NOT click here]';
-        exten2 = ' [acquire on THIS image]';
+        exten2 = [' (' sprintf('%0.0f,%0.0f', trackii(tidx, 1), ...
+            trackii(tidx, 2)) ') [acquire on THIS image]'] ;
     else
         imCrop = im ;
         minX = 0 ;
         minY = 0 ;
-        maxX = NaN ;
-        maxY = NaN ;
+        maxX = Inf ;
+        maxY = Inf ;
         exten1 = ' [acquire on any image]';
-        exten2 = ' [acquire on any image]';
+        exten2 = [' (' sprintf('%0.0f,%0.0f', trackii(tidx, 1), ...
+            trackii(tidx, 2)) ') [acquire on any image]'] ;
     end
     rgb = cat(3, im0, imCrop, imCrop) ;
 else
     rgb = cat(3, im0, im, im) ;
     exten1 = ' [acquire on any image]';
-    exten2 = ' [acquire on any image]';
+    exten2 = [' (' sprintf('%0.0f,%0.0f', trackii(tidx, 1), ...
+            trackii(tidx, 2)) ') [acquire on any image]'] ;
 end
 
 
@@ -85,37 +93,64 @@ end
 ax0 = subtightplot(2, 2, 1) ;
 imshow(im0) ;
 hold on;
+% Show lineage through previous timepoint -- SELF -- OLD
 if tidx > 1
     plot(trackii(1:tidx-1, 1)-minX, trackii(1:tidx-1, 2)-minY, '-', 'color', orange, 'lineWidth', lwidth)
     plot(trackii(tidx-1, 1)-minX, trackii(tidx-1, 2)-minY, 'o', 'color', orange, 'markerSize', markerSize, 'lineWidth', lwidth)
+else
+    % This is the first timepoint so show the current lineage starting
+    % position in orange -- SELF -- CURRENT
+    plot(trackii(tidx, 1)-minX, trackii(tidx, 2)-minY, 'o', 'color', orange, 'markerSize', markerSize, 'lineWidth', lwidth)
 end
-for iprev = 1:ii-1
-    trackprev = currentTracks{iprev} ;
-    if tidx == 1
-        plot(trackprev(tidx, 1)-minX, trackprev(tidx, 2)-minY, 's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
-    else
-        plot(trackprev(1:tidx-1, 1)-minX, trackprev(1:tidx-1, 2)-minY, '-', 'color', bluecolor, 'lineWidth', 1)
+% Build nearby id's to show
+nearby  = nan(length(otherIDs), 2) ;
+kk = 1 ;
+for otherID = otherIDs
+    otherTrack = currentTracks{otherID} ;
+    xx = otherTrack(max(1, tidx-1), 1) ;
+    yy = otherTrack(max(1, tidx-1), 2) ;
+    if xx > minX && xx < maxX && yy > minY && yy < maxY
+        nearby(kk, :) = [xx-minX, yy-minY] ;
+        kk = kk + 1 ;
     end
 end
+% Show other tracks in blue -- OTHERS -- CURRENT
+plot(nearby(1:kk-1, 1), nearby(1:kk-1, 2),...
+    's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1) 
 hold off;
+clearvars nearby
 
 title(['t=' num2str(tp0) exten1 ])
 
 %-----------------------------
 % Second axis
 %-----------------------------
+% Build nearby id's to show in CURRENT time
+nearby  = nan(length(otherIDs), 2) ;
+kk = 1 ;
+for otherID = otherIDs
+    otherTrack = currentTracks{otherID} ;
+    xx = otherTrack(tidx, 1) ;
+    yy = otherTrack(tidx, 2) ;
+    if xx > minX && xx < maxX && yy > minY && yy < maxY
+        nearby(kk, :) = [xx-minX, yy-minY] ;
+        kk = kk + 1 ;
+    end
+end
+nearby = nearby(1:kk-1, :) ;
+
 ax1 = subtightplot(2, 2, 2) ;
 imshow(rgb);
 hold on;
-for iprev = 1:ii-1
-    trackprev = currentTracks{iprev} ;
-    plot(trackprev(tidx, 1)-minX, trackprev(tidx, 2)-minY, 's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
-end
-if tidx > 1
-    plot(trackii(tidx-1, 1)-minX, trackii(tidx-1, 2)-minY, 'o', 'color', orange,  'markerSize', markerSize, 'lineWidth', lwidth)
-end
+% OTHERS -- CURRENT: Plot other tracks' CURRENT positions on overlay
+plot(nearby(:, 1), nearby(:, 2), 's', ...
+    'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
+
+% SELF -- CURRENT
+plot(trackii(tidx, 1)-minX, trackii(tidx, 2)-minY, 'o', ...
+        'color', orange,  'markerSize', markerSize, 'lineWidth', lwidth)
 hold off;
-title(['old Self, current Others, ' exten1])
+title(['New positions ' exten1])
 
 %-----------------------------
 % Third axis
@@ -123,17 +158,30 @@ title(['old Self, current Others, ' exten1])
 ax2 = subtightplot(2, 1, 2) ;
 imshow(im) ;
 hold on;
-for iprev = 1:ii-1
-    trackprev = currentTracks{iprev} ;
-    plot(trackprev(tidx, 1), trackprev(tidx, 2), 's', 'color', ...
-        bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
-end
+% OTHERS -- CURRENT: Plot other tracks' CURRENT positions on overlay
+% plot(nearby(:, 1), nearby(:, 2), 's', ...
+%     'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
+
+% SELF -- CURRENT
+plot(trackii(tidx, 1), trackii(tidx, 2), 'o', ...
+        'color', orange,  'markerSize', markerSize, 'lineWidth', lwidth)
 hold off;
+axis on
+
 if isempty(Xlim)
     Xlim = get(gca, 'XLim');
     Ylim = get(gca, 'YLim');
 end
-if tidx > 1
-    set(gca, 'XLim', Xlim , 'YLim', Ylim);
-end
-title(['Track ' num2str(ii) ': t=' num2str(tp) exten2])
+
+set(gca, 'XLim', Xlim , 'YLim', Ylim);
+title(['Track ' num2str(ii) ': t=' num2str(tp) exten2 ])
+
+
+
+
+
+
+
+
+
+

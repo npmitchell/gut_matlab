@@ -1,4 +1,4 @@
-% function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoints, trackOutfn, nTracks)
+function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoints, trackOutfn, nTracks)
 % Manually track nTracks objects in 2D grayscale image sequence.
 % May run as script.
 %
@@ -30,17 +30,21 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Script version options
-subdir = 'muscle_normalShiftn10_p05_n50_s1p00_lambda0p005_maxProj';
-imDir = fullfile('./', subdir, 'muscle_imagestack_LUT') ;
-trackOutfn = fullfile('./muscle_tracks.mat') ;
-
-load('./muscle_tracks.mat', 'tracks')
-timePoints = 1:60 ;
-nTracks = 300 ;
-fileBase = fullfile(imDir, 'Time_%06d_c1_stab_pbspsm_LUT.tif') ;
-
-
-currentTracks = tracks ;
+% subdir = 'muscle_normalShiftn10_p05_n50_s1p00_lambda0p005_maxProj';
+% imDir = fullfile('./', subdir, 'muscle_imagestack_LUT') ;
+% trackOutfn = fullfile('./muscle_tracks.mat') ;
+% 
+% load('./muscle_tracks.mat', 'tracks')
+% timePoints = 1:60 ;
+% nTracks = 300 ;
+% fileBase = fullfile(imDir, 'Time_%06d_c1_stab_pbspsm_LUT.tif') ;
+% 
+% %--------
+% % inserted here
+% load('./muscle_tracks.mat', 'tracks')
+% %--------
+% 
+% currentTracks = tracks ;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -48,20 +52,17 @@ currentTracks = tracks ;
 
 %% Unpack inputs
 
-%--------
-% inserted here
-load('./muscle_tracks.mat', 'tracks')
-%--------
-
-%%
 pausetime = 0.5 ;
-if isempty(tracks)
+if isempty(currentTracks)
     tracks = cell(nTracks, 1) ;
+else
+    tracks = currentTracks ;
 end
 bluecolor = [0 , 0.4470, 0.7410 ];
 orange = [ 0.8500,  0.3250 , 0.0980 ];
 lwidth = 3 ;
 markerSize = 20 ;
+fig = [] 
 
 
 % Consider each object
@@ -102,8 +103,9 @@ for ii = 1:nTracks
                 currentTracks, Xlim, Ylim) ;
             
             % Now acquire or get more info about nearby timepoints
-            fprintf('Press any key to acquire or p to play')
-            sgtitle('Press <space> to acquire, p: play, o: play from start, a: t-1, s: t+1')
+            msg = 'Press <space> to acquire, p: play, o: play from start, a: t-1, s: t+1')
+            disp(msg)
+            sgtitle(msg)
             pause
             currkey=get(gcf, 'CurrentKey'); 
             
@@ -114,16 +116,19 @@ for ii = 1:nTracks
                     case {'a', 's'}
                         % Decrememt/Increment timepoint
                         if strcmpi(currkey, 'a')
-                            tidx = tidx - 1;
+                            tidx = max(1, tidx - 1);
                         elseif strcmpi(currkey, 's')
-                            tidx = tidx + 1;
+                            tidx = min(tidx + 1, length(timePoints)) ;
                         end
-                        [ax0, ax1, ax2, minX, maxX, minY, maxY] = plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
+                        [ax0, ax1, ax2] = plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
                         currentTracks, Xlim, Ylim) ;
 
                         % replay or move on to acquire
                         fprintf('Press any key to acquire or p to replay')
                         pause
+
+                        Xlim = get(ax2, 'XLim');
+                        Ylim = get(ax2, 'YLim');
                         currkey=get(gcf,'CurrentKey'); 
                     case {'p', 'o'}
                         % Play nearby timepoints to help identify cell center                
@@ -131,9 +136,9 @@ for ii = 1:nTracks
                         Ylim = get(gca, 'YLim');
 
                         if strcmp(currkey, 'p')
-                            tidx2play = max(1, tidx-4):min(tidx+2, length(timePoints)) ;
+                            tidx2play = max(1, tidx-4):min(tidx+1, length(timePoints)) ;
                         elseif strcmp(currkey, 'o')
-                            tidx2play = 1:length(timePoints) ;
+                            tidx2play = 1:tidx ;
                         end
                         times2play = timePoints(tidx2play) ;
                         axes(ax2) ;
@@ -183,7 +188,7 @@ for ii = 1:nTracks
             end % end of the while loop
             
             % Acquire the XY coordinate for this timepoint
-            msg = 'Click or <space> with crosshairs: acquire / <escape>: no detection\n' ;
+            msg = 'Click with crosshairs: acquire / <escape>: no detection' ;
             sgtitle(msg)
             disp(msg)
             [xx,yy] = ginput(1) ;
@@ -241,6 +246,7 @@ for ii = 1:nTracks
             plot(tracknow(kk, 1), tracknow(kk, 2), 'o', 'color', orange, ...
                 'markerSize', markerSize, 'lineWidth', lwidth)
 
+            hold off ;
             title(['playing tracks 1-' num2str(ii) ': t=' num2str(ttemp)])
 
             pause(0.01 * pausetime)

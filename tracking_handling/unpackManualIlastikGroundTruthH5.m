@@ -133,7 +133,20 @@ for tidx = 1:length(timePoints)
         regp = regionprops(im, 'Centroid') ;
         com1 = vertcat(regp.Centroid) ;
         
+        %%%%%%%%%%%%%%%%%%%%
         % Thread tracks
+        %%%%%%%%%%%%%%%%%%%%
+        
+        % SCHEMATIC OF DIGRAPH
+        % ......... nodes for t<t-2
+        % ||||||||| <- edges added before last time
+        % ......... nodes [1,countN1] ( for time t-2 )
+        % | / | | | <- edges added last time
+        % ..  . . . nodes [countN1+1, count0] (for time t-1)
+        % | \ |  \  <-- these are the edges we are adding in newEdges
+        % .  ..   . nodes [count0+1, maxNodeNumber] (for time t)
+        
+        
         % First timepoint is special since no endpoints into it. Handle
         % here --> define allCellTimes
         if tidx == 2
@@ -292,7 +305,22 @@ for tidx = 1:length(timePoints)
         % Note: this assertion is wrong because we could have had a split
         % that emanated from node globalIdxEnd - 1 and removed.
         % assert(max(globalIdxStart) == min(globalIdxEnd) - 1 - length(appr))
-        assert(min(newEdges(:, 1)) == countN1 + 1)
+        
+        % The minimum index of any source node in the edges that we are
+        % adding in this timepoint is larger than countN1, which was the
+        % highest index of all nodes before the previous timepoint. New
+        % edges connect the previous timepoint (countN1, count0] 
+        % to the current timepoint (with nodes  > count0)
+        assert(min(newEdges(:, 1)) >= countN1 + 1)
+        
+        % SCHEMATIC OF DIGRAPH
+        % ......... nodes for t<t-2
+        % ||||||||| <- edges added before last time
+        % ......... nodes [1,countN1] ( for time t-2 )
+        % | / | | | <- edges added last time
+        % ..  . . . nodes [countN1+1, count0] (for time t-1)
+        % | \ |  \  <-- these are the edges we are adding in newEdges
+        % .  ..   . nodes [count0+1, maxNodeNumber] (for time t)
         
         % Update the segment labels (track IDs)
         allSegmentLabelsArr = [allSegmentLabelsArr; newSegmentLabels ] ;
@@ -440,7 +468,7 @@ end
 %--------------------------------------------------------------------------
 
 % Find the in-degree of each node
-inDeg = indegree(G);
+inDeg = indegree(GG);
 
 assert(isequal(unique(inDeg), [0; 1]), 'Invalid tracking structure');
 
@@ -452,10 +480,10 @@ clear inDeg
 % Add a lineage ID field to each node of the tracking graph
 %--------------------------------------------------------------------------
 
-lineageID = -ones(size(G.Nodes,1),1);
+lineageID = -ones(size(GG.Nodes,1),1);
 lineageID(progCells) = 1:numel(progCells);
 
-G.Nodes.LineageID = lineageID;
+GG.Nodes.LineageID = lineageID;
 
 clear lineageID
 
@@ -466,7 +494,7 @@ clear lineageID
 for i = 1:numel(progCells)
     
     % Get the IDs of all nodes descended from the current progenitor cell
-    descNodes = dfsearch(G, progCells(i), ...
+    descNodes = dfsearch(GG, progCells(i), ...
         { 'discovernode', 'edgetonew' } );
     descNodes = descNodes.Node;
     descNodes = descNodes( ~isnan(descNodes) );
@@ -474,11 +502,11 @@ for i = 1:numel(progCells)
     descNodes( ismember(descNodes, progCells) ) = [];
     
     % Udpate the lineage ID
-    G.Nodes(descNodes,:).LineageID = repmat(i, numel(descNodes), 1);
+    GG.Nodes(descNodes,:).LineageID = repmat(i, numel(descNodes), 1);
     
 end
 
 clear descNodes
 
-assert( ~any(G.Nodes.LineageID < 0), 'Lineage improperly assigned!' );
+assert( ~any(GG.Nodes.LineageID < 0), 'Lineage improperly assigned!' );
 disp('DONE');

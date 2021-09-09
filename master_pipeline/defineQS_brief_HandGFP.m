@@ -374,7 +374,6 @@ else
 end
 
 %% Check quality of GG
-
 saveDir = fullfile(outDir, 'graph_result') ;
 Options = struct() ;
 Options.plot_generations = false ;
@@ -388,15 +387,15 @@ subdir = 'muscle_normalShiftn10_p05_n50_s1p00_lambda0p005_maxProj';
 imDir = fullfile(QS.dir.im_sp_sm, subdir, 'muscle_imagestack_LUT') ;
 trackOutfn = fullfile(QS.dir.tracking, 'muscle', 'muscle_tracks.mat') ;
 
-codeDir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/';
-addpath(fullfile(codeDir, 'ParhyaleCellTracker/external/subtightplot/'))
-addpath(fullfile(codeDir, 'gut_matlab/addpath_recurse/'))
-addpath_recurse('/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/gut_matlab/')
-subdir = 'muscle_normalShiftn10_p05_n50_s1p00_lambda0p005_maxProj';
-imDir = fullfile('./', subdir, 'muscle_imagestack_LUT') ;
-trackOutfn = fullfile('./muscle_tracks.mat') ;
+% codeDir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/';
+% addpath(fullfile(codeDir, 'ParhyaleCellTracker/external/subtightplot/'))
+% addpath(fullfile(codeDir, 'gut_matlab/addpath_recurse/'))
+% addpath_recurse('/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/gut_matlab/')
+% subdir = 'muscle_normalShiftn10_p05_n50_s1p00_lambda0p005_maxProj';
+% imDir = fullfile('./', subdir, 'muscle_imagestack_LUT') ;
+% trackOutfn = fullfile('./muscle_tracks.mat') ;
 
-load('./muscle_tracks.mat', 'tracks')
+load(fullfile(QS.dir.tracking, 'muscle_tracks.mat'), 'tracks')
 timePoints = 1:60 ;
 nTracks = 300 ;
 fileBase = fullfile(imDir, 'Time_%06d_c1_stab_pbspsm_LUT.tif') ;
@@ -412,6 +411,57 @@ Options.colorByLineage = true ;
 Options.infoIndex = 1 ;
 [Gout, divStruct] = parhyale_master_gui(GG, rawImFileBase, Options) ;
 
+%% Convert digraph to cell arrays of tracks
+outTrackFn = fullfile(QS.dir.tracking, 'endoderm_tracks.mat') ;
+tracks = trackingGraph2Cell(GG, timePoints) ;
+save(outGraphFn, 'tracks', 'GG')
+
+%% Manual correction of endoderm tracks
+subdir = 'endoderm_normalShift05_p09_n00_s0p75_lambda0p0002';
+imDir = fullfile(QS.dir.im_sp_sm, subdir, 'endoderm_imagestack_LUT') ;
+timePoints = 1:60 ;
+fileBase = fullfile(imDir, 'Time_%06d_c1_stab_pbspsm_LUT.tif') ;
+trackOutfn = fullfile(QS.dir.tracking, 'endoderm_tracks_correction.mat') ;
+load(trackOutfn, 'tracks') ;
+[newTracks, newG] = manualCorrectTracks2D(tracks, fileBase, timePoints, trackOutfn) ;
+
+
+%% Instant replay of tracks
+if recap
+    clf
+    set( fig, 'units', 'normalized', 'outerposition', [0 0 1 1]);
+    times2play = timePoints ;
+    for kk = 1:length(times2play)
+        ttemp = times2play(kk) ;
+        im1 = imread(sprintf(fileBase, ttemp));
+        imshow(im1) ;
+        hold on;
+
+        for iprev = 1:ii-1
+            trackprev = currentTracks{iprev} ;
+            plot(trackprev(kk, 1), trackprev(kk, 2), 'o', 'color', ...
+                bluecolor, 'markerSize', markerSize, 'lineWidth', lwidth)
+        end
+
+        tracknow = currentTracks{ii} ;
+        plot(tracknow(kk, 1), tracknow(kk, 2), 'o', 'color', orange, ...
+            'markerSize', markerSize, 'lineWidth', lwidth)
+
+        title(['playing tracks 1-' num2str(ii) ': t=' num2str(ttemp)])
+
+        pause(0.01 * pausetime)
+    end
+end
+
+%% Relative motion
+track1fn = fullfile(QS.dir.tracking, 'endoderm_tracks.mat') ;
+track2fn = fullfile(QS.dir.tracking, 'muscle_tracks.mat') ;
+tmp1 = load(track1fn) ;
+tmp2 = load(track2fn) ;
+
+if ~isfield(tmp2, 'tracks')
+    trackingGraph2Cell(tmp2.GG) ;
+end
 
 
 %% Assign Basic Lineage IDs ===============================================
