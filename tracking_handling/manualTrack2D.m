@@ -1,4 +1,4 @@
-function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoints, trackOutfn, nTracks)
+function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoints, trackOutfn, tracks2Add)
 % Manually track nTracks objects in 2D grayscale image sequence.
 % May run as script.
 %
@@ -53,6 +53,7 @@ function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoint
 %% Unpack inputs
 
 pausetime = 0.5 ;
+nTracks = max(tracks2Add, length(currentTracks)) ;
 if isempty(currentTracks)
     tracks = cell(nTracks, 1) ;
 else
@@ -62,11 +63,11 @@ bluecolor = [0 , 0.4470, 0.7410 ];
 orange = [ 0.8500,  0.3250 , 0.0980 ];
 lwidth = 3 ;
 markerSize = 20 ;
-fig = [] 
+fig = []  ;
 
 
 % Consider each object
-for ii = 1:nTracks
+for ii = tracks2Add
     
     % Build tracking cell for this object
     if length(tracks) > ii-1
@@ -103,7 +104,7 @@ for ii = 1:nTracks
                 currentTracks, Xlim, Ylim) ;
             
             % Now acquire or get more info about nearby timepoints
-            msg = 'Press <space> to acquire, p: play, o: play from start, a: t-1, s: t+1')
+            msg = 'Press <space> to acquire, p: play, o: play from start, a: t-1, s: t+1';
             disp(msg)
             sgtitle(msg)
             pause

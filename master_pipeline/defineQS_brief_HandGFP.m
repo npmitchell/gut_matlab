@@ -401,6 +401,13 @@ nTracks = 300 ;
 fileBase = fullfile(imDir, 'Time_%06d_c1_stab_pbspsm_LUT.tif') ;
 manualTrack2D(tracks, fileBase, timePoints, trackOutfn, nTracks) ;
 
+%% Endoderm add tracks
+load(fullfile(QS.dir.tracking, 'endoderm_tracks_correction.mat'), 'tracks')
+timePoints = 1:60 ;
+nTracks = 600 ;
+fileBase = fullfile(imDir, 'Time_%06d_c1_stab_pbspsm.tif') ;
+manualTrack2D(tracks, fileBase, timePoints, trackOutfn, nTracks) ;
+
 %% Open manual tracking gui
 addpath_recurse('/mnt/data/code/ParhyaleCellTracker/')
 close all
@@ -417,13 +424,13 @@ tracks = trackingGraph2Cell(GG, timePoints) ;
 save(outGraphFn, 'tracks', 'GG')
 
 %% Manual correction of endoderm tracks
-subdir = 'endoderm_normalShift05_p09_n00_s0p75_lambda0p0002';
-imDir = fullfile(QS.dir.im_sp_sm, subdir, 'endoderm_imagestack_LUT') ;
+subdir = 'endoderm' ;
+imDir = fullfile(QS.dir.im_sp_sm, subdir) ;
 timePoints = 1:60 ;
-fileBase = fullfile(imDir, 'Time_%06d_c1_stab_pbspsm_LUT.tif') ;
+fileBase = fullfile(imDir, QS.fileBase.im_sp_sm) ;
 trackOutfn = fullfile(QS.dir.tracking, 'endoderm_tracks_correction.mat') ;
 load(trackOutfn, 'tracks') ;
-[newTracks, newG] = manualCorrectTracks2D(tracks, fileBase, timePoints, trackOutfn) ;
+[newTracks, newG] = manualCorrectTracks2D(tracks, fileBase, timePoints, trackOutfn, 115) ;
 
 
 %% Instant replay of tracks
@@ -454,14 +461,125 @@ if recap
 end
 
 %% Relative motion
-track1fn = fullfile(QS.dir.tracking, 'endoderm_tracks.mat') ;
+Options = struct() ;
+
+
+
+subdir1 = 'endoderm' ;
+subdir2 = 'muscle' ;
+track1fn = fullfile(QS.dir.tracking, 'endoderm_tracks_correction.mat') ;
 track2fn = fullfile(QS.dir.tracking, 'muscle_tracks.mat') ;
+
+relMotionFn = fullfile(QS.dir.tracking, 'relative_motion_tracks.mat') ;
+if exist(relMotionFn, 'file')
+    movefile(relMotionFn, [relMotionFn '_backup'])
+end
+
 tmp1 = load(track1fn) ;
 tmp2 = load(track2fn) ;
 
-if ~isfield(tmp2, 'tracks')
-    trackingGraph2Cell(tmp2.GG) ;
+if ~isfield(tmp1, 'tracks') && isfield(tmp1, 'GG')
+    tracks1 = trackingGraph2Cell(tmp1.GG) ;
+else
+    tracks1 = tmp1.tracks ;
 end
+if ~isfield(tmp2, 'tracks') && isfield(tmp2, 'GG')
+    tracks2 = trackingGraph2Cell(tmp2.GG) ;
+else
+    tracks2 = tmp2.tracks ;
+end
+
+n1 = length(tracks1) ;
+n2 = length(tracks2) ;
+
+% Options handling
+doubleCovered = false ;
+umax = 1.0 ;
+vmax = 1.0 ;
+coordSys = 'spsmrs' ;
+if isfield(Options, 'doubleCovered')
+    doubleCovered = Options.doubleCovered ;
+end
+if isfield(Options, 'umax')
+    umax = Options.umax ;
+end
+if isfield(Options, 'vmax')
+    vmax = Options.vmax ;
+end
+if isfield(Options, 'coordSys')
+    coordSys = Options.coordSys ;
+end
+
+% For each track in tracks2, find initially nearest track in tracks1
+dus = zeros(length(tracks2), length(timePoints)) ;
+pairIDs = zeros(length(tracks2), 1) ;
+for ii = 1:length(tracks2)
+    
+    % Get starting positions u0 and v0 for layer1 and 2
+    v0 = tracks2{ii}(1, 1:2) ;
+    VV = tracks2{ii}(:, 1:2) ;
+    
+    % Look for initially nearby nuclei in pullback space
+    nearby = zeros(n1, 2) ;
+    for trackID = 1:n1
+        nearby(trackID, :) = tracks1{trackID}(1, 1:2) ;
+    end
+    farAway = 1000 ;
+    dists = vecnorm(nearby - v0, 2, 2) ;
+    dists(ii) = farAway ;
+    [~, minID] = nanmin(dists) ;
+    UU = tracks1{minID}(:, 1:2) ;
+    
+    % Project into 3D
+    if strcmpi(coordSys, 'spsm') || strcmpi(coordSys, 'spsmrs')
+        im = imread(fullfile(QS.dir.im_sp_sm, subdir1, ...
+            sprintf(QS.fileBase.im_sp_sm, timePoints(1)))) ;
+        im2 = imread(fullfile(QS.dir.im_sp_sm, subdir2, ...
+            sprintf(QS.fileBase.im_sp_sm, timePoints(1)))) ;
+        assert(all(size(im) == size(im2)))
+    end
+    uu = QS.XY2uv(im, UU, doubleCovered, umax, vmax) ;
+    vv = QS.XY2uv(im, VV, doubleCovered, umax, vmax) ;
+    
+    % For each timepoint, project into 3d for that mesh
+    du = zeros(length(timePoints), 1) ;
+    for tidx = 1:length(timePoints)
+        tp = timePoints(tidx) ;
+        QS.setTime(tp) 
+        
+        if ~any(isnan(uu(tidx, :))) && ~any(isnan(vv(tidx, :)))
+            [u3d, fieldfacesU] = QS.uv2APDV(uu(tidx, :), coordSys) ;
+            [v3d, fieldfacesV] = QS.uv2APDV(vv(tidx, :), coordSys) ;
+
+            if fieldfacesU == fieldfacesV
+                % Points are very close: Euclidean distance in 3D        
+                disp(['trackA ' num2str(ii) ' & trackB ' num2str(minID)...
+                    ': t = ' num2str(timePoints(tidx)) ...
+                    ' | U=[' sprintf('%0.0f,%0.0f', UU(1), UU(2)) ...
+                    '], V=[' sprintf('%0.0f,%0.0f', VV(1), VV(2)) ']'])
+                du(tidx) = vecnorm(u3d-v3d, 2, 2) ;
+            else
+                % Measure distance of these tracks over surface as geodesic
+                disp(['track1 ' num2str(ii) ' & track2 ' num2str(minID)...
+                    ': t = ' num2str(timePoints(tidx)) ' geodesic distance'])
+                mesh = QS.getCurrentSPCutMeshSmRSC() ;
+                nvtx = size(mesh.v, 1) ;
+                [geodesicPaths, pointLocations] = surfaceGeodesicPairs( mesh.f, ...
+                        mesh.v, [nvtx+1, nvtx+2], [mesh.v; u3d; v3d] ) ;
+                pp = geodesicPaths{1} ;
+                du(tidx) = sum(vecnorm(diff(pp), 2, 2)) ;
+            end
+        else
+            disp('NaN for one track!')
+            du(tidx) = NaN ;
+        end
+    end
+    dus(ii, :) = du ;
+    pairIDs(ii) = minID ;
+    save(relMotionFn, 'dus', 'tracks', 'pairIDs')
+end
+
+
 
 
 %% Assign Basic Lineage IDs ===============================================

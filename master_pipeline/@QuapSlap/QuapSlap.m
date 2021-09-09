@@ -1121,6 +1121,34 @@ classdef QuapSlap < handle
             QS.currentMesh.spcutMeshSmRSC = tmp.spcutMeshSmRSC ;
         end
         
+        
+        function [xyzrs, fieldfaces, tri] = uv2APDV(QS, uv, coordSys, umax, vmax)
+            
+            if nargin < 4
+                umax = 1 ;
+            end
+            if nargin < 5 
+                vmax = 1 ;
+            end
+            if isempty(coordSys)
+                coordSys = 'spsmrs' ;
+            end
+            if strcmpi(coordSys, 'spsmrs')
+                mesh = QS.getCurrentSPCutMeshSmRS() ;
+                mesh.u(:, 1) = mesh.u(:, 1) * umax / max(mesh.u(:, 1)) ;
+            else
+                error('handle coordSys here')
+            end
+            
+            [xyzrs, fieldfaces, tri] = interpolate2Dpts_3Dmesh(mesh.f, mesh.u,...
+                                        mesh.v, uv) ;
+            % If the loaded coordinates are not already in APDV, but 
+            % instead in the data coordSys, convert to APDV
+            if ~contains(coordSys, 'rs')
+                xyzrs = xyz2APDV(xyz) ;
+            end                       
+        end
+        
         % Radii in a coordsys
         function [radii, radius_cline] = getRadii(QS, options)
             % Load radii from disk in specified coordinate system

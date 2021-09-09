@@ -138,7 +138,7 @@ for ii = tracks2Correct
                     farAway = 1000 ;
                     dists = vecnorm(nearby - selfXY, 2, 2) ;
                     dists(ii) = farAway ;
-                    [~, minID] = min(dists) ;
+                    [~, minID] = nanmin(dists) ;
                     
                     % Show gluing procedure ---------------------------
                     
@@ -189,7 +189,7 @@ for ii = tracks2Correct
                         [nx,ny] = ginput(1) ;
                         dists = vecnorm(nearby - [nx,ny], 2, 2) ;
                         dists(ii) = farAway ;
-                        [~, minID] = min(dists) ;                       
+                        [~, minID] = nanmin(dists) ;                       
                         
                         % Glue track
                         trackii(tidx:end, :) = tracks{minID}(tidx:end, :) ;

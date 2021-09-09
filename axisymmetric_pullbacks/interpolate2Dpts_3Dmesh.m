@@ -34,6 +34,11 @@ function [pts, fieldfaces, tr0] = ...
 %
 % NPMitchell 2019
 
+% If uv is a single point, make sure it is the right shape
+if isequal(size(uv), [2 1])
+    uv = reshape(uv, [1, 2]) ;
+end
+
 tr0 = triangulation(faces, v2d) ;
 [fieldfaces, baryc0] = pointLocation(tr0, uv) ; 
 
@@ -68,9 +73,15 @@ tria = tr0.ConnectivityList(fieldfaces, :) ;
 % Multiply the vertex positions by relative weights.
 % Note that baryc gives weights of the three vertices of triangle
 % t_contain(i) for pointLocation x0(i), y0(i)
-pts = [sum(baryc0 .* vxa(tria), 2), ...
-    sum(baryc0 .* vya(tria), 2), ...
-    sum(baryc0 .* vza(tria), 2) ] ;
+if sum(size(tria)) == 4
+    pts = [sum(baryc0 .* vxa(tria)', 2), ...
+        sum(baryc0 .* vya(tria)', 2), ...
+        sum(baryc0 .* vza(tria)', 2) ] ;
+else
+    pts = [sum(baryc0 .* vxa(tria), 2), ...
+        sum(baryc0 .* vya(tria), 2), ...
+        sum(baryc0 .* vza(tria), 2) ] ;
+end
 
 % Handle case where there are NaNs
 pts(bad, :) = NaN  ;
