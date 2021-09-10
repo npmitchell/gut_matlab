@@ -1,6 +1,10 @@
 disp('Adding paths')
-ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/' ;
-codepath = '/mnt/data/code/' ;
+if ~exist('ms_scriptDir', 'var')
+    ms_scriptDir = '/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/' ;
+end
+if ~exist('codepath', 'var')
+    codepath = '/mnt/data/code/' ;
+end
 gutpath = fullfile(codepath, 'gut_matlab') ;
 meshlabCodeDir = fullfile(codepath, 'meshlab_codes') ;
 
@@ -36,7 +40,7 @@ addpath_recurse(fullfile(gutpath, 'graph_handling')) ;
 addpath_recurse(fullfile(gutpath, 'tracking_handling')) ;
 addpath(fullfile(codepath, 'DEC')) ;
 addpath(fullfile(codepath, 'TexturePatch_for_git', 'TexturePatch')) ;
-addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
+% addpath_recurse('/mnt/crunch/djcislo/MATLAB/CGAL_Code/')
 addpath(fullfile(codepath, 'RicciFlow_MATLAB'))
 addpath(fullfile(codepath, 'tissueAnalysisSuite'))
 % addpath(genpath('/mnt/crunch/djcislo/MATLAB/TexturePatch'));

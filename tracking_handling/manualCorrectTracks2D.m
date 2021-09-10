@@ -54,6 +54,7 @@ lwidth = 3 ;
 markerSize = 20 ;
 nTracks = length(tracks) ;
 fig = [] ;
+recap = false ;
 
 %
 if nargin < 5
@@ -61,24 +62,38 @@ if nargin < 5
 end
 
 %% Consider each object
-for ii = tracks2Correct
+tracks2Correct = [101:200]  
+figCount = 0 ;  
+for ii = tracks2Correct 
+    close all
     % Consider each timepoint
     tidx = 1 ;
     Xlim = [];  
     Ylim = [] ;
-    recap = true ;
     trackii = currentTracks{ii} ;
-    while tidx < length(timePoints) + 1
+    keepTracking = true ;
+    while keepTracking
         tp = timePoints(tidx) ;
 
+        figCount = figCount + 1 ;
+        
         % Initialize the Figure
+        if figCount > 20 
+            close all
+            figCount = 0 ;
+        end
         if ~ishandle(fig)
-            fig = figure('units', 'normalized', 'outerposition', [0 0 1 1]);
+            fig = figure('units', 'normalized', 'outerposition', [0.5 0 0.5 1]);
         end
 
-        if ~exist('Xlim', 'var')
-            Xlim = [];  
-            Ylim = [] ;
+         if isempty(Xlim)
+            if ~isnan(trackii(1, 1))
+                Xlim = trackii(1, 1) + [-200, 200] ;
+                Ylim = trackii(1, 2) + [-100, 100] ;
+            else
+                Xlim = [];  
+                Ylim = [] ;
+            end
         end
 
         [ax0, ax1, ax2] = ...
@@ -93,9 +108,12 @@ for ii = tracks2Correct
         currkey=get(gcf, 'CurrentKey'); 
 
 
-        while ismember(currkey, {'p', 'o', 'a', 's', 'j'}) 
+        while ismember(currkey, {'d', 'p', 'o', 'a', 's', 'j'}) 
 
             switch currkey
+                case {'d'}
+                    keepTracking = false ;
+                    currkey = 'space' ;
                 case {'a', 's'}
                     % Decrememt/Increment timepoint
                     if strcmpi(currkey, 'a')
@@ -220,6 +238,7 @@ for ii = tracks2Correct
                         imshow(im1) ;
                         hold on;
                         % Plot other lineages in blue
+                        otherIDs = setdiff(1:nTracks, [ii]) ;
                         for trackID = 1:otherIDs
                             plot(tracks{trackID}(tidx2play(kk), 1), ...
                                 tracks{trackID}(tidx2play(kk), 2), 'o', ...
@@ -259,13 +278,15 @@ for ii = tracks2Correct
 
         if strcmpi(currkey, 'e')
             % Acquire the XY coordinate for this timepoint
-            msg = 'EDIT POSITION: Click with crosshairs: acquire / <escape>: no detection\n' ;
+            msg = 'EDIT POSITION: <space> to click with crosshairs: acquire / <escape>: no detection' ;
             sgtitle(msg)
             disp(msg)
-            [xx,yy] = ginput(1) ;
+            pause
+            currkey=get(gcf,'CurrentKey'); 
             if strcmpi(currkey, 'escape') || strcmpi(currkey, 'backspace')
                 trackii(tidx, :) = [NaN, NaN, NaN] ;
             else
+                [xx,yy] = ginput(1) ;
                 trackii(tidx, :) = [xx,yy, trackii(tidx, 3)] ;
             end
         else
@@ -283,6 +304,27 @@ for ii = tracks2Correct
         tracks{ii} = trackii ;
         tidx = tidx + 1 ;
 
+
+        % Check if we should exit
+        if tidx > length(timePoints) 
+            msg = 'All done with detections? [y/n]' ;
+            sgtitle(msg)
+            disp(msg)
+            okstring = input(msg, 's') ;
+            notOk = contains(lower(okstring), 'n') ;
+            
+            while ~contains(lower(currkey), 'y') && ~notOk
+                msg = 'All done with detections? [y/n]' ;
+                sgtitle(msg)
+                disp(msg)
+                pause
+                okstring = input(msg, 's') ;
+                notOk = contains(lower(okstring), 'n') ;
+            end
+            
+            keepTracking = (tidx < length(timePoints) + 1) || notOk ;
+            tidx = length(timePoints) ;
+        end
     end
     tracks{ii} = trackii ;
     currentTracks = tracks ;
@@ -293,11 +335,13 @@ for ii = tracks2Correct
         disp(['saving completed tracks to : ' trackOutfn])
         save(trackOutfn, 'tracks')
     end
+    close all
     
     %% Instant replay
     if recap
-        clf
-        set( fig, 'units', 'normalized', 'outerposition', [0 0 1 1]);
+        if ~ishandle(fig)
+            fig = figure('units', 'normalized', 'outerposition', [0.5 0 0.5 1]);
+        end
         times2play = timePoints ;
         for kk = 1:length(times2play)
             ttemp = times2play(kk) ;

@@ -1,5 +1,6 @@
-function [ax0, ax1, ax2, minX, maxX, minY, maxY] = plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
-                currentTracks, Xlim, Ylim)
+function [ax0, ax1, ax2, minX, maxX, minY, maxY] = plotCurrentTrack(ii, ...
+    tidx, timePoints, fileBase, trackii, ...
+    currentTracks, Xlim, Ylim)
 %plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
 %         currentTracks, bluecolor, orange, lwidth, markerSize, Xlim, Ylim)
 %
@@ -94,7 +95,8 @@ for iprev = 1:ii-1
     if tidx == 1
         plot(trackprev(tidx, 1)-minX, trackprev(tidx, 2)-minY, 's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
     else
-        plot(trackprev(1:tidx-1, 1)-minX, trackprev(1:tidx-1, 2)-minY, '-', 'color', bluecolor, 'lineWidth', 1)
+        plot(trackprev(tidx-1, 1)-minX, trackprev(tidx-1, 2)-minY, 's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
+        % plot(trackprev(1:tidx-1, 1)-minX, trackprev(1:tidx-1, 2)-minY, '-', 'color', bluecolor, 'lineWidth', 1)
     end
 end
 hold off;
@@ -123,10 +125,16 @@ title(['old Self, current Others, ' exten1])
 ax2 = subtightplot(2, 1, 2) ;
 imshow(im) ;
 hold on;
+% Plot other tracks (previously indexed tracks)
 for iprev = 1:ii-1
     trackprev = currentTracks{iprev} ;
     plot(trackprev(tidx, 1), trackprev(tidx, 2), 's', 'color', ...
         bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
+end
+% Plot current position if it exists
+if ~isnan(trackii(tidx, 1))
+    plot(trackii(tidx, 1), trackii(tidx, 2), 'o', 'color', ...
+        orange, 'markerSize', markerSize, 'lineWidth', 1)
 end
 hold off;
 if isempty(Xlim)

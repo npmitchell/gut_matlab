@@ -67,17 +67,18 @@ fig = []  ;
 
 
 % Consider each object
+figCount = 0 ;  
 for ii = tracks2Add
     
     % Build tracking cell for this object
     if length(tracks) > ii-1
         trackii = tracks{ii} ;
     else
-        tracks{ii} = zeros(length(timePoints), 2) ;
+        tracks{ii} = nan(length(timePoints), 2) ;
         trackii = tracks{ii} ;
     end
     if isempty(trackii)
-        trackii = zeros(length(timePoints), 2) ;
+        trackii = nan(length(timePoints), 2) ;
     end
     
     % Consider each timepoint
@@ -85,14 +86,21 @@ for ii = tracks2Add
     Xlim = [];  
     Ylim = [] ;
     recap = false ;
-    while tidx < length(timePoints) + 1
+    keepTracking = true ;
+    anyEdits = false ;
+    while keepTracking
         if ~any(trackii(tidx, :))
             recap = true ;
             tp = timePoints(tidx) ;
+            figCount = figCount + 1 ;
             
             % Initialize the Figure
-            if ~ishandle(fig)
-                fig = figure('units', 'normalized', 'outerposition', [0 0 1 1]);
+            if figCount > 20 
+                close all
+                figCount = 0 ;
+            end
+            if isempty(fig) || ~ishandle(fig)
+                fig = figure('units', 'normalized', 'outerposition', [0.5 0 0.5 1]);
             end
             
             if ~exist('Xlim', 'var')
@@ -111,9 +119,12 @@ for ii = tracks2Add
             currkey=get(gcf, 'CurrentKey'); 
             
             
-            while ismember(currkey, {'p', 'o', 'a', 's'}) 
+            while ismember(currkey, {'d', 'p', 'o', 'a', 's'}) 
                 
                 switch currkey
+                    case {'d'} 
+                        keepTracking = false ;
+                        currkey = 'x' ;
                     case {'a', 's'}
                         % Decrememt/Increment timepoint
                         if strcmpi(currkey, 'a')
@@ -189,17 +200,30 @@ for ii = tracks2Add
             end % end of the while loop
             
             % Acquire the XY coordinate for this timepoint
-            msg = 'Click with crosshairs: acquire / <escape>: no detection' ;
-            sgtitle(msg)
-            disp(msg)
-            [xx,yy] = ginput(1) ;
-            
-            
-            currkey=get(gcf, 'CurrentKey'); 
-            if strcmpi(currkey, 'escape') || strcmpi(currkey, 'backspace')
-                trackii(tidx, :) = [NaN, NaN] ;
-            else
-                trackii(tidx, :) = [xx,yy] ;
+            if keepTracking
+                msg = 'Click with crosshairs: acquire / <escape>: no detection' ;
+                sgtitle(msg)
+                disp(msg)
+                [xx,yy] = ginput(1) ;
+                anyEdits = true ;
+                
+                currkey=get(gcf, 'CurrentKey'); 
+                if strcmpi(currkey, 'escape') || strcmpi(currkey, 'backspace')
+                    try
+                        trackii(tidx, :) = [NaN, NaN, NaN] ;
+                    catch
+                        trackii(:, 3) = NaN ;
+                        trackii(tidx, :) = [NaN, NaN, NaN] ;
+                    end
+                else
+                    try
+                        trackii(tidx, :) = [xx,yy, NaN] ;
+                    catch
+                        trackii(:, 3) = NaN ;
+                        trackii(tidx, :) = [xx,yy, NaN] ;
+                    end
+                end
+
             end
             
             Xlim = get(gca, 'XLim');
@@ -218,6 +242,28 @@ for ii = tracks2Add
             tidx = tidx + 1 ;
         end
         
+        % Check if we should exit
+        if tidx > length(timePoints) && anyEdits
+            msg = 'All done with detections? [y/n]' ;
+            sgtitle(msg)
+            disp(msg)
+            okstring = input(msg, 's') ;
+            notOk = contains(lower(okstring), 'n') ;
+            
+            while ~contains(lower(okstring), 'y') && ~notOk
+                msg = 'All done with detections? [y/n]' ;
+                sgtitle(msg)
+                disp(msg)
+                pause
+                okstring = input(msg, 's') ;
+                notOk = contains(lower(okstring), 'n') ;
+            end
+            
+            keepTracking = (tidx < length(timePoints) + 1) || notOk ;
+            tidx = length(timePoints) - 1 ;
+        elseif tidx > length(timePoints)
+            keepTracking = false ;
+        end
     end
     tracks{ii} = trackii ;
     currentTracks = tracks ;
@@ -227,9 +273,11 @@ for ii = tracks2Add
     
     
     %% Instant replay
-    if recap
-        clf
-        set( fig, 'units', 'normalized', 'outerposition', [0 0 1 1]);
+    if recap && anyEdits
+        close all
+        if ~ishandle(fig)
+            fig = figure('units', 'normalized', 'outerposition', [0.5 0 0.5 1]);
+        end
         times2play = timePoints ;
         for kk = 1:length(times2play)
             ttemp = times2play(kk) ;

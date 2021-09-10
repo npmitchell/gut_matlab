@@ -1,7 +1,7 @@
 function [FaceSFM,VertexSFM,wfp]=CalcCurvature(FV,VertexNormals,FaceNormals,Avertex,Acorner,up,vp)
 %% Summary
-%Author: Itzik Ben Shabat
-%Last Update: July 2014
+%Author: Itzik Ben Shabat, tweaks by NPMitchell
+% last update 2021 NPM
 
 %CalcFaceCurvature recives a list of vertices and faces in FV structure
 %and the normal at each vertex and calculates the second fundemental

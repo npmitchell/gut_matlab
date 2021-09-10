@@ -39,6 +39,7 @@ function [ax0, ax1, ax2, minX, maxX, minY, maxY] = ...
 %-----------------------------
 bluecolor = [0 , 0.4470, 0.7410 ];
 orange = [ 0.8500,  0.3250 , 0.0980 ];
+green = [ 0.2000    0.9000    0.2000 ] ;
 lwidth = 3 ;
 markerSize = 20 ;
 mode = 0 ;  % full (1) or crop (0)
@@ -103,20 +104,35 @@ else
     plot(trackii(tidx, 1)-minX, trackii(tidx, 2)-minY, 'o', 'color', orange, 'markerSize', markerSize, 'lineWidth', lwidth)
 end
 % Build nearby id's to show
-nearby  = nan(length(otherIDs), 2) ;
+nearbyDone  = nan(length(otherIDs), 2) ;
 kk = 1 ;
-for otherID = otherIDs
+for otherID = otherIDs(otherIDs<ii)
     otherTrack = currentTracks{otherID} ;
     xx = otherTrack(max(1, tidx-1), 1) ;
     yy = otherTrack(max(1, tidx-1), 2) ;
     if xx > minX && xx < maxX && yy > minY && yy < maxY
-        nearby(kk, :) = [xx-minX, yy-minY] ;
+        nearbyDone(kk, :) = [xx-minX, yy-minY] ;
         kk = kk + 1 ;
     end
 end
-% Show other tracks in blue -- OTHERS -- CURRENT
-plot(nearby(1:kk-1, 1), nearby(1:kk-1, 2),...
+
+nearbyNext  = nan(length(otherIDs), 2) ;
+kk = 1 ;
+for otherID = otherIDs(otherIDs>ii)
+    otherTrack = currentTracks{otherID} ;
+    xx = otherTrack(max(1, tidx-1), 1) ;
+    yy = otherTrack(max(1, tidx-1), 2) ;
+    if xx > minX && xx < maxX && yy > minY && yy < maxY
+        nearbyNext(kk, :) = [xx-minX, yy-minY] ;
+        kk = kk + 1 ;
+    end
+end
+% Show other tracks DONE in blue -- OTHERS -- CURRENT
+plot(nearbyDone(1:kk-1, 1), nearbyDone(1:kk-1, 2),...
     's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1) 
+% Show other tracks NOT DONE in green -- OTHERS -- CURRENT
+plot(nearbyNext(1:kk-1, 1), nearbyNext(1:kk-1, 2),...
+    's', 'color', green, 'markerSize', markerSize, 'lineWidth', 1) 
 hold off;
 clearvars nearby
 
@@ -126,25 +142,27 @@ title(['t=' num2str(tp0) exten1 ])
 % Second axis
 %-----------------------------
 % Build nearby id's to show in CURRENT time
-nearby  = nan(length(otherIDs), 2) ;
+nearbyDone  = nan(length(otherIDs), 2) ;
 kk = 1 ;
 for otherID = otherIDs
     otherTrack = currentTracks{otherID} ;
     xx = otherTrack(tidx, 1) ;
     yy = otherTrack(tidx, 2) ;
     if xx > minX && xx < maxX && yy > minY && yy < maxY
-        nearby(kk, :) = [xx-minX, yy-minY] ;
+        nearbyDone(kk, :) = [xx-minX, yy-minY] ;
         kk = kk + 1 ;
     end
 end
-nearby = nearby(1:kk-1, :) ;
+nearbyDone = nearbyDone(1:kk-1, :) ;
 
 ax1 = subtightplot(2, 2, 2) ;
 imshow(rgb);
 hold on;
 % OTHERS -- CURRENT: Plot other tracks' CURRENT positions on overlay
-plot(nearby(:, 1), nearby(:, 2), 's', ...
+plot(nearbyDone(:, 1), nearbyDone(:, 2), 's', ...
     'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
+plot(nearbyNext(:, 1), nearbyNext(:, 2), 's', ...
+    'color', green, 'markerSize', markerSize, 'lineWidth', 1)
 
 % SELF -- CURRENT
 plot(trackii(tidx, 1)-minX, trackii(tidx, 2)-minY, 'o', ...

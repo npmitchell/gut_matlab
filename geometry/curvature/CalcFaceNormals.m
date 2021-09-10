@@ -1,7 +1,6 @@
 function [FaceNormals]=CalcFaceNormals(FV)
 %% Summary
 %Author: Itzik Ben Shabat
-%Last Update: July 2014
 % tweaks by NPMitchell 2021
 
 %CalcFaceNormals recives a list of vrtexes and faces in FV structure
