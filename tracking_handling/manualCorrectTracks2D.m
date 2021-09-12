@@ -53,7 +53,6 @@ green = [ 0.2, 0.9, 0.2] ;
 lwidth = 3 ;
 markerSize = 20 ;
 nTracks = length(tracks) ;
-fig = [] ;
 recap = false ;
 
 %
@@ -62,9 +61,12 @@ if nargin < 5
 end
 
 %% Consider each object
-tracks2Correct = [101:200]  
-figCount = 0 ;  
-for ii = tracks2Correct 
+% tracks2Correct = [101:200]  
+nTracks = length(tracks) ;
+fig = [] ;
+figCount = 0 ;      
+for dmyii = 1:length(tracks2Correct) 
+    ii = tracks2Correct(dmyii) ;
     close all
     % Consider each timepoint
     tidx = 1 ;
@@ -82,7 +84,7 @@ for ii = tracks2Correct
             close all
             figCount = 0 ;
         end
-        if ~ishandle(fig)
+        if isempty(fig) || ~ishandle(fig)
             fig = figure('units', 'normalized', 'outerposition', [0.5 0 0.5 1]);
         end
 
@@ -90,9 +92,6 @@ for ii = tracks2Correct
             if ~isnan(trackii(1, 1))
                 Xlim = trackii(1, 1) + [-200, 200] ;
                 Ylim = trackii(1, 2) + [-100, 100] ;
-            else
-                Xlim = [];  
-                Ylim = [] ;
             end
         end
 
@@ -108,12 +107,65 @@ for ii = tracks2Correct
         currkey=get(gcf, 'CurrentKey'); 
 
 
-        while ismember(currkey, {'d', 'p', 'o', 'a', 's', 'j'}) 
+        while ismember(currkey, {'d', 'g', 'p', 'o', 'a', 's', 'j'}) 
 
             switch currkey
                 case {'d'}
                     keepTracking = false ;
                     currkey = 'space' ;
+                case {'g'}
+                    tidx = input('Go to timepoint index: ') ;
+                    if tidx > length(timePoints) 
+                        tidx = length(timePoints) ;
+                    elseif tidx < 1 
+                        tidx = 1 ;
+                    end
+                    currkey = 'x' ;
+                case {'r'}
+                    % Rapid click for 5 frames
+                    Xlim = get(ax2, 'XLim');
+                    Ylim = get(ax2, 'YLim');
+
+                    nRapid = 5 ;
+                    axes(ax0) ; cla ;
+                    axes(ax1) ; cla ;
+                    axes(ax2) ; cla ;
+                    qq = 0 ;
+
+                    while tidx < length(timePoints) + 1 && qq < nRapid
+                        [ax0, minX, maxX, minY, maxY] = rapidClickCurrentTrack(ii, ...
+                            tidx, timePoints, fileBase, trackii, ...
+                            tracks, Xlim, Ylim) ;
+                        msg = 'Click with crosshairs: acquire / <escape>: no detection' ;
+                        sgtitle(msg)
+                        disp(msg)
+                        [xx,yy] = ginput(1) ;
+                        currkey=get(gcf, 'CurrentKey'); 
+                        if strcmpi(currkey, 'escape') || strcmpi(currkey, 'backspace')
+                            try
+                                trackii(tidx, :) = [NaN, NaN, 0] ;
+                            catch
+                                trackii(:, 3) = NaN ;
+                                trackii(tidx, :) = [NaN, NaN, 0] ;
+                            end
+                        else
+                            try
+                                trackii(tidx, :) = [xx+minX,yy+minY, 0] ;
+                            catch
+                                trackii(:, 3) = NaN ;
+                                trackii(tidx, :) = [xx+minX,yy+minY, 0] ;
+                            end
+                        end
+                        tidx = tidx + 1 ;
+                        qq = qq + 1 ;
+                    end
+                    % Xlim = Xlim + [-20, 20] ;
+                    % Ylim = Ylim + [-20, 20] ;
+                    [ax0, ax1, ax2] = plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
+                        currentTracks, Xlim, Ylim) ;
+
+                    anyEdits = true ;
+                    currkey = 'x' ;
                 case {'a', 's'}
                     % Decrememt/Increment timepoint
                     if strcmpi(currkey, 'a')
@@ -284,7 +336,7 @@ for ii = tracks2Correct
             pause
             currkey=get(gcf,'CurrentKey'); 
             if strcmpi(currkey, 'escape') || strcmpi(currkey, 'backspace')
-                trackii(tidx, :) = [NaN, NaN, NaN] ;
+                trackii(tidx, :) = [NaN, NaN, 0] ;
             else
                 [xx,yy] = ginput(1) ;
                 trackii(tidx, :) = [xx,yy, trackii(tidx, 3)] ;
@@ -312,16 +364,7 @@ for ii = tracks2Correct
             disp(msg)
             okstring = input(msg, 's') ;
             notOk = contains(lower(okstring), 'n') ;
-            
-            while ~contains(lower(currkey), 'y') && ~notOk
-                msg = 'All done with detections? [y/n]' ;
-                sgtitle(msg)
-                disp(msg)
-                pause
-                okstring = input(msg, 's') ;
-                notOk = contains(lower(okstring), 'n') ;
-            end
-            
+                       
             keepTracking = (tidx < length(timePoints) + 1) || notOk ;
             tidx = length(timePoints) ;
         end
@@ -368,6 +411,8 @@ for ii = tracks2Correct
     end
     
     %% Review track
+    
+    dmyii = dmyii + 1 ;
 end
 
 % Optionally convert to digraph

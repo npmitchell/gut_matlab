@@ -1122,7 +1122,7 @@ classdef QuapSlap < handle
         end
         
         
-        function [xyzrs, fieldfaces, tri] = uv2APDV(QS, uv, coordSys, umax, vmax)
+        function [xyzrs, fieldfaces, tri, baryc] = uv2APDV(QS, uv, coordSys, umax, vmax)
             
             if nargin < 4
                 umax = 1 ;
@@ -1140,7 +1140,7 @@ classdef QuapSlap < handle
                 error('handle coordSys here')
             end
             
-            [xyzrs, fieldfaces, tri] = interpolate2Dpts_3Dmesh(mesh.f, mesh.u,...
+            [xyzrs, fieldfaces, tri, baryc] = interpolate2Dpts_3Dmesh(mesh.f, mesh.u,...
                                         mesh.v, uv) ;
             % If the loaded coordinates are not already in APDV, but 
             % instead in the data coordSys, convert to APDV

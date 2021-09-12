@@ -48,7 +48,12 @@ function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoint
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
+%% Make tracks 0 not NaN
+% % 
+% for ii = 1:100
+%      inds = find(isnan(tracks{ii}(:, 3))) ;
+%      tracks{ii}(inds, 3) = 0 ;
+%  end
 
 %% Unpack inputs
 
@@ -64,6 +69,7 @@ orange = [ 0.8500,  0.3250 , 0.0980 ];
 lwidth = 3 ;
 markerSize = 20 ;
 fig = []  ;
+viewRecaps = false ;
 
 
 % Consider each object
@@ -89,8 +95,8 @@ for ii = tracks2Add
     keepTracking = true ;
     anyEdits = false ;
     while keepTracking
-        if ~any(trackii(tidx, :))
-            recap = true ;
+        if size(trackii, 2) == 2 || isnan(trackii(tidx, 3))
+            recap = true && viewRecaps ;
             tp = timePoints(tidx) ;
             figCount = figCount + 1 ;
             
@@ -103,9 +109,11 @@ for ii = tracks2Add
                 fig = figure('units', 'normalized', 'outerposition', [0.5 0 0.5 1]);
             end
             
-            if ~exist('Xlim', 'var')
-                Xlim = [];  
-                Ylim = [] ;
+            if isempty(Xlim)
+                if ~isnan(trackii(1, 1))
+                    Xlim = trackii(1, 1) + [-200, 200] ;
+                    Ylim = trackii(1, 2) + [-100, 100] ;
+                end
             end
             
             [ax0, ax1, ax2, minX, maxX, minY, maxY] = plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
@@ -119,11 +127,69 @@ for ii = tracks2Add
             currkey=get(gcf, 'CurrentKey'); 
             
             
-            while ismember(currkey, {'d', 'p', 'o', 'a', 's'}) 
+            while ismember(currkey, {'d', 'g', 'r', 'p', 'o', 'a', 's'}) 
                 
                 switch currkey
                     case {'d'} 
                         keepTracking = false ;
+                        currkey = 'x' ;
+                    case {'g'}
+                        tidx = input('Go to timepoint index: ') ;
+                        if tidx > length(timePoints) 
+                            tidx = length(timePoints) ;
+                        elseif tidx < 1 
+                            tidx = 1 ;
+                        end
+                        currkey = 'x' ;
+                    case {'r'}
+                        % Rapid click for 5 frames
+                        Xlim = get(ax2, 'XLim');
+                        Ylim = get(ax2, 'YLim');
+                        
+                        nRapid = 5 ;
+                        axes(ax0) ; cla ;
+                        axes(ax1) ; cla ;
+                        axes(ax2) ; cla ;
+                        qq = 0 ;
+                        
+                        while tidx < length(timePoints) + 1 && qq < nRapid
+                            [ax0, minX, maxX, minY, maxY] = rapidClickCurrentTrack(ii, ...
+                                tidx, timePoints, fileBase, trackii, ...
+                                tracks, Xlim, Ylim) ;
+                            msg = 'Click with crosshairs: acquire / <escape>: no detection' ;
+                            sgtitle(msg)
+                            disp(msg)
+                            [xx,yy] = ginput(1) ;
+                            currkey=get(gcf, 'CurrentKey'); 
+                            if strcmpi(currkey, 'escape') || strcmpi(currkey, 'backspace')
+                                try
+                                    trackii(tidx, :) = [NaN, NaN, 0] ;
+                                catch
+                                    trackii(:, 3) = NaN ;
+                                    trackii(tidx, :) = [NaN, NaN, 0] ;
+                                end
+                            else
+                                try
+                                    trackii(tidx, :) = [xx+minX,yy+minY, 0] ;
+                                catch
+                                    trackii(:, 3) = NaN ;
+                                    trackii(tidx, :) = [xx+minX,yy+minY, 0] ;
+                                end
+                            end
+                            tidx = tidx + 1 ;
+                            qq = qq + 1 ;
+                        end
+                        % Xlim = Xlim + minX ;
+                        % Ylim = Ylim + minY ;
+                        if tidx > length(timePoints)
+                            tidx = length(timePoints) ;
+                        end
+                        close all                 
+                        fig = figure('units', 'normalized', 'outerposition', [0.5 0 0.5 1]);
+                        [ax0, ax1, ax2] = plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
+                            currentTracks, Xlim, Ylim) ;
+                        
+                        anyEdits = true ;
                         currkey = 'x' ;
                     case {'a', 's'}
                         % Decrememt/Increment timepoint
@@ -141,7 +207,7 @@ for ii = tracks2Add
 
                         Xlim = get(ax2, 'XLim');
                         Ylim = get(ax2, 'YLim');
-                        currkey=get(gcf,'CurrentKey'); 
+                        currkey = get(gcf,'CurrentKey'); 
                     case {'p', 'o'}
                         % Play nearby timepoints to help identify cell center                
                         Xlim = get(gca, 'XLim');
@@ -210,17 +276,17 @@ for ii = tracks2Add
                 currkey=get(gcf, 'CurrentKey'); 
                 if strcmpi(currkey, 'escape') || strcmpi(currkey, 'backspace')
                     try
-                        trackii(tidx, :) = [NaN, NaN, NaN] ;
+                        trackii(tidx, :) = [NaN, NaN, 0] ;
                     catch
                         trackii(:, 3) = NaN ;
-                        trackii(tidx, :) = [NaN, NaN, NaN] ;
+                        trackii(tidx, :) = [NaN, NaN, 0] ;
                     end
                 else
                     try
-                        trackii(tidx, :) = [xx,yy, NaN] ;
+                        trackii(tidx, :) = [xx,yy, 0] ;
                     catch
                         trackii(:, 3) = NaN ;
-                        trackii(tidx, :) = [xx,yy, NaN] ;
+                        trackii(tidx, :) = [xx,yy, 0] ;
                     end
                 end
 
@@ -249,15 +315,6 @@ for ii = tracks2Add
             disp(msg)
             okstring = input(msg, 's') ;
             notOk = contains(lower(okstring), 'n') ;
-            
-            while ~contains(lower(okstring), 'y') && ~notOk
-                msg = 'All done with detections? [y/n]' ;
-                sgtitle(msg)
-                disp(msg)
-                pause
-                okstring = input(msg, 's') ;
-                notOk = contains(lower(okstring), 'n') ;
-            end
             
             keepTracking = (tidx < length(timePoints) + 1) || notOk ;
             tidx = length(timePoints) - 1 ;
@@ -300,6 +357,7 @@ for ii = tracks2Add
 
             pause(0.01 * pausetime)
         end
+        close all
     end
     
     %% Review track

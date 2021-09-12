@@ -39,9 +39,14 @@ function [ax0, ax1, ax2, minX, maxX, minY, maxY] = plotCurrentTrack(ii, ...
 %-----------------------------
 bluecolor = [0 , 0.4470, 0.7410 ];
 orange = [ 0.8500,  0.3250 , 0.0980 ];
+green = [ 0.2000    0.9000    0.2000 ] ;
 lwidth = 3 ;
 markerSize = 20 ;
 mode = 0 ;  % full (1) or crop (0)
+
+% Process some input
+nTracks = length(currentTracks) ;
+otherIDs = setdiff(1:nTracks, ii) ;
 
 %-----------------------------
 % Image loading
@@ -67,8 +72,8 @@ if ~mode
         imCrop = im ;
         minX = 0 ;
         minY = 0 ;
-        maxX = NaN ;
-        maxY = NaN ;
+        maxX = Inf ;
+        maxY = Inf ;
         exten1 = ' [acquire on any image]';
         exten2 = ' [acquire on any image]';
     end
@@ -86,19 +91,58 @@ end
 ax0 = subtightplot(2, 2, 1) ;
 imshow(im0) ;
 hold on;
+% Show lineage through previous timepoint -- SELF -- OLD
 if tidx > 1
     plot(trackii(1:tidx-1, 1)-minX, trackii(1:tidx-1, 2)-minY, '-', 'color', orange, 'lineWidth', lwidth)
     plot(trackii(tidx-1, 1)-minX, trackii(tidx-1, 2)-minY, 'o', 'color', orange, 'markerSize', markerSize, 'lineWidth', lwidth)
+else
+    % This is the first timepoint so show the current lineage starting
+    % position in orange -- SELF -- CURRENT
+    plot(trackii(tidx, 1)-minX, trackii(tidx, 2)-minY, 'o', 'color', orange, 'markerSize', markerSize, 'lineWidth', lwidth)
 end
-for iprev = 1:ii-1
-    trackprev = currentTracks{iprev} ;
-    if tidx == 1
-        plot(trackprev(tidx, 1)-minX, trackprev(tidx, 2)-minY, 's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
-    else
-        plot(trackprev(tidx-1, 1)-minX, trackprev(tidx-1, 2)-minY, 's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
-        % plot(trackprev(1:tidx-1, 1)-minX, trackprev(1:tidx-1, 2)-minY, '-', 'color', bluecolor, 'lineWidth', 1)
+
+% Build nearby id's to show
+nearbyDone  = nan(length(otherIDs), 2) ;
+kk = 1 ;
+for otherID = otherIDs(otherIDs<ii)
+    otherTrack = currentTracks{otherID} ;
+    xx = otherTrack(max(1, tidx-1), 1) ;
+    yy = otherTrack(max(1, tidx-1), 2) ;
+    if xx > minX && xx < maxX && yy > minY && yy < maxY
+        nearbyDone(kk, :) = [xx-minX, yy-minY] ;
+        kk = kk + 1 ;
     end
 end
+nearbyDone = nearbyDone(1:kk-1, :) ;
+% Show other tracks DONE in blue -- OTHERS -- CURRENT
+plot(nearbyDone(:, 1), nearbyDone(:,2),...
+    's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1) 
+
+
+% Show other tracks NOT DONE in green -- OTHERS -- CURRENT
+if ii < nTracks
+    kk = 1 ;
+    nearbyNext  = nan(length(otherIDs), 2) ;
+    for otherID = otherIDs(otherIDs>ii)
+        otherTrack = currentTracks{otherID} ;
+        xx = otherTrack(max(1, tidx-1), 1) ;
+        yy = otherTrack(max(1, tidx-1), 2) ;
+        if xx > minX && xx < maxX && yy > minY && yy < maxY
+            nearbyNext(kk, :) = [xx-minX, yy-minY] ;
+            kk = kk + 1 ;
+        end
+    end
+    nearbyNext = nearbyNext(1:kk-1, :) ;
+    
+    % Show other tracks NOT DONE in green -- OTHERS -- CURRENT
+    plot(nearbyNext(:, 1), nearbyNext(:, 2),...
+        's', 'color', green, 'markerSize', markerSize, 'lineWidth', 1) 
+end
+
+hold off;
+clearvars nearbyNext nearbyDone
+
+
 hold off;
 
 title(['t=' num2str(tp0) exten1 ])
@@ -109,12 +153,49 @@ title(['t=' num2str(tp0) exten1 ])
 ax1 = subtightplot(2, 2, 2) ;
 imshow(rgb);
 hold on;
-for iprev = 1:ii-1
-    trackprev = currentTracks{iprev} ;
-    plot(trackprev(tidx, 1)-minX, trackprev(tidx, 2)-minY, 's', 'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
+
+% Build nearby id's to show in CURRENT time
+% Past tracks
+nearbyDone  = nan(length(otherIDs), 2) ;
+kk = 1 ;
+for otherID = otherIDs
+    otherTrack = currentTracks{otherID} ;
+    xx = otherTrack(tidx, 1) ;
+    yy = otherTrack(tidx, 2) ;
+    if xx > minX && xx < maxX && yy > minY && yy < maxY
+        nearbyDone(kk, :) = [xx-minX, yy-minY] ;
+        kk = kk + 1 ;
+    end
 end
+nearbyDone = nearbyDone(1:kk-1, :) ;
+
+% OTHERS -- CURRENT: Plot other tracks' CURRENT positions on overlay
+plot(nearbyDone(:, 1), nearbyDone(:, 2), 's', ...
+    'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
+
+% Future tracks
+if ii < nTracks
+    nearbyNext  = nan(length(otherIDs), 2) ;
+    kk = 1 ;
+    for otherID = otherIDs(otherIDs>ii)
+        otherTrack = currentTracks{otherID} ;
+        xx = otherTrack(tidx, 1) ;
+        yy = otherTrack(tidx, 2) ;
+        if xx > minX && xx < maxX && yy > minY && yy < maxY
+            nearbyNext(kk, :) = [xx-minX, yy-minY] ;
+            kk = kk + 1 ;
+        end
+    end
+    nearbyNext = nearbyNext(1:kk-1, :) ;
+    % OTHERS -- CURRENT: Plot other tracks' CURRENT positions on overlay
+    plot(nearbyNext(:, 1), nearbyNext(:, 2), 's', ...
+        'color', green, 'markerSize', markerSize, 'lineWidth', 1)
+end
+
+% SELF -- OLD
 if tidx > 1
-    plot(trackii(tidx-1, 1)-minX, trackii(tidx-1, 2)-minY, 'o', 'color', orange,  'markerSize', markerSize, 'lineWidth', lwidth)
+    plot(trackii(tidx-1, 1)-minX, trackii(tidx-1, 2)-minY, 'o', ...
+            'color', orange,  'markerSize', markerSize, 'lineWidth', lwidth)
 end
 hold off;
 title(['old Self, current Others, ' exten1])
@@ -125,13 +206,16 @@ title(['old Self, current Others, ' exten1])
 ax2 = subtightplot(2, 1, 2) ;
 imshow(im) ;
 hold on;
-% Plot other tracks (previously indexed tracks)
-for iprev = 1:ii-1
-    trackprev = currentTracks{iprev} ;
-    plot(trackprev(tidx, 1), trackprev(tidx, 2), 's', 'color', ...
-        bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
+% Plot other tracks (not current track)
+plot(nearbyDone(:, 1)+minX, nearbyDone(:, 2)+minY, 's', ...
+    'color', bluecolor, 'markerSize', markerSize, 'lineWidth', 1)
+% Future tracks
+if ii < nTracks
+    plot(nearbyNext(:, 1)+minX, nearbyNext(:, 2)+minY, 's', ...
+        'color', green, 'markerSize', markerSize, 'lineWidth', 1)
 end
-% Plot current position if it exists
+
+% Plot current position if it exists for this track
 if ~isnan(trackii(tidx, 1))
     plot(trackii(tidx, 1), trackii(tidx, 2), 'o', 'color', ...
         orange, 'markerSize', markerSize, 'lineWidth', 1)
