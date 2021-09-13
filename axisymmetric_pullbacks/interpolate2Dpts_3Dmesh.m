@@ -26,6 +26,8 @@ function [pts, fieldfaces, tr0, baryc0] = ...
 %   pts live on the 3d mesh.
 % tr0 : triangulation object
 %   triangulation of the input faces and 2d vertices (v2d)
+% baryc0 : N x 3 float array
+%   barycentric coordinates of the query points in mesh faces
 %
 % See also
 % --------

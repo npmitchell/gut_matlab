@@ -498,7 +498,7 @@ track2fn = fullfile(QS.dir.tracking, 'muscle_tracks.mat') ;
 QS.measureRelativeMotionTracks(track1fn, track2fn)
 
 
-function measureRelativeMotionTracks(QS, track1fn, track2fn)
+%% function measureRelativeMotionTracks(QS, track1fn, track2fn)
 %
 % Options : struct with fields (optional)
 %   timePoints : nTimePoints x 1 numeric array
@@ -513,6 +513,11 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
 %
     relMotionFn = fullfile(QS.dir.tracking, 'relative_motion_tracks.mat') ;
     relMotionStartFn = fullfile(QS.dir.tracking, 'relative_motion_trackStart.png') ;
+    overwrite = false ;
+    
+    if isfield(Options, 'overwrite')
+        overwrite = Options.overwrite ;
+    end
 
     tmp1 = load(track1fn) ;
     tmp2 = load(track2fn) ;
@@ -572,7 +577,7 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
         nearby(trackID, :) = tracks1{trackID}(1, 1:2) ;
     end
 
-    overwrite = false ;
+    overwrite = true ;
     if exist(relMotionFn, 'file') && ~overwrite
         load(relMotionFn, 'dusEuclidean', 'dusGeodesic', ...
             'tracks1', 'tracks2', 'pairIDs', 'U0s', 'V0s', ...
@@ -586,13 +591,14 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
 
     else
         % For each track in tracks2, find initially nearest track in tracks1
-        dusGeodesic = zeros(nTracks, nTimePoints) ;
+        dusGeodesic = nan(nTracks, nTimePoints) ;
+        dusEuclidean = nan(nTracks, nTimePoints) ;
         pairIDs = zeros(nTracks, 1) ;
         U0s = zeros(nTracks, 2) ;
         V0s = zeros(nTracks, 2) ;
         geodesicPaths = cell(nTracks, 1) ;
-        ptBarycenters = cell(nTracks, 1) ;
-        ptFaceLocations = cell(nTracks, 1) ;
+        ptBarycenters = nan(nTracks, nTimePoints, 2, 3) ;
+        ptFaceLocations = nan(nTracks, nTimePoints, 2) ;
         euclideanDistanceTraveledU = dusGeodesic ;
         euclideanDistanceTraveledV = dusGeodesic ;
         v3d_u = zeros(nTracks, nTimePoints, 3) ;
@@ -627,8 +633,8 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
 
         % For each timepoint, project into 3d for that mesh
         geodesics = cell(nTimePoints, 1) ;
-        ptBarys = cell(nTimePoints, 1) ;
-        ptFaces = cell(nTimePoints, 1) ;
+        ptBarys = nan(nTimePoints, 2, 3) ;
+        ptFaces = nan(nTimePoints, 2) ;
         duEuclidean = zeros(nTimePoints, 1) ;
         duGeodesic = zeros(nTimePoints, 1) ;
         Deltau = duGeodesic ;
@@ -643,6 +649,15 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
                 all(uu(tidx, :) > 0) && all(vv(tidx, :) > 0)
                 [u3d, fieldfacesU, ~, barycU] = QS.uv2APDV(uu(tidx, :), coordSys) ;
                 [v3d, fieldfacesV, ~, barycV] = QS.uv2APDV(vv(tidx, :), coordSys) ;
+                
+                % Note: if we define mesh as:
+                % mesh = QS.getCurrentSPCutMeshSmRS() ;
+                %  with normalization such that
+                % mesh.u(:, 1) = mesh.u(:, 1) * umax / max(mesh.u(:, 1)) ;
+                %  then we can use baryc to recover the position in pullback
+                % uu_check = [sum(barycU .* mesh.u(mesh.f(fieldfacesU, :), 1)', 2), ...
+                %            sum(barycU .* mesh.u(mesh.f(fieldfacesU, :), 2)', 2)] ;
+                % assert(all(uu_check == uu(tidx, :)))
                 
                 if tidx == 1 
                     u3d0 = u3d ;
@@ -665,34 +680,33 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
                     % distance      
                     disp(progressString)
                     duGeodesic(tidx) = duEuclidean(tidx) ;
-                    ptFaces(tidx, :) = [fieldfacesU, fieldfacesV] ;
                 else
                     % Measure distance of these tracks over surface as geodesic
                     disp([progressString ' geodesic distance'])
                     mesh = QS.getCurrentSPCutMeshSmRSC() ;
                     nvtx = size(mesh.v, 1) ;
 
-                    if tidx == 17 && ii == 3 && minID == 191
-                        pause
-                    end
-
+                    % Acquire the geodesics
                     [geodesicP, pointLocations] = surfaceGeodesicPairs( mesh.f, ...
                             mesh.v, [nvtx+1, nvtx+2], [mesh.v; u3d; v3d] ) ;
                     ptFace = [ pointLocations(nvtx+1).face, ...
                         pointLocations(nvtx+2).face ] ;
-                    ptBary = [ pointLocations(nvtx+1).barycentricCoordinates; ...
-                        pointLocations(nvtx+2).barycentricCoordinates ] ;
+                    assert(all(ptFace == [fieldfacesU, fieldfacesV] ))
+                    
+                    % note: ptBary definition here has transpositions. Use
+                    % barycU and barcV as defined above instead.
+                    % ptBary = [ pointLocations(nvtx+1).barycentricCoordinates; ...
+                    %     pointLocations(nvtx+2).barycentricCoordinates ] ;
+                    % assert(all(barycU == ptBary(1, :)))
+                    % assert(all(barycV == ptBary(2, :)))
+                    
                     pp = geodesicP{1} ;
                     duGeodesic(tidx) = sum(vecnorm(diff(pp), 2, 2)) ;
 
-                    geodesics{tidx} = pp ;
-                    ptBarys(tidx, :, :) = ptBary ;
-                    ptFaces(tidx, :) = ptFace ;
-                    
-                    assert(all(barycU == ptBary(1, :)))
-                    assert(all(barycV == ptBary(2, :)))
-                    assert(all(ptFace == [fieldfacesU, fieldfacesV] ))
+                    geodesics{tidx} = pp ;                    
                 end
+                ptBarys(tidx, :, :) = [barycU; barycV] ;
+                ptFaces(tidx, :) = [fieldfacesU, fieldfacesV] ;
 
                 % Compare to distance traveled
                 % if fieldfacesU == fieldfacesU0 || strcmpi(distMode, 'fastEuclidean')
@@ -722,8 +736,8 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
 
         % Store all these vectors
         geodesicPaths{ii} = geodesics ;
-        ptBarycenters{ii} = ptBarys ;
-        ptFaceLocations{ii} = ptFaces ;
+        ptBarycenters(ii, :, :, :) = ptBarys ;
+        ptFaceLocations(ii, :, :) = ptFaces ;
         euclideanDistanceTraveledU(ii, :) = Deltau ;
         euclideanDistanceTraveledV(ii, :) = Deltav ;
         dusEuclidean(ii, :) = duEuclidean ;
@@ -782,9 +796,190 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
         end
     end
     
-    % Store in-plane positions too, as array
+    %% Plot in 2D on data
+    close all
+    fig = figure('Position', [100 100 1600 1000], 'units', 'centimeters');
+    colors = distinguishable_colors(nTracks) ;
+    t0 = QS.t0set();
+    
+    % Plot tracks on each timepoint image
+    zooms = {'full', 'inset'} ;
+    Xlims = [NaN, NaN; 650, 920  ] ;
+    Ylims = [NaN, NaN; 570, 800 ] ;
+    sizes1 = [50, 200] ;
+    sizes2 = [150, 400] ;
+    
+    linewidths = [1, 5];
+    
+    overlayStyles = {'simple', 'vector', 'relativeVector'} ;
+    
+    for overlayID = 1:length(overlayStyles)
+        extenOverlay = overlayStyles{overlayID} ;
+        for zoomID = 1:length(zooms)
+            exten = zooms{zoomID} ;
+            Xlim = Xlims(zoomID, :) ;
+            Ylim = Ylims(zoomID, :) ;
+            sz1 = sizes1(zoomID) ;
+            sz2 = sizes2(zoomID) ;
+            lw = linewidths(zoomID) ;
+
+            % output directory for this zoom level
+            outTrackImDir = fullfile(QS.dir.tracking, 'tracks', exten, extenOverlay) ;
+            if ~exist(outTrackImDir, 'dir')
+                mkdir(outTrackImDir)
+            end
+
+            % Plot each timepoint image
+            for tidx = 1:nTimePoints
+                % output file name
+                outfn = fullfile(outTrackImDir, ...
+                    sprintf(['track_' exten '_%06d.png'], timePoints(tidx))) ;
+
+                if ~exist(outfn, 'file') || overwrite
+                    % obtain all paired tracks
+                    UU = zeros(nTracks, 2) ;
+                    VV = zeros(nTracks, 2) ;
+                    for ii = 1:nTracks
+                        VV(ii, :) = tracks2{ii}(tidx, 1:2) ;
+                        UU(ii, :) = tracks1{pairIDs(ii)}(tidx, 1:2) ;
+                    end
+
+                    % obtain all other tracks
+                    otherTracks1 = zeros(n1, 2) ;
+                    for trackID = 1:n1
+                        otherTracks1(trackID, :) = tracks1{trackID}(tidx, 1:2) ;
+                    end
+                    otherTracks2 = zeros(n2, 2) ;
+                    for trackID = 1:n2
+                        otherTracks2(trackID, :) = tracks2{trackID}(tidx, 1:2) ;
+                    end
+
+                    % Obtain data image for this timepoint
+                    if strcmpi(coordSys, 'spsm') || strcmpi(coordSys, 'spsmrs')
+                        im = imread(fullfile(QS.dir.im_sp_sm, subdir1, ...
+                            sprintf(QS.fileBase.im_sp_sm, timePoints(tidx)))) ;
+                        im2 = imread(fullfile(QS.dir.im_sp_sm, subdir2, ...
+                            sprintf(QS.fileBase.im_sp_sm, timePoints(tidx)))) ;
+                        assert(all(size(im) == size(im2)))
+                    end
+
+                    % Plot them for this timepoint
+                    clf
+                    % Axis 1
+                    blueGrayColor = [0.2, 0.4, 0.7] ;
+                    ax0 = subtightplot(2, 2, 1) ;
+                    imshow(im);
+                    hold on;
+                    scatter(otherTracks1(:, 1), otherTracks1(:, 2), sz1, blueGrayColor, 'filled')
+                    scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
+                    title([subdir1 ' positions'], ...
+                        'interpreter', 'Latex')
+                    if ~isnan(Xlim)
+                        xlim(Xlim)
+                        ylim(Ylim)
+                    end
+                    % Axis 2
+                    ax1 = subtightplot(2, 2, 2) ;
+                    imshow(im2);
+                    hold on;
+                    % scatter(otherTracks2(:, 1), otherTracks2(:, 2), sz*4, orangeColor, 's')
+                    scatter(VV(:, 1), VV(:, 2), sz2, colors, 's', 'linewidth', lw)
+                    title([subdir2 ' positions'], ...
+                        'interpreter', 'Latex')
+                    if ~isnan(Xlim)
+                        xlim(Xlim)
+                        ylim(Ylim)
+                    end
+                    
+                    % OVERLAY AXIS ----------------------------------------
+                    % Axis 3
+                    ax2 = subtightplot(2, 1, 2) ;
+                    imshow(min(0.5*im+im2, 255));
+                    hold on;
+                    if overlayID == 1
+                        % scatter(otherTracks1(:, 1), otherTracks1(:, 2), sz, blueGrayColor, 'filled', 'markeredgecolor', 'k')
+                        scatter(VV(:, 1), VV(:, 2), sz2, colors, 's', 'linewidth', lw)
+                        scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
+                        title(['Overlay of ' subdir1 ' and ' subdir2 ', $t=' num2str(timePoints(tidx)-t0) '$ ' QS.timeUnits], ...
+                            'interpreter', 'Latex')
+                    elseif overlayID == 2
+                        dUV = VV - UU ;
+                        scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
+                        quiver(UU(:, 1), UU(:, 2), dUV(:, 1), dUV(:, 2), 0)
+                        title(['Relative difference in position, overlay of ' subdir1 ' and ' subdir2 ', $t=' num2str(timePoints(tidx)-t0) '$ ' QS.timeUnits], ...
+                            'interpreter', 'Latex')
+                    else
+                        dUV = (VV - V0)- (UU - U0) ;
+                        scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
+                        quiver(UU(:, 1), UU(:, 2), dUV(:, 1), dUV(:, 2), 0)
+                        title(['Relative difference in motion, overlay of ' subdir1 ' and ' subdir2 ', $t=' num2str(timePoints(tidx)-t0) '$ ' QS.timeUnits], ...
+                            'interpreter', 'Latex')
+                    end
+                    
+                    hold off;
+                    if ~isnan(Xlim)
+                        xlim(Xlim)
+                        ylim(Ylim)
+                    end
+
+                    disp(['Saving image of tracks: ' outfn])
+                    saveas(gcf, outfn)
+
+                end
+            end
+        end
+    end
+    
+    
+    
+    %% Filter bad points
+    % Bad row, columns == [25, 26], [42, 42]
+    if ~isnan(max_du) && isfinite(max_du)
+        dusGeodesic(dusGeodesic(:) > max_du) = NaN ;
+        dusEuclidean(dusEuclidean(:) > max_du) = NaN ;
+    end
+    
+    %% Store in-plane positions too, as array -- Rough n Dirty method in UV
     Uall = nan(nTracks, nTimePoints, 2) ;
     Vall = nan(nTracks, nTimePoints, 2) ;
+    phaseRaw = nan(nTracks, nTimePoints) ;
+    magUVRaw = nan(nTracks, nTimePoints) ;
+    phaseRelative = nan(nTracks, nTimePoints) ;
+    magUVRelative = nan(nTracks, nTimePoints) ;
+    
+    if ~doubleCovered
+        im = imread(sprintf(QS.fullFileBase.im_sp_sm, timePoints(1))) ;
+    else
+        im = imread(sprintf(QS.fullFileBase.im_sp_sme, timePoints(1))) ;
+    end
+    for ii = 1:nTracks
+        % Get starting positions u0 and v0 for layer1 and 2
+        Uall(ii, :, :) = tracks1{pairIDs(ii)}(:, 1:2) ;
+        Vall(ii, :, :) = tracks2{ii}(:, 1:2) ;
+        
+        dY = Vall(ii, :, 2) - Uall(ii, :, 2) ;
+        dX = Vall(ii, :, 1) - Uall(ii, :, 1) ;
+        dXY = [dX(:), dY(:)] ;
+        
+        dUV = QS.dXY2duv(im, dXY, doubleCovered, umax, vmax) ;
+        
+        phaseRaw(ii, :) = atan2(dUV(:, 2), dUV(:, 1)) ;
+        magUVRaw(ii, :) = sqrt(dUV(:, 1).^2 + dUV(:, 2).^2)  ;
+        
+        % Relative
+        dY0 = Vall(ii, 1, 2) - Uall(ii, 1, 2) ;
+        dX0 = Vall(ii, 1, 1) - Uall(ii, 1, 1) ;
+        dXYm0 = [dX - dX0, dY - dY0] ;
+        dUVm0 = QS.dXY2duv(im, dXYm0, doubleCovered, umax, vmax) ;
+        phaseRelative(ii, :) = atan2(dXYm0(:, 1), dUVm0(:, 1)) ;
+        magUVRelative(ii, :) = sqrt(dUVm0(:, 1).^2 + dUVm0(:, 2).^2) ;
+        
+    end
+    
+    
+    %% Store in-plane positions as arrays -- careful Lagrangian frame method
+    UallRicci = nan(nTracks, nTimePoints, 2) ;
+    VallRicci = nan(nTracks, nTimePoints, 2) ;
     phaseRaw = nan(nTracks, nTimePoints) ;
     magXYRaw = nan(nTracks, nTimePoints) ;
     phaseRelative = nan(nTracks, nTimePoints) ;
@@ -793,6 +988,29 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
         % Get starting positions u0 and v0 for layer1 and 2
         Uall(ii, :, :) = tracks1{pairIDs(ii)}(:, 1:2) ;
         Vall(ii, :, :) = tracks2{ii}(:, 1:2) ;
+
+        % Compute dU_ricci and dV_ricci
+        uface = ptFaceLocations(ii, :, 1)  ;
+        vface = ptFaceLocations(ii, :, 2)  ;
+        ubary = ptBarys ;
+
+        % Load Ricci mesh for each timepoint
+        UallRicci(ii, :, :)  
+
+        % Convert to approximate inplane distance
+        % Convert to approximate distance using metric
+        bcmetric
+        for tidx = 1:nTimePoints
+            QS.setTime(timePoints(tidx)) ;
+            mesh = QS.getCurrentSPCutMeshSmRSC() ;
+            % [gcell, bcell] = constructFundamentalForms(mesh.f, mesh.v, mesh.u) ;
+            [~, v0t, v0t2d] = ...
+                resolveTangentNormalVelocities(faces, vertices, v0s, fieldfaces, ...
+                    mesh.u) ;
+
+            magUVRelative = metric
+        end
+
         
         dY = Vall(ii, :, 2) - Uall(ii, :, 2) ;
         dX = Vall(ii, :, 1) - Uall(ii, :, 1) ;
@@ -808,22 +1026,7 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
         
     end
     
-    % Convert to approximate inplane distance
-    % Convert to approximate distance using metric
-    bcmetric
-    for tidx = 1:nTimePoints
-        QS.setTime(timePoints(tidx)) ;
-        mesh = QS.getCurrentSPCutMeshSmRSC() ;
-        % [gcell, bcell] = constructFundamentalForms(mesh.f, mesh.v, mesh.u) ;
-        [~, v0t, v0t2d] = ...
-            resolveTangentNormalVelocities(faces, vertices, v0s, fieldfaces, ...
-                mesh.u) ;
-
-        magUVRelative = metric
-    end
-
-    
-    % First consider raw relative distances, then displacements from
+    %% First plot raw relative distances, then displacements from
     % starting positions
     figDir = QS.dir.tracking; 
     for analysisMode = 1:2
@@ -856,9 +1059,9 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
         else
             title('Change in geodesic separation')
         end
-        ylimsRel = ylim ;
+        ylimsRelG = ylim ;
 
-        h1 = subplot(1, 3, 2) ;
+        h2 = subplot(1, 3, 2) ;
         plot(timePoints, duE)
         ylabel(['relative motion of nuclei between layers [' QS.spaceUnits ']'], ...
             'interpreter', 'latex')
@@ -868,9 +1071,9 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
         else
             title('Change in Euclidean separation in 3D')
         end
-        ylimsRel = ylim ;
+        ylimsRelE = ylim ;
         
-        h2 = subplot(1, 3, 3) ;
+        h3 = subplot(1, 3, 3) ;
         plot(timePoints, euclideanDistanceTraveledU')
         ylabel(['distance traveled by endoderm nuclei [' QS.spaceUnits ']'], ...
             'interpreter', 'latex')
@@ -879,14 +1082,82 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
         ylimsInp = ylim ;
 
         % set axis limits to match
-        ylims = [min(ylimsRel(1), ylimsInp(1)), max(ylimsRel(2), ylimsInp(2))] ;
+        ylims = [min([ylimsRelG(1), ylimsRelE(1), ylimsInp(1)]), ...
+            max([ylimsRelG(2), ylimsRelE(1), ylimsInp(2)])] ;
         ylim(ylims)
         axes(h1)
+        ylim(ylims)
+        axes(h2)
         ylim(ylims)
         saveas(gcf, fullfile(figDir, ['relative_motion_' distMode '_individual_curves' exten '.pdf']))
         
         
-        %% Polar/2d scatter plot over time
+        %% Polar/2d scatter plot over time -- Rough n Dirty method in UV
+        close all
+        hf = figure('Position', [100 100 400 300], 'units', 'centimeters');
+        if analysisMode == 1
+            duV = magUVRaw ;
+        else
+            duV = magUVRelative ;
+        end
+        
+        alphaVal = 0.5 ;
+        for ii = 1:nTracks
+            lastIdx = find(isnan(duG(ii, :))) ;
+            if isempty(lastIdx)
+                xx = abs(duV(ii, :)) .* cos(phaseV(ii, :)) ;
+                yy = abs(duV(ii, :)) .* sin(phaseV(ii, :)) ;
+                aColor = 1:nTimePoints ;
+            else
+                xx = abs(duV(ii, 1:lastIdx-1)) .* cos(phaseV(ii, 1:lastIdx-1)) ;
+                yy = abs(duV(ii, 1:lastIdx-1)) .* sin(phaseV(ii, 1:lastIdx-1)) ;
+                aColor = 1:lastIdx-1 ;
+            end
+            mfig = patch([xx NaN], [yy NaN], [aColor nTimePoints]);
+            % alphamap = 0.2 * ones(length(xx), 1) ;
+            % alphamap(end) = 0 ;
+            set(mfig,'FaceColor','none','EdgeColor','flat',...
+               'LineWidth',2, ...
+               'FaceVertexAlphaData',alphaVal,...
+               'EdgeAlpha',alphaVal)
+        end
+        xlabel('relative ap displacement [$\Delta x/L$]', ...
+            'interpreter', 'latex')
+        ylabel('relative dv displacement [$\Delta \phi/2\pi R$', ...
+            'interpreter', 'latex')
+        title('Relative motion in pullback frame')
+        cb = colorbar() ;
+        ylims = get(cb, 'ylim') ;
+                
+        % colorbar label
+        if contains(lower(QS.timeUnits), 'min') 
+            ylabel(cb, 'time [hr]', 'interpreter', 'latex')
+            set(cb, 'Ytick', [1, 16, 31, 46])
+            set(cb, 'YtickLabel', ...
+                {num2str(QS.timeInterval /60 * (timePoints(1) - min(timePoints))), ...
+                num2str(QS.timeInterval /60 * (timePoints(16) - min(timePoints))), ...
+                num2str(QS.timeInterval /60 * (timePoints(31) - min(timePoints))), ...
+                num2str(QS.timeInterval /60 * (timePoints(46) - min(timePoints)))}) ;
+        else
+            ylabel(cg, ['time [' QS.timeUnits ']'], 'interpreter', 'latex')
+        end
+        saveas(gcf, fullfile(figDir, ['relative_motion_' distMode '_inPlaneUV' exten '.pdf']))
+        
+        %% Take means for each timepoint
+        close all
+        meanX = mean(duV .* cos(phaseV), 1, 'omitnan') ;
+        meanY = mean(duV .* sin(phaseV), 1, 'omitnan') ;
+        stdX = std(duV .* cos(phaseV), 1, 'omitnan') ;
+        stdY = std(duV .* sin(phaseV), 1, 'omitnan') ;
+        errorbar(meanX, meanY, stdY, stdY, stdX, stdX)
+        xlabel('relative ap displacement [$\Delta x/L$]', ...
+            'interpreter', 'latex')
+        ylabel('relative dv displacement [$\Delta \phi/2\pi R$', ...
+            'interpreter', 'latex')
+        title('Relative motion in pullback frame')
+        saveas(gcf, fullfile(figDir, ['relative_motion_' distMode '_inPlaneUVerr' exten '.pdf']))
+        
+        %% Polar/2d scatter plot over time -- careful method in Lagrangian
         figure ;
         if analysisMode == 1
             duV = duG ;
@@ -913,15 +1184,24 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
                'LineWidth',2, ...
                'FaceVertexAlphaData',alphaVal,...
                'EdgeAlpha',alphaVal)
-           pause
         end
         % Take means for each timepoint
-        meanX = mean(du
-        meanY = 
-        xlabel('relative ap displacement')
-        ylabel('relative dv displacement')
-        saveas(gcf, fullfile(figDir, ['relative_motion_' distMode '_inPlane' exten '.pdf']))
+        meanX = mean ;
+        meanY 
+        xlabel(['relative ap displacement [' QS.spaceUnits ']'])
+        ylabel(['relative dv displacement [' QS.spaceUnits ']'])
+        title('Relative motion in Lagrangian frame')
+        saveas(gcf, fullfile(figDir, ['relative_motion_' distMode '_inPlaneLagrangian' exten '.pdf']))
 
+        
+        %% Take means for each timepoint -- Lagrangian frame
+        meanX = mean(duV .* cos(phaseV), [], 2, 'omitnan') ;
+        meanY = mean(duV .* sin(phaseV), [], 2, 'omitnan') ;
+        stdX = stdmean(duV .* cos(phaseV), [], 2, 'omitnan') ;
+        stdY = stdmean(duV .* sin(phaseV), [], 2, 'omitnan') ;
+        errorbar(meanX, meanY, stdX, stdY)
+        saveas(gcf, fullfile(figDir, ['relative_motion_' distMode '_inPlaneLagrangianErr' exten '.pdf']))
+        
         %% Histogram version
         fewTidx = 1:15:nTimePoints ;
         tColors = viridis(length(fewTidx)) ;
@@ -935,6 +1215,7 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
             pause(0.2)
             qq = qq + 1 ;
         end    
+        saveas(gcf, fullfile(figDir, ['relative_motion_' distMode '_histogram' exten '.pdf']))
     end
         
     %% Plot all starting correspondences
@@ -967,10 +1248,6 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
     saveas(gcf, relMotionStartFn)
     
     
-    %% Filter bad points
-    if ~isnan(max_du) && isfinite(max_du)
-        dusGeodesic(dusGeodesic(:) > max_du) = NaN ;
-    end
     %% Parameterize by time -- mean+/- std
     figDir = QS.dir.tracking ;
     du_tp = dusGeodesic - dusGeodesic(:, 1) .* ones(size(dusGeodesic)) ;
@@ -1026,14 +1303,15 @@ function measureRelativeMotionTracks(QS, track1fn, track2fn)
     
     %% Plot phase of displacement at some timepoints
     
-    
-end
+% end
 
 %% Plot the track pairs in 3d colored by pairID
 % for hand dataset, load metadat options for texturepatch:
 % 
 Options = struct() ; 
 Options.layerLabel = 'muscle' ;
+Options.normal_shift = 10 ;
+Options.initialDistanceThres = 5 ;
 QS.plotRelativeMotionTracks(Options)
 
 

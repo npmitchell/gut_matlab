@@ -2646,6 +2646,93 @@ classdef QuapSlap < handle
             end
         end
         
+        function duv = dXY2duv(im, dXY, doubleCovered, umax, vmax)
+            %XY2uv(im, XY, doubleCovered, umax, vmax)
+            %   Map difference in pixel positions defined on 
+            %   (1, sizeImX) and (1, sizeImY) to
+            %   (0, umax) and (0, vmax) of pullback space if singleCover,
+            %   or y coords are mapped to (-0.5, 1.5)*vmax if doubleCover
+            % 
+            % NOTE THAT FULL COORDINATE MAP IS
+            % [xesz, yesz] = [size(im, 1), size(im, 2)]
+            % uv(:, 1) = umax * (XY(:, 1) - 1) / xesz ;
+            % uv(:, 2) = vmax * 2.0 * (XY(:, 2) - 1) / yesz - 0.5 ;
+            %
+            % NOTE THAT INVERSE MAP IS
+            % x--> (xy(:, 1) * (Xsz-1)) / (1*umax) + 1 , ...
+            % y--> (xy(:, 2) * (Ysz-1)) / (2*vmax) + 1 + (Ysz-1)*0.25 ;
+            %
+            % Parameters
+            % ----------
+            % im : NxM numeric array or 2 ints for size
+            %   image in which pixel coordinates are defined or dimensions
+            %   of the image (pullback image in pixels)
+            % dXY : Qx2 numeric array
+            %   difference in pixel coordinates as vector, to convert to 
+            %   pullback space
+            % doubleCovered : bool
+            %   the image is a double cover of the pullback (extended/tiled
+            %   so that the "top" half repeats below the bottom and the
+            %   "bottom" half repeats above the top. That is, 
+            %   consider im to be a double cover in Y (periodic in Y and 
+            %   covers pullback space twice (-0.5 * Ly, 1.5 * Ly)
+            % umax : float
+            %   extent of pullback mesh coordinates in u direction (X)
+            % vmax : float
+            %   extent of pullback mesh coordinates in v direction (Y)
+            %   before double covering/tiling
+            %
+            % Returns
+            % -------
+            % uv : Qx2 numeric array
+            %   pullback coordinates of input pixel coordinates
+            
+            % Input defaults
+            if nargin < 3
+                doubleCovered = true ;
+            end
+            if nargin < 4
+                umax = 1.0 ;
+            end
+            if nargin < 5
+                vmax = 1.0 ;
+            end
+            
+            % Input checking
+            if size(dXY, 2) ~= 2
+                if size(dXY, 1) == 2
+                    dXY = dXY' ;
+                elsed
+                    error('XY must be passed as #pts x 2 numeric array')
+                end
+            end
+            % size of extended image
+            if any(size(im) > 2) 
+                Xsz = size(im, 2) ;
+                Ysz = size(im, 1) ;
+            else
+                % Interpret im as imsize
+                Xsz = im(1) ;
+                Ysz = im(2) ;
+            end
+            % map extended image size to (0, 1), (-0.5, 1.5) if double
+            % covered. 
+            % subtract 1 since pixel positions range from (1, sizeIm)
+            xesz = double(Xsz - 1) ;
+            yesz = double(Ysz - 1) ;
+            % map from pixel y to network y (sphi)
+            duv = zeros(size(dXY)) ;
+            % convert x axis
+            duv(:, 1) = umax * (dXY(:, 1)) / xesz ;
+            % convert y axis
+            % WOULD subtract 1 since pixel positions range from (1, sizeIm)
+            if doubleCovered
+                duv(:, 2) = vmax * 2.0 * (dXY(:, 2)) / yesz - 0.5 ;
+            else
+                duv(:, 2) = vmax * (dXY(:, 2)) / yesz ;
+            end
+        end
+        
         function XY = uv2XY(im, uv, doubleCovered, umax, vmax) 
             % XY = uv2XY(im, uv, doubleCovered, umax, vmax) 
             %   Map from pullback uv u=(0,1), v=(0,1) to pixel XY
