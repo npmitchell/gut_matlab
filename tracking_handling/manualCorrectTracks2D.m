@@ -334,11 +334,11 @@ for dmyii = 1:length(tracks2Correct)
             sgtitle(msg)
             disp(msg)
             pause
+            [xx,yy] = ginput(1) ;
             currkey=get(gcf,'CurrentKey'); 
             if strcmpi(currkey, 'escape') || strcmpi(currkey, 'backspace')
                 trackii(tidx, :) = [NaN, NaN, 0] ;
             else
-                [xx,yy] = ginput(1) ;
                 trackii(tidx, :) = [xx,yy, trackii(tidx, 3)] ;
             end
         else

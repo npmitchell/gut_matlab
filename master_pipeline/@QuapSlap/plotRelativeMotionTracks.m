@@ -195,7 +195,8 @@ for tidx = 1:length(timePoints)
         outputfnLateral = fullfile(latDir, 'tracks_lateral_%s_%06d.png') ;
         outputfnVentral = fullfile(venDir, 'tracks_ventral_%s_%06d.png') ;
         
-        if ~exist(outputfnLateral, 'file') || ~exist(outputfnVentral, 'file') ...
+        if ~exist(sprintf(outputfnLateral, exten, tp), 'file') || ...
+                ~exist(sprintf(outputfnVentral, exten, tp), 'file') ...
                 || overwrite
 
             clf; hold on;

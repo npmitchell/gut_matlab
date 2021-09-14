@@ -498,7 +498,7 @@ track2fn = fullfile(QS.dir.tracking, 'muscle_tracks.mat') ;
 QS.measureRelativeMotionTracks(track1fn, track2fn)
 
 
-%% function measureRelativeMotionTracks(QS, track1fn, track2fn)
+%% function measureRelativeMotionBetweenCellTracks(QS, track1fn, track2fn)
 %
 % Options : struct with fields (optional)
 %   timePoints : nTimePoints x 1 numeric array
@@ -804,12 +804,13 @@ QS.measureRelativeMotionTracks(track1fn, track2fn)
     
     % Plot tracks on each timepoint image
     zooms = {'full', 'inset'} ;
-    Xlims = [NaN, NaN; 650, 920  ] ;
-    Ylims = [NaN, NaN; 570, 800 ] ;
+    Xlims = [NaN, NaN; 620, 950  ] ;
+    Ylims = [NaN, NaN; 550, 780 ] ;
     sizes1 = [50, 200] ;
     sizes2 = [150, 400] ;
     
     linewidths = [1, 5];
+    fs = 18 ;
     
     overlayStyles = {'simple', 'vector', 'relativeVector'} ;
     
@@ -829,11 +830,15 @@ QS.measureRelativeMotionTracks(track1fn, track2fn)
                 mkdir(outTrackImDir)
             end
 
+            % initial positions
+            V0 = tracks2{ii}(1, 1:2) ;
+            U0 = tracks1{pairIDs(ii)}(1, 1:2) ;
+                        
             % Plot each timepoint image
             for tidx = 1:nTimePoints
                 % output file name
                 outfn = fullfile(outTrackImDir, ...
-                    sprintf(['track_' exten '_%06d.png'], timePoints(tidx))) ;
+                    sprintf(['track_' exten '_' extenOverlay '_%06d.png'], timePoints(tidx))) ;
 
                 if ~exist(outfn, 'file') || overwrite
                     % obtain all paired tracks
@@ -867,13 +872,14 @@ QS.measureRelativeMotionTracks(track1fn, track2fn)
                     clf
                     % Axis 1
                     blueGrayColor = [0.2, 0.4, 0.7] ;
+                    orangeColor = [0.85, 0.325, 0.098] ;
                     ax0 = subtightplot(2, 2, 1) ;
                     imshow(im);
                     hold on;
                     scatter(otherTracks1(:, 1), otherTracks1(:, 2), sz1, blueGrayColor, 'filled')
                     scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
                     title([subdir1 ' positions'], ...
-                        'interpreter', 'Latex')
+                        'interpreter', 'Latex', 'fontsize', fs)
                     if ~isnan(Xlim)
                         xlim(Xlim)
                         ylim(Ylim)
@@ -885,7 +891,7 @@ QS.measureRelativeMotionTracks(track1fn, track2fn)
                     % scatter(otherTracks2(:, 1), otherTracks2(:, 2), sz*4, orangeColor, 's')
                     scatter(VV(:, 1), VV(:, 2), sz2, colors, 's', 'linewidth', lw)
                     title([subdir2 ' positions'], ...
-                        'interpreter', 'Latex')
+                        'interpreter', 'Latex', 'fontsize', fs)
                     if ~isnan(Xlim)
                         xlim(Xlim)
                         ylim(Ylim)
@@ -895,25 +901,31 @@ QS.measureRelativeMotionTracks(track1fn, track2fn)
                     % Axis 3
                     ax2 = subtightplot(2, 1, 2) ;
                     imshow(min(0.5*im+im2, 255));
+                    
+                    if zoomID > 1
+                        set(ax2, 'Position', [0.05, 0.01, 0.9, 0.445])
+                    end
+                    
+                    timestamp = (timePoints(tidx)-t0) * QS.timeInterval ;
                     hold on;
                     if overlayID == 1
                         % scatter(otherTracks1(:, 1), otherTracks1(:, 2), sz, blueGrayColor, 'filled', 'markeredgecolor', 'k')
                         scatter(VV(:, 1), VV(:, 2), sz2, colors, 's', 'linewidth', lw)
                         scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
-                        title(['Overlay of ' subdir1 ' and ' subdir2 ', $t=' num2str(timePoints(tidx)-t0) '$ ' QS.timeUnits], ...
-                            'interpreter', 'Latex')
+                        title(['Overlay, $t=' num2str(timestamp) '$ ' QS.timeUnits], ...
+                            'interpreter', 'Latex', 'fontsize', fs)
                     elseif overlayID == 2
                         dUV = VV - UU ;
-                        scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
-                        quiver(UU(:, 1), UU(:, 2), dUV(:, 1), dUV(:, 2), 0)
-                        title(['Relative difference in position, overlay of ' subdir1 ' and ' subdir2 ', $t=' num2str(timePoints(tidx)-t0) '$ ' QS.timeUnits], ...
-                            'interpreter', 'Latex')
+                        % scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
+                        quiver(UU(:, 1), UU(:, 2), dUV(:, 1), dUV(:, 2), 0, 'linewidth', 2, 'color', orangeColor, 'MaxHeadSize', 0.3)
+                        title(['Relative position, $t=' num2str(timestamp) '$ ' QS.timeUnits], ...
+                            'interpreter', 'Latex', 'fontsize', fs)
                     else
                         dUV = (VV - V0)- (UU - U0) ;
-                        scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
-                        quiver(UU(:, 1), UU(:, 2), dUV(:, 1), dUV(:, 2), 0)
-                        title(['Relative difference in motion, overlay of ' subdir1 ' and ' subdir2 ', $t=' num2str(timePoints(tidx)-t0) '$ ' QS.timeUnits], ...
-                            'interpreter', 'Latex')
+                        % scatter(UU(:, 1), UU(:, 2), sz1, colors, 'filled', 'markeredgecolor', 'k')
+                        quiver(UU(:, 1), UU(:, 2), dUV(:, 1), dUV(:, 2), 0, 'linewidth', 2, 'color', orangeColor, 'MaxHeadSize', 0.3)
+                        title(['Relative displacement, $t=' num2str(timestamp) '$ ' QS.timeUnits], ...
+                            'interpreter', 'Latex', 'fontsize', fs)
                     end
                     
                     hold off;
@@ -935,8 +947,14 @@ QS.measureRelativeMotionTracks(track1fn, track2fn)
     %% Filter bad points
     % Bad row, columns == [25, 26], [42, 42]
     if ~isnan(max_du) && isfinite(max_du)
-        dusGeodesic(dusGeodesic(:) > max_du) = NaN ;
-        dusEuclidean(dusEuclidean(:) > max_du) = NaN ;
+        if any(dusGeodesic(:) > max_du) || any(dusEuclidean(:) > max_du) 
+            response = input('Warning: sure you want to filter out large distances?', 's') ;
+            if contains(lower(response), 'y')
+                disp('filtering...')
+                dusGeodesic(dusGeodesic(:) > max_du) = NaN ;
+                dusEuclidean(dusEuclidean(:) > max_du) = NaN ;
+            end
+        end
     end
     
     %% Store in-plane positions too, as array -- Rough n Dirty method in UV
@@ -994,6 +1012,9 @@ QS.measureRelativeMotionTracks(track1fn, track2fn)
         vface = ptFaceLocations(ii, :, 2)  ;
         ubary = ptBarys ;
 
+        % Identify location in t0 pullback via pathlines
+        pathlineMesh = QS.getPullbackPathlines()
+        
         % Load Ricci mesh for each timepoint
         UallRicci(ii, :, :)  
 
@@ -1326,17 +1347,49 @@ load(trackOutfn, 'tracks') ;
 tracks2Correct = pairIDs(pairIDs > 100 & pairIDs < 541) ;
 tracks2Correct =  tracks2Correct(18:end)
 tracks2Correct = unique(tracks2Correct) ;
+tracks2Correct = 561 ;
 [newTracks, newG] = manualCorrectTracks2D(tracks, fileBase, timePoints, trackOutfn, tracks2Correct) ;
 
-% 104: tp 47-end:NaN
-% finished 1-12 of tracks2Correct
+% finished 1-100, 541-end
+% finished all pairIDs of muscle nuclei
+
+
+
+
+for trackID = 1:nTracks
+    % Find if any tracks are at origin
+    if any(any(tracks{trackID}(:, 1:2) == 0))
+        trackID
+    end
+    % [rr, cc] = find(abs(tracks{trackID}(:, 2) - 935) < 5) ;
+    % if ~isempty(rr)
+    %     trackID
+    % end
+end
+
+
+%% Ensure all pairIDs are good tracks in muscle layer
+
+subdir = 'muscle' ;
+imDir = fullfile(QS.dir.im_sp_sm, subdir) ;
+timePoints = 1:60 ;
+fileBase = fullfile(imDir, QS.fileBase.im_sp_sm) ;
+trackOutfn = fullfile(QS.dir.tracking, 'muscle_tracks.mat') ;
+load(trackOutfn, 'tracks') ;
+tracks2Correct = 3 ;
+[newTracks, newG] = manualCorrectTracks2D(tracks, fileBase, timePoints, trackOutfn, tracks2Correct) ;
 
 
 
 
 
 
-
+for trackID = 1:nTracks
+    [rr, cc] = find(abs(tracks{trackID}(:, 2) - 935) < 5) ;
+    if ~isempty(rr)
+        trackID
+    end
+end
 
 
 
