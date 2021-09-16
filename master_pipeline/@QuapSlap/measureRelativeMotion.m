@@ -1,5 +1,7 @@
 function measureRelativeMotion(QS, options)
 % measureRelativeMotion(QS, options)
+%
+% Use velocity data of each layer to compare the relative motion
 % 
 % 
 % NPMitchell 2021

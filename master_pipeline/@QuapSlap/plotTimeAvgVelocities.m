@@ -88,9 +88,9 @@ end
 %% Unpack QS
 if strcmp(averagingStyle, 'Lagrangian')
     if doubleResolution
-        pivDir = QS.dir.pivAvg2x ;
+        pivDir = QS.dir.piv.avg2x ;
     else
-        pivDir = QS.dir.pivAvg ;
+        pivDir = QS.dir.piv.avg ;
     end
 elseif strcmp(averagingStyle, 'simple')
     if doubleResolution
@@ -113,7 +113,7 @@ pivImNDir = fullfile(pivDir, 'vn') ;
 % pivImRotDir = fullfile(pivSimAvgDir, 'rot') ;
 % pivImShearDir = fullfile(pivSimAvgDir, 'shear_dvphi_ds') ;
 
-pivDir = QS.dir.piv ;
+pivDir = QS.dir.piv.root ;
 dilDir = fullfile(pivDir, 'dilation') ;
 vxyorigDir = fullfile(pivDir, 'vxyorig') ;
 if plot_vxyz

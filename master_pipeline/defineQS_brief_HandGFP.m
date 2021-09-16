@@ -430,7 +430,7 @@ timePoints = 1:60 ;
 fileBase = fullfile(imDir, QS.fileBase.im_sp_sm) ;
 trackOutfn = fullfile(QS.dir.tracking, 'endoderm_tracks_correction.mat') ;
 load(trackOutfn, 'tracks') ;
-[newTracks, newG] = manualCorrectTracks2D(tracks, fileBase, timePoints, trackOutfn, 115) ;
+[newTracks, newG] = manualCorrectTracks2D(tracks, fileBase, timePoints, trackOutfn, 160) ;
 
 
 %% Instant replay of tracks

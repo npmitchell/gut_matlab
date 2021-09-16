@@ -23,6 +23,8 @@ function helmholtzHodge(QS, options)
 %       max allowed divergence measurement  
 %   clipRot : float (default=0.5)
 %       max allowed vorticity measurement
+%   computeLaplacian : bool (default = false)
+%       compute the laplacian of the velocity field
 %
 % NPMitchell 2020/2021
 
@@ -48,6 +50,7 @@ clipRot = 0.5 ;                     % max allowed vorticity measurement
 sscaleDiv = 0.5 ;                   % climit (color limit) for divergence
 sscaleRot = 0.15 ;                  % climit (color limit) for vorticity
 sscaleLap = 0.05 ;                  % climit (color limit) for Laplacian of vel
+computeLaplacian = false ;
 
 %% Unpack options
 if isfield(options, 'samplingResolution')
@@ -97,6 +100,9 @@ if isfield(options, 'lambda')
 end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;
+end
+if isfield(options, 'computeLaplacian')
+    computeLaplacian = options.computeLaplacian ;
 end
 
 % Determine sampling Resolution from input -- either nUxnV or (2*nU-1)x(2*nV-1)
@@ -215,7 +221,7 @@ tidxNext = setdiff(tidx10, tidx2do) ;
 tidx2do = [tidx2do, tidxNext] ;
 % add final sparsity level (every frame)
 tidxOther = setdiff(tidxAll, tidx2do) ;
-tidx2do = [170, tidx2do, tidxOther] ;
+tidx2do = [tidx2do, tidxOther] ;
 for tidx = tidx2do
     tp = timePoints(tidx) ;
     disp(['t = ', num2str(tp)])
@@ -308,6 +314,7 @@ for tidx = tidx2do
         Options.spectralFilterWidth = zwidth ;
         Options.outdir = QS.dir.piv.avgDEC.data ;
         Options.do_calibration = (tidx == tidx2do(1)) ;
+        Options.computeLaplacian = computeLaplacian ;
         [divs, rots, harms, lapvs, glueMesh] = ...
             helmHodgeDECRectGridPullback(cutM, vfsm, Options,...
             'niterSmoothing', niter_smoothing, ...
@@ -316,19 +323,24 @@ for tidx = tidx2do
             'preview', preview, 'method', 'both') ;
         
         [gV2F, ~] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
-        [lapvn, lapvt, lapv2d, ~, ~, ~, dilation] = ...
-            resolveTangentNormalVelocities(cutM.f, ...
-            cutM.v, gV2F * lapvs.lapv(1:nU*(nV-1), :), ...
-            1:length(cutM.f), V2D) ;
+        if computeLaplacian
+            [lapvn, lapvt, lapv2d, ~, ~, ~, dilation] = ...
+                resolveTangentNormalVelocities(cutM.f, ...
+                cutM.v, gV2F * lapvs.lapv(1:nU*(nV-1), :), ...
+                1:length(cutM.f), V2D) ;
+
+            % tmp = vecnorm(lapv0t, 2, 2) ;
+            % plot(lapv0n, tmp, '.')
+
+            lapv2dsc = lapv2d ./ dilation(:) * resolution ;
+            lapvs.lapv2d = lapv2d ;
+            lapvs.lapv2dsc = lapv2dsc ;
+            lapvs.lapvn = lapvn ;
+            lapvs.lapvt = lapvt ;
+        else
+            lapvs = [] ;
+        end
         
-        % tmp = vecnorm(lapv0t, 2, 2) ;
-        % plot(lapv0n, tmp, '.')
-        
-        lapv2dsc = lapv2d ./ dilation(:) * resolution ;
-        lapvs.lapv2d = lapv2d ;
-        lapvs.lapv2dsc = lapv2dsc ;
-        lapvs.lapvn = lapvn ;
-        lapvs.lapvt = lapvt ;
         
         %% save divs, rots, and harms as structs in .mat file
         disp(['Saving DEC t=' num2str(tp) ': ' decDataFn])
@@ -400,7 +412,7 @@ for tidx = tidx2do
     end
     
     % Plot laplacian of tangential vector field (pushed onto vertices)
-    if plot_lap_pullback_tidx || true
+    if plot_lap_pullback_tidx && computeLaplacian
         disp('Plotting laplacian(v)')
         close all
         set(gcf, 'visible', 'off')

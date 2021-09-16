@@ -22,6 +22,7 @@ end
 % Compute each Ricci flow mesh
 opts = struct() ;
 opts.maxIter = maxIter ;
+opts.resample = true ;
 
 for tp = QS.xp.fileMeta.timePoints
     disp(['t = ', num2str(tp)])

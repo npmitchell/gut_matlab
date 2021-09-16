@@ -18,7 +18,7 @@ clear; close all; clc;
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
 dataDir = cd ;
-meshDir = fullfile(dataDir, 'msls_output')
+meshDir = fullfile(dataDir, 'deconvolved_16bit', 'msls_output') ;
 
 % PATHS ==================================================================
 origpath = matlab.desktop.editor.getActiveFilename;
@@ -186,7 +186,8 @@ clear fileMeta expMeta
 % disp('done')
 xp.detectOptions = struct() ;
 xp.detectOptions.ssfactor = 4 ;
-xp.detector.options.ofn_smoothply = 'mesh_%06d' ;
+xp.detector.options.ofn_smoothply = 'mesh_' ;
+xp.tIdx = 1:length(timePoints) ;
 
 %% QS DEFINITION
 opts.meshDir = meshDir ;
@@ -230,11 +231,21 @@ disp('done')
 options = struct() ;
 options.overwrite = true ;
 options.overwriteImages = true;
-options.timePoints = 96:1:205;
+options.timePoints = 186;
 QS.processCorrectedCellSegmentation2D(options) 
 
-% Generate
-options.overwrite = true ;
+%% Generate 3d
+options = struct() ;
+options.overwrite = false;
+options.timePoints =96:10:206;
 options.correctedSegmentation = true;
-QS.generateCellSegmentation3D(options) 
+%QS.generateCellSegmentation3D(options) 
+QS.plotSegmentationStatisticsLobes(options)
+
+%% 
+options = struct() ;
+options.overwrite = false;
+options.timePoints = 96:10:206;
+options.correctedSegmentation = true;
+QS.generateCellSegmentationPathlines3D(options)
 

@@ -140,6 +140,9 @@ end
 if isfield(opts, 'nmodes')
     QS.smoothing.nmodes = opts.nmodes ;
 end
+if isfield(opts, 'zwidth')
+    QS.smoothing.zwidth = opts.zwidth ;
+end
 l_lmesh_lerr =  strrep(sprintf('lambda%0.03f_lmesh%0.3f_lerr%0.3f_modes%02dw%02d', ...
     QS.smoothing.lambda, QS.smoothing.lambda_mesh, ...
     QS.smoothing.lambda_err, QS.smoothing.nmodes, QS.smoothing.zwidth), '.', 'p') ;

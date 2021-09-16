@@ -69,6 +69,7 @@ method = 'smooth' ;     % options: smooth, denoise, both
 eps = 1e-16 ;
 preview = false ;
 do_calibration = false ;
+computeLaplacian = false ;
 
 %% Unpack options
 if isfield(Options, 'lambda')
@@ -90,6 +91,9 @@ else
 end
 if isfield(Options, 'do_calibration')
     do_calibration = Options.do_calibration;
+end
+if isfield(Options, 'computeLaplacian')
+    computeLaplacian = Options.computeLaplacian;
 end
 
 %% varargin options
@@ -224,7 +228,13 @@ DEC = DiscreteExteriorCalculus( glueMesh.f, glueMesh.v ) ;
 divv = DEC.divergence(v0t) ;
 rotv = DEC.curl(v0t) ;
 [~, gF2V] = meshAveragingOperators(glueMesh.f, glueMesh.v) ;
-lapv = DEC.laplacian(v0t) ;
+
+% Optionally, compute laplacian too
+if computeLaplacian
+    lapv = DEC.laplacian(v0t) ;
+else
+    lapv = [] ;
+end
 
 % % Check that this gives the same thing as laplacian dim by dim
 % checks = 0*lapv ;
@@ -364,13 +374,18 @@ if nmodes > 0 || zwidth > 0
     filterOpts.nmodesY = nmodes ;
     filterOpts.widthX = zwidth ;
     divvm = modeFilterQuasi1D(reshape(divv, [nU, (nV-1)]), filterOpts) ;
-    lapvm = zeros(nU*(nV-1), 3) ;
-    tmpX = modeFilterQuasi1D(reshape(lapv(:, 1), [nU, (nV-1)]), filterOpts) ;
-    tmpY = modeFilterQuasi1D(reshape(lapv(:, 2), [nU, (nV-1)]), filterOpts) ;
-    tmpZ = modeFilterQuasi1D(reshape(lapv(:, 3), [nU, (nV-1)]), filterOpts) ;
-    lapvm(:, 1) = tmpX(:) ;
-    lapvm(:, 2) = tmpY(:) ;
-    lapvm(:, 3) = tmpZ(:) ;
+    
+    if computeLaplacian
+        lapvm = zeros(nU*(nV-1), 3) ;
+        tmpX = modeFilterQuasi1D(reshape(lapv(:, 1), [nU, (nV-1)]), filterOpts) ;
+        tmpY = modeFilterQuasi1D(reshape(lapv(:, 2), [nU, (nV-1)]), filterOpts) ;
+        tmpZ = modeFilterQuasi1D(reshape(lapv(:, 3), [nU, (nV-1)]), filterOpts) ;
+        lapvm(:, 1) = tmpX(:) ;
+        lapvm(:, 2) = tmpY(:) ;
+        lapvm(:, 3) = tmpZ(:) ;
+    else
+        lapvm = lapv ;
+    end
 else
     divvm = divv ;
     lapvm = lapv ;
@@ -382,15 +397,21 @@ if lambda_smooth > 0
     divvsm = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
         lambda_smooth, 'explicit', divvm(:), max_niter_div) ;
     lapvsm = lapvm ;
-    lapvsm(:, 1) = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
-        lambda_smooth, 'explicit', lapvm(:, 1), max_niter_div) ;
-    lapvsm(:, 2) = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
-        lambda_smooth, 'explicit', lapvm(:, 2), max_niter_div) ;
-    lapvsm(:, 3) = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
-        lambda_smooth, 'explicit', lapvm(:, 3), max_niter_div) ;
+    if computeLaplacian
+        lapvsm(:, 1) = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+            lambda_smooth, 'explicit', lapvm(:, 1), max_niter_div) ;
+        lapvsm(:, 2) = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+            lambda_smooth, 'explicit', lapvm(:, 2), max_niter_div) ;
+        lapvsm(:, 3) = laplacian_smooth(glueMesh.v, glueMesh.f, 'uniform', fixed_verts, ...
+            lambda_smooth, 'explicit', lapvm(:, 3), max_niter_div) ;
+    end
 else
     divvsm = divvm(:) ;
-    lapvsm = reshape(lapvm, [nU*(nV-1), 3]) ;
+    if computeLaplacian
+        lapvsm = reshape(lapvm, [nU*(nV-1), 3]) ;
+    else
+        lapvsm = [] ;
+    end
 end
 
 % View results on divergence
@@ -476,7 +497,11 @@ rotvsm = rotvsm(:) ;
 divvCut = divvsm(glue2cut) ;
 % note: rot was on faces, and faces are preserved, but now on vertices
 rotvCut = rotvsm(glue2cut) ; 
-lapvCut = lapvsm(glue2cut, :) ;
+if computeLaplacian
+    lapvCut = lapvsm(glue2cut, :) ;
+else
+    lapvCut = lapvsm ;
+end
 
 % Note: rotU, divU, and harmU are on faces, and faces are preserved when
 % converting from glueMesh to cutMesh

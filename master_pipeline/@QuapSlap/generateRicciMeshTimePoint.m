@@ -16,6 +16,9 @@ function [ricciMesh, ricciMu] = generateRicciMeshTimePoint(QS, tp, options)
 % tp : int (default=QS.t0)
 %   timestamp of timepoint for which to generate Ricci flow mesh
 % options : optional struct with optional fields
+%   resample : bool (default = true)
+%       perform isotropic resampling of the mesh before performing Ricci
+%       flow to ensure vertex quality during operation
 %   maxIter : int (default=100)
 %   radiusTolerance : float (default=0.01)
 %       maximum allowed fractional deviation of Ricci flow solution inner
@@ -194,12 +197,23 @@ if ~exist(ricciMeshFn, 'file') || overwrite
         load(ricciFn, 'U')
     catch
         disp('Ricci solution not on disk, computing...')
-        [~, U, ~] = DiscreteRicciFlow.EuclideanRicciFlow(glueMesh.f, glueMesh.v, ...
-            'BoundaryType', 'Fixed', 'BoundaryShape', 'Circles', ...
-            'MaxCircIter', maxIter);
-        % [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(cutMesh) ;
-        % Let maxIter >= 50
-        save(ricciFn, 'U') ;
+        
+        if resample
+            isotropicRe
+            [~, U, ~] = DiscreteRicciFlow.EuclideanRicciFlow(glueMesh.f, glueMesh.v, ...
+                'BoundaryType', 'Fixed', 'BoundaryShape', 'Circles', ...
+                'MaxCircIter', maxIter);
+            % [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(cutMesh) ;
+            % Let maxIter >= 50
+            save(ricciFn, 'U') ;
+        else
+            [~, U, ~] = DiscreteRicciFlow.EuclideanRicciFlow(glueMesh.f, glueMesh.v, ...
+                'BoundaryType', 'Fixed', 'BoundaryShape', 'Circles', ...
+                'MaxCircIter', maxIter);
+            % [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(cutMesh) ;
+            % Let maxIter >= 50
+            save(ricciFn, 'U') ;
+        end
     end
 
     % Plot Ricci result in annulus

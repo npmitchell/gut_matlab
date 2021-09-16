@@ -44,6 +44,11 @@ end
 tr0 = triangulation(faces, v2d) ;
 [fieldfaces, baryc0] = pointLocation(tr0, uv) ; 
 
+% Note: if we define mesh then we can use baryc to recover the position as:
+% uu_check = [sum(baryc0 .* mesh.u(mesh.f(fieldfaces, :), 1)', 2), ...
+%            sum(baryc0 .* mesh.u(mesh.f(fieldfaces, :), 2)', 2)] ;
+
+
 % Handle case where there are NaNs
 bad = find(isnan(fieldfaces)) ;
 baryc0(isnan(fieldfaces), :) = 0 ; 

@@ -649,9 +649,11 @@ opts.a_fixed = 2.0 ;
 opts.adjustlow = 1.00 ;         % floor for intensity adjustment
 opts.adjusthigh = 99.9 ;        % ceil for intensity adjustment (clip)
 opts.phiMethod = 'curves3d' ;
-opts.lambda_mesh = 0.002 ;
-opts.lambda = 0.01 ;
-opts.lambda_err = 0.01 ;
+opts.lambda_mesh = 0.00 ;
+opts.lambda = 0.0 ;
+opts.lambda_err = 0.0 ;
+opts.nmodes = 7 ;
+opts.zwidth = 2;
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
@@ -900,7 +902,73 @@ clearvars normal_step
 % Skip if already done
 % QS.alignMaskedDataAPDV()
 
-%% PLOT ALL TEXTURED MESHES IN 3D =========================================
+
+
+%% MUSCLE: PLOT ALL TEXTURED MESHES IN 3D =================================
+% Skip if already done
+overwrite_TextureMeshOpts = false ;
+
+% Get limits and create output dir
+% Establish texture patch options
+metafn = fullfile(QS.dir.texturePatchIm, 'metadat_muscle.mat') ;
+if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
+    [~,~,~,xyzbuff] = QS.getXYZLims() ;
+    xyzbuff(:, 1) = xyzbuff(:, 1) - 20 ; 
+    xyzbuff(:, 2) = xyzbuff(:, 2) + 20 ; 
+    % Define & Save metadata
+    metadat.xyzlim = xyzbuff ;                  % xyzlimits
+    metadat.reorient_faces = false ;            % if some normals are inverted
+    metadat.normal_shift = QS.normalShift ;             % normal push, in pixels, along normals defined in data XYZ space
+    metadat.texture_axis_order = QS.data.axisOrder ;    % texture space sampling
+    metadat.smoothing_lambda = 0.002 ;   
+    metadat.texture_shift = 0 ;
+    
+    % Psize is the linear dimension of the grid drawn on each triangular face
+    Options = struct() ;
+    Options.PSize = 5 ;
+    Options.EdgeColor = 'none';
+    QS.getRotTrans() ;
+    Options.Rotation = QS.APDV.rot ;
+    Options.Translation = QS.APDV.trans ;
+    Options.Dilation = QS.APDV.resolution ;
+    % outward, inward --> reasonable values are ~[3,3]
+    
+    % ENDODERM
+    % Options.numLayers = [1, -5];  % at layerSpacing 2, 2 marches ~0.5 um 
+    % Options.layerSpacing = 2 ;
+    
+    % MUSCLE
+    metadat.normal_shift = 40 ;             % normal push, in pixels, along normals defined in data XYZ space
+    Options.numLayers = [8, 0];  % at layerSpacing 2, 2 marches ~0.5 um 
+    Options.layerSpacing = 2 ;
+    
+    
+    % Save it
+    save(metafn, 'metadat', 'Options')
+else
+    disp('Loading options for muscle texturepatch')
+    load(metafn, 'metadat', 'Options')
+end
+
+% Use first timepoint's intensity limits throughout
+QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.99)
+
+% Plot on surface for all TP 
+options = metadat ;
+options.overwrite = false ;
+options.plot_dorsal = true ;
+options.plot_ventral = true ;
+options.plot_right = true ;
+options.plot_left = true ;
+options.timePoints = 50:60 ;
+options.figOutDir = fullfile(QS.dir.texturePatchIm, 'muscle_layer') ;
+
+options.plot_perspective = true ;
+options.texture_axis_order = [2 1 3] ; % for Hand Hand HistGFP
+QS.plotSeriesOnSurfaceTexturePatch(options, Options)
+clearvars Options
+
+%% ENDODERM: PLOT ALL TEXTURED MESHES IN 3D ===============================
 % Skip if already done
 overwrite_TextureMeshOpts = false ;
 
@@ -1248,7 +1316,7 @@ options.overwrite = false ;
 QS.measureCurvatures(options)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Redo Pullbacks with time-smoothed meshes ===============================
+%% Redo Pullbacks with time-smoothed meshes: ENDODERM =====================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Skip if already done
 disp('Create pullback using S,Phi coords with time-averaged Meshes')
@@ -1278,7 +1346,7 @@ for tt = QS.xp.fileMeta.timePoints
     % Establish custom Options for MIP
     pbOptions = struct() ;
     pbOptions.overwrite = true ;
-    pbOptions.numLayers = [12 0] ; % previously [7, 7] ;  % previously [5,5]
+    pbOptions.numLayers = [9 0] ; % previously [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
     pbOptions.generate_rsm = false ;
     pbOptions.generate_spsm = true ;
@@ -1293,15 +1361,209 @@ for tt = QS.xp.fileMeta.timePoints
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
 end
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Redo Pullbacks with time-smoothed meshes: MUSCLE LAYER =================
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Skip if already done
+disp('Create pullback using S,Phi coords with time-averaged Meshes')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+for tt = QS.xp.fileMeta.timePoints
+    disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
+    tidx = QS.xp.tIdx(tt);
+    
+    % Load the data for the current time point ------------------------
+    QS.setTime(tt) ;
+    
+    % OPTION 1: Keep constant luminosity throughout, modify default 
+    % intensity limits.
+    % if tidx == 1        
+    %     % Use first timepoint's intensity limits throughout
+    %     QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.995)
+    % end
+    % QS.data.adjustlow 
+    % QS.data.adjusthigh
+    
+    % OPTION 2 : Adjust intensity to scale from timepoint to timepoint
+    adjustlow = 3.00 ;         % floor for intensity adjustment
+    adjusthigh = 99.99 ;        % ceil for intensity adjustment (clip)
+    QS.data.adjustlow = adjustlow ;
+    QS.data.adjusthigh = adjusthigh ;
+    
+    % Establish custom Options for MIP
+    pbOptions = struct() ;
+    pbOptions.overwrite = true ;
+    pbOptions.numLayers = [5 40] ; % previously [7, 7] ;  % previously [5,5]
+    pbOptions.layerSpacing = 1 ;
+    pbOptions.generate_rsm = false ;
+    pbOptions.generate_spsm = true ;
+    pbOptions.generate_sphi = false ;
+    pbOptions.generate_uvprime = false ;
+    pbOptions.generate_ruvprime = false ;
+    pbOptions.axisorder = [2 1 3];
+    pbOptions.preTextureLambda = 0.005 ;
+    pbOptions.save_as_stack = false ;
+    pbOptions.normal_shift = -10 ;
+    QS.data.adjustlow = adjustlow ;
+    QS.data.adjusthigh = adjusthigh ;
+    QS.generateCurrentPullbacks([], [], [], pbOptions) ;
+end
+
 %% TILE/EXTEND SMOOTHED IMAGES IN Y AND RESAVE =======================================
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
-% options.coordsys = 'spsm' ;
+options.coordsys = 'spsm' ;
 % QS.doubleCoverPullbackImages(options)
-options.coordsys = 'rsm' ;
+% options.coordsys = 'rsm' ;
+options.subdir = fullfile('endoderm_normalShift05_p09_n00_s0p75_lambda0p0002', ...
+    'endoderm_imagestack_LUT') ;
+options.fn0 = 'Time_%06d_c1_stab_pbspsm_LUT.tif' ;
 QS.doubleCoverPullbackImages(options)
 disp('done')
+
+%% Adjust LUT for image stack
+% subdir = 'endoderm_normalShift05_p09_n00_s0p75_lambda0p0002';
+% origDir = fullfile(QS.dir.im_sp_sm, subdir, 'endoderm_imagestack') ;
+% outDir = fullfile(QS.dir.im_sp_sm, subdir, 'endoderm_imagestack_LUT') ;
+subdir = 'muscle_normalShiftn10_p05_n50_s1p00_lambda0p005_maxProj';
+origDir = fullfile(QS.dir.im_sp_sm, subdir, 'muscle_imagestack') ;
+outDir = fullfile(QS.dir.im_sp_sm, subdir, 'muscle_imagestack_LUT') ;
+
+meds = zeros(length(timePoints), 1) ;
+stds = zeros(length(timePoints), 1) ;
+norms = zeros(length(timePoints), 1) ;
+for tidx = 1:length(timePoints)
+    tp = timePoints(tidx) ;
+    imfn = fullfile(origDir, [sprintf(QS.fileBase.name, tp) '_pbspsm.tif']) ;
+    im = imread(imfn) ;
+    meds(tidx) = median(im(:)) ;
+    stds(tidx) = std(double(im(:))) ;
+    norms(tidx) = sqrt(double(meds(tidx)) * stds(tidx)) ;
+end
+
+normVal = mean(norms) ;
+for tidx = 1:length(timePoints)
+    tp = timePoints(tidx) ;
+    imfn = fullfile(origDir, [sprintf(QS.fileBase.name, tp) '_pbspsm.tif']) ;
+    outfn = fullfile(outDir, [sprintf(QS.fileBase.name, tp) '_pbspsm_LUT.tif']) ;
+    im = imread(imfn) ;
+    im2 = uint8(double(im) * normVal / norms(tidx) ) ;
+    disp(['writing image to: ' outfn])
+    imwrite(im2, outfn) ;
+end
+
+%% Convert iLastik tracking to graph
+
+
+    
+%% Inspect tracking output
+outDir = fullfile(QS.dir.segmentation, ...
+    'endoderm_normalShift05_p09_n00_s0p75_lambda0p0002', 'images') ;
+maxN = 5000 ;
+jets = jet(maxN) ;
+jetshuffle = jets(randperm(length(jets)), :) ;
+tracks = h5read(fullfile(QS.dir.data, 'Time_0000_Tracking-Result_tracking.h5'), '/exported_data/') ;
+
+for tt = 1:size(tracks, 4)
+    tp = timePoints(tt) ;
+    disp(['condidering t = ' num2str(tp)])
+    im = squeeze(tracks(1, :, :, tt)) ;
+    im2 = mod(im, maxN) ;
+    im2(im>0 & im2 == 0) = 1 ;
+    rgb = label2rgb(im2, jetshuffle, [0,0,0]);
+    
+    if ~exist(outDir, 'dir')
+        mkdir(outDir)
+    end
+    
+    imwrite(permute(rgb, [2,1,3]), fullfile(outDir, sprintf('nuclei_color_%06d.png', tp)))
+end
+
+
+
+%% Inspect learning+tracking ground truth output
+
+subdir = 'endoderm_normalShift05_p09_n00_s0p75_lambda0p0002'; 
+outDir = fullfile(QS.dir.tracking, ...
+    subdir, 'images_groundTruthTracking') ;
+tracksfn = fullfile(QS.dir.im_sp_sm, subdir, 'tracks', ...
+    '%05d.h5') ;
+rawImFileBase = fullfile(QS.dir.im_sp_sm, subdir,'endoderm_imagestack_LUT', ...
+    'Time_%06d_c1_stab_pbspsm_LUT.tif') ; 
+
+maxN_for_plot = 5000 ;
+GG = unpackManualIlastikGroundTruthH5(tracksfn, timePoints, outDir, ...
+    maxN_for_plot, rawImFileBase) ;
+
+% Open manual tracking gui
+addpath_recurse('/mnt/data/code/ParhyaleCellTracker/')
+[Gout, divStruct] = parhyale_master_gui(GG, rawImFileBase) ;
+
+
+
+
+
+%% Adjustment with ParhyaleTracker
+ImFileName = fullfile(QS.dir.im_sp_sm, subdir,'endoderm_imagestack_LUT') ; 
+
+
+% Convert lattice structure into a digraph.
+NTimes = 101; 
+T     = zeros(0,1);
+UPix  = zeros(0,2);
+EndNotes = zeros(0,2);
+NCells = 0; 
+for time = 1:NTimes
+    NCells_current = NCells;
+    NCells_future = NCells+length(lattice.g(time).cells);
+    
+    % Get COM of tracked objects
+    UPix_temp = lattice.g(time).com(:,1:2);
+    T_temp = time*ones(size(UPix_temp,1),1);
+    
+    T = [T;T_temp];
+    UPix = [UPix;UPix_temp];
+    
+    tracked = find(lattice.g(time).ix_future~=0);
+    EndNotes_temp = [NCells_current+tracked',...
+        NCells_future+lattice.g(time).ix_future(tracked)'];
+    if time ~= NTimes
+    EndNotes = [EndNotes;EndNotes_temp];
+    end
+    
+    NCells = NCells+length(T_temp);
+end
+Segment = repmat({'none'}, [size(T,1), 1]);
+Generation = repmat(1, [size(T,1), 1]);
+% first generate a table of times, and positions in the map;
+NodeTable = table(T,UPix,Segment, Generation);
+EdgeTable = table(EndNotes,'VariableNames',{'EndNodes'});
+Gin = digraph(EdgeTable,NodeTable);
+
+[G, divStruct] = parhyale_master_gui(Gin, ImFileName ) ;
+    
+%% Inspect learning+tracking prediction output
+outDir = fullfile(QS.dir.segmentation, ...
+    'endoderm_normalShift05_p09_n00_s0p75_lambda0p0002', 'images_learningTracking') ;
+maxN = 5000 ;
+jets = jet(maxN) ;
+jetshuffle = jets(randperm(length(jets)), :) ;
+tracks = h5read(fullfile(QS.dir.data, 'Time_0000_Tracking-Result_tp00to10.h5'), '/exported_data/') ;
+for tt = 1:size(tracks, 4)
+    tp = timePoints(tt) ;
+    disp(['condidering t = ' num2str(tp)])
+    im = squeeze(tracks(1, :, :, tt)) ;
+    im2 = mod(im, maxN) ;
+    im2(im>0 & im2 == 0) = 1 ;
+    rgb = label2rgb(im2, jetshuffle, [0,0,0]);
+    
+    if ~exist(outDir, 'dir')
+        mkdir(outDir)
+    end
+    
+    imwrite(permute(rgb, [2,1,3]), fullfile(outDir, sprintf('nuclei_color_%06d.png', tp)))
+end
 
 %% Compute whether pullback is isothermal -> metric images
 options = struct() ;
@@ -1500,7 +1762,7 @@ clearvars dumpfn
 % % Export 
 % %  --> File > Save > MAT file
 disp('Loading PIV results...')
-tmp = load(fullfile(QS.dir.piv, 'piv_results.mat')) ;
+tmp = load(fullfile(QS.dir.piv.root, 'piv_results.mat')) ;
 
 
 %% Measure velocities =============================================
@@ -1610,7 +1872,7 @@ options.invertImage = true ;
 options.averagingStyle = 'Lagrangian'; 
 options.samplingResolution = '1x'; 
 QS.plotTimeAvgVelocities(options)
-%% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
+% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
 options = struct() ;
 options.overwrite = false ;
 options.samplingResolution = '1x' ;
@@ -1653,7 +1915,7 @@ options.lambda = 0.00 ;
 options.lambda_err = 0.00 ;
 options.lambda_mesh = 0 ;
 options.nmodes = 7 ;  %% bandwidth filtering
-options.zwidth = 1 ; 
+options.zwidth = 2 ; 
 options.climit = 0.3 ;
 QS.plotMetricKinematics(options)
 
@@ -1687,19 +1949,21 @@ options.overwrite = false ;
 options.gridTopology = 'triangulated' ;
 QS.plotPathlineVelocities(options)
 
-% Measure Pathline Kinematics
+%% Measure Pathline Kinematics
 options = struct() ;
 options.overwrite = false ;
 options.lambda = 0 ;
-options.lambda_error = 0 ;
+options.lambda_err = 0 ;
 options.lambda_mesh = 0 ;
 options.nmodes = 7 ;
-options.zwidth = 1 ; 
+options.zwidth = 2 ; 
 QS.measurePathlineMetricKinematics(options)
-% todo: resume this BLOCK !!!
 
-% Plot Pathline Kinematics
+%% Plot Pathline Kinematics
 options = struct() ;
+options.lambda = 0 ;
+options.lambda_err = 0 ;
+options.lambda_mesh = 0 ;
 options.overwrite = true ;
 options.plot_kymographs = true ;
 options.plot_kymographs_cumsum = false ;

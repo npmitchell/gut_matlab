@@ -119,9 +119,9 @@ tunit = [' ' QS.timeUnits] ;
 %% Figure out which averaging style directory to direct to
 if strcmp(averagingStyle, 'Lagrangian')
     if doubleResolution
-        pivDir = QS.dir.pivAvg2x ;
+        pivDir = QS.dir.piv.avg2x ;
     else
-        pivDir = QS.dir.pivAvg ;
+        pivDir = QS.dir.piv.avg ;
     end
 elseif strcmp(averagingStyle, 'simple')
     if doubleResolution
@@ -138,7 +138,7 @@ pivImTDir = fullfile(pivDir, 'vtH') ;  % Heatmap
 pivImGDir = fullfile(pivDir, 'vtG ') ;  % Gaussian smoothed in space
 pivImSDir = fullfile(pivDir, 'vmag') ;  % speed |v_3D|
 pivImNDir = fullfile(pivDir, 'vn') ;
-pivDir = QS.dir.piv ;
+pivDir = QS.dir.piv.root ;
 dilDir = fullfile(pivDir, 'dilation') ;
 vxyorigDir = fullfile(pivDir, 'vxyorig') ;
 % if plot_vxyz

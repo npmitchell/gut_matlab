@@ -1,7 +1,7 @@
 function [ cutMeshnew, glueMeshnew, bc, qF, badVertices] = ...
     isotropicRemeshAnnuluarCutMeshWithLog(...
     cutMesh, targetEdgeLength, numIterations, options) 
-%[Fnew, Vnew, Unew, Fnnew, Vnnew] = isotropicRemeshWithPeriodicSeam(...
+%[Fnew, Vnew, Unew, Fnnew, Vnnew] = isotropicRemeshAnnuluarCutMeshWithLog(...
 %   FF, VV, UU, targetEdgeLength, numIterations, options) 
 %
 % Assumes CGAL_Code/isotropic_remeshing.cpp is in path and compiled.
@@ -42,7 +42,10 @@ function [ cutMeshnew, glueMeshnew, bc, qF, badVertices] = ...
 %
 % Returns
 % -------
-% [Fnew, Vnew, Unew, Fnnew, Vnnew, 
+% Fnew, Vnew, 
+% Unew,
+% Fnnew : face normals in remeshed mesh
+% Vnnew : vertex normals in remeshed mesh
 % pathPairs : 
 % bc : barycentric coordinates such that, for ex: 
 %     Unew = bc(:, 1) .* UU(FF(qF, 1), :) + ...
@@ -53,7 +56,11 @@ function [ cutMeshnew, glueMeshnew, bc, qF, badVertices] = ...
 %            bc(:, 2) .* UU(FF(qF, 2), :) + ...
 %            bc(:, 3) .* UU(FF(qF, 3), :) ;
 %
-
+% See also
+% --------
+% isotropicRemeshAnnuluarCutMesh
+% isotropicRemeshWithPeriodicSeam
+%
 epsVtx = 1e-5 ;
 preview = false ;
 if nargin > 3

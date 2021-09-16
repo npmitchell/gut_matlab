@@ -314,7 +314,7 @@ classdef QuapSlap < handle
             end
             QS.currentTime = tt ;
             if ~isa(QS.xp, 'struct')
-                disp('WARNING: QS.xp is interpreted as a struct rather than imsane Experiment() class instance')
+                % disp('WARNING: QS.xp is interpreted as a struct rather than imsane Experiment() class instance')
                 QS.xp.setTime(tt) ;
             end
         end
@@ -1123,7 +1123,9 @@ classdef QuapSlap < handle
         
         
         function [xyzrs, fieldfaces, tri, baryc] = uv2APDV(QS, uv, coordSys, umax, vmax)
-            
+            % Convert (u,v) pullback coordinates to xyz coordinates in the
+            % APDV frame (rotated and scaled frame aligned with AP axis
+            % along x and DV axis along z)
             if nargin < 4
                 umax = 1 ;
             end
@@ -2552,6 +2554,13 @@ classdef QuapSlap < handle
         % DEPRICATED -- could integrate rates
         measurePathlineIntegratedStrain(QS, options)
         plotPathlineIntegratedStrain(QS, options)
+        
+        %% Measurement of relative motion between 2 sets of objects  
+        % (for example, multiple layers of the tissue)
+        measureRelativeMotionTracks(QS, track1fn, track2fn, Options) 
+        plotRelativeMotionTracks2D(QS, Options)
+        plotRelativeMotionTracks3D(QS, Options)
+        measureRelativeMotionTracksLagrangianFrame(QS, Options)
         
         %% timepoint-specific coordinate transformations
         sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)

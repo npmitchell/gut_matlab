@@ -59,6 +59,8 @@ if isfield(options, 'lambda')
 end
 if isfield(options, 'lambda_err')
     lambda_err = options.lambda_err ;
+elseif isfield(options, 'lambda_error')
+    lambda_err = options.lambda_error ;
 end
 if isfield(options, 'lambda_mesh')
     lambda_mesh = options.lambda_mesh ;

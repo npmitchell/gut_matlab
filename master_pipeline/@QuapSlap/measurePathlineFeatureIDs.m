@@ -124,6 +124,12 @@ if strcmpi(pathlineType, 'vertices')
             end
         end
         if strcmpi(field1, 'divv') || strcmpi(field2, 'divv')
+            % restore apKymoFn
+            apKymoFn = fullfile( ...
+                sprintf(QS.dir.metricKinematics.pathline.measurements, ...
+                t0Pathline), ...
+                sprintf(QS.fileBase.metricKinematics.pathline.kymographs.ap, ...
+                t0Pathline)) ;
             try
                 tmp = load(apKymoFn, 'divv_apM') ;
                 if strcmpi(field1, 'divv') 
@@ -136,6 +142,14 @@ if strcmpi(pathlineType, 'vertices')
             end
         end
         if strcmpi(field1, 'veln') || strcmpi(field2, 'veln')
+            
+            % restore apKymoFn
+            apKymoFn = fullfile( ...
+                sprintf(QS.dir.metricKinematics.pathline.measurements, ...
+                t0Pathline), ...
+                sprintf(QS.fileBase.metricKinematics.pathline.kymographs.ap, ...
+                t0Pathline)) ;
+            
             try
                 tmp = load(apKymoFn, 'veln_apM') ;
                 if strcmpi(field1, 'veln') 

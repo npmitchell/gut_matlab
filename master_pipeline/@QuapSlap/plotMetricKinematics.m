@@ -176,7 +176,8 @@ end
 
 %% Test incompressibility of the flow on the evolving surface
 % We relate the normal velocities to the divergence / 2 * H.
-tps = QS.xp.fileMeta.timePoints(1:end-1) - tfold;
+tps = (QS.xp.fileMeta.timePoints(1:end-1) - tfold) * QS.timeInterval ;
+vtimePoints = QS.xp.fileMeta.timePoints(1:end-1) ;
 
 % preallocate for cumulative error
 ntps = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
@@ -416,20 +417,20 @@ if plot_kymographs
                 cb = colorbar() ;
                 ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
                 fn = fullfile(odir, [ names{pp} '.png']) ;
-                disp(['saving ', fn])
+                disp(['saving kymograph ', fn])
                 export_fig(fn, '-png', '-nocrop', '-r200')   
 
                 % Zoom in on small values
                 if climits(pp) > 0
                     caxis([-climits(pp)/3, climits(pp)/3])
                     fn = fullfile(odir, [names{pp} '_zoom.png']) ;
-                    disp(['saving ', fn])
+                    disp(['saving kymograph detail ', fn])
                     export_fig(fn, '-png', '-nocrop', '-r200')   
                     % Zoom in on early times
                     ylim([min(tps), min(max(tps), max(fons-tfold) + 10)])
                     caxis([-climits(pp)/3, climits(pp)/3])
                     fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
-                    disp(['saving ', fn])
+                    disp(['saving kymograph detail: ', fn])
                     export_fig(fn, '-png', '-nocrop', '-r200')  
                 end
             end
@@ -445,7 +446,9 @@ DTime = 30 ;    % 30 minute chunks
 if tps(1) < 0
     nchunks = ceil(abs(tps(1)/DTime)) ;
     for qq = 1:nchunks
-        timeSpans{1+qq} = max(min(tps), -(nchunks-qq+1)*DTime):-(nchunks-qq)*DTime ;
+        tspanStart = max(min(tps), -(nchunks-qq+1)*DTime) ;
+        tspanEnd = -(nchunks-qq)*DTime ;
+        timeSpans{1+qq} = tspanStart:QS.timeInterval:tspanEnd ;
     end
 else
     qq = 0 ;
@@ -454,16 +457,20 @@ end
 if max(tps) > 0
     nchunks = ceil(max(tps)/DTime) ;
     for pp = 1:nchunks
-        timeSpans{1+qq+pp} = (pp-1)*DTime:min(max(tps), pp*DTime) ;
+        tspanStart = (pp-1)*DTime ;
+        tspanEnd = min(max(tps), pp*DTime) ;
+        timeSpans{1+qq+pp} = tspanStart:QS.timeInterval:tspanEnd ;
     end
 end
 % Include one tpsan of -1hr, 1hr, 2hr after t0
-hrTSpans = {max(min(tps),-60):0, 0:60, 60:min(max(tps),120)} ;
+hrTSpans = {max(min(tps),-60):QS.timeInterval:0, 0:QS.timeInterval:60, 60:QS.timeInterval:min(max(tps),120)} ;
 timeSpans{end+1} = hrTSpans{1} ;
 timeSpans{end+1} = hrTSpans{2} ;
 timeSpans{end+1} = hrTSpans{3} ;
 % Include one tpsan of -1.5hr, 1.5hr, 3hr after t0
-lhrTSpans = {max(min(tps),-90):0, 0:90, 90:min(max(tps), 180), max(min(tps), 0):min(max(tps),75)} ;
+lhrTSpans = {max(min(tps),-90):QS.timeInterval:0, 0:QS.timeInterval:90, ...
+    90:QS.timeInterval:min(max(tps), 180), ...
+    max(min(tps), 0):QS.timeInterval:min(max(tps),75)} ;
 timeSpans{end+1} = lhrTSpans{1} ;
 timeSpans{end+1} = lhrTSpans{2} ;
 timeSpans{end+1} = lhrTSpans{3} ;
@@ -508,7 +515,10 @@ if plot_spaceMaps && (~files_exist || overwrite)
     for tspanIdx = 2:length(timeSpans)
         fnout = outputFileNames{tspanIdx} ;
         timeSpan_i = timeSpans{tspanIdx} ;
-        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        
+        minTP = max(min(timeSpan_i(1)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        maxTP = max(min(timeSpan_i(end)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        tidx_i = QS.xp.tIdx(minTP):QS.xp.tIdx(maxTP) ;
         close all
         
         % Get middle mesh for this time range if not ALLTime
@@ -516,7 +526,9 @@ if plot_spaceMaps && (~files_exist || overwrite)
             QS.setTime(QS.t0set()) ;
             mesh = QS.getCurrentSPCutMeshSmRS ;
         else
-            QS.setTime(round(mean(tidx_i))) ;
+            % Match MEAN timepoint in range
+            tidx2plot = min(ceil(mean(tidx_i)), length(QS.xp.fileMeta.timePoints)) ;
+            QS.setTime(QS.xp.fileMeta.timePoints(tidx2plot)) ;
             mesh = QS.getCurrentSPCutMeshSmRS ;
         end
         m2d = mesh ;
@@ -630,7 +642,10 @@ if plot_raw_correlations && (~files_exist || overwrite)
     for tspanIdx = 1:length(timeSpans)
         fnout = outputFileNames{tspanIdx} ;
         timeSpan_i = timeSpans{tspanIdx} ;
-        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        minTP = max(min(timeSpan_i(1)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        maxTP = max(min(timeSpan_i(end)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        tidx_i = QS.xp.tIdx(minTP):QS.xp.tIdx(maxTP) ;
+        
         % ntspan = length(timeSpan_i) ;
         titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
         close all
@@ -760,6 +775,7 @@ if plot_raw_correlations && (~files_exist || overwrite)
         c.TickLabels = logspace(1, round(log10(nnmax)), round(log10(nnmax))) ;
         
         % Save figure
+        disp(['saving histcount correlations: ' fnout])
         saveas(gcf, fnout) ;
         close all
         clearvars sphCollection
@@ -791,7 +807,11 @@ if plot_raw_scatter_correlations && (~files_exist || overwrite)
     for tspanIdx = 1:length(timeSpans)
         fnout = outputFileNames{tspanIdx} ;
         timeSpan_i = timeSpans{tspanIdx} ;
-        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        
+        minTP = max(min(timeSpan_i(1)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        maxTP = max(min(timeSpan_i(end)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        tidx_i = QS.xp.tIdx(minTP):QS.xp.tIdx(maxTP) ;
+        
         ntspan = length(timeSpan_i) ;
         titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
         markers = QS.plotting.markers ;
@@ -921,10 +941,12 @@ if plot_raw_scatter_correlations && (~files_exist || overwrite)
         c.TickLabels = [min(timeSpan_i), max(timeSpan_i)] ;
 
         % Save figure
+        disp(['saving correlation plot' fnout])
         saveas(gcf, fnout) ;
         close all
         clearvars sphCollection
         set(gcf, 'visible', 'off')
+        
     end
     disp('done with correlation plots betweeen divv and H2vn')
 end
@@ -960,7 +982,11 @@ if plot_correlations && (~files_exist || overwrite)
     for tspanIdx = 1:length(collateTSpans)
         fnout = outputFileNames{tspanIdx} ;
         timeSpan_i = collateTSpans{tspanIdx} ;
-        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        
+        minTP = max(min(timeSpan_i(1)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        maxTP = max(min(timeSpan_i(end)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        tidx_i = QS.xp.tIdx(minTP):QS.xp.tIdx(maxTP) ;
+        
         markers = QS.plotting.markers ;
         colors = mapValueToColor(1:5, [1, 5], cmap) ;
         close all
@@ -1039,6 +1065,9 @@ if plot_correlations && (~files_exist || overwrite)
         disp('done')
         close all
         set(gcf, 'visible', 'off')
+        
+        % Save plot data as mat
+        save([fnout '_data.mat'], 'allX', 'allY', 'timeSpan_i', 'tidx_i', 'rho')
     end
     disp('done with collapsed correlation plots betweeen divv and H2vn')
 end
@@ -1071,7 +1100,11 @@ if plot_correlations && (~files_exist || overwrite)
     for tspanIdx = 1:length(collateTSpans)
         fnout = outputFileNames{tspanIdx} ;
         timeSpan_i = collateTSpans{tspanIdx} ;
-        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        
+        minTP = max(min(timeSpan_i(1)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        maxTP = max(min(timeSpan_i(end)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        tidx_i = QS.xp.tIdx(minTP):QS.xp.tIdx(maxTP) ;
+        
         markers = QS.plotting.markers ;
         colors = mapValueToColor(1:5, [1, 5], cmap) ;
         close all
@@ -1150,6 +1183,9 @@ if plot_correlations && (~files_exist || overwrite)
         disp('done')
         close all
         set(gcf, 'visible', 'off')
+        
+        % Save plot data as mat
+        save([fnout '_data.mat'], 'allX', 'allY', 'timeSpan_i', 'tidx_i', 'rho')
     end
     disp('done with collapsed correlation plots betweeen divv and H2vn')
 end
@@ -1185,7 +1221,11 @@ if plot_correlations && (~files_exist || overwrite)
         fnout = outputFileNames{tspanIdx} ;
         timeSpan_i = timeSpans{tspanIdx} ;
         ntspan = length(timeSpan_i) ;
-        tidx_i = QS.xp.tIdx(timeSpan_i(1)+tfold):QS.xp.tIdx(timeSpan_i(end)+tfold) ;
+        
+        minTP = max(min(timeSpan_i(1)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        maxTP = max(min(timeSpan_i(end)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        tidx_i = QS.xp.tIdx(minTP):QS.xp.tIdx(maxTP) ;
+        
         titles = {'left lateral', 'right lateral', 'dorsal', 'ventral'} ;
         markers = QS.plotting.markers ;
         colors = mapValueToColor(1:ntspan, [1, ntspan], cmap) ;
@@ -1575,7 +1615,7 @@ if plot_gdot_decomp
                 xlabel('ap position [$\zeta/L$]', 'Interpreter', 'Latex')
                 cb = colorbar() ;
                 ylabel(cb, labels{pp}, 'Interpreter', 'Latex')  
-                disp(['saving ', fn])
+                disp(['saving kinetic terms as plots: ', fn])
                 export_fig(fn, '-png', '-nocrop', '-r200')   
             end
         end

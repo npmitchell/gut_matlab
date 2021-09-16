@@ -906,7 +906,7 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     metadat.reorient_faces = false ;            % if some normals are inverted
     metadat.normal_shift = QS.normalShift ;             % normal push, in pixels, along normals defined in data XYZ space
     metadat.texture_axis_order = QS.data.axisOrder ;    % texture space sampling
-    metadat.smoothing_lambda = 0.002 ;   
+    metadat.smoothing_lambda = 0.006 ;   
     metadat.texture_shift = 0 ;
     
     % Psize is the linear dimension of the grid drawn on each triangular face
@@ -924,8 +924,8 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     % Options.layerSpacing = 2 ;
     
     % MUSCLE
-    metadat.normal_shift = 40 ;             % normal push, in pixels, along normals defined in data XYZ space
-    Options.numLayers = [8, 0];  % at layerSpacing 2, 2 marches ~0.5 um 
+    metadat.normal_shift = 35 ;  % normal push, in pixels, along normals defined in data XYZ space
+    Options.numLayers = [13, 0];  % at layerSpacing 2, 2 marches ~0.5 um 
     Options.layerSpacing = 2 ;
     
     
@@ -936,6 +936,16 @@ else
     load(metafn, 'metadat', 'Options')
 end
 
+
+% MUSCLE ADJUST METADAT OPTIONS
+metadat.normal_shift = 35 ;  % normal push, in pixels, along normals defined in data XYZ space
+Options.numLayers = [13, 0];  % at layerSpacing 2, 2 marches ~0.5 um 
+Options.layerSpacing = 2 ;
+metadat.smoothing_lambda = 0.006 ;   
+
+% Save it
+save(metafn, 'metadat', 'Options')
+    
 % Use first timepoint's intensity limits throughout
 QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.99)
 
@@ -946,7 +956,7 @@ options.plot_dorsal = true ;
 options.plot_ventral = true ;
 options.plot_right = true ;
 options.plot_left = true ;
-options.timePoints = 50:60 ;
+options.timePoints = QS.xp.fileMeta.timePoints ;
 options.figOutDir = fullfile(QS.dir.texturePatchIm, 'muscle_layer') ;
 
 options.plot_perspective = true ;
@@ -1762,7 +1772,7 @@ QS.measureBeltramiCoefficient(options) ;
 %% Generate all Beltramis from all Riccis & plot aspect ratio over time
 options = struct() ;
 options.overwrite = false ;
-QS.computeRicciMeshes(options)
+QS.computeRicciMeshes(options) %!!!
 
 %% Generate all Beltramis from all Riccis & Plot aspect ratio for isothermal PB over time
 % Note: this really shouldn't be necessary, as we show in detail now

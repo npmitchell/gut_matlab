@@ -173,7 +173,7 @@ end
 
 % Define reference mesh
 refMeshFn = fullfile(sprintf(QS.dir.pathlines.data, t0Pathline), ...
-        sprintf('referenceMeshMaterialFrame_%04d.mat', t0Pathline)) ;
+        'refMesh.mat') ;
 if exist(refMeshFn, 'file') || overwrite
     load(refMeshFn, 'refMesh')
 else
@@ -258,7 +258,7 @@ for tidx = tidx2do
         theta_pb = outputStruct.theta_pb ;
         faceIDs = outputStruct.faceIDs ;
         save(ffn, 'strain', 'tre', 'dev', 'theta', 'fundForms', 'bondDxDy', ...
-            'theta_pb', 'faceIDs', 'dbonds_def', 'dbonds_ref') ;
+            'theta_pb', 'faceIDs') ;
     else
         disp(['Strain + fundForms for t = ' num2str(tp) ' already on disk'])
     end
