@@ -6,7 +6,7 @@ function writeTiff5D(im, name_out, bitDepth)
 % im : (nX x nY x nC x nS x nT) 16-bit array 
 % name_out : str
 %   full path of output TIFF filename
-% bitDepth : int
+% bitDepth : int (default=16)
 %   bit depth of TIFF imageStack to write
 %
 % Returns
@@ -16,10 +16,6 @@ function writeTiff5D(im, name_out, bitDepth)
 % Saves to disk
 % -------------
 % name_out as image with bitDepth of 16 or supplied value
-%
-% To Do
-% -----
-% allow for 8bit or other bit depth by changing max in fiji_descr
 %
 %
 % NPMitchell 2020, adapted from https://www.mathworks.com/matlabcentral/answers/389765-how-can-i-save-an-image-with-four-channels-or-more-into-an-imagej-compatible-tiff-format#answer_438003
@@ -46,8 +42,8 @@ fiji_descr = ['ImageJ=1.52p' newline ...
         'mode=grayscale' newline...  
         'loop=false' newline...  
         'min=0.0' newline...      
-        ['max=' maxStr]];  % change this to 256 if you use an 8bit image
-
+        ['max=' maxStr]];  
+    
         t = Tiff(name_out,'w') ;
         tagstruct.ImageLength = size(im,1);
         tagstruct.ImageWidth = size(im,2);

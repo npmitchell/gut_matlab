@@ -1,4 +1,4 @@
-function [k] = flipThroughStackFindLayer(allstack, title_preamble, axis, bigstep, fig)
+function [k] = flipThroughStackFindLayer(allstack, title_preamble, axis, bigstep, fig, normalize)
 %FLIPTHROUGHSTACKFINDLAYER Find a layer flipping through stack
 %   Go through 3d data and change the last index of the stack to find a
 %   desired layer. When found, press Enter. Returns the layer index 
@@ -24,11 +24,14 @@ if nargin < 3
     axis = 3 ;
     bigstep = 10 ;
     fig = gcf ;
+    normalize = false ;
 elseif nargin < 4
     bigstep = 10 ;
     fig = gcf ;
+    normalize = false ;
 elseif nargin < 5
     fig = gcf ;
+    normalize = false ;
 end
 
 % Flip through the images to find the right stack layer
@@ -39,18 +42,23 @@ max_k = size(allstack, axis) ;
 k = 1 ;
 
 % get intensity limits
-if axis == 3
-    trace = (squeeze(allstack(:, :, k))) ;
-elseif axis == 2
-    trace = (squeeze(allstack(:, k, :))) ;
-elseif axis == 1
-    trace = (squeeze(allstack(k, :, :))) ;
+if normalize
+    if axis == 3
+        trace = (squeeze(allstack(:, :, k))) ;
+    elseif axis == 2
+        trace = (squeeze(allstack(:, k, :))) ;
+    elseif axis == 1
+        trace = (squeeze(allstack(k, :, :))) ;
+    end
+    [f,x] = ecdf(trace(:));
+    f1 = find(f>0, 1, 'first');
+    f2 = find(f<0.999, 1, 'last');
+    imin = double(x(f1)) ;
+    imax = double(x(f2)) ;
+else
+    imin = double(min(allstack(:))) ;
+    imax = double(max(allstack(:))) ;
 end
-[f,x] = ecdf(trace(:));
-f1 = find(f>0, 1, 'first');
-f2 = find(f<0.999, 1, 'last');
-imin = double(x(f1)) ;
-imax = double(x(f2)) ;
 
 pressed_enter = false ;
 while k <= max_k && ~pressed_enter
@@ -66,6 +74,10 @@ while k <= max_k && ~pressed_enter
     hold(ax, 'on');
     title(ax, [title_preamble ': # ',num2str(k),'']);
     hold(ax, 'off');
+    if exist('Xlim', 'var')
+        set(ax, 'xlim', Xlim) 
+        set(ax, 'ylim', Ylim) 
+    end
     was_a_key = waitforbuttonpress;
     if was_a_key && strcmp(get(fig, 'CurrentKey'), 'return')
         pressed_enter = true ;
@@ -82,6 +94,9 @@ while k <= max_k && ~pressed_enter
     elseif was_a_key && strcmp(get(fig, 'CurrentKey'), 'k')
         imax = max(0, imax * 1.1) ;
     end
+    
+    Xlim = xlim ;
+    Ylim = ylim ;
     
     % Regulate the bounds of k (no negative layers)
     if k < 1
