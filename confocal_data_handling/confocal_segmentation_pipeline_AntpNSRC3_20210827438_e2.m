@@ -1007,7 +1007,7 @@ for tidx = tidx2do
         ch1 = reshape(ch1, [size(ch1,1), size(ch1, 2), 1, size(ch1, 3), 1]) ;
         
         % Save image stack
-        outfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, ch) ;
+        outfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 1) ;
         writeTiff5D(ch1, outfn, 8) ;
         
         % Save mesh
