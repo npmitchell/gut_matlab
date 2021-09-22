@@ -20,13 +20,15 @@ function [pts, fieldfaces, tr0, baryc0] = ...
 % Returns
 % -------
 % pts : N x 3 float array
-%   the 3d point coordinates, living on 3D-representation of the mesh
+%   the 3d point coordinates, living on ND mapped space, new representation
+%   of the mesh supplied as uv in the parameterization space
 % fieldfaces : N x 1 int array
 %   indices into faces of the faces on which uv live. These are where 
 %   the supplied field uv is defined on the mesh, and where the output
 %   pts live on the 3d mesh.
 % tr0 : triangulation object
 %   triangulation of the input faces and 2d vertices (v2d)
+% baryc0 : 
 %
 % See also
 % --------

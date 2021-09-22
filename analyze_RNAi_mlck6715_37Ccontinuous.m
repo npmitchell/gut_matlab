@@ -329,3 +329,210 @@ for ii = 1:2
 
 
 end
+
+
+
+%% Quantized stats
+for ii = 1:2
+    
+    close all
+    inBin = find(results(:, stage) > minStage & ...
+        results(:, stage) < maxStage) ;
+    mutantIdx = intersect(inBin, find(results(:, genotype) == genoM)) ;
+    
+    if ii == 1
+        exten = sprintf('_restricted_min%0.1f_max%0.1f', minStage, maxStage) ;
+        controlIdx = intersect(inBin, find(results(:, genotype) == genoC)) ;
+    else
+        exten = sprintf('_allControls_min%0.1f_max%0.1f', minStage, maxStage) ;
+        controlIdx = intersect(inBin, find(results(:, genotype) < 1)) ;
+    end
+    exten = strrep(exten, '.', 'p') ;
+    
+    % Clean out those that are x or 7
+    keepM = find(results(mutantIdx, score) < scoreUpperLimit) ;
+    keepC = find(results(controlIdx, score) < scoreUpperLimit) ;
+    mutantIdx = mutantIdx(keepM) ;
+    controlIdx = controlIdx(keepC) ;
+
+    % N mutant and N control
+    nM = length(mutantIdx) ;
+    nC = length(controlIdx) ;
+    nT = nM + nC ;
+
+    mutant0folds = intersect(mutantIdx, find(results(:, score) == 5)) ;
+    mutant1folds = intersect(mutantIdx, find(results(:, score) == 4)) ;
+    mutant2folds = intersect(mutantIdx, find(results(:, score) == 3 | results(:, score) == 2)) ;
+    mutant3folds = intersect(mutantIdx, find(results(:, score) <= 1)) ;
+    control0folds = intersect(controlIdx, find(results(:, score) == 5)) ;
+    control1folds = intersect(controlIdx, find(results(:, score) == 4)) ;
+    control2folds = intersect(controlIdx, find(results(:, score) == 3 | results(:, score) == 2)) ;
+    control3folds = intersect(controlIdx, find(results(:, score) <= 1)) ;
+
+    nM0 = numel(mutant0folds) ;
+    nM1 = numel(mutant1folds) ;
+    nM2 = numel(mutant2folds) ;
+    nM3 = numel(mutant3folds) ;
+    nC0 = numel(control0folds) ;
+    nC1 = numel(control1folds) ;
+    nC2 = numel(control2folds) ;
+    nC3 = numel(control3folds) ;
+    hisMutant = [nM0, nM1, nM2, nM3] ;
+    hisControl = [nC0, nC1, nC2, nC3] ;
+    
+    nfolds = [0, 1, 2, 3] ;
+    colors = define_colors ;
+    colors = [
+        0.90    0.55    0.55 ;
+        0.62    0.76    0.84 ] ;
+    bb = barh(nfolds, [ hisMutant', hisControl'], 'histc') ;
+    bb(1).FaceColor = colors(1, :);
+    bb(2).FaceColor = colors(2, :);
+    xlabel('count', 'interpreter', 'latex')
+    ylabel('number of folds', 'interpreter', 'latex')
+    legend({'MLCK RNAi', 'control'})
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_barh' exten '.pdf'])) ;
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_barh' exten '.png'])) ;
+    
+    boxMutant = [0*ones(nM0, 1); ...
+                 1*ones(nM1, 1); ...
+                 2*ones(nM2, 1); ...
+                 3*ones(nM3, 1)] ;
+    boxControl = [0*ones(nC0, 1); ...
+                 1*ones(nC1, 1); ...
+                 2*ones(nC2, 1); ...
+                 3*ones(nC3, 1)] ;
+    g1 = repmat({'MLCK RNAi'},length(boxMutant),1);
+    g2 = repmat({'control'},length(boxControl),1);
+    gg = [g1; g2];
+    boxplot([boxMutant; boxControl], gg)
+    ylabel('number of folds')
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_boxp' exten '.pdf'])) ;
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_boxp' exten '.png'])) ;
+   
+    % attempt 1--a bit awkward, uses barh and subtightplot
+    %     clf
+    %     marg_h = 0.1 ;
+    %     marg_w = 0.1 ;
+    %     ax1 = subtightplot(1,2, 1,[0,0], marg_h, marg_w)
+    %     vMutant = hisMutant ./ sum(hisMutant) ;
+    %     bm = barh(nfolds,0.5*[vMutant;-vMutant;-vMutant]', 'stacked')
+    %     xlim([-0.5, 0.5])
+    %     bm(1).FaceColor = colors(1, :);
+    %     bm(2).FaceColor = colors(1, :);
+    %     bm(3).FaceColor = colors(1, :);
+    %     bm(1).EdgeColor = 'none';
+    %     bm(2).EdgeColor = 'none';
+    %     bm(3).EdgeColor = 'none';
+    %     ylabel('number of folds')
+    %     xlabel('frequency')
+    %     xticks([])
+    %     
+    %     ax2 = subtightplot(1,2, 2,[0,0], marg_h, marg_w)
+    %     vControl = hisControl ./ sum(hisControl) ;
+    %     bc = barh(nfolds,0.5*[vControl;-vControl;-vControl]', 'stacked') ;
+    %     xlim([-0.5, 0.5])
+    %     bc(1).FaceColor = colors(2, :);
+    %     bc(2).FaceColor = colors(2, :);
+    %     bc(3).FaceColor = colors(2, :);
+    %     bc(1).EdgeColor = 'none';
+    %     bc(2).EdgeColor = 'none';
+    %     bc(3).EdgeColor = 'none';
+    %     xticks([])
+    %     
+    %     linkaxes([ax1, ax2], 'y');
+    
+    
+    %%
+    close all
+    hf = figure('Position', [100 100 400 400], 'units', 'centimeters');
+    
+    nMutant = sum(hisMutant) ;
+    nControl = sum(hisControl) ;
+    vMutant = hisMutant ./ sum(hisMutant) ;
+    vControl = hisControl ./ sum(hisControl) ;
+    gg = [0,0,0,0, 1, 1, 1, 1];
+    % boxyViolinPlot(gg, [nfolds, nfolds], ...
+    %     [vMutant, vControl], 1, 'center') ;
+    boxyViolinPlot([0,0,0,0], nfolds, ...
+        vMutant, 1, 'center', colors(1, :), 'none') ;
+    boxyViolinPlot([1,1,1,1], nfolds, ...
+        vControl, 1, 'center', colors(2, :), 'none') ;
+    
+    % Significance
+    num = mean(boxMutant) -  mean(boxControl)  ;
+    denom = sqrt(nanvar(boxControl) / nControl + ...
+        nanvar(boxMutant) / nMutant) ;
+    zscoreNumFolds = num / denom ;
+    pvalueNumFolds = normcdf(zscoreNumFolds) ;
+    
+    success = [ mean(boxMutant) ,  mean(boxControl) ] ;
+    yerr0 = [std(boxMutant) / sqrt(nMutant), std(boxControl) / sqrt(nControl) ];
+    yneg = min(yerr0, success) ;
+    ypos = min(yerr0, 3-success) ;
+    
+    
+    % finish plot with labels
+    ylim([-0.5, 4])
+    set(gca, 'YTick', [0, 1, 2, 3])
+    set(gca, 'XTick', [0, 1]);
+    expVal = sprintf('%e', pvalueNumFolds) ;
+    keepDigits = expVal(end-1:end) ;
+    text(0.5, 3.8, ...
+        ['$p=$' sprintf(['%0.' num2str(keepDigits) 'f'],pvalueNumFolds)], 'interpreter', 'latex', 'horizontalalignment', 'center')
+
+    set(gca,'xticklabel',{'MLCK RNAi', 'control'});
+    ylabel('number of folds')
+    
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_violin' exten '.pdf'])) ;
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_violin' exten '.png'])) ;
+    
+    
+    %% 
+    hold on;
+    errorbar([0, 1], [mean(boxMutant), mean(boxControl)], ...
+        yneg, ypos, 'LineWidth', 2, 'LineStyle','none', 'color', [0.5, 0.5,0.5])
+   
+    xlim([-0.5 1.5]);
+    ylim([-0.5, 4])
+    set(gca, 'YTick', [0, 1, 2, 3])
+    set(gca, 'XTick', [0, 1]);
+    
+    set(gca,'xticklabel',{'MLCK RNAi', 'control'});
+    ylabel('number of folds')
+
+    if ~exist(outdir, 'dir')
+        mkdir(outdir)
+    end
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_violinErr' exten '.pdf'])) ;
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_violinErr' exten '.png'])) ;
+
+    %% Flip the histogram sideways
+    
+    close all
+    hf = figure('Position', [100 100 400 400], 'units', 'centimeters');
+    pos = get(gca, 'Position') ;
+    set(gca, 'Position', pos + [0, 0.15, 0, -0.1])
+    boxyViolinPlot([0,.2,.4,.6], 0, ...
+        0.2, vMutant, 'left', colors(1, :), 'none') ;
+    boxyViolinPlot(1 + [0,.2,.4,.6], 0, ...
+        0.2, vControl, 'left', colors(2, :), 'none') ;
+    
+    text(0.9, 0.7, ...
+        ['$p=$' sprintf(['%0.' num2str(keepDigits) 'f'],pvalueNumFolds)], 'interpreter', 'latex', 'horizontalalignment', 'center')
+
+    xticks([0.1, 0.3, 0.5, 0.7, 1.1, 1.3, 1.5, 1.7])
+    xticklabels([0,1,2,3, 0,1,2,3])
+    yticks([0, 0.5, 1])
+    xlabel('number of folds')
+    ylabel('frequency')
+    xlim([-0.2, 2])
+    ylim([0, 1])
+    text(0.4, 0.6, ['N=', num2str(nMutant)], 'HorizontalAlignment', 'center')
+    text(1.4, 0.6, ['N=', num2str(nControl)], 'HorizontalAlignment', 'center')
+    text(0.4, -0.2, 'MLCK RNAi', 'HorizontalAlignment', 'center')
+    text(1.4, -0.2, 'control', 'HorizontalAlignment', 'center')
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_clusterHist' exten '.pdf'])) ;
+    saveas(gcf, fullfile(outdir, ['rnai_continuous37C_clusterHist' exten '.png'])) ;
+
+end
