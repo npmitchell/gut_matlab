@@ -917,6 +917,7 @@ cellSize = 20;
 strelRadius = 0;
 gaussKernel = 0 ;
 heightMiminum = 1;
+useFilteredMesh = true ;
 
 mkdir('./cellSegmentation/')
 tidx2do = 1:27 ;
@@ -929,7 +930,7 @@ for tidx = tidx2do
     
     if ~exist(segfn, 'file') || overwrite
         %% Load image ilastik probabilities
-        imfn = sprintf('./texturePatches/rgb/layer0_T%03d_rgb_Probabilities.h5', tp) ;
+        imfn = sprintf('./texturePatches/layer0_T%03d_c1_Probabilities.h5', tp) ;
         prob = h5read(imfn, '/exported_data/') ;
         im2segment = squeeze(prob(1, :, :)) ;
         

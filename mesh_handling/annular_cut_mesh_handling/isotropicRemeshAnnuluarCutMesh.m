@@ -27,6 +27,9 @@ function [ glueMeshnew, bc, qF] = ...
 % options : struct with fields
 %   preview : bool 
 %       preview results as we go
+%   epsVtx : float
+%       very small value, for assertion that projected resample points are
+%       essentially already on the original mesh faces / surface. 
 %
 % Returns
 % -------
