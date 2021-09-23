@@ -204,19 +204,28 @@ if ~exist(ricciMeshFn, 'file') || overwrite
         
         if resample
             tarEdgePctile =  5 ;
-            try
-                numIterations = 10 ;
-                % by default choose edgelength target to be smaller than mean
-                eL = edge_lengths(glueMesh.v, glueMesh.f) ;
-                targetEdgeLength = prctile(eL(:), tarEdgePctile) ;
-                [ gMeshResample, bc0, qF0] = ...
-                    isotropicRemeshAnnuluarCutMesh(...
-                    glueMesh, targetEdgeLength, numIterations) ;
-                [~, U0, ~] = DiscreteRicciFlow.EuclideanRicciFlow(gMeshResample.f, gMeshResample.v, ...
-                    'BoundaryType', 'Fixed', 'BoundaryShape', 'Circles', ...
-                    'MaxCircIter', maxIter);
-            catch
-                error('Decrease tarEdgePctile?')
+            success_conv = false ;
+            while ~success_conv
+                try
+                    numIterations = 10 ;
+                    % by default choose edgelength target to be smaller than mean
+                    eL = edge_lengths(glueMesh.v, glueMesh.f) ;
+                    targetEdgeLength = prctile(eL(:), tarEdgePctile) ;
+                    [ gMeshResample, bc0, qF0] = ...
+                        isotropicRemeshAnnuluarCutMesh(...
+                        glueMesh, targetEdgeLength, numIterations) ;
+                    [~, U0, ~] = DiscreteRicciFlow.EuclideanRicciFlow(gMeshResample.f, gMeshResample.v, ...
+                        'BoundaryType', 'Fixed', 'BoundaryShape', 'Circles', ...
+                        'MaxCircIter', maxIter);
+                    success_conv = true ;
+                catch
+                    fprintf(...
+                        ['Could not make mesh: decreasing', ...
+                        ' tarEdgePctile = %0.f by 20 percent...\n'],...
+                        tarEdgePctile)
+                    tarEdgePctile = tarEdgePctile * 0.8 ;
+                    numIterations = numIterations + 1 ;
+                end
             end
             % [labels, dbonds, topStructTools] = labelRectilinearMeshBonds(cutMesh) ;
             % Let maxIter >= 50
@@ -226,15 +235,6 @@ if ~exist(ricciMeshFn, 'file') || overwrite
             % barycenters in 3D, not 2D 
             % pointLocation(triangulation(gMeshResample.f, ...
             %    gMeshResample.u, glueMesh.u) ;
-            % -------------------------------------------------------------
-            
-            % -------------------------------------------------------------
-            % Check visually
-            % trisurf(triangulation(gMeshResample.f, gMeshResample.v), ...
-            %     'edgecolor', 'none') ; 
-            % hold on ; 
-            % scatter3(glueMesh.v(:, 1), glueMesh.v(:, 2), ...
-            %     glueMesh.v(:, 3), 10, 'filled')
             % -------------------------------------------------------------
             
             samplingOptions = struct('epsVtx', 1) ;
@@ -256,6 +256,27 @@ if ~exist(ricciMeshFn, 'file') || overwrite
                 'bc', 'qF', ...
                 'numIterations', 'targetEdgeLength', ...
                 'gMeshResample', 'glueMesh') ;
+            
+            % -------------------------------------------------------------
+            % Check visually
+            % trisurf(triangulation(gMeshResample.f, gMeshResample.v), ...
+            %      'edgecolor', 'none') ; 
+            %  hold on ; 
+            %  scatter3(glueMesh.v(:, 1), glueMesh.v(:, 2), ...
+            %      glueMesh.v(:, 3), 10, 'filled')
+            close all
+             triplot(triangulation(gMeshResample.f, U0), 'color',...
+                 [0    0.4470    0.7410]) ; 
+             hold on ; 
+             triplot(triangulation(glueMesh.f, U),'color',...
+                 [0.8500    0.3250    0.0980]) ; 
+             axis equal
+             xlabel('u'); ylabel('v')
+             legend('resampled', 'original cutMesh')
+             saveas(gcf, [ricciFn(1:end-3) 'png'])
+            % -------------------------------------------------------------
+            
+            
         else
             [~, U, ~] = DiscreteRicciFlow.EuclideanRicciFlow(glueMesh.f, glueMesh.v, ...
                 'BoundaryType', 'Fixed', 'BoundaryShape', 'Circles', ...
@@ -413,7 +434,11 @@ if ~exist(ricciMeshFn, 'file') || overwrite
     radii = vecnorm(UU(outer, :), 2, 2) ;
     disp(['Correcting radial coordinate by a maximum of ' ...
         num2str(max(abs(radii - 1))*100) '%'])
-    assert(max(abs(radii - 1)) < radiusTolerance)
+    try
+        assert(max(abs(radii - 1)) < radiusTolerance)
+    catch
+        disp('WARNING: RADIUS IS NOT SUFFICIENTLY CIRCULAR')
+    end
     UU(outer, 1) = cos(phaseOuter) ;
     UU(outer, 2) = sin(phaseOuter) ;
 
@@ -605,7 +630,13 @@ if ~exist(ricciMeshFn, 'file') || overwrite
     if tidx ~= tidx0 
         % load next timepoint phi values
         prevTP = QS.xp.fileMeta.timePoints(tidx0) ;
-        prevMesh = load(sprintf(QS.fullFileBase.ricciMesh, maxIter, prevTP)) ;
+        try
+            prevMesh = load(sprintf(QS.fullFileBase.ricciMesh, maxIter, prevTP)) ;
+        catch
+            msg = 'Could not load tidx0 mesh -- run t0 timepoint first!' ;
+            msg = [msg '--> ' sprintf(QS.fullFileBase.ricciMesh, maxIter, prevTP)] ;
+            error(msg)
+        end
         phi2match = prevMesh.ricciMesh.rectangle.u(1:nU*(nV-1), 2) ;
         overall_offset = mean(phi_recut(:) - phi2match(:)) ; 
         phi_recut = phi_recut - overall_offset ;

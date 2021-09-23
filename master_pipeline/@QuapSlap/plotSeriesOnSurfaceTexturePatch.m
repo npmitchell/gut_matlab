@@ -276,20 +276,22 @@ zmin = xyzlim(3, 1); zmax = xyzlim(3, 2) ;
 xwidth = 16 ; % cm
 ywidth = 10 ; % cm
 
-tidx_todoA = 1:20:length(timePoints) ;
-tidx_todoB = setdiff(1:10:length(timePoints), tidx_todoA) ;
+tidx0 = QS.xp.tIdx(QS.t0set()) ;
+
+tidx_todoA = tidx0:30:length(timePoints) ;
+tidx_todoB = setdiff(tidx0:15:length(timePoints), tidx_todoA) ;
 tidx_todo = [tidx_todoA, tidx_todoB] ;
 tidx_todoC = setdiff(1:length(timePoints), tidx_todo) ;
 tidx_todo = [tidx_todo, tidx_todoC] ;
 
 for tidx = tidx_todo
     tp = timePoints(tidx) ;
-    ondisk = true ;
+    ondisk = false(size(plot_view)) ;
     for ii = 1:length(fns)
-        ondisk = ondisk && exist(sprintf(fns{ii}, tp), 'file') ;
+        ondisk(ii) = exist(sprintf(fns{ii}, tp), 'file') ;
     end
     
-    if (overwrite || ~ondisk) && any(plot_view)
+    if (overwrite && any(plot_view)) || any(~ondisk & plot_view)
         tic 
         close all
         % Copy passed Options argument for unpacking
@@ -408,7 +410,11 @@ for tidx = tidx_todo
         zlim([zmin, zmax])
         colormap bone
         titlestr = ['$t = $' num2str(tp*timeinterval-t0) ' ' timeunits] ;
-        title(titlestr, 'Interpreter', 'Latex', 'Color', 'white') 
+        if blackFigure
+            title(titlestr, 'Interpreter', 'Latex', 'Color', 'white') 
+        else
+            title(titlestr, 'Interpreter', 'Latex', 'Color', 'k') 
+        end
         xlabel('AP position [$\mu$m]', 'Interpreter', 'Latex')
         ylabel('lateral position [$\mu$m]', 'Interpreter', 'Latex')
         zlabel('DV position [$\mu$m]', 'Interpreter', 'Latex')
@@ -428,6 +434,8 @@ for tidx = tidx_todo
             set(gcf, 'InvertHardCopy', 'off');
             set(gcf, 'Color', 'k')
             set(gcf, 'color', 'k')
+        else
+            set(gcf, 'Color', 'w')
         end
         
         % Check that mesh is oriented correctly

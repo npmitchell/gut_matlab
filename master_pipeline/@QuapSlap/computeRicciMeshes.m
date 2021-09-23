@@ -5,12 +5,14 @@ function computeRicciMeshes(QS, options)
 % Parameters
 % ----------
 % options : optional struct with fields
+%   resample : bool (default=true) ;
 %   
 %
 % NPMitchell 2021
 
 % Default options
 maxIter = 200 ;
+resample = true ;
 
 if nargin < 2
     options = struct();
@@ -18,19 +20,47 @@ end
 if isfield(options, 'maxIter')
     maxIter = options.maxIter ;
 end
+if isfield(options, 'resample')
+    resample = options.resample ;
+end
 
 % Compute each Ricci flow mesh
 opts = struct() ;
 opts.maxIter = maxIter ;
-opts.resample = true ;
+opts.resample = resample ;
 
-for tp = QS.xp.fileMeta.timePoints
+t0 = QS.t0set() ;
+timePoints = QS.xp.fileMeta.timePoints ;
+startID = 87 ;
+tidx2do1 = startID:50:length(timePoints) ;
+tidx2do1 = [tidx2do1, setdiff(startID:30:length(timePoints), tidx2do1)] ;
+tidx2do2 = setdiff(startID:20:length(timePoints), tidx2do1) ;
+tidx2do3 = setdiff(setdiff(startID:10:length(timePoints), ...
+    tidx2do1), tidx2do2) ;
+tidx2do123 = [tidx2do1, tidx2do2, tidx2do3] ;
+tidx2do1234 = [tidx2do123, ...
+    setdiff(startID:2:length(timePoints), tidx2do123)] ;
+tidx2do = [tidx2do1234, ...
+    setdiff(1:length(timePoints), tidx2do1234)] ;
+tidx0 = QS.xp.tIdx(t0) ;
+tidx2do = [tidx0, setdiff(tidx2do, [tidx0], 'stable')] ;
+% check that there are no repeats
+assert(length(tidx2do) == length(unique(tidx2do)))
+assert(all(tidx2do == unique(tidx2do, 'stable')))
+
+for tiix = 1:length(tidx2do)
+    tidx = tidx2do(tiix) ;
+    tp = timePoints(tidx) ;
     disp(['t = ', num2str(tp)])
     QS.setTime(tp)
-    try
+    if resample
         QS.generateRicciMeshTimePoint(tp, opts) 
-    catch
-        disp('could not generate Ricci mesh -- self intersections?')
+    else
+        try
+            QS.generateRicciMeshTimePoint(tp, opts) 
+        catch
+            disp('could not generate Ricci mesh -- self intersections?')
+        end
     end
 end
 
