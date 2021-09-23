@@ -36,7 +36,7 @@ addpath_recurse(gutDir)
 clear; close all; clc;
 
 % Configuration metadata for this dataset
-tp0 = 4 ;  % which timepoint (index) is the onset of folding? --> including 1112 as tidx=1
+tp0 = 5 ;  % which timepoint (index) is the onset of folding? --> including 1112 as tidx=1
 embryoView = 'LV' ; % 'RD'/RV/LD/LV --> 
                      % which way is out of page (decreasing z) (R/L) 
                      % and up (increasing Y in Fiji) (D/V)
@@ -1096,7 +1096,7 @@ overwrite = true ;
 % strelRadius = 1;
 % gaussKernel = 10 ;
 % heightMiminum = 1 ;
-adaphisteqClip = 0.3 ;
+adaphisteqClip = 0.2 ;
 strelRadius = 2 ;
 
 mkdir('./cellSegmentation/')
@@ -1138,14 +1138,28 @@ for tidx = tidx2do
         keep = reshape(resurf(:, 3) < (maxZ - 1), [size(DL, 2), size(DL, 1)]) ;
         
         mask1 = skel' .* keep ;
-        imshow(mask1) ; pause(0.001)
+        imshow(flipud(mask1)) ; pause(0.001)
         
         % Save the result
-        imwrite(mask1, segfn)
+        imwrite(flipud(mask1), segfn)
         
         disp(['Done with seg ' num2str(tp)])
     end
 end
+
+%% Flip UD layer0 texturepatches and masks
+
+for tidx = tidx2do
+    tp = timepoints(tidx) ;
+    disp(['tp = ', num2str(tp)])
+    imfn = sprintf('./texturePatches/layer0_T%03d_c1.png', tp) ;
+    im = imread(imfn) ;
+    imout = flipud(im) ;
+    imshow(imout)
+    outfn = sprintf('./texturePatches/layer0_T%03d_c1_flipY.png', tp) ;
+    imwrite(imout, outfn)
+end
+
 
 %% Load in GIMP and export binary masks
 
@@ -1174,7 +1188,7 @@ if ~exist(imDir_bnd3d, 'dir')
     mkdir(imDir_bnd3d)
 end
 
-tidx2do = [1,5,7,9,11,13,15] ;
+tidx2do = [2,6,10,12,14] ;
 for tidx = tidx2do
     tp = timepoints(tidx) ;
     outfn = fullfile(segDir, sprintf('T%03d_polygons3d.mat', tp)) ; 
@@ -1186,6 +1200,10 @@ for tidx = tidx2do
             % segfn = fullfile(segDir, sprintf('T%03dmask.png', tp)) ;
             % segfn = fullfile(segDir, sprintf('automask1_T%03d.png', tp)) ;
             seg = imread(segfn) ;
+            
+            % FLIP THE SEGMENTATION IN Y
+            seg = flipud(seg) ;
+            
             load(fullfile(textureDir, sprintf('mesh_T%03d.mat', tp)), ...
                 'mesh', 'm2d', 'Opts') ;
             imfn = fullfile(textureDir, sprintf('layer0_T%03d_c%01d.png', tp, 1)) ;
@@ -1472,7 +1490,7 @@ end
 %% Identify lobe2-3 divide via surfaces
 % for now just draw it
 tidx2do = 1:length(timepoints) ;
-fold2 = 422 * ones(length(timepoints), 1) ;
+fold2 = 393 * ones(length(timepoints), 1) ;
 time_offset = 0 * timepoints ;
 t0 = timepoints(tp0) * timeInterval - time_offset(tp0) ;
 
