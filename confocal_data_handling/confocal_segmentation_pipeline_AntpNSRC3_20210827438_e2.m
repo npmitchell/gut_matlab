@@ -740,12 +740,12 @@ if filterMeshesInTime
 end
 
 %% Onion stacks
-nPos = 15 ;
-nNeg = 10 ;
+nPos = 20 ;
+nNeg = 7 ;
 useFilteredMesh = false ;
 
-layerWidth = 1 ;
-midLayerOffset = 7 ;
+layerWidth = 3 ;
+midLayerOffset = 11 ;
 lam = 0.001 ;  % 0.01 for antpG4kOCRL, 0.001 for 48YG4k; 
 
 preview = true ;
@@ -754,7 +754,7 @@ overwrite = false ;
 % tidx2do = 4:5:length(timepoints) ;
 % tidx2do = [tidx2do, setdiff(1:length(timepoints), tidx2do)] ;
 
-tidx2do = [2,3,4,9]; % length(timepoints) ;
+tidx2do = 1:length(timepoints) ;
 overwriteImages = true ;
 
 % Load all filtered meshes
@@ -764,9 +764,10 @@ if useFilteredMesh
 end
 for tidx = tidx2do
     tp = timepoints(tidx) ;
-    imfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 2) ;
+    imfn = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 1) ;
     if ~exist(imfn, 'file') || overwrite
 
+        disp(['Creating pullback for tp = ', num2str(tp)])
         xp.setFileMeta(fileMeta);
         xp.setExpMeta(expMeta);
         xp.initNew();
@@ -874,7 +875,7 @@ for tidx = tidx2do
             % yr = [yr; 0; 0; sz2; sz2] ;
             % zr = [zr; Z0; Z0; Z0; Z0] ;
 
-            % Inspect cross-section
+            % Inspect cross-section -- this isn't right
             if preview 
                 % Make this number larger to sample more of the nearby mesh
                 width = 4 ;
@@ -971,8 +972,8 @@ for tidx = tidx2do
 
         if preview
             figure(1)
-            for ii = 1:size(patchIm, 4)
-                imshow(mat2gray(squeeze(patchIm(:, :, 2, ii)), [0, 0.25])')
+            for ii = 1:size(patchIm, 3)
+                imshow(mat2gray(squeeze(patchIm(:, :, ii)), [0, 0.25])')
                 title(['ii= ' num2str(ii)])
                 pause(0.01)
             end
@@ -1021,12 +1022,26 @@ for tidx = tidx2do
     if ~exist(outfn1, 'file') || overwriteImages
         imfn1 = sprintf('./texturePatches/slice_T%03d_c%01d.tif', tp, 1) ;
         ims1 = loadtiff(imfn1) ;
+        
+        
+        
+        % flipThroughStackFindLayer(ims1, nNeg+midLayerOffset)
         minLayer = max(nNeg-layerWidth+midLayerOffset, 1) ;
         maxLayer = min(nNeg+layerWidth+midLayerOffset, size(ims1, 3)) ;
+        
         im01 = squeeze(max(ims1(:, :, minLayer:maxLayer), [], 3)) ;
+        
+        % Check it
+        % im02 = uint8(255 * mat2gray(im01, double([min(im01(:)), 180]))) ;
+        % imagesc(im02)
+        % pause
+        
+        
         % im01 = adapthisteq(im01,'clipLimit',0.2,'Distribution','rayleigh');
-        im01 = uint8(255 * mat2gray(im01, double([min(im01(:)), max(im01(:))]))) ;
+        im01 = uint8(255 * mat2gray(im01, double([min(im01(:)), ...
+            prctile(double(im01(:)), 99.9)]))) ;
         imshow(im01)
+        
         
         imwrite(cat(3, im01, im01, im01), outfn1)
         
