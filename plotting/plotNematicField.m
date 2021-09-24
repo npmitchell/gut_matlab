@@ -14,7 +14,7 @@ function [meshHandle, cbs] = plotNematicField(mag, theta, options)
 %   xlim : length 2 numeric, overwrites xyzlim(1, :)
 %   ylim : length 2 numeric, overwrites xyzlim(2, :)
 %   zlim : length 2 numeric, overwrites xyzlim(3, :)
-%   cbarlabel : string
+%   cbarlabel : string 
 %   makeCbar : bool 
 %   axisOff : bool
 %   axisOn : bool, ignored if axisOff specified
@@ -36,12 +36,23 @@ interpreter = 'latex';
 addQuiver = false ;
 qsub = max(1, round(length(mag) / 200)) ;
 qScale = 1 ;
+cbarlabel = [] ;
 if nargin > 2
     if isfield(options, 'clim_mag')
         clim_mag = options.clim_mag ;
     end
     if isfield(options, 'mesh')
         mesh = options.mesh ;
+        if isempty(mesh) || ~isfield(mesh, 'f')
+            reverseYAxis = true ;
+        else
+            reverseYAxis = false ;
+        end
+    else
+        reverseYAxis = true ;
+    end
+    if isfield(options, 'reverseYAxis')
+        reverseYAxis = options.reverseYAxis ;
     end
     if isfield(options, 'edgecolor')
         edgecolor = options.edgecolor ;
@@ -80,6 +91,12 @@ if nargin > 2
     if isfield(options, 'qScale')
         qScale =  options.qScale ;
     end
+    if isfield(options, 'cbarlabel')
+        cbarlabel = options.cbarlabel ;
+    end
+else
+    options = struct() ;
+    reverseYaxis = true ;
 end
 
 if isempty(mesh)
@@ -215,7 +232,7 @@ if makeCbar
 
     % label the colorbar
     if isfield(options, 'cbarlabel')
-        ylabel(cbs{2}, options.cbarlabel, 'interpreter', interpreter)
+        ylabel(cbs{2}, cbarlabel, 'interpreter', interpreter)
     end
     caxis([0, clim_mag])
 end
@@ -273,5 +290,10 @@ end
 % View from top if 2d
 if is2d
     view(2)
+end
+
+% If no mesh supplied, treat the array like an image (like imagesc)
+if reverseYAxis
+    set(gca,'YDir','reverse')
 end
 

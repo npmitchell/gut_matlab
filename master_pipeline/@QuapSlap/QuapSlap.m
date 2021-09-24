@@ -2549,7 +2549,76 @@ classdef QuapSlap < handle
             end
             QS.pathlines.strains = strains ;
         end
+        % Note: plotPathlineStrain also plots pathline beltrami coeffs
         plotPathlineStrain(QS, options)
+        function plotPathlineBeltramiKymograph(QS, t0Pathlines, options)
+            
+            if nargin < 2 
+                t0Pathlines = QS.t0set() ;
+            else
+                if isempty(t0Pathlines)
+                    t0Pathlines = QS.t0set() ;
+                end
+            end 
+            
+            convert2hrs = false ;
+            timeunits = QS.timeUnits ;
+            timepoints = QS.xp.fileMeta.timePoints - QS.t0 ;
+            if nargin < 3
+                options = struct() ;
+                if contains(lower(QS.timeUnits), 'min')
+                    convert2hrs = length(QS.xp.fileMeta.timePoints) > 60 / QS.timeInterval ;
+                    timeunits = 'hr' ;
+                    timepoints = timepoints/ 60 ;
+                end
+            else
+                if isfield(options, 'convert2hrs')
+                    convert2hrs = options.convert2hrs ;
+                elseif contains(lower(QS.timeUnits), 'min')
+                    convert2hrs = length(QS.xp.fileMeta.timePoints) > 60 / QS.timeInterval ;
+                    timeunits = 'hr' ;
+                    timepoints = timepoints/ 60 ;
+                end
+            end
+            
+            muAPfn = sprintf(...
+                QS.fileName.pathlines.kymographs.mu, t0Pathlines) ;
+            tmp = load(muAPfn) ;
+            
+            re = real(tmp.mu_apM) ;
+            im = imag(tmp.mu_apM) ;
+            magAP = sqrt(re.^2 + im .^2) ;
+            phase = atan2(im, re) ;
+            % Create pullback pathline grid as mesh
+            mesh = struct() ;
+            [uu, vv] = meshgrid(linspace(0,1,QS.nU), timepoints) ;
+            mesh.v = [uu(:), vv(:), 0*uu(:)] ;
+            options = struct('cbarlabel', '$\mu$', ...
+                'mesh', mesh, 'xlabel', 'ap position, $\zeta/L$', ...
+                'ylabel', ['time [' timeunits ']'], 'ylim', [0, max(timepoints)]) ;
+            
+            close all
+            hf = figure('Position', [100 100 320 320], 'units', 'centimeters');
+            plotNematicField(magAP, phase, options)
+            axis square 
+            set(gcf, 'color','w')
+            set(gcf, 'renderer', 'painters')
+            
+            saveas(gcf, fullfile(sprintf(...
+                QS.dir.pathlines.kymographs, t0Pathlines), ...
+                sprintf(...
+                'mu_apM_kumograph_pullbackPathlines_%06dt0.pdf', ...
+                t0Pathlines)))
+            saveas(gcf, fullfile(sprintf(...
+                QS.dir.pathlines.kymographs, t0Pathlines), ...
+                sprintf(...
+                'mu_apM_kumograph_pullbackPathlines_%06dt0.png', ...
+                t0Pathlines)))
+        end
+        
+        % DEPRICATED
+        % compareBeltramiToLinearizedConstriction.m
+        
         
         % DEPRICATED -- could integrate rates
         measurePathlineIntegratedStrain(QS, options)
@@ -2561,6 +2630,9 @@ classdef QuapSlap < handle
         plotRelativeMotionTracks2D(QS, Options)
         plotRelativeMotionTracks3D(QS, Options)
         measureRelativeMotionTracksLagrangianFrame(QS, Options)
+        
+        %% Visualize tracked segmentation
+        visualizeDemoTracks(QS, Options)
         
         %% timepoint-specific coordinate transformations
         sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)
