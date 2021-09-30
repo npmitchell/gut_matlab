@@ -119,12 +119,22 @@ if pathline_computation
     end
     
     % Ensure directories exist as well
-    dirs2make = {sprintf(QS.dir.pathlines.ricci.data, t0Pathlines), ...
-        sprintf(QS.dir.pathlines.ricci.mesh, t0Pathlines), ...
-        sprintf(QS.dir.pathlines.ricci.quasiconformal, t0Pathlines), ...
-        sprintf(QS.dir.pathlines.ricci.solution, t0Pathlines), ...
-        sprintf(QS.dir.pathlines.ricci.mu, t0Pathlines)} ;
-    
+    if resample
+        dirs2make = {...
+            sprintf(QS.dir.pathlines.ricci.dataWithResampling, t0Pathlines), ...
+            sprintf(QS.dir.pathlines.ricci.meshWithResampling, t0Pathlines), ...
+            sprintf(QS.dir.pathlines.ricci.quasiconformalWithResampling, t0Pathlines), ...
+            sprintf(QS.dir.pathlines.ricci.solutionWithResampling, t0Pathlines), ...
+            sprintf(QS.dir.pathlines.ricci.muWithResampling, t0Pathlines)} ;
+    else
+        dirs2make = {...
+            sprintf(QS.dir.pathlines.ricci.data, t0Pathlines), ...
+            sprintf(QS.dir.pathlines.ricci.mesh, t0Pathlines), ...
+            sprintf(QS.dir.pathlines.ricci.quasiconformal, t0Pathlines), ...
+            sprintf(QS.dir.pathlines.ricci.solution, t0Pathlines), ...
+            sprintf(QS.dir.pathlines.ricci.mu, t0Pathlines)} ;
+   
+    end
     for qq = 1:length(dirs2make)
         if ~exist(dirs2make{qq}, 'dir')
             mkdir(dirs2make{qq})
@@ -154,7 +164,11 @@ if pathline_computation
     end
     nU = cutMesh.nU ;
     nV = cutMesh.nV ;
-    pathlineRicciDir = sprintf(QS.dir.pathlines.ricci.data, t0Pathlines) ;
+    if resample
+        pathlineRicciDir = sprintf(QS.dir.pathlines.ricci.dataWithResampling, t0Pathlines) ;
+    else
+        pathlineRicciDir = sprintf(QS.dir.pathlines.ricci.data, t0Pathlines) ;
+    end
     imDir = fullfile(pathlineRicciDir, 'images', sprintf('%04diter', maxIter)) ;
 else
     if strcmpi(coordSys, strrep('spsm', '_', ''))
@@ -176,7 +190,12 @@ else
     glueMesh = glueCylinderCutMeshSeam(cutMesh) ;
     nU = cutMesh.nU ;
     nV = cutMesh.nV ;
-    imDir = fullfile(QS.dir.ricci.mesh, 'images', sprintf('%04diter', maxIter)) ;
+    if resample
+        imDir = fullfile(QS.dir.ricci.meshWithResampling, ...
+            'images', sprintf('%04diter', maxIter)) ;
+    else
+        imDir = fullfile(QS.dir.ricci.mesh, 'images', sprintf('%04diter', maxIter)) ;
+    end
 end
 if ~exist(imDir, 'dir') && save_ims
     mkdir(imDir)
@@ -184,21 +203,50 @@ end
 
 %% Generate conformal parameterization in the unit disk
 if pathline_computation
-    ricciMeshFn = sprintf(QS.fullFileBase.pathlines.ricciMesh, t0Pathlines, maxIter, tp) ;
+    if resample
+        ricciMeshFn = sprintf(QS.fullFileBase.pathlines.ricciMeshWithResampling, t0Pathlines, maxIter, tp) ;
+    else
+        ricciMeshFn = sprintf(QS.fullFileBase.pathlines.ricciMesh, t0Pathlines, maxIter, tp) ;
+    end
 else
-    ricciMeshFn = sprintf(QS.fullFileBase.ricciMesh, maxIter, tp) ;
+    if resample 
+        ricciMeshFn = sprintf(QS.fullFileBase.ricciMeshWithResampling, maxIter, tp) ;
+    else
+        ricciMeshFn = sprintf(QS.fullFileBase.ricciMesh, maxIter, tp) ;
+    end
 end
 if ~exist(ricciMeshFn, 'file') || overwrite
     disp(['ricciMesh not on disk, computing: ' ricciMeshFn])
     
     % Load or compute ricci flow solution (initial mapping)
     if pathline_computation
-        ricciFn = sprintf(QS.fullFileBase.pathlines.ricciSolution, t0Pathlines, maxIter, tp) ;
+        if resample
+            ricciFn = sprintf(...
+                QS.fullFileBase.pathlines.ricciSolutionWithResampling, ...
+                t0Pathlines, maxIter, tp) ;
+        else
+            ricciFn = sprintf(QS.fullFileBase.pathlines.ricciSolution, ...
+                t0Pathlines, maxIter, tp) ;
+        end
     else
-        ricciFn = sprintf(QS.fullFileBase.ricciSolution, maxIter, tp) ;
+        if resample
+            ricciFn = sprintf(QS.fullFileBase.ricciSolutionWithResampling, maxIter, tp) ;
+        else
+            ricciFn = sprintf(QS.fullFileBase.ricciSolution, maxIter, tp) ;
+        end
     end
     try
         load(ricciFn, 'U')
+        
+        % Check that the result obeys topological constraint
+        if resample
+            load(ricciFn, 'gMeshResample')
+            load(ricciFn, 'glueMesh')
+            % Note: eulerCharacteristic of an annulus is 0.
+            % Check topological indices of resampled mesh
+            assert(eulerCharacteristic(gMeshResample) == ...
+                eulerCharacteristic(glueMesh))
+        end
     catch
         disp('Ricci solution not on disk, computing...')
         
@@ -214,6 +262,12 @@ if ~exist(ricciMeshFn, 'file') || overwrite
                     [ gMeshResample, bc0, qF0] = ...
                         isotropicRemeshAnnuluarCutMesh(...
                         glueMesh, targetEdgeLength, numIterations) ;
+                    
+                    % Note: eulerCharacteristic of an annulus is 0.
+                    % Check topological indices of resampled mesh
+                    assert(eulerCharacteristic(gMeshResample) == ...
+                        eulerCharacteristic(glueMesh))
+                
                     [~, U0, ~] = DiscreteRicciFlow.EuclideanRicciFlow(gMeshResample.f, gMeshResample.v, ...
                         'BoundaryType', 'Fixed', 'BoundaryShape', 'Circles', ...
                         'MaxCircIter', maxIter);
@@ -437,7 +491,7 @@ if ~exist(ricciMeshFn, 'file') || overwrite
     try
         assert(max(abs(radii - 1)) < radiusTolerance)
     catch
-        disp('WARNING: RADIUS IS NOT SUFFICIENTLY CIRCULAR')
+        error('WARNING: RADIUS IS NOT SUFFICIENTLY CIRCULAR')
     end
     UU(outer, 1) = cos(phaseOuter) ;
     UU(outer, 2) = sin(phaseOuter) ;

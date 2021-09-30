@@ -25,6 +25,7 @@ function varargout = parseMeshData(varargin)
 % e-mail: david.legland@inra.fr
 % Created: 2010-12-06,    using Matlab 7.9.0.529 (R2009b)
 % Copyright 2010 INRA - Cepia Software Platform.
+% Edited NPM 2021
 
 % initialize edges to empty variable
 edges = [];
@@ -34,8 +35,13 @@ switch nargin
     case 1
         % input is a data structure
         mesh = varargin{1};
-        vertices = mesh.vertices;
-        faces = mesh.faces;
+        if isfield(mesh, 'vertices') && isfield(mesh, 'faces')
+            vertices = mesh.vertices;
+            faces = mesh.faces;
+        elseif isfield(mesh, 'v') && isfield(mesh, 'f')
+            vertices = mesh.v;
+            faces = mesh.f;
+        end
         if isfield(mesh, 'edges')
             edges = mesh.edges;
         end

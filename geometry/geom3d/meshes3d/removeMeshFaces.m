@@ -8,6 +8,9 @@ function varargout = removeMeshFaces(v, f, fI)
 %
 %   [V2, F2] = removeMeshFaces(MESH, FI) with the struct MESH containing 
 %   the fields "vertices" (V) and "faces" (F)
+%
+%   [V2, F2, FacesKept] = removeMeshFaces(MESH, FI) with the struct MESH containing 
+%   the fields "vertices" (V) and "faces" (F)
 %   
 %   MESH2 = removeMeshFaces(V, F, FI) with the struct MESH2 containing the
 %   fields "vertices" (V2) and "faces" (F2)
@@ -34,7 +37,7 @@ function varargout = removeMeshFaces(v, f, fI)
 
 % parse inputs
 narginchk(2,3)
-nargoutchk(1,2)
+nargoutchk(1,3)
 
 if nargin == 2
     fI = f;
@@ -67,9 +70,14 @@ if nargout == 1
     mesh2.vertices=v2;
     mesh2.faces=f2;
     varargout{1}=mesh2;
-else
+elseif nargout == 2
     varargout{1}=v2;
     varargout{2}=f2;
+elseif nargout == 3
+    varargout{1}=v2;
+    varargout{2}=f2;
+    varargout{3} = find(~fI) ;
+    
 end
 
 end

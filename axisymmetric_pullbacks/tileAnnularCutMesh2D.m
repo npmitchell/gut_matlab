@@ -1,4 +1,4 @@
-function [ TF, TV2D, TQ ] = tileAnnularCutMesh2D( cutMesh, tileCount )
+function [ TF, TV2D, TQ ] = tileAnnularCutMesh2D( cutMesh, tileCount, options )
 %TILEANNULARCUTMESH This function vertically tiles the orbifold pullback of
 %an annular cutMesh and returns the parameters of a single triangulation
 %   INPUT PARAMETERS:
@@ -13,6 +13,13 @@ function [ TF, TV2D, TQ ] = tileAnnularCutMesh2D( cutMesh, tileCount )
 %       - tileCount:        The vertical tiling parameters.
 %                           tileCount(1) tiles above the basic tile.
 %                           tileCount(2) tiles below the basic tile.
+%  
+%       - options:          struct with fields 
+%                           enforceUniformShift: (bool) check that all path
+%                               pairs are equidistant in pullback space (u)
+%                           preview: (bool) inspect progress as we go
+%                           forceShift: (numeric) override shift from mesh
+%                           path pairs and use this value instead
 %
 %   OUTPUT PARAMETERS:
 %       - TF:               #Fx3 face connectivity list of the combined
@@ -60,11 +67,32 @@ if nargin < 2
     tileCount = [1 1];
 end
 
+% Input options (optional)
+enforceUniformShift = false ;
+forceShift = NaN ;
+preview = false ;
+if nargin > 2
+    if isfield(options, 'enforceUniformShift')
+        enforceUniformShift = options.enforceUniformShift ;
+    end
+    if isfield(options, 'preview')
+        preview = options.preview ;
+    end
+    if isfield(options, 'shift')
+        forceShift = options.shift ;
+    elseif isfield(options, 'forceShift')
+        forceShift = options.forceShift ;
+    end
+end
+
+% Output handling prep
 if nargout > 2
     compute_face_quality = isfield(cutMesh, 'quality') ;
 else
     compute_face_quality = false ;
 end
+
+
 
 % Verify input cut mesh
 if ~isfield( cutMesh, 'u' )
@@ -87,8 +115,18 @@ if compute_face_quality
     TQ = cutMesh.quality ;
 end
 
-% Find the vertical shift between tiles (should just be 1)
-shift = cutMesh.u( pathPairs(1,1), 2 ) - cutMesh.u( pathPairs(1,2), 2 );
+% Find the vertical shift between tiles (should just be 1 or 2*pi)
+if isnan(forceShift)
+    shift = mean(cutMesh.u( pathPairs(1,1), 2 ) - cutMesh.u( pathPairs(1,2), 2 ) );
+else
+    shift = forceShift ;
+end
+
+if enforceUniformShift
+    shifts = cutMesh.u( pathPairs(:,1), 2 ) - cutMesh.u( pathPairs(:,2), 2 );
+    assert(all(abs(shifts - shift) < 1e-7))
+end
+disp(['Tiling 2D mesh with spacing dY = ' num2str(shift)])
 
 % Due to the structure of the cutMesh generation process it is easiest to
 % add all new tiles to the top of the basic tile and then shift to reflect

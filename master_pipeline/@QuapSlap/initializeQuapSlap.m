@@ -303,7 +303,9 @@ QS.fullFileBase.cylinderMeshClean = ...
 % cutMesh = fullfile(meshDir, 'cutMesh') ;
 % cutMeshBase = fullfile(cutMesh, [QS.fileBase.name, '_cutMesh.mat']) ;
 imFolderBase = fullfile(uvDir, ['PullbackImages' shiftstr] ) ;
-ricciMeshDir = fullfile(uvDir, ['ricci_cutMesh' shiftstr]) ;
+ricciMeshDir = fullfile(uvDir, ['ricci_cutMesh' shiftstr], 'noResampling') ;
+ricciMeshDirWithResampling = fullfile(uvDir, ['ricci_cutMesh' shiftstr], ...
+    'withResampling') ;
 sphiDir = fullfile(uvDir, ['sphi_cutMesh' shiftstr]) ;
 if dynamic
     sphiSmDir = fullfile(sphiDir, 'smoothed') ;
@@ -375,6 +377,12 @@ QS.dir.ricci.data = ricciMeshDir ;
 QS.dir.ricci.mesh = fullfile(ricciMeshDir, 'meshes') ;
 QS.dir.ricci.solution = fullfile(ricciMeshDir, 'ricciSolutions') ;
 QS.dir.ricci.mu = fullfile(ricciMeshDir, 'beltramiCoefficients') ;
+
+QS.dir.ricci.dataWithResampling = ricciMeshDirWithResampling ;
+QS.dir.ricci.meshWithResampling = fullfile(ricciMeshDirWithResampling, 'meshes') ;
+QS.dir.ricci.solutionWithResampling = fullfile(ricciMeshDirWithResampling, 'ricciSolutions') ;
+QS.dir.ricci.muWithResampling = fullfile(ricciMeshDirWithResampling, 'beltramiCoefficients') ;
+
 QS.dir.rawRicci = struct() ;
 rawRicciMeshDir = QS.dir.rawRicciMesh ;
 QS.dir.rawRicci.data = QS.dir.rawRicciMesh ;

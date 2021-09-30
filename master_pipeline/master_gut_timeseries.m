@@ -105,7 +105,7 @@
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
-% cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
+cd /mnt/data/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
 cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data
@@ -507,7 +507,8 @@ else
         'ilastikaxisorder', ilastikaxisorder, ... 
         'physicalaxisorder', imsaneaxisorder, ... 
         'include_boundary_faces', include_boundary_faces, ...
-        'smooth_with_matlab', smooth_with_matlab) ;
+        'smooth_with_matlab', smooth_with_matlab, ...
+        'pythonVersion', 2) ;
 
     % save options
     if exist(msls_detOpts_fn, 'file')
@@ -1083,11 +1084,13 @@ QS.setDataLimits(QS.xp.fileMeta.timePoints(101), 1.0, 99.9)
 %% Plot on surface for all TP 
 options = metadat ;
 options.overwrite = false ;
-options.plot_dorsal = true ;
-options.plot_ventral = true ;
-options.plot_right = true ;
-options.plot_left = true ;
+options.plot_dorsal = false ;
+options.plot_ventral = false ;
+options.plot_right = false ;
+options.plot_left = false ;
 options.plot_perspective = true ;
+options.blackFigure = false ;
+options.timePoints = 0:169 ;
 QS.plotSeriesOnSurfaceTexturePatch(options, Options)
 clearvars Options
 
@@ -1538,7 +1541,7 @@ QS.measurePolarity(options) ;
 options = struct() ;
 options.overwrite = false ;
 options.overwriteImages = false;
-options.timePoints = [93:15:263] ;
+options.timePoints = [96:10:206] ;
 QS.generateCellSegmentation2D(options) 
 
 % PERFORM Manual corrections in GIMP
@@ -1546,27 +1549,57 @@ QS.generateCellSegmentation2D(options)
 options = struct() ;
 options.overwrite = false ;
 options.overwriteImages = true;
-options.timePoints = [93:15:263] ;
+options.timePoints = [96:10:206] ;
 QS.processCorrectedCellSegmentation2D(options) 
 
 options = struct() ;
-options.timePoints = [93:15:212] ;
+options.timePoints = [96:10:206] ;
 options.overwrite = false ;
 options.overwriteImages = false ;
 options.correctedSegmentation = true ;
 QS.generateCellSegmentation3D(options) 
+
 options = struct() ;
 options.correctedSegmentation = true ;
-options.timePoints = [93:15:212] ;
+options.timePoints = [96:10:206] ;
 options.overwrite = false  ;
 QS.plotSegmentationStatisticsLobes(options)
 
 %%
+disp('loading vertex pathlines for segmentation...')
+cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
+    sprintf('cellVertexPathlines_%06dt0.mat', QS.t0set())) ;
+load(cellVertexPathlineFn, 'segVertexPathlines2D', ...
+    'segVertexPathlines3D', 'cellIDs')
 options = struct() ;
-options.timePoints = [93:15:263] ;
+% options.timePoints = [93:15:263] ;
+options.timePoints = [96:10:206] ;
 options.overwrite = false ;
+options.overwriteImages = false ;
+options.segmentationPathlines = struct() ;
+options.segmentationPathlines.segVertexPathlines2D = segVertexPathlines2D ;
+options.segmentationPathlines.segVertexPathlines3D = segVertexPathlines3D ;
+options.segmentationPathlines.cellIDs = cellIDs ;
 QS.generateCellSegmentationPathlines3D(options)
 % QS.estimateIntercalationRate(options)
+
+%% Visualize demoTracks
+tracks2demo = dir(fullfile(QS.dir.tracking, 'demoTracks', 'demoTracks*0.mat')) ;
+options = struct() ;
+options.tracks2demo = tracks2demo ;
+options.scaleByMetric = false ;
+QS.visualizeDemoTracks(options)
+
+
+%% Visualize Segmentation in a true-scale patch
+options = struct() ;
+options.demoPatchName = 'demoPatch004' ;
+options.timePoints = [96, 126, 156, 186, 206] ;
+options.scaleByMetricComponents = true ;
+options.overwrite = false ;
+QS.visualizeSegmentationPatch(options)
+
+
 
 %% Measure Cell density
 % Skip if already done
@@ -1869,7 +1902,9 @@ QS.measureBeltramiCoefficient(options) ;
 %% Generate all Beltramis from all Riccis & plot aspect ratio over time
 options = struct() ;
 options.overwrite = false ;
+options.resample = false ;
 QS.computeRicciMeshes(options)
+% return to here
 
 %% Generate all Beltramis from all Riccis & Plot aspect ratio for isothermal PB over time
 % Note: this really shouldn't be necessary, as we show in detail now

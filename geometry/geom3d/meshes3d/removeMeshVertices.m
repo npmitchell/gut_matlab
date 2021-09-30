@@ -4,6 +4,10 @@ function varargout = removeMeshVertices(vertices, faces, indsToRemove)
 %   [V2, F2] = removeMeshVertices(VERTS, FACES, VERTINDS)
 %   Removes the vertices specified by the vertex indices VERTINDS, and
 %   remove the faces containing one of the removed vertices.
+% 
+%   [V2, F2, facesKept] = removeMeshVertices(VERTS, FACES, VERTINDS)
+%   Removes the vertices specified by the vertex indices VERTINDS, and
+%   remove the faces containing one of the removed vertices.
 %
 %   Example
 %     % remove some vertices from a soccerball polyhedron
@@ -22,6 +26,7 @@ function varargout = removeMeshVertices(vertices, faces, indsToRemove)
 % e-mail: david.legland@nantes.inra.fr
 % Created: 2016-02-03,    using Matlab 8.6.0.267246 (R2015b)
 % Copyright 2016 INRA - Cepia Software Platform.
+% Edited NPM 2021
 
 % parse inputs
 if nargin == 2
@@ -48,6 +53,7 @@ if isnumeric(faces)
     faces2 = oldNewMap(faces);
     if size(faces2,2)==1; faces2=faces2'; end
     % keep only faces with valid vertices
+    facesKept = find(sum(faces2 == 0, 2) == 0) ;
     faces2 = faces2(sum(faces2 == 0, 2) == 0, :);
 elseif iscell(faces)
     faces2 = cell(1, length(faces));
@@ -60,8 +66,14 @@ elseif iscell(faces)
     end
     
     % remove empty faces
+    facesKept = ~cellfun(@isempty, faces2) ;
     faces2 = faces2(~cellfun(@isempty, faces2));
 end
 
 % format output arguments
-varargout = formatMeshOutput(nargout, vertices2, faces2);
+if nargout < 3
+    varargout = formatMeshOutput(nargout, vertices2, faces2);
+else
+    varargout = {vertices2, faces2, facesKept} ;
+end
+

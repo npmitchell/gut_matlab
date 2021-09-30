@@ -12,8 +12,8 @@ function [pts, fieldfaces, tr0, baryc0] = ...
 %   The mesh connectivity list, indexing into the vertex array(s)
 % v2d : P x 2 float array
 %   The mesh vertex locations in 2d
-% vmap : P x 2 or 3 float array
-%   The mesh vertex locations in 2d or 3d
+% vmap : P x N float array
+%   The mesh vertex locations in N dimensions
 % uv : N x 2 float array
 %   The points to map to 3D using barycentric coordinates
 %
@@ -38,9 +38,6 @@ function [pts, fieldfaces, tr0, baryc0] = ...
 % 
 % NPMitchell 2019
 
-if nargin < 4
-    ignore_NaNs = false ;
-end
 
 tr0 = triangulation(faces, v2d) ;
 [fieldfaces, baryc0] = pointLocation(tr0, uv) ; 
@@ -77,15 +74,30 @@ vya = vmap(:, 2) ;
 if size(vmap, 2) == 3
     vza = vmap(:, 3) ;
 end
+if size(vmap, 2) > 3
+    error('handle Ndimensions > 3 here')
+end
 
 if size(vmap, 2) == 2
-    pts = [sum(baryc0 .* vxa(tria), 2), ...
-        sum(baryc0 .* vya(tria), 2)] ;
+    % Handle case of single input point separately
+    if size(uv, 1) == 1
+        pts = [sum(baryc0 .* vxa(tria)', 2), ...
+            sum(baryc0 .* vya(tria)', 2)] ;
+    else
+        pts = [sum(baryc0 .* vxa(tria), 2), ...
+            sum(baryc0 .* vya(tria), 2)] ;
+    end
 elseif size(vmap, 2) == 3
-    pts = [sum(baryc0 .* vxa(tria), 2), ...
-        sum(baryc0 .* vya(tria), 2), ...
-        sum(baryc0 .* vza(tria), 2) ] ;
-else
+    if size(uv, 1) == 1
+        pts = [sum(baryc0 .* vxa(tria)', 2), ...
+            sum(baryc0 .* vya(tria)', 2), ...
+            sum(baryc0 .* vza(tria)', 2) ] ;
+    else
+        pts = [sum(baryc0 .* vxa(tria), 2), ...
+            sum(baryc0 .* vya(tria), 2), ...
+            sum(baryc0 .* vza(tria), 2) ] ;
+    end
+else        
     error('handle this dimension of vmap here')
 end
 

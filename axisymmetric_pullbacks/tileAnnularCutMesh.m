@@ -21,6 +21,8 @@ function [ TF, TV2D, TV3D, TVN3D, TQ ] = tileAnnularCutMesh( cutMesh, tileCount,
 %                           enforceUniformShift: (bool) check that all path
 %                               pairs are equidistant in pullback space (u)
 %                           preview: (bool) inspect progress as we go
+%                           forceShift: (numeric) override shift from mesh
+%                           path pairs and use this value instead
 %
 %   OUTPUT PARAMETERS:
 %       - TF:               #Fx3 face connectivity list of the combined
@@ -162,6 +164,7 @@ if nargin < 2
 end
 
 enforceUniformShift = false ;
+forceShift = NaN ;
 preview = false ;
 if nargin > 2
     if isfield(options, 'enforceUniformShift')
@@ -169,6 +172,11 @@ if nargin > 2
     end
     if isfield(options, 'preview')
         preview = options.preview ;
+    end
+    if isfield(options, 'shift')
+        forceShift = options.shift ;
+    elseif isfield(options, 'forceShift')
+        forceShift = options.forceShift ;
     end
 end
 
@@ -210,12 +218,17 @@ if compute_face_quality
 end
 
 % Find the vertical shift between tiles (should just be 1 or 2*pi)
-shift = cutMesh.u( pathPairs(1,1), 2 ) - cutMesh.u( pathPairs(1,2), 2 );
+if isnan(forceShift)
+    shift = mean(cutMesh.u( pathPairs(1,1), 2 ) - cutMesh.u( pathPairs(1,2), 2 ) );
+else
+    shift = forceShift ;
+end
 
 if enforceUniformShift
     shifts = cutMesh.u( pathPairs(:,1), 2 ) - cutMesh.u( pathPairs(:,2), 2 );
     assert(all(abs(shifts - shift) < 1e-7))
 end
+
 disp(['Tiling mesh with spacing dY = ' num2str(shift)])
 
 % Make sure bottom seam is pathPairs(:, 2)

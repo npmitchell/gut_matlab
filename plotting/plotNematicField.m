@@ -120,7 +120,8 @@ end
 caxis([0, clim_mag])
 
 % Intensity from mag and color from the theta
-pm256 = phasemap(256) ;
+pm256 = phasemap(256)  ;
+pm256 = pm256 / max(pm256(:)) ;
 indx = max(1, round(mod(2*theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
 colors = pm256(indx, :) ;
 colors = min(mag(:) / clim_mag, 1) .* colors ;
@@ -215,7 +216,8 @@ if makeCbar
     colormap(gca, phasemap)
     cbs = cell(2, 1) ;
     cbs{1} = phasebar('colormap', phasemap, ...
-        'location', [0.76, 0.05, 0.12, 0.135], 'style', 'nematic') ;
+        'location', [0.76, 0.05, 0.12, 0.135], ...
+        'style', 'nematic') ;
     shrink = 0.6 ;
     
     if axisOff

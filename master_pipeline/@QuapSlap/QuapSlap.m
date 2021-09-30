@@ -343,6 +343,7 @@ classdef QuapSlap < handle
         
         function clearTime(QS)
             % clear current timepoint's data for QS instance
+            QS.currentTime = [] ;
             QS.currentMesh.rawMesh = [] ;
             QS.currentMesh.rawMeshRS = [] ;
             QS.currentMesh.cylinderMesh = [] ;
@@ -1963,13 +1964,14 @@ classdef QuapSlap < handle
         
         %% Pathlines
         function [p2d, p3d] = samplePullbackPathlines(QS, XY0, options)
-            %
+            %[p2d, p3d] = samplePullbackPathlines(QS, XY0, options)
             % start at XY0, folow flow using barycentric coordinates of PIV
             % pullback pathlines.
             
             % default options
             t0 = QS.t0set() ;
             preview = false ;
+            forceShift = NaN ;
             
             % unpack options
             if nargin < 3
@@ -1977,6 +1979,8 @@ classdef QuapSlap < handle
             end
             if isfield(options, 't0')
                 t0 = options.t0 ;
+            elseif isfield(options, 't0Pathlines')
+                t0 = options.t0Pathlines ;
             end
             if isfield(options, 'preview')
                 preview = options.preview ;
@@ -1985,14 +1989,15 @@ classdef QuapSlap < handle
             tidx0 = QS.xp.tIdx(t0) ;
             timePoints = QS.xp.fileMeta.timePoints ;
             
-            % get image size if we push to 3d
-            if nargout > 1
-                if strcmp(QS.piv.imCoords, 'sp_sme')
-                    im = imread(sprintf(QS.fullFileBase.im_sp_sme, t0)) ;
-                end
+            % get image size if we push to 3d or forceShift
+            if strcmp(QS.piv.imCoords, 'sp_sme')
+                im = imread(sprintf(QS.fullFileBase.im_sp_sme, t0)) ;
+                forceShift = -size(im, 1) * 0.5 ;
+            else
+                error('Handle coordSys here')
             end
             
-            pathlines = getPullbackPathlines(QS, t0, 'vertexPathlines', ...
+            pathlines = QS.getPullbackPathlines(t0, 'vertexPathlines', ...
                 'vertexPathlines3D') ;
             XX = squeeze(pathlines.vertices.vX(tidx0, :, :)) ;
             YY = squeeze(pathlines.vertices.vY(tidx0, :, :)) ;
@@ -2003,7 +2008,10 @@ classdef QuapSlap < handle
             XY = [XX(:), YY(:)] ;
             cmesh = struct('f', faces, 'u', XY, ...
                 'pathPairs', pathlines.refMesh.pathPairs) ;
-            [faces, XY] = tileAnnularCutMesh2D(cmesh, [1, 1]) ;
+            tileOpts = struct() ;
+            tileOpts.forceShift = forceShift ;
+            [tiledFaces, tiledXY] = tileAnnularCutMesh2D(cmesh, ...
+                [1, 1], tileOpts) ;
             
             % Note: the following is an exerpt from barycentricMap2d(faces, v2d, vmap, uv)
             % tr0 = triangulation(pivfaces, XY) ;
@@ -2034,9 +2042,9 @@ classdef QuapSlap < handle
                     cmesh = struct('f', faces, 'u', XY1, ...
                         'v', [v3d1x(:), v3d1y(:), v3d1z(:)], ...
                         'pathPairs', pathlines.refMesh.pathPairs) ;
-                    [~, XY1, XYZ1] = tileAnnularCutMesh(cmesh, [1, 1]) ;
-                    p2d(tidx, :, :) = barycentricMap2d(faces, XY, XY1, XY0) ;
-                    p3d(tidx, :, :) = barycentricMap2d(faces, XY, XYZ1, XY0) ;
+                    [~, XY1, XYZ1] = tileAnnularCutMesh(cmesh, [1, 1], tileOpts) ;
+                    p2d(tidx, :, :) = barycentricMap2d(tiledFaces, tiledXY, XY1, XY0) ;
+                    p3d(tidx, :, :) = barycentricMap2d(tiledFaces, tiledXY, XYZ1, XY0) ;
                     assert(~any(isnan(p2d(:))))
                                         
                     if preview && mod(tidx, 10) == 0
@@ -2056,7 +2064,8 @@ classdef QuapSlap < handle
                     cmesh = struct('f', faces, 'u', XY1, ...
                         'pathPairs', pathlines.refMesh.pathPairs) ;
                     [~, XY1] = tileAnnularCutMesh2D(cmesh, [1, 1]) ;
-                    p2d(tidx, :, :) = barycentricMap2d(faces, XY, XY1, XY0) ;
+                    p2d(tidx, :, :) = barycentricMap2d(...
+                        tiledFaces, tiledXY, XY1, XY0) ;
                     assert(~any(isnan(p2d(:))))
                 end
                 
@@ -2140,32 +2149,32 @@ classdef QuapSlap < handle
                     % requested here in varargin? First check if varargin 
                     % is empty or not  
                     if nargin > 2            
-                        if any(contains(varargin, 'pivPathlines')) || ...
-                                any(contains(varargin, 'piv'))
+                        if any(contains(lower(varargin), 'pivpathlines')) || ...
+                                any(contains(lower(varargin), 'piv'))
                             if isempty(QS.pathlines.piv)
                                 disp('Loading pivPathlines') 
                                 QS.loadPullbackPathlines(t0, 'pivPathlines')
                             end          
                         end
-                        if any(contains(varargin, 'vertexPathlines')) || ...
-                                any(contains(varargin, 'vertex')) || ...
-                                any(contains(varargin, 'vertices'))
+                        if any(contains(lower(varargin), 'vertexpathlines')) || ...
+                                any(contains(lower(varargin), 'vertex')) || ...
+                                any(contains(lower(varargin), 'vertices'))
                             if isempty(QS.pathlines.vertices)
                                 disp('Loading vertexPathlines') 
                                 QS.loadPullbackPathlines(t0, 'vertexPathlines')
                             end            
                         end            
-                        if any(contains(varargin, 'facePathlines')) || ...
-                                any(contains(varargin, 'face')) || ...
-                                any(contains(varargin, 'faces'))
+                        if any(contains(lower(varargin), 'facepathlines')) || ...
+                                any(contains(lower(varargin), 'face')) || ...
+                                any(contains(lower(varargin), 'faces'))
                             disp('Loading facePathlines') 
                             if isempty(QS.pathlines.faces)
                                 QS.loadPullbackPathlines(t0, 'facePathlines')
                             end
                         end
-                        if any(contains(varargin, 'vertexPathlines3d')) || ...
-                                any(contains(varargin, 'vertex3d')) || ...
-                                any(contains(varargin, 'vertices3d'))
+                        if any(contains(lower(varargin), 'vertexpathlines3d')) || ...
+                                any(contains(lower(varargin), 'vertex3d')) || ...
+                                any(contains(lower(varargin), 'vertices3d'))
                             disp('Loading vertexPathlines3d') 
                             if isempty(QS.pathlines.vertices3d)
                                 QS.loadPullbackPathlines(t0, 'vertexPathlines3d')
@@ -2552,7 +2561,10 @@ classdef QuapSlap < handle
         % Note: plotPathlineStrain also plots pathline beltrami coeffs
         plotPathlineStrain(QS, options)
         function plotPathlineBeltramiKymograph(QS, t0Pathlines, options)
-            
+            % Example usage for 2021 gut paper:
+            % options = struct('ylim', [0, 2] )
+            % QS.plotPathlineBeltramiKymograph([], options)
+            % 
             if nargin < 2 
                 t0Pathlines = QS.t0set() ;
             else
@@ -2593,27 +2605,47 @@ classdef QuapSlap < handle
             mesh = struct() ;
             [uu, vv] = meshgrid(linspace(0,1,QS.nU), timepoints) ;
             mesh.v = [uu(:), vv(:), 0*uu(:)] ;
-            options = struct('cbarlabel', '$\mu$', ...
+            pOptions = struct('cbarlabel', '$\mu$', ...
                 'mesh', mesh, 'xlabel', 'ap position, $\zeta/L$', ...
-                'ylabel', ['time [' timeunits ']'], 'ylim', [0, max(timepoints)]) ;
+                'ylabel', ['time [' timeunits ']']) ;
+            if isfield(options, 'ylim') 
+                pOptions.ylim = options.ylim ; 
+            end
             
             close all
             hf = figure('Position', [100 100 320 320], 'units', 'centimeters');
-            plotNematicField(magAP, phase, options)
+            [meshHandle, cbs] = plotNematicField(magAP, phase, pOptions)
             axis square 
             set(gcf, 'color','w')
-            set(gcf, 'renderer', 'painters')
+            % set(gcf, 'renderer', 'painters')
             
-            saveas(gcf, fullfile(sprintf(...
-                QS.dir.pathlines.kymographs, t0Pathlines), ...
-                sprintf(...
-                'mu_apM_kumograph_pullbackPathlines_%06dt0.pdf', ...
-                t0Pathlines)))
             saveas(gcf, fullfile(sprintf(...
                 QS.dir.pathlines.kymographs, t0Pathlines), ...
                 sprintf(...
                 'mu_apM_kumograph_pullbackPathlines_%06dt0.png', ...
                 t0Pathlines)))
+            
+            % Save axis content as png image with accompanying pdf of
+            % figure frame
+            FF = getframe(gca) ;
+            imwrite(FF.cdata, fullfile(sprintf(...
+                QS.dir.pathlines.kymographs, t0Pathlines), ...
+                sprintf(...
+                'mu_apM_kumograph_pullbackPathlines_%06dt0_image.png', ...
+                t0Pathlines)))
+            
+            cla ; grid off
+            axes(cbs{1})
+            % Save figure frame as PDF without image content (for fusion in
+            % vector graphics software)
+            saveas(gcf, fullfile(sprintf(...
+                QS.dir.pathlines.kymographs, t0Pathlines), ...
+                sprintf(...
+                'mu_apM_kumograph_pullbackPathlines_%06dt0_frame.pdf', ...
+                t0Pathlines)))
+            
+            % Make colorwheel
+            
         end
         
         % DEPRICATED
@@ -2633,12 +2665,15 @@ classdef QuapSlap < handle
         
         %% Visualize tracked segmentation
         visualizeDemoTracks(QS, Options)
+        visualizeSegmentationPatch(QS, Options)
         
         %% timepoint-specific coordinate transformations
         sf = interpolateOntoPullbackXY(QS, XY, scalar_field, options)
         
         %% Reconstruction of experiment via NES simulation 
         simulateNES(QS, options)
+        
+        
     end
     
     methods (Static)

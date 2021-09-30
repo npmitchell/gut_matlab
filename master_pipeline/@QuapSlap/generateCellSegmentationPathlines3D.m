@@ -1,16 +1,23 @@
 function generateCellSegmentationPathlines3D(QS, options)
 % generateCellSegmentation3D(QS, options)
 % 
+%  Load segmentation results from a timepoint t0Pathlines, advect the cell
+%  polygons along pathlines from PIV, measure the segmentation properties
+%  of the advected "tissue" pattern frozen in the Lagrangian frame as the
+%  material deforms.
 %
 % NPMitchell 2021
 
 
 % Unpack options
 timePoints = QS.xp.fileMeta.timePoints ;
-maxCellSize = 200 ;  % maximum size allowed to include a cell
+maxCellSize = Inf ;  % maximum size allowed to include a cell
 overwrite = false ;
-overwriteImages = false ;
+overwriteImages = true ;
+useCorrected = true ;
 debug = false ;
+preview = false ;
+
 [~, ~, ~, xyzlims] = QS.getXYZLims() ;
 t0 = QS.t0set() ;
 
@@ -20,6 +27,9 @@ end
 if isfield(options, 'overwriteImages')
     overwriteImages = options.overwriteImages ;
 end
+if isfield(options, 'preview')
+    preview = options.preview ;
+end
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
 end
@@ -28,6 +38,20 @@ if isfield(options, 'debug')
 end
 if isfield(options, 'xyzlims')
     xyzlims = options.xyzlims ;
+end
+if isfield(options, 'useCorrectedSegmentation')
+    useCorrected = options.useCorrectedSegmentation ;
+elseif isfield(options, 'useCorrected')
+    useCorrected = options.useCorrected ;
+end
+if isfield(options, 'segmentationPathlines')
+    tmp = options.segmentationPathlines ;
+    segVertexPathlines2D = tmp.segVertexPathlines2D ;
+    segVertexPathlines3D = tmp.segVertexPathlines3D ;
+    cellIDs = tmp.cellIDs ;
+    segPathlinesPassedAsOption = true ;
+else
+    segPathlinesPassedAsOption = false ;
 end
 
 % Directory preparation
@@ -49,41 +73,73 @@ end
 cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
     sprintf('cellVertexPathlines_%06dt0.mat', t0)) ;
 if ~exist(cellVertexPathlineFn, 'file') || overwrite 
+    disp('Creating vertex pathlines from scratch...')
     QS.setTime(t0) ;
-    seg2d = getCurrentSegmentation2D(QS) ;
-    cellV0 = seg2d.seg2d.vdat.v ;
+    if useCorrected
+        seg2d = getCurrentSegmentation2DCorrected(QS) ;
+        cellV0 = [] ;
+        cellIDs = [] ;
+        for cellID = 1:length(seg2d.seg2d.cdat.polygons)
+            cVtx = seg2d.seg2d.cdat.polygons{cellID} ;
+            if ~isempty(cVtx)
+                cellV0 = [cellV0; [cVtx(:, 2), cVtx(:, 1)] ] ;            
+                cellIDs = [cellIDs; cellID * ones(size(cVtx, 1), 1)] ;
+            end
+        end
+    else
+        seg2d = getCurrentSegmentation2D(QS) ;
+        cellV0 = seg2d.seg2d.vdat.v ;
+        cellIDs = 1:length(seg2d.seg2d.cdat.polygons) ;
+    end
     opts = struct('preview', true) ;
     [segVertexPathlines2D, segVertexPathlines3D] = ...
         QS.samplePullbackPathlines(cellV0, opts) ;
     save(cellVertexPathlineFn, 'segVertexPathlines2D', ...
-        'segVertexPathlines3D')
+        'segVertexPathlines3D', 'cellIDs')
 else
-    load(cellVertexPathlineFn, 'segVertexPathlines2D', ...
-        'segVertexPathlines3D')
+    disp('Loading vertex pathlines from segmentation advection...')
+    if ~segPathlinesPassedAsOption
+        load(cellVertexPathlineFn, 'segVertexPathlines2D', ...
+            'segVertexPathlines3D', 'cellIDs')
+    end
 end
 
 % Load cell segmentation 2d at t0
 QS.setTime(t0) ;
-seg02d = QS.getCurrentSegmentation2D() ;
+if useCorrected
+    seg02d = QS.getCurrentSegmentation2DCorrected() ;
+else
+    seg02d = QS.getCurrentSegmentation2D() ;
+end
 
 % Setting the current timepoint clears non-timepoint segmentations
 close all
 mc2t = [] ;
 ms2t = [] ;
-c2t_low = [] ;
-c2t_high = [] ;
-s2t_low = [] ;
-s2t_high = [] ;
+c2t_low25 = [] ;
+c2t_high75 = [] ;
+c2t_std = [] ;
+c2t_ste = [] ;
+s2t_low25 = [] ;
+s2t_high75 = [] ;
+s2t_std = [] ;
+s2t_ste = [] ;
 mean_mratio = [] ;
 mean_moiratio = [] ;
 median_moiratio = [] ;
-mratio_low = [] ;
-mratio_high = [] ;
+mratio_low25 = [] ;
+mratio_high75 = [] ;
+mratio_std = [] ;
+mratio_ste = [] ;
 dmy = 1 ;
 cos2thetaM = zeros(99, 1) ;
 sin2thetaM = cos2thetaM ;
 aspectM = cos2thetaM ;
 nAPBins = 20 ;
+mean_qc2ts = zeros(length(timePoints), nAPBins) ;
+mean_qs2ts = zeros(length(timePoints), nAPBins) ;
+std_qc2ts = zeros(length(timePoints), nAPBins) ;
+std_qs2ts = zeros(length(timePoints), nAPBins) ;
 mean_c2ts = zeros(length(timePoints), nAPBins) ;
 mean_s2ts = zeros(length(timePoints), nAPBins) ;
 meanQLobeAspects = zeros(nLobes, length(timePoints)) ;
@@ -100,20 +156,53 @@ for tp = timePoints
 
         % Obtain the segmentation in 2d --> use reference segmentation
         seg2d = seg02d ;
-        % replace vertices
+        % replace vertices with advected ones from t0
         seg2d.seg2d.vdat.v = squeeze(segVertexPathlines2D(tidx, :, :)) ;
-        % replace centroids with correct ones
-        for pp = 1:length(seg2d.seg2d.cdat.polygons)
-            poly = seg2d.seg2d.cdat.polygons{pp} ;
-            if ~isempty(poly)
-                geom = polygeom( seg2d.seg2d.vdat.v(poly, 1), ...
-                    seg2d.seg2d.vdat.v(poly, 2) ) ;
-                seg2d.seg2d.cdat.centroid(pp, :) = geom(2:3) ; 
+        
+        % replace centroids with correct ones (ie advected in XY plane)
+        if ~useCorrected
+            % Polygons are indices into vertices
+            nCells = length(seg2d.seg2d.Cdat) ;
+            for pp = 1:nCells 
+                poly = seg2d.seg2d.cdat.polygons{pp} ;
+                if ~isempty(poly)
+                    try
+                        geom = polygeom( seg2d.seg2d.vdat.v(poly, 1), ...
+                            seg2d.seg2d.vdat.v(poly, 2) ) ;
+                        seg2d.seg2d.cdat.centroid(pp, :) = geom(2:3) ; 
+                    catch
+                        error('Could not get polygon information in 3D')
+                    end
+                end
+            end
+            
+            % Flush superfluous info that was loaded from memory
+            seg2d.seg2d.Cdat = rmfield(seg2d.seg2d.Cdat, 'centroid') ;
+            seg2d.seg2d.Vdat = rmfield(seg2d.seg2d.Vdat, 'vertxcoord') ;
+            seg2d.seg2d.Vdat = rmfield(seg2d.seg2d.Vdat, 'vertycoord') ;
+        else
+            % Polygons are computed from vertices indexed by cid
+            nCells = length(seg2d.seg2d.cdat.polygons) ;
+            
+            if preview
+                tmpCOMs = seg2d.seg2d.cdat.centroid ;
+            end
+            
+            for cid = 1:nCells
+                poly = seg2d.seg2d.vdat.v(cellIDs == cid, :) ;
+                if ~isempty(poly)
+                    geom = polygeom( poly(:, 1), poly(:, 2) ) ;
+                    seg2d.seg2d.cdat.centroid(cid, :) = geom(2:3) ; 
+                end
+            end
+            
+            % THe COMs should appear suitably advected
+            if preview
+                plot(tmpCOMs(:, 1), tmpCOMs(:, 2), '.')
+                hold on; plot(seg2d.seg2d.cdat.centroid(:, 1), ...
+                    seg2d.seg2d.cdat.centroid(:, 2), 'o')
             end
         end
-        seg2d.seg2d.Cdat = rmfield(seg2d.seg2d.Cdat, 'centroid') ;
-        seg2d.seg2d.Vdat = rmfield(seg2d.seg2d.Vdat, 'vertxcoord') ;
-        seg2d.seg2d.Vdat = rmfield(seg2d.seg2d.Vdat, 'vertycoord') ;
         
         % obtain the current cut mesh in APDV coordinates -->
         % 2d coordinates in plane of MESH
@@ -127,15 +216,9 @@ for tp = timePoints
         [ faces, v2D, v3D ] = tileAnnularCutMesh(cutMesh, tileCount) ;
 
         % Collate cell vertices as XY
-        nVertices = length(seg2d.seg2d.vdat) ;
-        % XY = zeros(nVertices, 2) ;
-        % for qq = 1:nVertices
-        %     XY(qq, :) = [seg2d.seg2d.Vdat(qq).vertxcoord, seg2d.seg2d.Vdat(qq).vertycoord] ;
-        % end
         XY = seg2d.seg2d.vdat.v ;
 
         % Collate cell centroids
-        nCells = length(seg2d.seg2d.Cdat) ;
         centroids = seg2d.seg2d.cdat.centroid ;
         
         % Check that we are interpolating over the same domain of
@@ -183,8 +266,13 @@ for tp = timePoints
 
         for cid = 1:nCells
             % Obtain cell vertices in 3d
-            cell2d0 = seg2d.seg2d.vdat.v(seg2d.seg2d.cdat.polygons{cid}, :) ;
-            cellVtx0 = c3d(seg2d.seg2d.cdat.polygons{cid}, :) ;
+            if useCorrected
+                cell2d0 = seg2d.seg2d.vdat.v(cellIDs == cid, :) ;
+                cellVtx0 = c3d(cellIDs == cid, :) ;
+            else
+                cell2d0 = seg2d.seg2d.vdat.v(seg2d.seg2d.cdat.polygons{cid}, :) ;
+                cellVtx0 = c3d(seg2d.seg2d.cdat.polygons{cid}, :) ;
+            end
             cellVtx = cellVtx0 - cellCntrd(cid, :) ;
 
             if ~isempty(cellVtx)
@@ -218,6 +306,8 @@ for tp = timePoints
 
                 % Check 2d cell polygon
                 if debug
+                    disp('debugging cell polygon in 3d and quasi2d...')
+                    clf
                     % dchi3d points towards the mapped x axis in embedding space
                     dchi3d = (jac2d3d{cellMeshFaces(cid)} * [1, 0]')' ;
                     dchi3d = dchi3d / vecnorm(dchi3d, 2, 2) ;
@@ -226,6 +316,7 @@ for tp = timePoints
                     subplot(2, 2, 1)
                     plot(cell2d0(:, 1), cell2d0(:, 2), '.-');
                     axis equal
+                    title('cell in 2d pullback XY', 'interpreter', 'latex')
                     subplot(2, 2, 2)
 
                     % Vector to transform = dzeta since this emanates from
@@ -241,6 +332,8 @@ for tp = timePoints
                     plot3(cell_quasi2d(:, 1), cell_quasi2d(:, 2), ...
                         cell_quasi2d(:, 3), '.-'); 
                     axis equal
+                    title('cell projected onto tangent plane and oriented', ...
+                        'interpreter', 'latex')
                     hold on; 
 
                     subplot(2, 2, 3)
@@ -249,8 +342,10 @@ for tp = timePoints
                     hold on;
                     zplus = cellCntrd(cid, :) + dzeta3d * mean(var(cellVtx0)); 
                     xplus = cellCntrd(cid, :) + dchi3d * mean(var(cellVtx0));
-                    plot3dpts([cellCntrd(cid, :); zplus])
-                    plot3dpts([cellCntrd(cid, :); xplus])
+                    plot3dpts([cellCntrd(cid, :); zplus], 'r-')
+                    plot3dpts([cellCntrd(cid, :); xplus], 'g-')
+                    title('cell in 3d with computed $(\zeta, \chi)$ coordinates', ...
+                        'interpreter', 'latex')
                     axis equal
                 end
 
@@ -273,9 +368,12 @@ for tp = timePoints
 
                 % Discard 3d info and compute
                 if size(cellVtx0, 1) > 2
-                    [ geom, iner, cpmo ] = polygeom( cell_quasi2d(:, 2), ...
-                        cell_quasi2d(:, 3) ) ;
-
+                    try
+                        [ geom, iner, cpmo ] = polygeom( cell_quasi2d(:, 2), ...
+                            cell_quasi2d(:, 3) ) ;
+                    catch
+                        error('here')
+                    end
                     areas(cid) = geom(1) ;
                     perim(cid) = geom(4) ;
                     cellQ2d{cid} = cell_quasi2d ;
@@ -291,7 +389,7 @@ for tp = timePoints
                 disp(['bad cell: ' num2str(cid)])
             end
         end
-                
+        
         %% Save results stored in struct
         seg3d = struct('vdat', struct(), 'cdat', struct(), ...
             'qualities', struct(), 'map', struct()) ;
@@ -305,9 +403,13 @@ for tp = timePoints
         seg3d.vdat.xyzrs = c3d ;
         seg3d.vdat.uv = uv ;
         seg3d.vdat.meshFaces = vertexMeshFaces ;
-        seg3d.vdat.NL = seg2d.seg2d.vdat.NL ;
-        seg3d.vdat.BL = seg2d.seg2d.vdat.BL ;
-        seg3d.vdat.fourfold = seg2d.seg2d.vdat.fourfold ;
+        if useCorrected
+            seg3d.cellIDs = cellIDs ;
+        else
+            seg3d.vdat.NL = seg2d.seg2d.vdat.NL ;
+            seg3d.vdat.BL = seg2d.seg2d.vdat.BL ;
+            seg3d.vdat.fourfold = seg2d.seg2d.vdat.fourfold ;
+        end
         
         % cell data in 3d
         seg3d.cdat.centroids_uv = cntrds ;
@@ -341,7 +443,10 @@ for tp = timePoints
             'ang2', 'angle of long axis in coordSys, in radians', ...
             'cellQ2d', ['quasi-2d cell polygon from embedding space, ', ...
                     'but with cell centroid surface normal rotated ', ...
-                    'to be along x axis']) ;
+                    'to be along x axis'], ...
+            'nematicTensor', ['n^T * n - 0.5 * [1, 0; 0, 1], ', ...
+                    'where n is along long axis'], ...
+            'nematicStrength', 'abs(sqrt(MOIEigenvalueRatio)) - 1, strength of elongation' ) ;
             
         % cell statistics 
         % find which are "good" cells to consider
@@ -352,6 +457,7 @@ for tp = timePoints
         
         % which coordinate system has been used for segmentation
         coordSys = seg2d.coordSys ;
+        disp(['saving segmentation in 3d to: ' outfn])
         save(outfn, 'seg3d', 'coordSys')
 
         %% Medians of orientation and moment ratio over TIME    
@@ -535,6 +641,10 @@ for tp = timePoints
             strength(keep) .* squeeze(QQ(keep, 2, 1)), foldt, weights) ;
         [~, lobes_Q22, lobes_std_Q22] = binDataMeanStdWeighted(ap_pos, ...
             strength(keep) .* squeeze(QQ(keep, 2, 2)), foldt, weights) ;
+        
+        % standard error on the mean
+        lobes_ste_Q11 = lobes_std_Q11 / sqrt(length(keep)) ;
+        
         % Check that result is still traceless and symmetric
         assert(all(abs(lobes_Q11 + lobes_Q22) < 1e-7))
         assert(all(abs(lobes_Q12 - lobes_Q12) < 1e-7))
@@ -543,12 +653,19 @@ for tp = timePoints
         meanQLobeAspect = zeros(nLobes, 1) ;
         meanQLobeTheta = zeros(nLobes, 1) ;
         meanQLobeAspectStd = zeros(nLobes, 1) ;
+        meanQLobeAspectSte = zeros(nLobes, 1) ;
+        meanQLobeThetaStd = zeros(nLobes, 1) ;
+        meanQLobeThetaSte = zeros(nLobes, 1) ;
         for lobe = 1:nLobes
             meanQ_lobes{lobe} = [lobes_Q11(lobe), lobes_Q12(lobe); ...
                 lobes_Q21(lobe), lobes_Q22(lobe)] ;
             stdQ_lobes{lobe} = [lobes_std_Q11(lobe), lobes_std_Q12(lobe); ...
                 lobes_std_Q21(lobe), lobes_std_Q22(lobe)] ;
-
+            if std_ste == 2
+                steQ_lobes{lobe} = [lobes_ste_Q11(lobe), lobes_ste_Q12(lobe); ...
+                    lobes_ste_Q21(lobe), lobes_ste_Q22(lobe)] ;
+            end
+            
             % diagonalize this lobeQ
             [ eig_vec, eig_val ] = eig(meanQ_lobes{lobe});
             try
@@ -568,11 +685,31 @@ for tp = timePoints
             unc_det = sqrt(2 * (lobes_Q11(lobe) * lobes_std_Q11(lobe)).^2 ...
                 + 2 * (lobes_Q12(lobe) * lobes_std_Q12(lobe)).^2) ;
             determ = abs(det(meanQ_lobes{lobe})) ;
+            % We ask for the uncertainty of the positive eigenvector
             unc_lambda = 0.5 * sqrt(unc_tr.^2 + unc_det.^2 / (determ)) ; 
 
             % NOTE: |eigenvalue| of symm traceless matrix == norm(matrix)
             meanQLobeAspectStd(lobe) = 2 * unc_lambda ;
+            meanQLobeAspectSte(lobe) = 2 * unc_lambda ;
+            
+            % For angle uncertainty, note that Q is traceless symmetric so
+            % we can say Q = [A,B;B,-A]. 
+            % Then the eigenvalues are lambda = +/- sqrt(A^2+B^2)
+            % Plugging back in allows us to find the eigvects as theta(A,B)
+            % so that we can get dtheta(A,B,dA,dB).
+            % dtheta = Sqrt[D[theta,A]^2 dA^2 + D[theta,B]^2 dB^2]
+            %        = 0.5 * sqrt[ (B^2 dA^2 + A^2 dB^2) / (A^2+B^2)^2 ]
+            assert(lobes_Q11(lobe) == - lobes_Q22(lobe))
+            assert(lobes_Q21(lobe) == - lobes_Q12(lobe))
+            numerator1 = lobes_Q11(lobe)^2 * (lobes_std_Q12(lobe))^2 ;
+            numerator2 = lobes_Q12(lobe)^2 * (lobes_std_Q11(lobe))^2 ;
+            numerator = numerator1+numerator2 ;
+            denominator = (lobes_Q11(lobe)^2 + lobes_Q12(lobe)^2)^2 ;
+            meanQLobeThetaStd(lobe) = 0.5 * sqrt(numerator / denominator) ;
 
+            if std_ste == 2
+                error('handle here')
+            end
         end
 
         %% Save 
@@ -615,6 +752,13 @@ for tp = timePoints
         seg3d.statistics.cos2theta75 = prctile(cos2thetas, 75.0) ;
         seg3d.statistics.sin2theta25 = prctile(sin2thetas, 25.0) ;
         seg3d.statistics.sin2theta75 = prctile(sin2thetas, 75.0) ;
+        seg3d.statistics.aspectStd = std(ars) ;
+        seg3d.statistics.aspectSte = std(ars) / sqrt(length(keep)) ;
+        seg3d.statistics.cos2thetaStd = std(cos2thetas) ;
+        seg3d.statistics.cos2thetaSte = std(cos2thetas) / sqrt(length(keep)) ;
+        seg3d.statistics.sin2thetaStd = std(sin2thetas) ;
+        seg3d.statistics.cos2thetaSte = std(sin2thetas) / sqrt(length(keep)) ;
+    
 
         % AP averaging
         seg3d.statistics.apBins = mid_ap ;
@@ -623,9 +767,11 @@ for tp = timePoints
         seg3d.statistics.apCos2ThetaStd = std_c2t ;
         seg3d.statistics.apSin2ThetaStd = std_s2t ;
 
+        disp(['Saving seg3d now with statistics to: ' outfn])
         save(outfn, 'seg3d', 'coordSys')
     else
         % seg3d = QS.loadCurrentSegmentation3D() ;
+        disp(['Loading seg3d with statistics from: ' outfn])
         seg3d = load(outfn) ;
         coordSys = seg3d.coordSys ;
         seg3d = seg3d.seg3d ;
@@ -641,28 +787,51 @@ for tp = timePoints
     cos2thetas = cos(2 * ang1(keep)) ;
     sin2thetas = sin(2 * ang1(keep)) ;
 
-    c2t_low = [c2t_low, prctile(cos2thetas, 25.0)] ;
-    c2t_high = [c2t_high, prctile(cos2thetas, 75.0)] ;
-    s2t_low = [s2t_low, prctile(sin2thetas, 25.0)] ;
-    s2t_high = [s2t_high, prctile(sin2thetas, 75.0)] ;
+    c2t_low25 = [c2t_low25, prctile(cos2thetas, 25.0)] ;
+    c2t_high75 = [c2t_high75, prctile(cos2thetas, 75.0)] ;
+    s2t_low25 = [s2t_low25, prctile(sin2thetas, 25.0)] ;
+    s2t_high75 = [s2t_high75, prctile(sin2thetas, 75.0)] ;
     mc2t = [mc2t, cos(2*seg3d.statistics.meanQThetaWeightBounded)] ;
     ms2t = [ms2t, sin(2*seg3d.statistics.meanQThetaWeightBounded)] ;
+    c2t_std = [c2t_std, std(cos2thetas)] ;
+    s2t_std = [s2t_std, std(sin2thetas)] ;
+    c2t_ste = [c2t_ste, std(cos2thetas) / sqrt(length(keep))] ;
+    s2t_ste = [s2t_ste, std(sin2thetas) / sqrt(length(keep))] ;
     
     meanQLobeAspects(:, dmy) = seg3d.statistics.lobes.meanQLobeAspect ;
     meanQLobeAspectStds(:, dmy) = seg3d.statistics.lobes.meanQLobeAspectStd ;
+    try
+        meanQLobeAspectStes(:, dmy) = seg3d.statistics.lobes.meanQLobeAspectSte ;
+    catch
+        disp('no ste in stats!')
+    end
     meanQLobeThetas(:, dmy) = seg3d.statistics.lobes.meanQLobeTheta ;
     mean_c2ts(dmy, :) = seg3d.statistics.apCos2Theta ;
     mean_s2ts(dmy, :) = seg3d.statistics.apSin2Theta ;
+    
+    mean_qc2ts(dmy, :) = seg3d.statistics.apCos2Theta ;
+    mean_qs2ts(dmy, :) = seg3d.statistics.apSin2Theta ;
+    std_qc2ts(dmy, :) = seg3d.statistics.apCos2ThetaStd ;
+    std_qs2ts(dmy, :) = seg3d.statistics.apSin2ThetaStd ;
+    try
+        ste_qc2ts(dmy, :) = seg3d.statistics.apCos2ThetaSte ;
+        ste_qs2ts(dmy, :) = seg3d.statistics.apSin2ThetaSte ;
+    catch
+        disp('no ste in stats!')
+    end
+        
     mean_mratio = [mean_mratio, norm(seg3d.statistics.meanQWeighted) * 2 + 1 ] ;
     median_moiratio = [median_moiratio, median(ars)] ;
     mean_moiratio = [mean_moiratio, ...
         sqrt(seg3d.statistics.meanMoment2/seg3d.statistics.meanMoment1) ] ;
 
-    mratio_low = [mratio_low, seg3d.statistics.aspect25 ] ;
-    mratio_high = [mratio_high, seg3d.statistics.aspect75 ] ;
+    mratio_low25 = [mratio_low25, seg3d.statistics.aspect25 ] ;
+    mratio_high75 = [mratio_high75, seg3d.statistics.aspect75 ] ;
+    mratio_std = [mratio_std, seg3d.statistics.aspectStd] ;
+    mratio_ste = [mratio_ste, seg3d.statistics.aspectSte] ;
     
     %% Plot this timepoint's segmentation in 3d
-    plotCells(QS, tp, seg3d, imdir, overwriteImages, xyzlims)
+    aux_plotCellSegmentation3D(QS, tp, seg3d, imdir, overwriteImages, xyzlims, ~useCorrected)
     
     %% Plot as histogram
     edges = linspace(-1, 1, 100) ;
@@ -676,304 +845,99 @@ for tp = timePoints
     dmy = dmy + 1 ;
 end
 
-%% Define some colors
-colors = define_colors() ;
-bluecol = colors(1, :) ;
-redcol = colors(2, :) ;
-yelcol = colors(3, :) ;
-
-%% Plot mean +/- pctile over time
-imfn = fullfile(QS.dir.segmentation, 'pathlines', 'cell_anisotropy.png') ;
-clf
-% shade(timePoints - t0, bndlow, timePoints, bndhigh)
-x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
-yyaxis left
-fill(x2, [mratio_low, fliplr(mratio_high)], bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
-hold on;
-plot(timePoints - t0, mean_mratio, '.-', 'color', bluecol)
-yyaxis right
-fill(x2, [c2t_low, fliplr(c2t_high)], redcol, 'facealpha', 0.3, 'edgecolor', 'none');
-hold on;
-% shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
-plot(timePoints - t0, mc2t, '.-', 'color', redcol)
-% addaxis(timePoints - t0, ms2t, '.-', 'color', yelcol)
-hold on;
-fill(x2, [s2t_low, fliplr(s2t_high)], yelcol, 'facealpha', 0.3, 'edgecolor', 'none');
-plot(timePoints - t0, ms2t, '.-', 'color', yelcol)
-
-xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-yyaxis left
-ylabel('aspect ratio $\sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
-yyaxis right
-ylabel('nematic orientation $\cos 2\theta$, $\sin2\theta$',   'interpreter', 'latex')
-title('endoderm orientation over time', 'interpreter', 'latex')
-saveas(gcf, imfn)
+segSubDir = 'pathlines' ;
+mid_ap = seg3d.statistics.apBins ;
+aux_plotCellSegmentation3DStats
 
 
-%% Plot nematic strength and direction for each lobe 
-imfn = fullfile(QS.dir.segmentation, 'pathlines', 'cell_anisotropy_lobes.png') ;
-clf
-for lobe = 1:nLobes
-    subplot(ceil(nLobes * 0.5), 2, lobe)
-    midline = squeeze(meanQLobeAspects(lobe, :)) ;
-    uncs = squeeze(meanQLobeAspectStds(lobe, :)) ;
-    timestamps = timePoints - t0 ;
-    if contains(QS.timeUnits, 'min')
-        timestamps = timestamps / 60 ;
-    end
-    x2 = [timestamps, fliplr(timestamps)] ;
-    fill(x2,[midline-uncs, fliplr(midline+uncs)], ...
-        bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
-    hold on;
-    plot(timestamps, midline, '.-', 'color', bluecol)
-    ylim([1, Inf])
-    
-    yyaxis right
-    % fill(x2, [c2t_low, fliplr(c2t_high)], redcol, 'facealpha', 0.3, 'edgecolor', 'none');
-    hold on;
-    plot(timestamps, mod(meanQLobeThetas(lobe, :), pi)/pi, '.-')
-    % plot(timestamps, sin(2*meanQLobeThetas(lobe, :)), '.-')
-    % 'color', redcol)
-    ylim([0, 1])
-    
-    if mod(lobe, 2) == 1 
-        yyaxis left
-        ylabel('aspect ratio, $a=2||Q|| + 1$',   'interpreter', 'latex')
-    else
-        yyaxis right
-        ylabel('nematic orientation $\theta/\pi$',   'interpreter', 'latex')
-    end
-    
-    % Time label
-    if lobe > nLobes - 2
-        if contains(QS.timeUnits, 'min')
-            xlabel('time [hr]', 'interpreter', 'latex')  
-        else
-            xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')  
-        end
-    end
-end
-sgtitle('endoderm orientation over time', 'interpreter', 'latex')
-saveas(gcf, imfn)
-
-%% Plot nematic strength and direction for each lobe 
-imfn = fullfile(QS.dir.segmentation, 'pathlines', ...
-    'cell_anisotropy_lobes_signed.png') ;
-clf
-for lobe = 1:nLobes
-    % subplot(ceil(nLobes * 0.5), 2, lobe)
-    c2t = cos(2*meanQLobeThetas(lobe, :))  ;
-    midline = c2t .* (squeeze(meanQLobeAspects(lobe, :)) - 1) ;
-    uncs = c2t .* (squeeze(meanQLobeAspectStds(lobe, :)) - 1) ;
-    timestamps = timePoints - t0 ;
-    if contains(QS.timeUnits, 'min')
-        timestamps = timestamps / 60 ;
-    end
-    x2 = [timestamps, fliplr(timestamps)] ;
-    fill(x2,[midline-abs(uncs), fliplr(midline+abs(uncs))], ...
-        colors(lobe, :), 'facealpha', 0.3, 'edgecolor', 'none', ...
-        'HandleVisibility', 'off');
-    hold on;
-    hs{lobe} = plot(timestamps, midline, '.-', 'color', colors(lobe, :)) ;
-    
-    legendentries{lobe} = ['chamber ' num2str(lobe)] ;
-end
-ylims = ylim() ;
-ylim([-max(abs(ylims)), max(abs(ylims))])
-
-% Mark zero line
-plot(timestamps, 0*timestamps, 'k--', 'HandleVisibility','off')
-% Labels
-legend(legendentries, 'interpreter', 'latex', 'location', 'northwest')
-ylabel('elongation, $2||Q|| \cos 2\theta$',   'interpreter', 'latex')
-if contains(QS.timeUnits, 'min')
-    xlabel('time [hr]', 'interpreter', 'latex')  
-else
-    xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')  
-end
-sgtitle('endoderm orientation over time', 'interpreter', 'latex')
-
-ylim([-2.5, 2.5])
-saveas(gcf, imfn)
-saveas(gcf, [imfn(1:end-3), 'pdf'])
 
 
 %% Compare to true segmentation  -- nematic strength and direction for each lobe 
-
-
 timeList = {timePoints, timePoints(timePoints < t0 + 75 & timePoints > -30)} ;
 timeStr = {'', '_tlimit'} ;
-for pp = 1:2
-    time2do = timeList{pp} ;
-    pInds = contains(timePoints, time2do) ;
-    
-    imfn = fullfile(QS.dir.segmentation, 'pathlines', ...
-        ['cell_anisotropy_lobes_signed_COMPARE', timeStr{pp}, '.png']) ;
-    clf
-    % Collate results
-    kk = 1;
-    meanQLobeAspectsTrue = zeros(nLobes, length(time2do)) ;
-    meanQLobeAspectStdsTrue = zeros(nLobes, length(time2do)) ;
-    meanQLobeThetasTrue = meanQLobeAspectsTrue ;
-    for tp = time2do
-        QS.setTime(tp) ;
-        seg3d = QS.getCurrentSegmentation3D() ; 
-        meanQLobeAspectsTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeAspect ;
-        meanQLobeAspectStdsTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeAspectStd ;
-        meanQLobeThetasTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeTheta ;
-        kk = kk + 1;
-    end
+for std_ste = 1:2
+    for pp = 1:2
+        close all 
+        fig = figure('units', 'centimeters', 'position', [0,0,figH,figH]) ;
+        time2do = timeList{pp} ;
+        pInds = ismember(timePoints, time2do) ;
 
-    for lobe = 1:nLobes
-
-        c2tTrue = cos(2*meanQLobeThetasTrue(lobe, :))  ;
-        trueLine = c2tTrue .* (squeeze(meanQLobeAspectsTrue(lobe, :)) - 1) ;
-        trueUncs = c2tTrue .* (squeeze(meanQLobeAspectStdsTrue(lobe, :)) - 1) ;
-
-        % subplot(ceil(nLobes * 0.5), 2, lobe)
-        c2t = cos(2*meanQLobeThetas(lobe, pInds))  ;
-        midline = c2t .* (squeeze(meanQLobeAspects(lobe, pInds)) - 1) ;
-        uncs = c2t .* (squeeze(meanQLobeAspectStds(lobe, pInds)) - 1) ;
-        timestamps = timePoints - t0 ;
-        if contains(QS.timeUnits, 'min')
-            timestamps = timestamps / 60 ;
+        imfn = fullfile(QS.dir.segmentation, 'pathlines', ...
+            ['cell_anisotropy_lobes_signed_COMPARE', timeStr{pp}]) ;
+        % Collate results
+        kk = 1;
+        meanQLobeAspectsTrue = zeros(nLobes, length(time2do)) ;
+        meanQLobeAspectStdsTrue = zeros(nLobes, length(time2do)) ;
+        meanQLobeAspectStesTrue = zeros(nLobes, length(time2do)) ;
+        meanQLobeThetasTrue = meanQLobeAspectsTrue ;
+        for tp = time2do
+            QS.setTime(tp) ;
+            if useCorrected     
+                seg3d = QS.getCurrentSegmentation3DCorrected() ; 
+            else
+                seg3d = QS.getCurrentSegmentation3D() ; 
+            end
+            meanQLobeAspectsTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeAspect ;
+            meanQLobeAspectStdsTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeAspectStd ;
+            if std_ste == 2
+                meanQLobeAspectStesTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeAspectSte ;
+            end
+            meanQLobeThetasTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeTheta ;
+            kk = kk + 1;
         end
-        x2 = [timestamps, fliplr(timestamps)] ;
-        % fill(x2,[midline-abs(uncs), fliplr(midline+abs(uncs))], ...
-        %     colors(lobe, :), 'facealpha', 0.3, 'edgecolor', 'none', ...
-        %     'HandleVisibility', 'off');
 
-        hs{lobe} = errorbar(midline, trueLine, trueUncs, trueUncs, uncs, uncs) ;
-        hold on;
-        %hs{lobe} = plot(midline, tr, '.-', 'color', colors(lobe, :)) ;
+        for lobe = 1:nLobes
 
-        legendentries{lobe} = ['chamber ' num2str(lobe)] ;
+            c2tTrue = cos(2*meanQLobeThetasTrue(lobe, :))  ;
+            trueLine = 0.5*c2tTrue .* (squeeze(meanQLobeAspectsTrue(lobe, :)) - 1) ;
+            trueUncs = 0.5*c2tTrue .* (squeeze(meanQLobeAspectStdsTrue(lobe, :)) - 1) ;
+            
+
+            % subplot(ceil(nLobes * 0.5), 2, lobe)
+            c2t = cos(2*meanQLobeThetas(lobe, pInds))  ;
+            midline = 0.5 * c2t .* (squeeze(meanQLobeAspects(lobe, pInds)) - 1) ;
+            uncs = 0.5 * c2t .* (squeeze(meanQLobeAspectStds(lobe, pInds)) - 1) ;
+            
+            % Standard errors
+            if std_ste == 2
+                trueUncEs = 0.5*c2tTrue .* (squeeze(meanQLobeAspectStesTrue(lobe, :)) - 1) ;
+                uncEs = 0.5 * c2t .* (squeeze(meanQLobeAspectStes(lobe, pInds)) - 1) ;
+            end
+            
+            timestamps = timePoints - t0 ;
+            if contains(QS.timeUnits, 'min')
+                timestamps = timestamps / 60 ;
+                timeunits = 'hr';
+            else
+                timeunits = QS.timeUnits ;
+            end
+            x2 = [timestamps, fliplr(timestamps)] ;
+            % fill(x2,[midline-abs(uncs), fliplr(midline+abs(uncs))], ...
+            %     colors(lobe, :), 'facealpha', 0.3, 'edgecolor', 'none', ...
+            %     'HandleVisibility', 'off');
+
+            hs{lobe} = errorbar(midline, trueLine, trueUncs, trueUncs, uncs, uncs) ;
+            hold on;
+            %hs{lobe} = plot(midline, tr, '.-', 'color', colors(lobe, :)) ;
+
+            legendentries{lobe} = ['chamber ' num2str(lobe)] ;
+        end
+        ylims = ylim() ;
+        ylim([-max(abs(ylims)), max(abs(ylims))])
+
+        % Mark zero line
+        plot([-0.75,1], [-0.75,1], 'k--', 'HandleVisibility','off')
+        % Labels
+        legend(legendentries, 'interpreter', 'latex', 'location', 'northwest')
+        ylabel('cell anisotropy, $Q_{xx}$',   'interpreter', 'latex')
+        xlabel('integrated tissue shear',   'interpreter', 'latex')
+        sgtitle('endoderm orientation over time', 'interpreter', 'latex')
+        axis equal
+        saveas(gcf, [imfn, '.png'])
+        saveas(gcf, [imfn, '.pdf'])
     end
-    ylims = ylim() ;
-    ylim([-max(abs(ylims)), max(abs(ylims))])
-
-    % Mark zero line
-    plot([-2,2], [-2,2], 'k--', 'HandleVisibility','off')
-    % Labels
-    legend(legendentries, 'interpreter', 'latex', 'location', 'northwest')
-    ylabel('elongation, $2||Q|| \cos 2\theta$',   'interpreter', 'latex')
-    if contains(QS.timeUnits, 'min')
-        xlabel('time [hr]', 'interpreter', 'latex')  
-    else
-        xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')  
-    end
-    sgtitle('endoderm orientation over time', 'interpreter', 'latex')
-
-    ylim([-2.5, 2.5])
-    saveas(gcf, imfn)
-    saveas(gcf, [imfn(1:end-3), 'pdf'])
 end
 
-
-%% Plot histograms
-imfn = fullfile(QS.dir.segmentation, 'pathlines', 'cell_anisotropy_hist.png') ;
-clf
-colormap(cividis)
-subplot(2, 2, 1)
-imagesc(timePoints - t0, edges, cos2thetaM)
-set(gca,'YDir','normal')
-caxis([0, 0.05])
-xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('nematic orientation $\cos2\theta$',   'interpreter', 'latex')
-subplot(2, 2, 2)
-imagesc(timePoints - t0, edges, sin2thetaM)
-set(gca,'YDir','normal')
-caxis([0, 0.05])
-xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('nematic orientation $\sin2\theta$',   'interpreter', 'latex')
-subplot(2, 2, 3)
-imagesc(timePoints - t0, edgesAR, aspectM)
-set(gca,'YDir','normal')
-caxis([0, 0.05])
-xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('aspect ratio $\sqrt{I_{1}/I_{2}}$',   'interpreter', 'latex')
-subplot(4, 2, 6)
-cb = colorbar('location', 'south') ;
-ylabel(cb, 'probability', 'interpreter', 'latex')
-caxis([0, 0.05])
-axis off
-saveas(gcf, imfn) 
-
-%% Aspect ratio distributions, variation of mean shape aspect
-imfn = fullfile(QS.dir.segmentation, 'pathlines', 'cell_anisotropy_mratio.png') ;
-clf
-colors = define_colors() ;
-bluecol = colors(1, :) ;
-% shade(timePoints - t0, bndlow, timePoints, bndhigh)
-x2 = [timePoints - t0, fliplr(timePoints - t0)] ;
-fill(x2, [mratio_low, fliplr(mratio_high)], ...
-    bluecol, 'facealpha', 0.3, 'edgecolor', 'none');
-hold on;
-% shadedErrorBar(timePoints - t0, mean(y,1),std(y),'lineProps','g');
-plot(timePoints - t0, median_moiratio, '.-')
-plot(timePoints - t0, mean_moiratio, '.-')
-plot(timePoints - t0, mean_mratio, '.-')
-legend({'25-75\%', 'median $\sqrt{I_1/I_2}$', ...
-    '$\sqrt{\lambda_1^{\langle I \rangle}/\lambda_2^{\langle I \rangle}}$', ...
-    '$2||\langle Q\rangle|| + 1$'}, 'interpreter', 'latex')
-
-xlabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-ylabel('aspect ratio',   'interpreter', 'latex')
-title('endoderm orientation over time', 'interpreter', 'latex')
-saveas(gcf, imfn)
-
-
-
-%% Plot as a function of AP position and time (kymograph)
-imfn = fullfile(QS.dir.segmentation, 'pathlines', 'ap_kymographs_c2t_s2t.png') ;
-clf
-subplot(1, 2, 1)
-imagesc(mid_ap, timePoints-t0, medfilt2(mean_c2ts, [3, 1])) ;
-caxis([-10, 10])
-colormap(blueblackred)
-xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
-ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-cb = colorbar('location', 'southOutside') ;
-ylabel(cb, '$\sqrt{\lambda_1/\lambda_2}\cos 2\theta$', ...
-    'interpreter', 'latex')
-subplot(1, 2, 2)
-imagesc(mid_ap, timePoints-t0, medfilt2(mean_s2ts, [3, 1])) ;
-caxis([-10, 10])
-colormap(blueblackred)
-xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
-ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-cb = colorbar('location', 'southOutside') ;
-ylabel(cb, '$\sqrt{\lambda_1/\lambda_2}\sin 2\theta$', ...
-    'interpreter', 'latex')
-sgtitle('cell anisotropy kymographs', 'interpreter', 'latex')
-saveas(gcf, imfn)
-
-%% Time derivative of filtered image AP position
-imfn = fullfile(QS.dir.segmentation, 'pathlines', 'ap_kymographs_dc2t_ds2t.png') ;
-clf
-cfiltered = medfilt2(mean_c2ts, [3, 1]) ;
-[~, dc2t] = gradient(cfiltered) ;
-sfiltered = medfilt2(mean_s2ts, [3, 1]) ;
-[~, ds2t] = gradient(sfiltered) ;
-subplot(1, 2, 1)
-imagesc(mid_ap, timePoints-t0, imgaussfilt(medfilt2(dc2t, [3, 1]), 0.5)) ;
-caxis([-3, 3])
-xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
-ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-colormap(blueblackred)
-cb = colorbar('location', 'southOutside') ;
-ylabel(cb, '$\partial_t\left(\sqrt{\lambda_1/\lambda_2} \cos 2\theta\right)$', ...
-    'interpreter', 'latex')
-subplot(1, 2, 2)
-imagesc(mid_ap, timePoints-t0, imgaussfilt(medfilt2(ds2t, [3, 1]), 0.5)) ;
-caxis([-3, 3])
-xlabel('ap position, $\zeta/L$', 'interpreter', 'latex')
-ylabel(['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-cb = colorbar('location', 'southOutside') ;
-ylabel(cb, '$\partial_t\left(\sqrt{\lambda_1/\lambda_2} \sin 2\theta\right)$', ...
-    'interpreter', 'latex')
-sgtitle('cell anisotropy kymographs', 'interpreter', 'latex')
-saveas(gcf, imfn)
 
 
 %% Testing for shape characterization
@@ -1006,240 +970,4 @@ saveas(gcf, imfn)
 
 end
 
-function plotCells(QS, tp, seg3d, imdir, overwrite, xyzlims)
-
-    %% Draw cells colored by area
-    t0 = QS.t0() ;
-    titlestr = ['$t=$' sprintf('%03d', tp-t0) ' ' QS.timeUnits] ;
-    
-    % Easiest way is to triangulate all polygons using centroids
-    % This is fine if the cells are all convex
-    faces = seg3d.cdat.polygons ;
-    keep = seg3d.statistics.keep ;
-    
-    areas = seg3d.qualities.areas ; 
-    ang1 = seg3d.qualities.ang1 ; 
-    ang2 = seg3d.qualities.ang2 ; 
-    mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
-    moinertia = seg3d.qualities.mInertia ;
-    c3d = seg3d.vdat.xyzrs ;
-    cellCntrd = seg3d.cdat.centroids_3d ;
-    keep = seg3d.statistics.keep ;
-    
-    nCells = length(faces) ;
-    nVertices = size(seg3d.vdat.uv, 1) ;
-    dmyk = 1 ;
-    ff = zeros(nCells * 7, 3) ;
-    areaV = NaN * zeros(nCells * 7, 1) ;
-    ang1V = areaV ;
-    mratioV = areaV ;
-    oparmV = areaV ;
-    IxxV = areaV ;
-    IxyV = areaV ;
-    IyyV = areaV ;
-    for cid = 1:nCells
-        if ismember(cid, keep)
-            face = faces{cid} ;
-            if ~isempty(face)
-                for vid = 1:length(face)
-                    if vid < length(face)
-                        addface = [face(vid), face(vid+1), nVertices + cid] ;
-                    else
-                        addface = [face(vid), face(1), nVertices + cid] ;
-                    end
-                    ff(dmyk, :) = addface ;
-                    areaV(dmyk) = areas(cid) ;
-                    ang1V(dmyk) = ang1(cid) ;
-                    mratioV(dmyk) = mratio(cid) ;
-                    IxxV(dmyk) = moinertia(cid, 1) ;
-                    IxyV(dmyk) = moinertia(cid, 2) ;
-                    IyyV(dmyk) = moinertia(cid, 3) ;
-                    oparmV(dmyk) = (mratio(cid) - 1) * cos(2*ang1(cid)) ;
-                    dmyk = dmyk + 1 ;
-                end
-            end
-        end
-    end
-    ff = ff(1:dmyk-1, :) ;
-    areaV = areaV(1:dmyk-1) ;
-    ang1V = ang1V(1:dmyk-1) ;
-    IxxV = IxxV(1:dmyk-1) ;
-    IxyV = IxyV(1:dmyk-1) ;
-    IyyV = IyyV(1:dmyk-1) ;
-    mratioV = mratioV(1:dmyk-1) ;
-    oparmV = oparmV(1:dmyk-1) ;
-    
-    % Extend vertices to include centroids
-    vv = [c3d; cellCntrd] ;
-    
-    %% Color segmentation by area
-    imfn = fullfile(imdir, sprintf('cellseg3d_area_%06d.png', tp)) ;
-    if ~exist(imfn, 'file') || overwrite
-        clf
-        patch('Faces',ff,'Vertices',vv,...
-            'FaceVertexCData',areaV(:),'FaceColor','flat', ...
-            'Edgecolor', 'none');
-        cb = colorbar ;
-        ylabel(cb, ['area [' QS.spaceUnits '$^2$]'],   'interpreter', 'latex')
-        caxis([0, nanmean(areas) + 3*nanstd(areas)])
-        axis equal
-        view(0,0)
-        xlim(xyzlims(1, :))
-        ylim(xyzlims(2, :))
-        zlim(xyzlims(3, :))
-        colormap viridis
-        xlabel(['ap position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-        ylabel(['lateral position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-        zlabel(['dv position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-        title(titlestr, 'interpreter', 'latex')
-        saveas(gcf, imfn)
-    end
-    
-    %% Color segmentation by moi ratio -- sp coord sys and principal coords
-    imfns = {fullfile(imdir, sprintf('cellseg3d_mratioSP_log_%06d.png', tp)), ...
-        fullfile(imdir, sprintf('cellseg3d_mratioSP_%06d.png', tp))};
-    for tmp = 1:2
-        if ~exist(imfns{tmp}, 'file') || overwrite 
-            clf
-            if tmp == 1
-                patch('Faces',ff,'Vertices',vv,...
-                    'FaceVertexCData',real(log10(sqrt(IyyV ./ IxxV))), ...
-                    'FaceColor','flat', ...
-                    'Edgecolor', 'none');
-                cb = colorbar ;
-                ylabel(cb, '$\log_{10} \sqrt{I_{\phi\phi}/I_{\zeta\zeta}}$',   'interpreter', 'latex')
-                caxis([-1, 1])
-                bbr256 = blueblackred ;
-            else
-                patch('Faces',ff,'Vertices',vv,...
-                    'FaceVertexCData',real(sqrt(IyyV ./ IxxV)), ...
-                    'FaceColor','flat', ...
-                    'Edgecolor', 'none');
-                cb = colorbar ;
-                ylabel(cb, '$\sqrt{I_{\phi\phi}/I_{\zeta\zeta}}$',   'interpreter', 'latex')
-                caxis([0, 2])
-            end
-            colormap(bbr256)
-            axis equal
-            view(0,0)
-            xlim(xyzlims(1, :))
-            ylim(xyzlims(2, :))
-            zlim(xyzlims(3, :))
-            xlabel(['ap position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-            ylabel(['lateral position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-            zlabel(['dv position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-            title(titlestr, 'interpreter', 'latex')
-            saveas(gcf, imfns{tmp})
-        end
-    end
-    
-    %% Order parameter    
-    imfn = fullfile(imdir, sprintf('cellseg3d_order_%06d.png', tp)) ;
-    if ~exist(imfn, 'file') || overwrite
-        patch('Faces',ff,'Vertices',vv,...
-            'FaceVertexCData',cos(2*ang1V(:)),'FaceColor','flat', ...
-            'Edgecolor', 'none');
-        cb = colorbar ;
-        ylabel(cb, '$\cos 2\theta$',   'interpreter', 'latex')
-        caxis([-1, 1])
-        colormap(blueblackred)
-        axis equal
-        view(0,0)
-        xlabel(['ap position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-        ylabel(['lateral position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-        zlabel(['dv position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-        title(titlestr, 'interpreter', 'latex')
-        saveas(gcf, imfn)
-    end
-    
-    
-    %% Draw bonds
-    imfn = fullfile(imdir, sprintf('cellseg3d_bonds_full_%06d.png', tp)) ;
-    if ~exist(imfn, 'file') || overwrite 
-        for fullID = [0, 1] 
-            Xs = zeros(4*length(c3d(:, 1)), 1) ;
-            Ys = Xs ;
-            Zs = Xs ;
-            Us = Xs ;
-            Vs = Xs ;
-            Ws = Xs ;
-            dmyk = 1 ;
-            for qq = 1:nVertices
-                for id = seg3d.vdat.NL(qq, :)
-                    if id > 0
-                        Xs(dmyk) = c3d(qq, 1) ;
-                        Ys(dmyk) = c3d(qq, 2) ; 
-                        Zs(dmyk) = c3d(qq, 3) ;
-                        Us(dmyk) = c3d(id, 1) - c3d(qq, 1) ;
-                        Vs(dmyk) = c3d(id, 2) - c3d(qq, 2) ; 
-                        Ws(dmyk) = c3d(id, 3) - c3d(qq, 3) ;
-                        dmyk = dmyk + 1 ;
-                    end
-                end
-            end
-            plot3(c3d(:, 1), c3d(:, 2), c3d(:, 3), '.')
-            hold on;
-            q = quiver3(Xs,Ys,Zs, Us, Vs, Ws, 0, 'color', [ 0.8500    0.3250    0.0980]);
-            axis equal
-            q.ShowArrowHead = 'off';
-            [~, ~, ~, xyzlims] = QS.getXYZLims() ;
-            xlim(xyzlims(1, :))
-            if fullID
-                ylim(xyzlims(2, :))
-                imfn = fullfile(imdir, sprintf('cellseg3d_bonds_full_%06d.png', tp)) ;
-            else
-                ylim([xyzlims(2, 1), 0])
-                imfn = fullfile(imdir, sprintf('cellseg3d_bonds_%06d.png', tp)) ;    
-            end
-            zlim(xyzlims(3, :))
-            view(0,0)
-            xlabel(['ap position, [' QS.spaceUnits ']'], 'Interpreter', 'latex')
-            ylabel(['lateral position, [' QS.spaceUnits ']'], 'Interpreter', 'latex')
-            zlabel(['dv position, [' QS.spaceUnits ']'], 'Interpreter', 'latex')
-            title(titlestr, 'interpreter', 'latex')
-            saveas(gcf, imfn) 
-            clf
-        end
-    end
-    
-    %% Statistics
-    statsfn = fullfile(imdir, sprintf('stats_%06d.png', tp)) ;
-    if ~exist(statsfn, 'file') || overwrite || true
-        clf
-        % plot(sqrt(i11), areas(keep), '.') ; hold on;
-        % plot(sqrt(i22), areas(keep), '.') ; hold on;
-        subplot(2, 1, 1)
-        plot(areas(keep), sqrt(seg3d.qualities.moment2(keep)), '.') ; hold on;
-        plot(areas(keep), sqrt(seg3d.qualities.moment1(keep)), '.') ; 
-        xlabel(['area [' QS.spaceUnits '$^2$]'], 'interpreter', 'latex')
-        ylabel('$\sqrt{\lambda_2}, \sqrt{\lambda_1}$', 'interpreter', 'latex')
-        subplot(2, 2, 3)
-        ars_tmp = sqrt(seg3d.qualities.moment2(keep)./seg3d.qualities.moment1(keep)) ;
-        plot(areas(keep), ars_tmp, '.') ; 
-        xlabel(['area [' QS.spaceUnits '$^2$]'], 'interpreter', 'latex')
-        ylabel('$\sqrt{\lambda_2 / \lambda_1}$', 'interpreter', 'latex')
-        % Fit to line to see if there is variation
-        [cc, SS] = polyfit(areas(keep), ars_tmp, 1) ;
-        uncs = sqrt(abs(SS.R)) / SS.df ;
-        title(['$\sqrt{\lambda_2 / \lambda_1} = ($' ...
-            num2str(round(cc(1), 1, 'significant')) '$\pm$' ...
-            num2str(round(uncs(1,1), 1, 'significant')) '$)A + $' ...
-            num2str(round(cc(2), 3, 'significant')) '$\pm$' ...
-            num2str(round(uncs(2,2), 1, 'significant'))], ...
-            'interpreter', 'latex')
-        
-        subplot(2, 2, 4)
-        plot(areas(keep), ars_tmp, '.') ;
-        corrs = corrcoef(areas(keep), ars_tmp) ; 
-        title(['correlation = ' ...
-            num2str(round(corrs(1, 2), 2, 'significant'))], ...
-            'interpreter', 'latex')
-        
-        ylim([0.5, 5])
-        xlabel(['area [' QS.spaceUnits '$^2$]'], 'interpreter', 'latex')
-        ylabel('$\sqrt{\lambda_2 / \lambda_1}$', 'interpreter', 'latex')
-        sgtitle(titlestr, 'interpreter', 'latex')
-        saveas(gcf, statsfn)
-    end
-end
 
