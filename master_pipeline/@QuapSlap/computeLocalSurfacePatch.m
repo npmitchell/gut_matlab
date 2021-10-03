@@ -12,8 +12,8 @@ function [subm, newpts] = computeLocalSurfacePatch(QS, pts, options)
 %   coordSys : str specifier
 %   overwrite : bool
 %   buffer : float or int or numeric
-%   bufferX : float or int or numeric, trumpts buffer for X dim
-%   bufferY : float or int or numeric, trumpts buffer for Y dim
+%   bufferX : float or int or numeric, trumps buffer for X dim
+%   bufferY : float or int or numeric, trumps buffer for Y dim
 %   preview : preview
 %   scaleByMetric : bool
 %       rescale parameterization to have det(g) approx 1 on either:
@@ -67,7 +67,11 @@ function [subm, newpts] = computeLocalSurfacePatch(QS, pts, options)
 %       3. submesh has faces on multiple covers (topological disk)
 %       4. submesh spans the whole single Cover (topological annulus)
 %
-%
+% See also
+% --------
+% visualizeSegmentationPatch(QS, options)
+% visualizeDemoTracks(QS, options)
+% 
 % NPMitchell 2021
 
 % Unpack options
@@ -140,10 +144,15 @@ end
 
 % Get XY limits for regions
 if strcmpi(coordSys, 'spsme')
-    % Get the image size just once
+    % Get the image and meshes
+    disp(['Loading images and meshes for timepoint: ' num2str(QS.currentTime)])
+    cutMesh = QS.getCurrentSPCutMeshSm() ;
+    glueMesh = QS.getCurrentSPCutMeshSmRSC() ;
+    cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1)) ;
+    glueMesh.u(:, 1) = glueMesh.u(:, 1) / max(glueMesh.u(:, 1)) ;
+    bc = barycenter(cutMesh.u, cutMesh.f) ;
     im = imread(sprintf(QS.fullFileBase.im_sp_sme, QS.currentTime)) ;
-    shiftY = size(im, 1) ;
-    fixedImageSize = true ;
+    shiftY = size(im, 1) * 0.5 ;
     doubleCovered = true ;
 else
     error('handle desired coordSys here')

@@ -8,13 +8,13 @@ function [c3d, cellCntrd3d, areas, perim, moment1, ang1, ...
 % Parameters
 % ----------
 % faces : #faces x 3 int array
-%   indices into vertex arrays of each triangular face
+%   indices into vertex arrays of each triangular face of the mesh
 % v3D : #vertices x 3 float array
-%   pushforward vertices in which polygons/segmentation are mapped
+%   pushforward mesh vertices in which polygons/segmentation are mapped
 % v2D : #vertices x 2 float array
-%   pullback vertices in which polygons/segmentation are known
+%   pullback mesh vertices in which polygons/segmentation are known
 % cellVtx2D : N x 2 numeric array
-%   vertex locations for the "corners" of the polygons
+%   vertex locations for the "corners"/contours of the polygons
 % polygons : #polygons x 1 cell array of ordered 1d int arrays
 %   polygons{i} are the indices into cellVtx2D of polygon vertices
 % cntrds : #polygons x 2 numeric array
@@ -31,6 +31,8 @@ function [c3d, cellCntrd3d, areas, perim, moment1, ang1, ...
 % polygonNetwork3dMeasurements()
 %
 
+
+debug = false ;
 nCells = size(polygons, 1) ;
 
 % cell vertices in 3d
@@ -94,42 +96,42 @@ for cid = 1:nCells
 
         
         % Check 2d cell polygon
-        % if debug
-        %     % dchi3d points towards the mapped x axis in embedding space
-        %     dchi3d = (jac2d3d{cellMeshFaces(cid)} * [1, 0]')' ;
-        %     dchi3d = dchi3d / vecnorm(dchi3d, 2, 2) ;
-        % 
-        %     % Plot the cell in 3d and 2d
-        %     subplot(2, 2, 1)
-        %     plot(cell2d0(:, 1), cell2d0(:, 2), '.-');
-        %     axis equal
-        %     subplot(2, 2, 2)
-        % 
-        %     % Vector to transform = dzeta since this emanates from
-        %     % centroid just as the normal does.
-        %     zeta2d = (rot2xy * dzeta3d')' ;
-        %     try
-        %         assert(all(abs(zeta2d - [0, 0, 1]) < 1e-7))
-        %     catch
-        %         error('Rotation was not successful!')
-        %     end
-        % 
-        %     % plot it
-        %     plot3(cell_quasi2d(:, 1), cell_quasi2d(:, 2), ...
-        %         cell_quasi2d(:, 3), '.-'); 
-        %     axis equal
-        %     hold on; 
-        % 
-        %     subplot(2, 2, 3)
-        %     plot3(cellVtx0(:, 1), cellVtx0(:, 2), cellVtx0(:, 3), ...
-        %         '.-')
-        %     hold on;
-        %     zplus = cellCntrd(cid, :) + dzeta3d * mean(var(cellVtx0)); 
-        %     xplus = cellCntrd(cid, :) + dchi3d * mean(var(cellVtx0));
-        %     plot3dpts([cellCntrd(cid, :); zplus])
-        %     plot3dpts([cellCntrd(cid, :); xplus])
-        %     axis equal
-        % end
+        if debug
+            % dchi3d points towards the mapped x axis in embedding space
+            dchi3d = (jac2d3d{cellMeshFaces(cid)} * [1, 0]')' ;
+            dchi3d = dchi3d / vecnorm(dchi3d, 2, 2) ;
+        
+            % Plot the cell in 3d and 2d
+            subplot(2, 2, 1)
+            plot(cell2d0(:, 1), cell2d0(:, 2), '.-');
+            axis equal
+            subplot(2, 2, 2)
+        
+            % Vector to transform = dzeta since this emanates from
+            % centroid just as the normal does.
+            zeta2d = (rot2xy * dzeta3d')' ;
+            try
+                assert(all(abs(zeta2d - [0, 0, 1]) < 1e-7))
+            catch
+                error('Rotation was not successful!')
+            end
+        
+            % plot it
+            plot3(cell_quasi2d(:, 1), cell_quasi2d(:, 2), ...
+                cell_quasi2d(:, 3), '.-'); 
+            axis equal
+            hold on; 
+        
+            subplot(2, 2, 3)
+            plot3(cellVtx0(:, 1), cellVtx0(:, 2), cellVtx0(:, 3), ...
+                '.-')
+            hold on;
+            zplus = cellCntrd(cid, :) + dzeta3d * mean(var(cellVtx0)); 
+            xplus = cellCntrd(cid, :) + dchi3d * mean(var(cellVtx0));
+            plot3dpts([cellCntrd(cid, :); zplus])
+            plot3dpts([cellCntrd(cid, :); xplus])
+            axis equal
+        end
 
         
         

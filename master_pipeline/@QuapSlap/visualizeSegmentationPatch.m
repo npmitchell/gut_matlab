@@ -6,8 +6,31 @@ function visualizeSegmentationPatch(QS, Options)
 %
 % Parameters
 % ----------
-% QS : 
-% Options : optional struct with fields
+% QS : QuapSlap class instance
+% options : optional struct with fields
+%   coordSys : str specifier
+%   overwrite : bool
+%   buffer : float or int or numeric
+%   bufferX : float or int or numeric, trumps buffer for X dim
+%   bufferY : float or int or numeric, trumps buffer for Y dim
+%   preview : preview (default=false)
+%   scaleByMetric : bool (default=false)
+%       rescale parameterization to have det(g) approx 1 on either:
+%           - faces queried by pts (if both imW and imH are not supplied)
+%           - in window com(pts) +/- [imW*0.5, imH*0.5] 
+%   scaleByMetricComponents : bool (default=true)
+%       rescale parameterization to approximate isothermal coordinates
+%   imW : int or numeric (default=25)
+%       halfwidth of output image in QS.spaceUnits (approx)
+%       (in units of quasi-embedding space --> ie registered/flattened
+%       embedding submesh units, should be close to units of QS.spaceUnits if
+%       submesh is not too strongly curved in embedding space).
+%   imH : int or numeric (default=25)
+%       halfheight of output image in QS.spaceUnits (approx)
+%       (in units of quasi-embedding space --> ie registered/flattened
+%       embedding submesh units, should be close to units of QS.spaceUnits if
+%       submesh is not too strongly curved in embedding space).
+%
 %
 % Returns
 % -------
@@ -16,6 +39,11 @@ function visualizeSegmentationPatch(QS, Options)
 % Saves to disk
 % -------------
 % image sequence of RGB overlays
+%
+% See also
+% --------
+% computeLocalSurfacePatch(QS, pts, options)
+% visualizeDemoTracks(QS, options)
 %
 % NPMitchell 2021
 
@@ -35,7 +63,7 @@ overwrite = false ;
 tracks2demo = dir(fullfile(QS.dir.tracking, 'demoTracks', 'demoTracks*.mat')) ;
 outputResolution = 4 / QS.APDV.resolution ;
 scaleByMetric = false ;
-scaleByMetricComponents = false ;
+scaleByMetricComponents = true ;
 bufferX = 0.12 ;
 bufferY = 0.08 ;
 detClim = 1.3 ;
@@ -136,7 +164,7 @@ end
 if strcmpi(coordSys, 'spsme')
     % Get the image size just once
     im = imread(sprintf(QS.fullFileBase.im_sp_sme, timePoints(1))) ;
-    shiftY = size(im, 1) ;
+    shiftY = size(im, 1) * 0.5 ;
     fixedImageSize = true ;
     doubleCovered = true ;
 else

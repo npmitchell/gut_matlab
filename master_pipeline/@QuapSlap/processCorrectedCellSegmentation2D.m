@@ -99,14 +99,17 @@ for tp = timePoints
         bwfn = sprintf(QS.fullFileBase.segmentation2dCorrectedBinary, coordSys, tp) ;
         bw = imread(bwfn) ;
         
+        % Note bw connectivity is 4
         cc = bwconncomp(~bw, 4) ;
         segIm = labelmatrix(cc) ;
 
         % Check it -- Apply a variety of pseudo-colors to the regions.
-        coloredLabelsImage = label2rgb(segIm, 'hsv', 'k', 'shuffle');
+        cmpQ = distinguishable_colors(max(segIm(:)), [0,0,0;1,1,1]);
+        coloredLabelsImage = label2rgb(segIm, cmpQ, 'k', 'shuffle');
         % Display the pseudo-colored image.
         % [row,col] = find(segIm < 2) ;
         % coloredLabelsImage(row, col, :) = 0 ;
+        close all
         imshow(coloredLabelsImage);
         title('Pseudocolored Labeled Image', 'Interpreter', 'None');
         % impixelinfo;
@@ -145,48 +148,76 @@ for tp = timePoints
         if any(~insideROI)
             c2move = find(~insideROI) ;
             segIm2 = segIm ;
-            imagesc(segIm) 
+            tmpRGB = label2rgb(segIm, 'jet', [0,0,0], 'shuffle')  ;
             hold on;
             plot([xmin, xmax, xmax, xmin], [ymin, ymin, ymax, ymax], '-') ;
             pause(1) 
-            clf
-            for ccId = 1:length(c2move)
-                qq = c2move(ccId) ;
-                % Check if we need to push it up in Y or down
-                insideUp = inpolygon(seg2d.cdat.centroid(qq, 1), ...
-                    seg2d.cdat.centroid(qq, 2) + adjustY, ...
+            for qq = 1:length(c2move)
+                cellID = c2move(qq) ;
+                
+                % Look at what we're moving
+                subplot(2, 2, 1)
+                imshow(tmpRGB)
+                subplot(2, 2, 3)
+                imshow(segIm == cellID)
+                
+                % Check if we need to push it up in Y or down (which is,
+                % confusingly, "up" in the imshow space -- alas MATLAB)
+                insideUp = inpolygon(seg2d.cdat.centroid(cellID, 1), ...
+                    seg2d.cdat.centroid(cellID, 2) + adjustY, ...
                     [xmin, xmax, xmax, xmin], [ymin, ymin, ymax, ymax]) ;
-                insideDown = inpolygon(seg2d.cdat.centroid(qq, 1), ...
-                    seg2d.cdat.centroid(qq, 2) - adjustY, ...
+                insideDown = inpolygon(seg2d.cdat.centroid(cellID, 1), ...
+                    seg2d.cdat.centroid(cellID, 2) - adjustY, ...
                     [xmin, xmax, xmax, xmin], [ymin, ymin, ymax, ymax]) ;
                 if insideUp || insideDown
                     % get all indices where segIm == c2move
-                    [row,col] = find(segIm == qq) ;
+                    [row,col] = find(segIm == cellID) ;
+                    % Black out the translated boundary of this object
+                    BB = bwboundaries(segIm == cellID, 4) ;
+                    assert(length(BB) == 1) ;
+                    BB = BB{1} ;
                         
                     if insideUp && ~insideDown
                         for id = 1:length(row)
                             % If this isn't merging this cell with another
-                            if segIm(row(id) + adjustY, col(id)) < 2
-                                segIm(row(id) + adjustY, col(id)) = qq ;
-                            end
-                            segIm(row(id), col(id)) = 1 ;
+                            % if segIm(row(id) + adjustY, col(id)) < 2
+                            segIm(row(id) + adjustY, col(id)) = cellID ;
+                            % end
+                            % Erase original region pixel by pixel
+                            segIm(row(id), col(id)) = 0 ;
+                        end
+                        % Black out boundary translated by covering
+                        for id = 1:length(BB)
+                            segIm(BB(id, 1)+ adjustY, BB(id, 2)) = 0 ;
                         end
                     elseif insideDown && ~insideUp
                         for id = 1:length(row)
                             % If this isn't merging this cell with another
-                            if segIm(row(id) - adjustY, col(id)) < 2                            
-                                segIm(row - adjustY, col) = qq ;
-                            end
-                            segIm(row(id), col(id)) = 1 ;
+                            % if segIm(row(id) - adjustY, col(id)) < 2                            
+                            segIm(row(id) - adjustY, col(id)) = cellID ;
+                            % end
+                            % Erase original region pixel by pixel
+                            segIm(row(id), col(id)) = 0 ;
+                        end
+                        % Black out boundary translated by covering
+                        for id = 1:length(BB)
+                            segIm(BB(id, 1)- adjustY, BB(id, 2)) = 0 ;
                         end
                     else 
                         error('Cannot place cell into the ROI')
                     end
+                    
                     disp('Check that this motion is correct')
-                    imagesc(segIm)
-                    pause(0.0001)
-                    % title('Press any button to continue')
-                    % waitforbuttonpress
+                    subplot(2, 2, 2)
+                    tmpRGB2 = label2rgb(segIm, 'jet', [0,0,0], 'shuffle');
+                    imshow(tmpRGB2)
+                    subplot(2, 2, 4)
+                    imshow(segIm == cellID)
+                    set(gcf, 'visible', 'on')
+                    title('Is cell inside ROI? Close figure to continue')
+                    pause(5)
+                    % waitfor(gcf)
+                    clf
                 else 
                     error('Cannot place cell into the ROI')
                 end
@@ -231,12 +262,7 @@ for tp = timePoints
         im = imread(imageFn) ;
         
         % Check it -- Apply a variety of pseudo-colors to the regions.
-        % iters = ceil(max(segIm(:)) / 256) ;
-        % cmpQ = tab10 ;
-        % for ii = 1:iters
-        %     cmpQ = [cmpQ; tab10] ;
-        % end
-        cmpQ = brewermap(max(segIm(:)), 'Paired') ;
+        cmpQ = distinguishable_colors(max(segIm(:)), [0,0,0;1,1,1]);
         coloredLabelsImage = label2rgb(segIm, cmpQ, 'k', 'shuffle');
         % Display the pseudo-colored image.
         coloredLabelsImage = (coloredLabelsImage) .* uint8(segIm > 1) ;

@@ -94,7 +94,7 @@ for qq = 1:length(folds) + 1
     distCorrs{qq} = zeros(length(tidxs), 1) ;
     cellIndentation{qq} = cell(length(tidxs), 1) ;
     distFold{qq} = cell(length(tidxs), 1) ;
-    elongation{qq} = cell(length(tidxs), 1) ;
+    anisotropy{qq} = cell(length(tidxs), 1) ;
 end
 dmy = 1 ;
 for tidx = tidxs 
@@ -134,8 +134,7 @@ for tidx = tidxs
         keep = intersect(inLobe, seg3d.statistics.keep) ;
         
         ars = sqrt(seg3d.qualities.moment2 ./ seg3d.qualities.moment1) ;
-        strength = seg3d.qualities.nematicStrength ;
-        assert(all(ars(keep) -1 == strength(keep)))
+        strength = ars - 1 ;
         edges = linspace(-1, 1, nbins+1) ;
         edgesAR = linspace(1, 5, nbins+1) ;
         tmp = histcounts(cos(2* seg3d.qualities.ang1(keep)), edges) ;
@@ -145,11 +144,11 @@ for tidx = tidxs
         tmp = histcounts(ars(keep), edgesAR) ;
         aspectM{lobe}(:, dmy) = tmp / sum(tmp) ;
 
-        % elongation versus distance from fold
+        % anisotropy versus distance from fold
         distFold{lobe}{dmy} = min(abs(seg2d.cdat.centroid(keep, 1) / Lx - fold0), [], 2) ;
         % check it
         % scatter(seg2d.cdat.centroid(:, 1), seg2d.cdat.centroid(:, 2), 5, distFold{lobe}{dmy})
-        elongation{lobe}{dmy} = (ars(keep) -1).* cos(2* seg3d.qualities.ang1(keep)) ;
+        anisotropy{lobe}{dmy} = (ars(keep) -1).* cos(2* seg3d.qualities.ang1(keep)) ;
         
         % STORE ALL FOR TRAJECTORIES
         strengthsAll{lobe}{dmy} = strength(keep) ;
@@ -167,15 +166,15 @@ for tidx = tidxs
         cellIndentation{lobe}{dmy} = indtI(xV, yV) ;
     end
     
-    % Plot elongation vs distfold
-    imfn = fullfile(imDir, 'distFromFeatures', sprintf('elongation_%06d.png', tp)) ;
+    % Plot anisotropy vs distfold
+    imfn = fullfile(imDir, 'distFromFeatures', sprintf('anisotropy_%06d.png', tp)) ;
     plot_fit = ~exist(imfn, 'file') || overwrite || overwriteImages ;
     for lobe = 1:nLobes
         
         % Fit to line
-        [cc, SS] = polyfit(distFold{lobe}{dmy}, elongation{lobe}{dmy},1);
+        [cc, SS] = polyfit(distFold{lobe}{dmy}, anisotropy{lobe}{dmy},1);
        
-        cf = fit(distFold{lobe}{dmy}, elongation{lobe}{dmy},'poly1'); 
+        cf = fit(distFold{lobe}{dmy}, anisotropy{lobe}{dmy},'poly1'); 
         cf_coeff = coeffvalues(cf);
         cf_confint = confint(cf);
         aa = cf_coeff(1);
@@ -193,14 +192,14 @@ for tidx = tidxs
         deltay(all(xx > distFold{lobe}{dmy})) = NaN ;
         
         if plot_fit
-            plot(distFold{lobe}{dmy}, elongation{lobe}{dmy}, ...
+            plot(distFold{lobe}{dmy}, anisotropy{lobe}{dmy}, ...
                 '.', 'color', colors(lobe, :)) ;
             hold on;
             ylim(arlims)
             xlim(distlims) 
             errorbar(xx, yy, deltay, 'color', colors(lobe, :)) ;
         end
-        tmp = corrcoef(distFold{lobe}{dmy}, elongation{lobe}{dmy}) ;
+        tmp = corrcoef(distFold{lobe}{dmy}, anisotropy{lobe}{dmy}) ;
         distFits{lobe}(dmy, :) = [aa, bb, aa_unc, bb_unc] ;
         distCorrs{lobe}(dmy) = tmp(1, 2) ;
         fitEvalDist{lobe}(dmy, :) = xx ;
@@ -211,7 +210,7 @@ for tidx = tidxs
     if plot_fit
         xlabel(['distance from fold, [$\zeta/L$]'], ...
             'interpreter', 'latex')
-        ylabel('elongation, $\sqrt{\lambda_1 / \lambda_2} \cos 2\theta $', ...
+        ylabel('anisotropy, $(a/b-1) \cos 2\theta $', ...
             'interpreter', 'latex')
         title(['$t = $' num2str(tp - t0) ' ' QS.timeUnits], 'interpreter', 'latex')
         disp(['Saving ' imfn])
@@ -231,7 +230,7 @@ catch
     cmap0 = tmp(round(linspace(1, length(tmp), length(tidxs))), :) ;
 end
 
-%% elongation change as kymograph
+%% anisotropy change as kymograph
 clf
 mats = {} ;
 xx = linspace(distlims(1), distlims(2), nDists) ;
@@ -271,18 +270,18 @@ for lobe = 1:nLobes
     cb = colorbar() ;
 end
 
-%% Plot elongation versus indentation
+%% Plot anisotropy versus indentation
 allI = [] ;
 allE = [] ;
 clf
 dmy = 1 ;
 for tidx = tidxs 
     for lobe = 1:nLobes
-        scatter(cellIndentation{lobe}{dmy}, elongation{lobe}{dmy}, ...
+        scatter(cellIndentation{lobe}{dmy}, anisotropy{lobe}{dmy}, ...
             3, 'MarkerEdgeColor', colors(lobe, :)) ;
         hold on;
         allI = [allI; cellIndentation{lobe}{dmy}(:)] ;
-        allE = [allE; elongation{lobe}{dmy}(:)] ;
+        allE = [allE; anisotropy{lobe}{dmy}(:)] ;
     end
     dmy = dmy + 1 ;
 end
@@ -290,17 +289,17 @@ xlim([-0.25, 1])
 ylim(arlims)
 legend({'lobe 1', 'lobe 2', 'lobe 3', 'lobe 4'})
 xlabel('indentation, $\delta r / r_0$', 'interpreter', 'latex')
-ylabel('elongation, $\sqrt{\lambda_1 / \lambda_2} \cos 2\theta $', ...
+ylabel('anisotropy, $(a/b-1) \cos 2\theta $', ...
     'interpreter', 'latex')
-saveas(gcf, fullfile(segDir, 'elongation_indentation_lobes.png'))
+saveas(gcf, fullfile(segDir, 'anisotropy_indentation_lobes.png'))
 
-%% Plot elongation versus indentation
+%% Plot anisotropy versus indentation
 clf
 dmy = 1 ;
 % cmap0 = cubehelix(length(tidxs), 0.69, -0.6, 1.8, 1.13, [0.5, 0.5], [0.23, 0.96]) ;
 for tidx = tidxs
     for lobe = 1:nLobes
-        scatter(cellIndentation{lobe}{dmy}, elongation{lobe}{dmy}, ...
+        scatter(cellIndentation{lobe}{dmy}, anisotropy{lobe}{dmy}, ...
             3, 'MarkerEdgeColor', cmap0(dmy, :)) ;
         hold on;
     end
@@ -309,7 +308,7 @@ end
 xlim([-0.25, 1])
 ylim(arlims)
 xlabel('indentation, $\delta r / r_0$', 'interpreter', 'latex')
-ylabel('elongation, $\sqrt{\lambda_1 / \lambda_2} \cos 2\theta $', ...
+ylabel('anisotropy, $(a/b-1) \cos 2\theta $', ...
     'interpreter', 'latex')
 cb = colorbar() ;
 %Create 8 ticks from zero to 1
@@ -318,7 +317,7 @@ cb.Ticks = linspace(0, 1, nTicks) ;
 cb.TickLabels = num2cell(round( ...
     linspace(min(timePoints-t0), max(timePoints-t0), nTicks))) ; 
 ylabel(cb, ['time [' QS.timeUnits ']'], 'interpreter', 'latex')
-saveas(gcf, fullfile(segDir, 'elongation_indentation_time.png'))
+saveas(gcf, fullfile(segDir, 'anisotropy_indentation_time.png'))
 
 
 %% Plot histograms
@@ -440,8 +439,8 @@ legend(hs.patch, {'lobes 1 & 2'})
 axis equal
 ylim([-3, 3])
 daspect([1 1 1]) 
-xlabel('$|Q| \cos 2 \theta$, lobes 1\&2', 'interpreter', 'latex')
-ylabel('$|Q| \sin 2 \theta$, lobes 1\&2', 'interpreter', 'latex')
+xlabel('$2|Q| \cos 2 \theta$, lobes 1\&2', 'interpreter', 'latex')
+ylabel('$2|Q| \sin 2 \theta$, lobes 1\&2', 'interpreter', 'latex')
 saveas(gcf, imfn)
 
 %% Save statistics summary Lobes 1&2

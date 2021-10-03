@@ -22,7 +22,7 @@ addpath_recurse(fullfile(gutpath, 'mesh_handling'))
 addpath(fullfile(gutpath, 'basics'))
 addpath(fullfile(gutpath, 'distanceTransform'))
 addpath_recurse(fullfile(gutpath, 'plotting'))
-addpath_recurse(fullfile(gutpath, 'master_pipeline', 'nes_functions'))
+addpath_recurse(fullfile(gutpath, 'master_pipeline'))
 addpath(fullfile(gutpath, 'savgol'))
 addpath_recurse(fullfile(gutpath, 'toolbox_fast_marching/'));
 addpath(genpath(fullfile(gutpath, 'euclidean_orbifolds')));

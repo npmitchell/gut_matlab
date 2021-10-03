@@ -27,6 +27,9 @@ end
 if isfield(options, 'overwriteImages')
     overwriteImages = options.overwriteImages ;
 end
+if isfield(options, 'overwritePathlines')
+    overwritePathlines = options.overwritePathlines ;
+end
 if isfield(options, 'preview')
     preview = options.preview ;
 end
@@ -72,7 +75,7 @@ if ~exist(fullfile(QS.dir.segmentation, 'pathlines'), 'dir')
 end
 cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
     sprintf('cellVertexPathlines_%06dt0.mat', t0)) ;
-if ~exist(cellVertexPathlineFn, 'file') || overwrite 
+if ~exist(cellVertexPathlineFn, 'file') || overwritePathlines 
     disp('Creating vertex pathlines from scratch...')
     QS.setTime(t0) ;
     if useCorrected
@@ -114,37 +117,89 @@ end
 
 % Setting the current timepoint clears non-timepoint segmentations
 close all
-mc2t = [] ;
-ms2t = [] ;
+aratio_median = [] ;
+aratio_mean = [] ;
+aratio_low25 = [] ;
+aratio_high75 = [] ;
+aratio_std = [] ;
+aratio_ste = [] ;
+
+theta_mean = [] ;
+theta_std = [] ;
+theta_ste = [] ;
 c2t_low25 = [] ;
 c2t_high75 = [] ;
-c2t_std = [] ;
-c2t_ste = [] ;
 s2t_low25 = [] ;
 s2t_high75 = [] ;
+c2t_mean = [] ;
+s2t_mean = [] ;
+c2t_std = [] ;
 s2t_std = [] ;
+c2t_ste = [] ;
 s2t_ste = [] ;
-mean_mratio = [] ;
-mean_moiratio = [] ;
-median_moiratio = [] ;
-mratio_low25 = [] ;
-mratio_high75 = [] ;
-mratio_std = [] ;
-mratio_ste = [] ;
+% aspect-weighted
+mQAar       = [] ;
+mQAarStd    = [] ;
+mQAarSte    = [] ;
+mQAtheta    = [] ;
+mQAthetaStd = [] ;
+mQAthetaSte = [] ;
+mQAc2t      = [] ;
+mQAs2t      = [] ;
+mQAc2tStd   = [] ;
+mQAs2tStd   = [] ;
+mQAc2tSte   = [] ;
+mQAs2tSte   = [] ;
+% eccentricity-weighted
+mQEar       = [] ;
+mQEarStd    = [] ;
+mQEarSte    = [] ;
+mQEtheta    = [] ;
+mQEthetaStd = [] ;
+mQEthetaSte = [] ;
+mQEc2t      = [] ;
+mQEs2t      = [] ;
+mQEc2tStd   = [] ;
+mQEs2tStd   = [] ;
+mQEc2tSte   = [] ;
+mQEs2tSte   = [] ;
+
+    
 dmy = 1 ;
 cos2thetaM = zeros(99, 1) ;
 sin2thetaM = cos2thetaM ;
 aspectM = cos2thetaM ;
+thetaM = cos2thetaM ;
 nAPBins = 20 ;
-mean_qc2ts = zeros(length(timePoints), nAPBins) ;
-mean_qs2ts = zeros(length(timePoints), nAPBins) ;
-std_qc2ts = zeros(length(timePoints), nAPBins) ;
-std_qs2ts = zeros(length(timePoints), nAPBins) ;
-mean_c2ts = zeros(length(timePoints), nAPBins) ;
-mean_s2ts = zeros(length(timePoints), nAPBins) ;
-meanQLobeAspects = zeros(nLobes, length(timePoints)) ;
-meanQLobeAspectStds = zeros(nLobes, length(timePoints)) ;
-meanQLobeThetas = zeros(nLobes, length(timePoints)) ;
+
+% (aspect-1)-weighted Q tensor stats
+mean_QAc2ts = zeros(length(timePoints), nAPBins) ;
+mean_QAs2ts = zeros(length(timePoints), nAPBins) ;
+std_QAc2ts = zeros(length(timePoints), nAPBins) ;
+std_QAs2ts = zeros(length(timePoints), nAPBins) ;
+ste_QAc2ts = zeros(length(timePoints), nAPBins) ;
+ste_QAs2ts = zeros(length(timePoints), nAPBins) ;
+meanQALobeAspects = zeros(nLobes, length(timePoints)) ;
+meanQALobeAspectStds = zeros(nLobes, length(timePoints)) ;
+meanQALobeAspectStes = zeros(nLobes, length(timePoints)) ;
+meanQALobeThetas = zeros(nLobes, length(timePoints)) ;
+meanQALobeThetaStds = zeros(nLobes, length(timePoints)) ;
+meanQALobeThetaStes = zeros(nLobes, length(timePoints)) ;
+
+% eccentricity-weighted Q tensor stats
+mean_QEc2ts = zeros(length(timePoints), nAPBins) ;
+mean_QEs2ts = zeros(length(timePoints), nAPBins) ;
+std_QEc2ts = zeros(length(timePoints), nAPBins) ;
+std_QEs2ts = zeros(length(timePoints), nAPBins) ;
+ste_QEc2ts = zeros(length(timePoints), nAPBins) ;
+ste_QEs2ts = zeros(length(timePoints), nAPBins) ;
+meanQELobeAspects = zeros(nLobes, length(timePoints)) ;
+meanQELobeAspectStds = zeros(nLobes, length(timePoints)) ;
+meanQELobeAspectStes = zeros(nLobes, length(timePoints)) ;
+meanQELobeThetas = zeros(nLobes, length(timePoints)) ;
+meanQELobeThetaStds = zeros(nLobes, length(timePoints)) ;
+meanQELobeThetaStes = zeros(nLobes, length(timePoints)) ;
+
 for tp = timePoints
     sprintf(['t = ' num2str(tp)])
     QS.setTime(tp)
@@ -238,21 +293,64 @@ for tp = timePoints
         % Centroids in uv coordinates
         cntrds = QS.XY2uv([Lx, Ly], centroids, doubleCovered, umax, vmax) ;
 
+        
+        %% COULD USE THIS LINE INSTEAD OF BELOW!
+        % cell vertices in 3d
+        % [c3d, vertexMeshFaces] = ...
+        %     interpolate2Dpts_3Dmesh(faces, v2D, v3D, uv) ;
+        % 
+        % if useCorrected
+        % 
+        %     polygons = seg2d.seg2d.cdat.polygons ;
+        %     % prepare structure for use with polygonNetwork3dMeasurements()
+        %     poly3d = cell(length(polygons), 1) ;
+        %     polygonVtxIds = cell(length(polygons), 1) ;
+        %     cellVtx2D = cell(length(polygons), 1) ;
+        %     for pp = 1:length(polygons)
+        %         poly3d{pp} = c3d(pgonIDs == pp, :) ;
+        %         polygonVtxIds{pp} = find(pgonIDs == pp) ;
+        %         cellVtx2D{pp} = uv(polygonVtxIds{pp}, :) ;
+        %     end
+        % 
+        %     % Obtain cell vertices in 3d
+        %     % cell2d0 = seg2d.seg2d.cdat.polygons{cid} ;
+        %     % cellVtx2D = uv(pgonIDs == cid, :) ;
+        %     % cellVtx0 = c3d(pgonIDs == cid, :) ;
+        %     [c3d, cellCntrd3d, areas, perim, moment1, ang1, ...
+        %         moment2, ang2, moinertia, cellQ2d, ...
+        %         cellMeshFaces, vertexMeshFaces, cellNormals ] = ...
+        %         polygonNetwork3dMeasurements(faces, v3D, v2D, uv, polygonVtxIds, cntrds) ;
+        % else
+        %     % Obtain cell vertices in 3d
+        %     % original segmentation stores indices into vertices for
+        %     % polygon shapes
+        %     % cell2d0 = seg2d.seg2d.vdat.v(seg2d.seg2d.cdat.polygons{cid}, :) ;
+        %     polygonVtxIds = seg2d.seg2d.cdat.polygons ;
+        %     for pp = 1:length(polygonVtxIds)
+        %         cellVtx2D{pp} = uv(polygonVtxIds{cid}, :) ;
+        %         % cellVtx0 = c3d(seg2d.seg2d.cdat.polygons{cid}, :) ;
+        %     end
+        %     [c3d, cellCntrd3d, areas, perim, moment1, ang1, ...
+        %         moment2, ang2, moinertia, cellQ2d,  cellMeshFaces, vertexMeshFaces] = ...
+        %         polygonNetwork3dMeasurements(faces, v3D, v2D, uv, polygonVtxIds, cntrds) ;
+        % end
+        
+        %%
         % cell vertices in 3d
         [c3d, vertexMeshFaces] = ...
             interpolate2Dpts_3Dmesh(faces, v2D, v3D, uv) ;
-
+        
         % Get fieldfaces for centroids
-        [cellCntrd, cellMeshFaces] = interpolate2Dpts_3Dmesh(faces, v2D, v3D, cntrds) ;
+        [cellCntrd3d, cellMeshFaces] = interpolate2Dpts_3Dmesh(faces, v2D, v3D, cntrds) ;
         fN = faceNormal(triangulation(faces, v3D)) ;
         cellNormals = fN(cellMeshFaces, :) ; 
         % Not needed: already normalized by construction
         % cellNormals = cellNormals ./ vecnorm(cellNormals, 2, 2) ;
-
+        
         % Also get vectors point along zeta from cell centroid to lie along y
         jac2d3d = jacobian2Dto3DMesh(v2D, v3D, faces) ;
         % jac3d2d = jacobian3Dto2DMesh(v2D, v3D, faces) ;
-
+        
         %% Get aspect ratios of polygons 
         % rotate to 2d plane, with x along zeta, and y along phi
         areas = nan(nCells, 1) ;
@@ -263,7 +361,7 @@ for tp = timePoints
         ang2 = nan(nCells, 1) ;
         moinertia = nan(nCells, 2, 2) ;
         cellQ2d = {} ;
-
+        
         for cid = 1:nCells
             % Obtain cell vertices in 3d
             if useCorrected
@@ -273,25 +371,25 @@ for tp = timePoints
                 cell2d0 = seg2d.seg2d.vdat.v(seg2d.seg2d.cdat.polygons{cid}, :) ;
                 cellVtx0 = c3d(seg2d.seg2d.cdat.polygons{cid}, :) ;
             end
-            cellVtx = cellVtx0 - cellCntrd(cid, :) ;
-
+            cellVtx = cellVtx0 - cellCntrd3d(cid, :) ;
+        
             if ~isempty(cellVtx)
-
+        
                 % Note: this approach is tricky since we have to map to
                 % 3d and then back to 2d.
                 % To figure out which direction to take to z, map vec to 3d
-
+        
                 % dzeta3d points towards the mapped z axis but in original 3d
                 % embedding space
                 dzeta3d = (jac2d3d{cellMeshFaces(cid)} * [0, 1]')' ;
                 dzeta3d = dzeta3d / vecnorm(dzeta3d, 2, 2) ;
-
+        
                 % rotate cell to nearly yz plane
                 rot2xy = rotate3dToAlignAxis(cellNormals(cid, :), dzeta3d) ;
                 % Note: this one doesn't do the secondary rotation
                 % rot = createRotationVector3d(cellNormals(cid, :), [0, 0, 1]) ;
                 cell_quasi2d = (rot2xy * cellVtx')' ;
-                
+        
                 % % Alternative method based on jacobian --> actually this 
                 % % is a bit limited since it assumes small cells 
                 % % (same size or smaller than the face) to get the 
@@ -303,7 +401,7 @@ for tp = timePoints
                 % up to rescaling in each dimension separately
                 % cntrd2d = jac * cellCntrd(cid, :)' ;
                 % cntrds(cid, :)
-
+        
                 % Check 2d cell polygon
                 if debug
                     disp('debugging cell polygon in 3d and quasi2d...')
@@ -311,14 +409,14 @@ for tp = timePoints
                     % dchi3d points towards the mapped x axis in embedding space
                     dchi3d = (jac2d3d{cellMeshFaces(cid)} * [1, 0]')' ;
                     dchi3d = dchi3d / vecnorm(dchi3d, 2, 2) ;
-                    
+        
                     % Plot the cell in 3d and 2d
                     subplot(2, 2, 1)
                     plot(cell2d0(:, 1), cell2d0(:, 2), '.-');
                     axis equal
                     title('cell in 2d pullback XY', 'interpreter', 'latex')
                     subplot(2, 2, 2)
-
+        
                     % Vector to transform = dzeta since this emanates from
                     % centroid just as the normal does.
                     zeta2d = (rot2xy * dzeta3d')' ;
@@ -327,7 +425,7 @@ for tp = timePoints
                     catch
                         error('Rotation was not successful!')
                     end
-
+        
                     % plot it
                     plot3(cell_quasi2d(:, 1), cell_quasi2d(:, 2), ...
                         cell_quasi2d(:, 3), '.-'); 
@@ -335,20 +433,20 @@ for tp = timePoints
                     title('cell projected onto tangent plane and oriented', ...
                         'interpreter', 'latex')
                     hold on; 
-
+        
                     subplot(2, 2, 3)
                     plot3(cellVtx0(:, 1), cellVtx0(:, 2), cellVtx0(:, 3), ...
                         '.-')
                     hold on;
-                    zplus = cellCntrd(cid, :) + dzeta3d * mean(var(cellVtx0)); 
-                    xplus = cellCntrd(cid, :) + dchi3d * mean(var(cellVtx0));
-                    plot3dpts([cellCntrd(cid, :); zplus], 'r-')
-                    plot3dpts([cellCntrd(cid, :); xplus], 'g-')
+                    zplus = cellCntrd3d(cid, :) + dzeta3d * mean(var(cellVtx0)); 
+                    xplus = cellCntrd3d(cid, :) + dchi3d * mean(var(cellVtx0));
+                    plot3dpts([cellCntrd3d(cid, :); zplus], 'r-')
+                    plot3dpts([cellCntrd3d(cid, :); xplus], 'g-')
                     title('cell in 3d with computed $(\zeta, \chi)$ coordinates', ...
                         'interpreter', 'latex')
                     axis equal
                 end
-
+        
                 % Look at yz plane in which cell lives (very nearly, tangent plane)
                 %   POLYGEOM( X, Y ) returns area, X centroid,
                 %   Y centroid and perimeter for the planar polygon
@@ -365,7 +463,7 @@ for tp = timePoints
                 %         at angles ang1,ang2.
                 %     ang1 and ang2 are in radians.
                 %     J is centroidal polar moment.  J = I1 + I2 = Iuu + Ivv
-
+        
                 % Discard 3d info and compute
                 if size(cellVtx0, 1) > 2
                     try
@@ -383,14 +481,23 @@ for tp = timePoints
                     ang2(cid) = cpmo(4) ;
                     mratio(cid) = moment2(cid) / moment1(cid) ;
                     moinertia(cid, :, :) = [iner(4) -iner(6); -iner(6) iner(5)] ;
-                    
+        
                 end
             else
                 disp(['bad cell: ' num2str(cid)])
             end
         end
         
+        %% COULD USE THIS LINE INSTEAD OF THE ABOVE!
+        %[c3d, cellCntrd3d, areas, perim, moment1, ang1, ...
+        % moment2, ang2, moinertia, cellQ2d, cellMeshFaces, vertexMeshFaces, cellNormals] = ...
+        % polygonNetwork3dMeasurements(faces, v3D, v2D, cellVtx2D, polygons, cntrds)
+        %%
+        
+        
         %% Save results stored in struct
+        disp('building advected segmentation in struct...')
+        
         seg3d = struct('vdat', struct(), 'cdat', struct(), ...
             'qualities', struct(), 'map', struct()) ;
         
@@ -413,7 +520,7 @@ for tp = timePoints
         
         % cell data in 3d
         seg3d.cdat.centroids_uv = cntrds ;
-        seg3d.cdat.centroids_3d = cellCntrd ;
+        seg3d.cdat.centroids_3d = cellCntrd3d ;
         seg3d.cdat.meshFaces = cellMeshFaces ;
         seg3d.cdat.normals = cellNormals ;
         seg3d.cdat.polygons = seg2d.seg2d.cdat.polygons ;
@@ -473,11 +580,10 @@ for tp = timePoints
         iii = [ iuu  -iuv ;
              -iuv   ivv ];
         [ eig_vec, eig_val ] = eig(iii);
-        meanMoI = iii ;
-        meanMoment1 = eig_val(1,1);
-        meanMoment2 = eig_val(2,2);
-        meanAng1 = atan2( eig_vec(2,1), eig_vec(1,1) );
-        meanAng2 = atan2( eig_vec(2,2), eig_vec(1,2) );
+        meanMOI = iii ;
+        meanMOIMoment1 = eig_val(1,1);
+        meanMOIMoment2 = eig_val(2,2);
+        meanMOIAng1 = atan2( eig_vec(2,1), eig_vec(1,1) );
 
         % Compute mean MOI, area-weighted 
         % --> isn't MOI already area-weighted? No, it's weighted oddly. 
@@ -491,7 +597,9 @@ for tp = timePoints
 
         % Compute nematic tensor for each
         mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
+        mDM2 = seg3d.qualities.moment1 ./ seg3d.qualities.moment2 ;
         strength = zeros(nCells, 1) ;
+        eccentricity = zeros(nCells, 1) ;
         QQ = zeros(nCells, 2, 2) ;
         for qq = 1:nCells
             if ~isempty(intersect(keep, qq))
@@ -499,274 +607,33 @@ for tp = timePoints
                 nn = [cos(tt), sin(tt)] ;
                 % Create traceless symmetric matrix using unit vec
                 strength(qq) = abs(sqrt(mratio(qq))) - 1 ;
+                eccentricity(qq) = sqrt(1 - mDM2(qq)) ;
                 QQ(qq, :, :) = nn' * nn - 0.5 * [1, 0; 0, 1] ;
             end
         end
-        % Take mean shape from nematic tensor
-        meanQ = squeeze(mean(strength .* QQ, 1)) ;
-        [ eig_vec, eig_val ] = eig(meanQ) ;
-        meanQMoment1 = eig_val(1,1);
-        meanQMoment2 = eig_val(2,2);
-        meanQTheta = atan2( eig_vec(2,2), eig_vec(1,2) );
+        
 
-        % Weight by areas
-        meanQW = squeeze(sum(weights .* strength(keep) .* QQ(keep, :, :), 1)) ;
-        [ eig_vec, eig_val ] = eig(meanQW) ;
-        meanQMoment1Weighted = eig_val(1,1);
-        meanQMoment2Weighted = eig_val(2,2);
-        meanQThetaWeighted = atan2( eig_vec(2,2), eig_vec(1,2) );
-
-        % STORE NEMATIC INFO IN QUALITIES
-        seg3d.qualities.nematicTensor = QQ ;
-        seg3d.qualities.nematicStrength = strength ;
-
-        % This is not helpful.
-        % i11 = seg3d.qualities.mInertia(keep, 1, 1) ;
-        % i12 = seg3d.qualities.mInertia(keep, 1, 2) ;
-        % i22 = seg3d.qualities.mInertia(keep, 2, 2) ;
-        % sqrtdet = zeros(length(keep), 1) ;
-        % for qq = 1:length(keep)
-        %     sqrtdet(qq) = sqrt(abs(det([i11(qq), -i12(qq); -i12(qq), i22(qq)]))) ;
-        % end
-        % iuu = nansum(weights .* i11 ./ sqrtdet) ;
-        % iuv = -nansum(weights .* i12 ./ sqrtdet) ;
-        % ivv = nansum(weights .* i22 ./ sqrtdet) ;
-        % iiiW = [ iuu  -iuv ;
-        %      -iuv   ivv ];
-        % [ eig_vec, eig_val ] = eig(iiiW);
-        % meanMoIWeighted = iiiW ;
-        % meanMoment1Weighted = eig_val(1,1);
-        % meanMoment2Weighted = eig_val(2,2);
-        % meanAng1Weighted = atan2( eig_vec(2,1), eig_vec(1,1) );
-        % meanAng2Weighted = atan2( eig_vec(2,2), eig_vec(1,2) );
-
-        % Compute mean MOI, area-weighted, roll off weights for largest cells
-        weight(weight > 0.5 * maxCellSize) = maxCellSize - weight(weight > 0.5 * maxCellSize) ;
-        weights = weight ./ nansum(weight) ;
-
-        meanQWB = squeeze(sum(weights .* strength(keep) .* QQ(keep, :, :), 1)) ;
-        [ eig_vec, eig_val ] = eig(meanQWB) ;
-        meanQMoment1WeightBounded = eig_val(1,1);
-        meanQMoment2WeightBounded = eig_val(2,2);
-        meanQThetaWeightBounded = atan2( eig_vec(2,2), eig_vec(1,2) );
-
-        % iuu = nansum(weights .* i11 ./ sqrtdet) ;
-        % iuv = -nansum(weights .* i12 ./ sqrtdet) ;
-        % ivv = nansum(weights .* i22 ./ sqrtdet) ;
-        % iii = [ iuu  -iuv ;
-        %      -iuv   ivv ];
-        % [ eig_vec, eig_val ] = eig(iii);
-        % meanMoIWeightBounded = iii ;
-        % meanMoment1WeightBounded = eig_val(1,1) ;
-        % meanMoment2WeightBounded = eig_val(2,2) ;
-        % meanAng1WeightBounded = atan2( eig_vec(2,1), eig_vec(1,1) );
-        % meanAng2WeightBounded = atan2( eig_vec(2,2), eig_vec(1,2) );
-
-        % Other measures
-        ang1 = seg3d.qualities.ang1 ;
-        mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
-        mratio_principal = mratio(keep) ;
-        % c1 = sqrt(mratio_principal(:)) .* cos(2 * ang1(keep)) ;
-        % s1 = sqrt(mratio_principal(:)) .* sin(2 * ang1(keep)) ;
-        % ar = vecnorm([mean(c1), mean(s1)]) ;
-        % theta = 0.5 * atan2(nanmean(s1), nanmean(c1)) ;
-        ars = sqrt(mratio_principal(:)) ;
-        cos2thetas = cos(2 * ang1(keep)) ;
-        sin2thetas = sin(2 * ang1(keep)) ;
-
-        % %% Cell statistics weighted by area
-        % % Weight the mean by cell area
-        % weight = areas(keep) ;
-        % weights = weight ./ nansum(weight) ;
-        % c2 = weights .* c1(:) ;
-        % s2 = weights .* s1(:) ;
-        % ar_weighted = vecnorm([sum(c2), sum(s2)]) ;
-        % theta_weighted = 0.5 * atan2(sum(s2), sum(c2)) ;
-        % 
-        % %% Cell statistics weighted by bounded area
-        % weight = areas(keep) ;
-        % weight(weight > 0.5 * maxCellSize) = maxCellSize - weight(weight > 0.5 * maxCellSize) ;
-        % weights = weight ./ nansum(weight) ;
-        % c3 = weights .* c1(:) ;
-        % s3 = weights .* s1(:) ;
-        % ar_weighted_bounded = vecnorm([sum(c3), sum(s3)]) ;
-        % theta_weighted_bounded = 0.5 * atan2(sum(s3), sum(c3)) ;
-
-        % seg3d.statistics.meanAspect = ar ;
-        % seg3d.statistics.meanCos2Theta =  ;
-        % seg3d.statistics.meanSin2Theta = sin(2*theta) ;
-        % seg3d.statistics.meanAspectWeighted = ar_weighted ;
-        % seg3d.statistics.meanThetaWeighted = theta_weighted ;
-        % seg3d.statistics.meanAspectBoundedWeight = ar_weighted_bounded ;
-        % seg3d.statistics.meanThetaBoundedWeight = theta_weighted_bounded ;
-        % 
-        % seg3d.statistics.aspect25 = prctile(ars, 25.0) ;
-        % seg3d.statistics.aspect75 = prctile(ars, 75.0) ;
-        % seg3d.statistics.cos2theta25 = prctile(cos2thetas, 25.0) ;
-        % seg3d.statistics.cos2theta75 = prctile(cos2thetas, 75.0) ;
-        % seg3d.statistics.sin2theta25 = prctile(sin2thetas, 25.0) ;
-        % seg3d.statistics.sin2theta75 = prctile(sin2thetas, 75.0) ;
-
-        % The aspect ratio is related to the meanQ 
-        % For perfectly aligned cells, meanQ would have a norm(Q) = 0.5, so
-        % abs(norm(meanQ)) * 2 = |ar| - 1
-        try
-            assert(abs(sqrt(abs(4 * det(meanQ))) - 2 * norm(meanQ)) < 1e-7)
-        catch
-            error('here')
-        end
-
-        % Statistics by AP position
-        ap_pos = seg3d.cdat.centroids_uv(keep, 1) ;
-        xedges = linspace(0, 1, nAPBins + 1) ;
-        [mid_ap, mean_c2t, std_c2t] = ...
-            binDataMeanStdWeighted(ap_pos, mratio_principal .* cos2thetas, ...
-                xedges, weights) ;
-        [mid_ap, mean_s2t, std_s2t] = ...
-            binDataMeanStdWeighted(ap_pos, mratio_principal .* sin2thetas, ...
-                xedges, weights) ;
-
-
-        %% Statistics by Lobe (between features.folds)
+        % Statistics on Q tensors
         nU = QS.nU ;
         fold0 = double(folds(tidx, :)) / double(nU) ;
         nLobes = length(fold0(:)) + 1 ;
         foldt = [0; fold0(:); 1] ;
         ap_pos = seg3d.cdat.centroids_uv(keep, 1) ;
-        [~, lobes_Q11, lobes_std_Q11] = binDataMeanStdWeighted(ap_pos, ...
-            strength(keep) .* squeeze(QQ(keep, 1, 1)), foldt, weights) ;
-        [~, lobes_Q12, lobes_std_Q12] = binDataMeanStdWeighted(ap_pos, ...
-            strength(keep) .* squeeze(QQ(keep, 1, 2)), foldt, weights) ;
-        [~, lobes_Q21, lobes_std_Q21] = binDataMeanStdWeighted(ap_pos, ...
-            strength(keep) .* squeeze(QQ(keep, 2, 1)), foldt, weights) ;
-        [~, lobes_Q22, lobes_std_Q22] = binDataMeanStdWeighted(ap_pos, ...
-            strength(keep) .* squeeze(QQ(keep, 2, 2)), foldt, weights) ;
-        
-        % standard error on the mean
-        lobes_ste_Q11 = lobes_std_Q11 / sqrt(length(keep)) ;
-        
-        % Check that result is still traceless and symmetric
-        assert(all(abs(lobes_Q11 + lobes_Q22) < 1e-7))
-        assert(all(abs(lobes_Q12 - lobes_Q12) < 1e-7))
+        xedges = linspace(0, 1, nAPBins + 1) ;
+        outstats = aux_computeQstats(QQ, ang1, mratio, ...
+            keep, areas, strength, eccentricity, ...
+            foldt, nLobes, ap_pos, xedges, maxCellSize) ;
 
-        % Collate lobe information
-        meanQLobeAspect = zeros(nLobes, 1) ;
-        meanQLobeTheta = zeros(nLobes, 1) ;
-        meanQLobeAspectStd = zeros(nLobes, 1) ;
-        meanQLobeAspectSte = zeros(nLobes, 1) ;
-        meanQLobeThetaStd = zeros(nLobes, 1) ;
-        meanQLobeThetaSte = zeros(nLobes, 1) ;
-        for lobe = 1:nLobes
-            meanQ_lobes{lobe} = [lobes_Q11(lobe), lobes_Q12(lobe); ...
-                lobes_Q21(lobe), lobes_Q22(lobe)] ;
-            stdQ_lobes{lobe} = [lobes_std_Q11(lobe), lobes_std_Q12(lobe); ...
-                lobes_std_Q21(lobe), lobes_std_Q22(lobe)] ;
-            if std_ste == 2
-                steQ_lobes{lobe} = [lobes_ste_Q11(lobe), lobes_ste_Q12(lobe); ...
-                    lobes_ste_Q21(lobe), lobes_ste_Q22(lobe)] ;
-            end
-            
-            % diagonalize this lobeQ
-            [ eig_vec, eig_val ] = eig(meanQ_lobes{lobe});
-            try
-                assert(abs(abs(eig_val(2,2)) - abs(eig_val(1,1))) < 1e-7)
-            catch
-                error('Something is wrong with traceless or symmetry')
-            end
-            meanQLobeAspect(lobe) = norm(meanQ_lobes{lobe}) * 2 + 1 ;
-            meanQLobeTheta(lobe) = atan2( eig_vec(2,2), eig_vec(1,2) );
+        % Dump stats into seg3d
+        % ensure that no fields are missing from outstats not already in
+        % seg3d.statistics as field
+        seg3d.statistics = outstats ;
+        seg3d.statistics.meanMoI = meanMOI ;
+        seg3d.statistics.meanMoImoment1 = meanMOIMoment1 ;
+        seg3d.statistics.meanMoImoment2 = meanMOIMoment2 ;
+        seg3d.statistics.meanMoITheta = meanMOIAng1 ;
 
-            % Uncertainty in average is given by error propagation
-            % lambda = 0.5 * [trace +/- sqrt(tr^2 - 4*det)] 
-            % Now, the trace is guaranteed to be zero, but not sure that means
-            % unc_trace = 0. If not, then we would propagate errors to be
-
-            unc_tr = sqrt(2 * lobes_std_Q11(lobe).^2) ;
-            unc_det = sqrt(2 * (lobes_Q11(lobe) * lobes_std_Q11(lobe)).^2 ...
-                + 2 * (lobes_Q12(lobe) * lobes_std_Q12(lobe)).^2) ;
-            determ = abs(det(meanQ_lobes{lobe})) ;
-            % We ask for the uncertainty of the positive eigenvector
-            unc_lambda = 0.5 * sqrt(unc_tr.^2 + unc_det.^2 / (determ)) ; 
-
-            % NOTE: |eigenvalue| of symm traceless matrix == norm(matrix)
-            meanQLobeAspectStd(lobe) = 2 * unc_lambda ;
-            meanQLobeAspectSte(lobe) = 2 * unc_lambda ;
-            
-            % For angle uncertainty, note that Q is traceless symmetric so
-            % we can say Q = [A,B;B,-A]. 
-            % Then the eigenvalues are lambda = +/- sqrt(A^2+B^2)
-            % Plugging back in allows us to find the eigvects as theta(A,B)
-            % so that we can get dtheta(A,B,dA,dB).
-            % dtheta = Sqrt[D[theta,A]^2 dA^2 + D[theta,B]^2 dB^2]
-            %        = 0.5 * sqrt[ (B^2 dA^2 + A^2 dB^2) / (A^2+B^2)^2 ]
-            assert(lobes_Q11(lobe) == - lobes_Q22(lobe))
-            assert(lobes_Q21(lobe) == - lobes_Q12(lobe))
-            numerator1 = lobes_Q11(lobe)^2 * (lobes_std_Q12(lobe))^2 ;
-            numerator2 = lobes_Q12(lobe)^2 * (lobes_std_Q11(lobe))^2 ;
-            numerator = numerator1+numerator2 ;
-            denominator = (lobes_Q11(lobe)^2 + lobes_Q12(lobe)^2)^2 ;
-            meanQLobeThetaStd(lobe) = 0.5 * sqrt(numerator / denominator) ;
-
-            if std_ste == 2
-                error('handle here')
-            end
-        end
-
-        %% Save 
-        tmp = seg3d.statistics ;
-        seg3d.statistics = struct() ;
-        seg3d.statistics.keep = tmp.keep ;
-        seg3d.statistics.maxCellSize = tmp.maxCellSize ;
-        % Mean tensor stats
-        seg3d.statistics.meanMoI = meanMoI ;
-        seg3d.statistics.meanQ = meanQ ;
-        seg3d.statistics.meanQWeighted = meanQW ;
-        seg3d.statistics.meanQWeightBounded = meanQWB ;
-        seg3d.statistics.meanMoment1 = meanMoment1 ;
-        seg3d.statistics.meanMoment2 = meanMoment2 ;
-        seg3d.statistics.meanQMoment1 = meanQMoment1 ;
-        seg3d.statistics.meanQMoment2 = meanQMoment2 ;
-        seg3d.statistics.meanQMoment1Weighted = meanQMoment1Weighted ;
-        seg3d.statistics.meanQMoment2Weighted = meanQMoment2Weighted ;
-        seg3d.statistics.meanQMoment1WeightBounded = meanQMoment1WeightBounded ;
-        seg3d.statistics.meanQMoment2WeightBounded = meanQMoment2WeightBounded ;
-
-        % mean tensor angles
-        seg3d.statistics.meanAng1 = meanAng1 ;
-        seg3d.statistics.meanQTheta = meanQTheta ;
-        seg3d.statistics.meanQThetaWeighted = meanQThetaWeighted ;
-        seg3d.statistics.meanQThetaWeightBounded = meanQThetaWeightBounded ;
-
-        % Mean Q tensor (weightedBounded) for each lobe
-        seg3d.statistics.lobes = struct() ;
-        seg3d.statistics.lobes.meanQLobes = meanQ_lobes ;
-        seg3d.statistics.lobes.stdQLobes = stdQ_lobes ;
-        seg3d.statistics.lobes.meanQLobeAspect = meanQLobeAspect ;
-        seg3d.statistics.lobes.meanQLobeAspectStd = meanQLobeAspectStd ;
-        seg3d.statistics.lobes.meanQLobeTheta = meanQLobeTheta ;
-
-        % Raw distributions
-        seg3d.statistics.aspect25 = prctile(ars, 25.0) ;
-        seg3d.statistics.aspect75 = prctile(ars, 75.0) ;
-        seg3d.statistics.cos2theta25 = prctile(cos2thetas, 25.0) ;
-        seg3d.statistics.cos2theta75 = prctile(cos2thetas, 75.0) ;
-        seg3d.statistics.sin2theta25 = prctile(sin2thetas, 25.0) ;
-        seg3d.statistics.sin2theta75 = prctile(sin2thetas, 75.0) ;
-        seg3d.statistics.aspectStd = std(ars) ;
-        seg3d.statistics.aspectSte = std(ars) / sqrt(length(keep)) ;
-        seg3d.statistics.cos2thetaStd = std(cos2thetas) ;
-        seg3d.statistics.cos2thetaSte = std(cos2thetas) / sqrt(length(keep)) ;
-        seg3d.statistics.sin2thetaStd = std(sin2thetas) ;
-        seg3d.statistics.cos2thetaSte = std(sin2thetas) / sqrt(length(keep)) ;
-    
-
-        % AP averaging
-        seg3d.statistics.apBins = mid_ap ;
-        seg3d.statistics.apCos2Theta = mean_c2t ;
-        seg3d.statistics.apSin2Theta = mean_s2t ;
-        seg3d.statistics.apCos2ThetaStd = std_c2t ;
-        seg3d.statistics.apSin2ThetaStd = std_s2t ;
-
+        %% SAVE seg3d with stats
         disp(['Saving seg3d now with statistics to: ' outfn])
         save(outfn, 'seg3d', 'coordSys')
     else
@@ -776,77 +643,162 @@ for tp = timePoints
         coordSys = seg3d.coordSys ;
         seg3d = seg3d.seg3d ;
         
+        keep = seg3d.statistics.keep ;
+        mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
     end
    
-    % Store for later plotting
-    keep = seg3d.statistics.keep ;
-    mratio = seg3d.qualities.moment2 ./ seg3d.qualities.moment1 ;
+    %% Store for later plotting
+    % Collate for later plotting -- raw stats and meanQs (global)
+    
+    % shorthands for some vars
+    % meanQAWB = seg3d.statistics.meanQ.aspectWeighted.meanQWeightBounded ;
+    meanQAAspectWB = seg3d.statistics.meanQ.aspectWeighted.meanQAspectWeightBounded ;
+    meanQAAspectStdWB = seg3d.statistics.meanQ.aspectWeighted.meanQAspectStdWeightBounded ;
+    meanQAAspectSteWB = seg3d.statistics.meanQ.aspectWeighted.meanQAspectSteWeightBounded ;
+    meanQAThetaWB = seg3d.statistics.meanQ.aspectWeighted.meanQThetaWeightBounded ;
+    meanQAThetaStdWB = seg3d.statistics.meanQ.aspectWeighted.meanQThetaStdWeightBounded ;
+    meanQAThetaSteWB = seg3d.statistics.meanQ.aspectWeighted.meanQThetaSteWeightBounded ;
+        
+    % meanQEWB = seg3d.statistics.meanQ.eccentricityWeighted.meanQWeightBounded ;
+    meanQEAspectWB = seg3d.statistics.meanQ.eccentricityWeighted.meanQAspectWeightBounded ;
+    meanQEAspectStdWB = seg3d.statistics.meanQ.eccentricityWeighted.meanQAspectStdWeightBounded ;
+    meanQEAspectSteWB = seg3d.statistics.meanQ.eccentricityWeighted.meanQAspectSteWeightBounded ;
+    meanQEThetaWB = seg3d.statistics.meanQ.eccentricityWeighted.meanQThetaWeightBounded ;
+    meanQEThetaStdWB = seg3d.statistics.meanQ.eccentricityWeighted.meanQThetaStdWeightBounded ;
+    meanQEThetaSteWB = seg3d.statistics.meanQ.eccentricityWeighted.meanQThetaSteWeightBounded ;
+
     mratio_principal = mratio(keep) ;
     ars = sqrt(mratio_principal(:)) ;
-    ang1 = seg3d.qualities.ang1 ; 
-    cos2thetas = cos(2 * ang1(keep)) ;
-    sin2thetas = sin(2 * ang1(keep)) ;
-
-    c2t_low25 = [c2t_low25, prctile(cos2thetas, 25.0)] ;
-    c2t_high75 = [c2t_high75, prctile(cos2thetas, 75.0)] ;
-    s2t_low25 = [s2t_low25, prctile(sin2thetas, 25.0)] ;
-    s2t_high75 = [s2t_high75, prctile(sin2thetas, 75.0)] ;
-    mc2t = [mc2t, cos(2*seg3d.statistics.meanQThetaWeightBounded)] ;
-    ms2t = [ms2t, sin(2*seg3d.statistics.meanQThetaWeightBounded)] ;
-    c2t_std = [c2t_std, std(cos2thetas)] ;
-    s2t_std = [s2t_std, std(sin2thetas)] ;
-    c2t_ste = [c2t_ste, std(cos2thetas) / sqrt(length(keep))] ;
-    s2t_ste = [s2t_ste, std(sin2thetas) / sqrt(length(keep))] ;
     
-    meanQLobeAspects(:, dmy) = seg3d.statistics.lobes.meanQLobeAspect ;
-    meanQLobeAspectStds(:, dmy) = seg3d.statistics.lobes.meanQLobeAspectStd ;
-    try
-        meanQLobeAspectStes(:, dmy) = seg3d.statistics.lobes.meanQLobeAspectSte ;
-    catch
-        disp('no ste in stats!')
-    end
-    meanQLobeThetas(:, dmy) = seg3d.statistics.lobes.meanQLobeTheta ;
-    mean_c2ts(dmy, :) = seg3d.statistics.apCos2Theta ;
-    mean_s2ts(dmy, :) = seg3d.statistics.apSin2Theta ;
-    
-    mean_qc2ts(dmy, :) = seg3d.statistics.apCos2Theta ;
-    mean_qs2ts(dmy, :) = seg3d.statistics.apSin2Theta ;
-    std_qc2ts(dmy, :) = seg3d.statistics.apCos2ThetaStd ;
-    std_qs2ts(dmy, :) = seg3d.statistics.apSin2ThetaStd ;
-    try
-        ste_qc2ts(dmy, :) = seg3d.statistics.apCos2ThetaSte ;
-        ste_qs2ts(dmy, :) = seg3d.statistics.apSin2ThetaSte ;
-    catch
-        disp('no ste in stats!')
-    end
-        
-    mean_mratio = [mean_mratio, norm(seg3d.statistics.meanQWeighted) * 2 + 1 ] ;
-    median_moiratio = [median_moiratio, median(ars)] ;
-    mean_moiratio = [mean_moiratio, ...
-        sqrt(seg3d.statistics.meanMoment2/seg3d.statistics.meanMoment1) ] ;
+    % Multiplying by two here since norm gives 1/2*(strength_Q)
+    aratio_median = [aratio_median, median(ars)] ;
+    aratio_mean = [aratio_mean, mean(ars) ] ;
+    aratio_low25 = [aratio_low25, seg3d.statistics.aspect25 ] ;
+    aratio_high75 = [aratio_high75, seg3d.statistics.aspect75 ] ;
+    aratio_std = [aratio_std, seg3d.statistics.aspectStd ] ;
+    aratio_ste = [aratio_ste, seg3d.statistics.aspectSte ] ;
 
-    mratio_low25 = [mratio_low25, seg3d.statistics.aspect25 ] ;
-    mratio_high75 = [mratio_high75, seg3d.statistics.aspect75 ] ;
-    mratio_std = [mratio_std, seg3d.statistics.aspectStd] ;
-    mratio_ste = [mratio_ste, seg3d.statistics.aspectSte] ;
+    theta_mean = [theta_mean, seg3d.statistics.thetaMean ] ;
+    theta_std = [theta_std, seg3d.statistics.thetaStd ] ;
+    theta_ste = [theta_ste, seg3d.statistics.thetaSte ] ;
+    c2t_low25 = [c2t_low25, seg3d.statistics.cos2theta25] ;
+    c2t_high75 = [c2t_high75, seg3d.statistics.cos2theta75 ] ;
+    s2t_low25 = [s2t_low25, seg3d.statistics.sin2theta25 ] ;
+    s2t_high75 = [s2t_high75, seg3d.statistics.sin2theta75 ] ;
+    c2t_mean = [c2t_mean, seg3d.statistics.cos2thetaMean ] ;
+    s2t_mean = [s2t_mean, seg3d.statistics.sin2thetaMean ] ;
+    c2t_std = [c2t_std, seg3d.statistics.cos2thetaStd ] ;
+    s2t_std = [s2t_std, seg3d.statistics.sin2thetaStd ] ;
+    c2t_ste = [c2t_ste, seg3d.statistics.cos2thetaSte ] ;
+    s2t_ste = [s2t_ste, seg3d.statistics.sin2thetaSte ] ;
+    % aspect-weighted
+    mQAar       = [mQAar, meanQAAspectWB] ;
+    mQAarStd    = [mQAarStd, meanQAAspectStdWB] ;
+    mQAarSte    = [mQAarSte, meanQAAspectSteWB] ;
+    mQAtheta    = [mQAtheta, meanQAThetaWB] ;
+    mQAthetaStd = [mQAthetaStd, meanQAThetaStdWB] ;
+    mQAthetaSte = [mQAthetaSte, meanQAThetaSteWB] ;
+    mQAc2t      = [mQAc2t, cos(2*meanQAThetaWB)] ;
+    mQAs2t      = [mQAs2t, sin(2*meanQAThetaWB)] ;
+    mQAc2tStd   = [mQAc2tStd, abs(sin(2*meanQAThetaWB))*2*meanQAThetaStdWB ] ;
+    mQAs2tStd   = [mQAs2tStd, abs(cos(2*meanQAThetaWB))*2*meanQAThetaStdWB ] ;
+    mQAc2tSte   = [mQAc2tSte, abs(sin(2*meanQAThetaWB))*2*meanQAThetaSteWB ] ;
+    mQAs2tSte   = [mQAs2tSte, abs(cos(2*meanQAThetaWB))*2*meanQAThetaSteWB ] ;
+    % eccentricity-weighted
+    mQEar       = [mQEar, meanQEAspectWB] ;
+    mQEarStd    = [mQEarStd, meanQEAspectStdWB] ;
+    mQEarSte    = [mQEarSte, meanQEAspectSteWB] ;
+    mQEtheta    = [mQEtheta, meanQEThetaWB] ;
+    mQEthetaStd = [mQEthetaStd, meanQEThetaStdWB] ;
+    mQEthetaSte = [mQEthetaSte, meanQEThetaSteWB] ;
+    mQEc2t      = [mQEc2t, cos(2*meanQEThetaWB)] ;
+    mQEs2t      = [mQEs2t, sin(2*meanQEThetaWB)] ;
+    mQEc2tStd   = [mQEc2tStd, abs(sin(2*meanQEThetaWB))*2*meanQEThetaStdWB ] ;
+    mQEs2tStd   = [mQEs2tStd, abs(cos(2*meanQEThetaWB))*2*meanQEThetaStdWB ] ;
+    mQEc2tSte   = [mQEc2tSte, abs(sin(2*meanQEThetaWB))*2*meanQEThetaSteWB ] ;
+    mQEs2tSte   = [mQEs2tSte, abs(cos(2*meanQEThetaWB))*2*meanQEThetaSteWB ] ;
+   
+    %% Collate for plotting -- lobes
+    % anisotropy-weighted (aspect - 1) -- LOBES 
+    meanQALobeAspects(:, dmy) = ...
+        seg3d.statistics.lobes.aspectWeighted.meanQLobeAspect ;
+    meanQALobeAspectStds(:, dmy) = ...
+        seg3d.statistics.lobes.aspectWeighted.meanQLobeAspectStd ;
+    meanQALobeAspectStes(:, dmy) = ...
+        seg3d.statistics.lobes.aspectWeighted.meanQLobeAspectSte ;
+    meanQALobeThetas(:, dmy) = ...
+        seg3d.statistics.lobes.aspectWeighted.meanQLobeTheta ;
+    meanQALobeThetaStds(:, dmy) = ...
+        seg3d.statistics.lobes.aspectWeighted.meanQLobeThetaStd ;
+    meanQALobeThetaStes(:, dmy) = ...
+        seg3d.statistics.lobes.aspectWeighted.meanQLobeThetaSte ;
+    % eccentricity-weighted (aspect - 1)    
+    meanQELobeAspects(:, dmy) = ...
+        seg3d.statistics.lobes.eccentricityWeighted.meanQLobeAspect ;
+    meanQELobeAspectStds(:, dmy) = ...
+        seg3d.statistics.lobes.eccentricityWeighted.meanQLobeAspectStd ;
+    meanQELobeAspectStes(:, dmy) = ...
+        seg3d.statistics.lobes.eccentricityWeighted.meanQLobeAspectSte ;
+    meanQELobeThetas(:, dmy) = ...
+        seg3d.statistics.lobes.eccentricityWeighted.meanQLobeTheta ;
+    meanQELobeThetaStds(:, dmy) = ...
+        seg3d.statistics.lobes.eccentricityWeighted.meanQLobeThetaStd ;
+    meanQELobeThetaStes(:, dmy) = ...
+        seg3d.statistics.lobes.eccentricityWeighted.meanQLobeThetaSte ;
+
+    %% collate for plotting -- AP stats
+    % aspect-weighted
+    mean_QAc2ts(dmy, :) = ...
+        seg3d.statistics.apStats.aspectWeighted.apCos2Theta ;
+    mean_QAs2ts(dmy, :) = ...
+        seg3d.statistics.apStats.aspectWeighted.apSin2Theta ;
+    std_QAc2ts(dmy, :) = ...
+        seg3d.statistics.apStats.aspectWeighted.apCos2ThetaStd ;
+    std_QAs2ts(dmy, :) = ...
+        seg3d.statistics.apStats.aspectWeighted.apSin2ThetaStd ;
+    ste_QAc2ts(dmy, :) = ...
+        seg3d.statistics.apStats.aspectWeighted.apCos2ThetaSte ;
+    ste_QAs2ts(dmy, :) = ...
+        seg3d.statistics.apStats.aspectWeighted.apSin2ThetaSte ;
+    % eccentricity-weighted
+    mean_QEc2ts(dmy, :) = ...
+        seg3d.statistics.apStats.eccentricityWeighted.apCos2Theta ;
+    mean_QEs2ts(dmy, :) = ...
+        seg3d.statistics.apStats.eccentricityWeighted.apSin2Theta ;
+    std_QEc2ts(dmy, :) = ...
+        seg3d.statistics.apStats.eccentricityWeighted.apCos2ThetaStd ;
+    std_QEs2ts(dmy, :) = ...
+        seg3d.statistics.apStats.eccentricityWeighted.apSin2ThetaStd ;
+    ste_QEc2ts(dmy, :) = ...
+        seg3d.statistics.apStats.eccentricityWeighted.apCos2ThetaSte ;
+    ste_QEs2ts(dmy, :) = ...
+        seg3d.statistics.apStats.eccentricityWeighted.apSin2ThetaSte ;
+    
+    mid_ap = seg3d.statistics.apStats.aspectWeighted.apBins ;
     
     %% Plot this timepoint's segmentation in 3d
-    aux_plotCellSegmentation3D(QS, tp, seg3d, imdir, overwriteImages, xyzlims, ~useCorrected)
+    aux_plotCellSegmentation3D(QS, tp, seg3d, imdir, ...
+        overwriteImages, xyzlims, ~useCorrected)
     
     %% Plot as histogram
     edges = linspace(-1, 1, 100) ;
-    edgesAR = linspace(1, 5, 100) ;
+    edgesAR = linspace(1, 3, 100) ;
+    edgesTheta = linspace(0, pi, 100) ;
     tmp = histcounts(cos(2* seg3d.qualities.ang1), edges) ;
     cos2thetaM(:, dmy) = tmp / sum(tmp) ;
     tmp = histcounts(sin(2* seg3d.qualities.ang1), edges) ;
     sin2thetaM(:, dmy) = tmp / sum(tmp) ;
     tmp = histcounts(ars, edgesAR) ;
     aspectM(:, dmy) = tmp / sum(tmp) ;
+    tmp = histcounts(mod(seg3d.qualities.ang1, pi), edgesTheta) ;
+    thetaM(:, dmy) = tmp / sum(tmp) ;
+    
+    
     dmy = dmy + 1 ;
 end
 
 segSubDir = 'pathlines' ;
-mid_ap = seg3d.statistics.apBins ;
+mid_ap = seg3d.statistics.apStats.aspectWeighted.apBins ;
 aux_plotCellSegmentation3DStats
 
 

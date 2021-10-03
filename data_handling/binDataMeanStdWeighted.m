@@ -1,4 +1,4 @@
-function [midx, meany, stdy, ny] = binDataMeanStdWeighted(x, y, xedges, weights)
+function [midx, meany, stdy, ny, stey] = binDataMeanStdWeighted(x, y, xedges, weights)
 % binDataMeanStdWeighted(x, y, xedges, weights)
 % bin data in x, take weighted means and stdevs of y data and output binned mean and
 % weighted stdev curves
@@ -25,6 +25,12 @@ function [midx, meany, stdy, ny] = binDataMeanStdWeighted(x, y, xedges, weights)
 % midx : middle value of each bin (average between adjacent xedges)
 % meany : mean y value in each bin
 % stdy : standard deviations of y values in each bin
+% ny : number in each bin
+% stey : standard error on the mean determined via 'simple' bootstrapping
+%
+% See also
+% --------
+% weightedMeanStdSte.m
 %
 % NPMitchell 2021
 
@@ -39,11 +45,14 @@ end
 nBins = length(xedges) -1 ;
 meany = nan(nBins, 1) ; 
 stdy = nan(nBins, 1) ;
+stey = nan(nBins, 1) ;
 ny = zeros(nBins, 1) ;
 
 for bin = 1:nBins
     idx = find(loc == bin & ~isnan(weights)) ;
     if ~isempty(idx)
+        % see also: weightedMeanStdSte.m
+        
         ny(bin) = length(idx) ;
         ww = weights(idx) / nansum(weights(idx)) ;
         meany(bin) = nansum(ww .* y(idx)) ;
@@ -59,6 +68,13 @@ for bin = 1:nBins
         
         if isnan(stdy(bin))
             assert(length(idx) == 1)
+            stey(bin) = NaN ;
+        else
+            % bootstrap for sterror if desired as output var
+            if nargout > 4
+                opts = struct('simpleOrFull', 'simple') ;
+                stey(bin) = bootstrapErrorWithWeights(y(idx), ww, opts) ;
+            end
         end
     end
 end

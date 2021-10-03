@@ -1538,44 +1538,62 @@ QS.measurePolarity(options) ;
 % end
 
 %% Cell Segmentation
+
+% Automatic segmentation gives a rough guess
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.overwriteImages = false;
 options.timePoints = [96:10:206] ;
 QS.generateCellSegmentation2D(options) 
 
-% PERFORM Manual corrections in GIMP
-
+%% PERFORM Manual corrections (in GIMP, for ex) and re-process results
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.overwriteImages = true;
-options.timePoints = [96:10:206] ;
+options.timePoints = 156; %[96:10:206] ;
 QS.processCorrectedCellSegmentation2D(options) 
 
+%% Project into 3D
 options = struct() ;
-options.timePoints = [96:10:206] ;
-options.overwrite = false ;
+options.timePoints =  [96:10:206] ;
+options.overwrite = true ;
 options.overwriteImages = false ;
 options.correctedSegmentation = true ;
 QS.generateCellSegmentation3D(options) 
 
+%% Report how many cells segmented
+coordSys = 'spsme' ;
+for tii = 1:length(options.timePoints) 
+    tp = options.timePoints(tii) ;
+    segfn = sprintf(...
+        QS.fullFileBase.segmentation2dCorrected, ...
+        coordSys, tp) ;
+    %% Convert to simpler format
+    tmp = load(segfn, 'seg2d') ;
+    nseg = size(tmp.seg2d.cdat.centroid, 1) ;
+    disp(['n= ' num2str(nseg)])
+end
+
+%% Summarize statistics of segmentation results (in 3d)
 options = struct() ;
 options.correctedSegmentation = true ;
 options.timePoints = [96:10:206] ;
-options.overwrite = false  ;
+options.overwrite = true  ;
 QS.plotSegmentationStatisticsLobes(options)
 
-%%
-disp('loading vertex pathlines for segmentation...')
-cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
-    sprintf('cellVertexPathlines_%06dt0.mat', QS.t0set())) ;
-load(cellVertexPathlineFn, 'segVertexPathlines2D', ...
-    'segVertexPathlines3D', 'cellIDs')
+%% Compare segmentation to an advected segmentation
 options = struct() ;
 % options.timePoints = [93:15:263] ;
 options.timePoints = [96:10:206] ;
-options.overwrite = false ;
-options.overwriteImages = false ;
+options.overwrite = true ;
+options.overwritePathlines = false ;
+options.overwriteImages = true ;
+
+% Optional: load pathlines before call
+cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
+    sprintf('cellVertexPathlines_%06dt0.mat', QS.t0set())) ;
+% load(cellVertexPathlineFn, 'segVertexPathlines2D', ...
+%         'segVertexPathlines3D', 'cellIDs')
 options.segmentationPathlines = struct() ;
 options.segmentationPathlines.segVertexPathlines2D = segVertexPathlines2D ;
 options.segmentationPathlines.segVertexPathlines3D = segVertexPathlines3D ;
@@ -1583,13 +1601,18 @@ options.segmentationPathlines.cellIDs = cellIDs ;
 QS.generateCellSegmentationPathlines3D(options)
 % QS.estimateIntercalationRate(options)
 
-%% Visualize demoTracks
+%% Visualize demoTracks in 2D ARAP submesh parameterization patch
 tracks2demo = dir(fullfile(QS.dir.tracking, 'demoTracks', 'demoTracks*0.mat')) ;
 options = struct() ;
 options.tracks2demo = tracks2demo ;
 options.scaleByMetric = false ;
 QS.visualizeDemoTracks(options)
 
+%% Visualize tracking in 3D
+options = struct() ;
+options.method = 'segmentation'; 
+options.timePoints = [96:2:206] ;
+QS.visualizeTracking3D(options)
 
 %% Visualize Segmentation in a true-scale patch
 options = struct() ;
