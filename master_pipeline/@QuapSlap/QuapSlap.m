@@ -2665,6 +2665,7 @@ classdef QuapSlap < handle
         
         %% Visualize tracked segmentation
         visualizeDemoTracks(QS, Options)
+        visualizeTracking3D(QS, Options)
         visualizeSegmentationPatch(QS, Options)
         
         %% timepoint-specific coordinate transformations

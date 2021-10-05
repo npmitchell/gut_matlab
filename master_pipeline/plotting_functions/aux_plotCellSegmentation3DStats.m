@@ -43,12 +43,12 @@ ylabel('cell aspect ratio, $a/b$',   'interpreter', 'latex')
 subplot(1, 2, 2)
 fill(x2, [0.5*mod(mQAtheta*2 - mQAthetaStd*2, 2*pi), ...
     fliplr(0.5*mod(mQAtheta*2 + mQAthetaStd*2, 2*pi))],...
-    CScolors(1, :), 'facealpha', 0.3, 'edgecolor', 'none');
+    greencol, 'facealpha', 0.3, 'edgecolor', 'none');
 
 hold on;
 errorbar(timestamps, 0.5*mod(2*mQAtheta, 2*pi), ...
     mod(mQAthetaSte, 2*pi), ... 
-    '-', 'color', CScolors(1, :))
+    '-', 'color', greencol)
 ylim([0,pi])
 yticks([0, pi*0.5, pi])
 yticklabels({'0', '\pi/2', '\pi'})
@@ -130,11 +130,11 @@ ylabel('cell eccentricity, $e$',   'interpreter', 'latex')
 subplot(1, 2, 2)
 fill(x2, [0.5*mod(mQEtheta*2 - mQEthetaStd*2, 2*pi), ...
     fliplr(0.5*mod(mQEtheta*2 + mQEthetaStd*2, 2*pi))],...
-    CScolors(1, :), 'facealpha', 0.3, 'edgecolor', 'none');
+    greencol, 'facealpha', 0.3, 'edgecolor', 'none');
 hold on;
 errorbar(timestamps, 0.5*mod(2*mQEtheta, 2*pi), ...
     mod(mQEthetaSte, 2*pi), ... 
-    '-', 'color', CScolors(1, :))
+    '-', 'color', greencol)
 ylim([0,pi])
 yticks([0, pi*0.5, pi])
 yticklabels({'0', '\pi/2', '\pi'})
@@ -229,14 +229,14 @@ for tStyle = 1:2
                 if stdStyle == 2
                     fill(x2, [0.5*mod(theta_mean*2, 2*pi)-0.5*mod(theta_std*2, 2*pi), ...
                         fliplr(0.5*mod(theta_mean*2, 2*pi) + 0.5*mod(theta_std*2, 2*pi))],...
-                        CScolors(1, :), 'facealpha', 0.3, 'edgecolor', 'none');
+                        greencol, 'facealpha', 0.3, 'edgecolor', 'none');
                 else
                     error('should not enter this case -- no quartile defined')
                 end
                 hold on;
                 errorbar(timestamps, 0.5*mod(2*theta_mean, 2*pi), ...
                     theta_ste, ... 
-                    '-', 'color', CScolors(1, :))
+                    '-', 'color', greencol)
                 ylim([0,pi])
                 yticks([0, pi*0.5, pi])
                 yticklabels({'0', '\pi/2', '\pi'})

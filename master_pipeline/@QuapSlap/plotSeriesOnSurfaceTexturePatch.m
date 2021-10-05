@@ -114,6 +114,7 @@ plot_left = true ;
 plot_right = true ;
 plot_perspective = true ;
 blackFigure = true ;
+makeColorbar = false ;
 smoothing_lambda = 0.0 ;
 channel = [] ;  % by default, plot all channels
 figoutdir = QS.dir.texturePatchIm ;
@@ -128,11 +129,20 @@ end
 if isfield(options, 'channel')
     channel = options.channel ;
 end
+if isfield(options, 'subdir')
+    figoutdir = fullfile(figoutdir, options.subdir) ;
+    if ~exist(figoutdir, 'dir')
+        mkdir(figoutdir)
+    end
+end
 if isfield(options, 'texture_shift')
     texture_shift = options.texture_shift ;
 end
 if isfield(options, 'blackFigure')
     blackFigure = options.blackFigure ;
+end
+if isfield(options, 'makeColorbar')
+    makeColorbar = options.makeColorbar ;
 end
 if isfield(options, 'figOutDir')
     % Note that default value inherited from QS is above!
@@ -346,7 +356,8 @@ for tidx = tidx_todo
         % mesh.v = v{tidx} ;
         % mesh.vn = vn{tidx} ;
 
-        fig = figure('Visible', 'Off') ;
+        fig = figure('Visible', 'Off',  'units', 'centimeters', ...
+            'position', [0,0,xwidth,ywidth]) ;
         % set(gcf, 'Visible', 'Off') 
         disp(['creating texture patch ' num2str(tp, '%06d')])
 
@@ -400,6 +411,10 @@ for tidx = tidx_todo
             texture_patch_3d( mesh.f, VV, mesh.f, TV, IV2plot, Options );
         else
             texture_patch_3d( mesh.f, VV, mesh.f, TV, IV, Options );
+        end
+        
+        if makeColorbar
+            cb = colorbar() ;
         end
         
         % format the figure
@@ -476,6 +491,8 @@ for tidx = tidx_todo
 
                 % Use export_fig instead, from plotting/export_fig/
                 % saveas(fig, fullfile(figvdir, fnv))
+                get(gcf, 'position')
+                set(gcf, 'position', [0, 0, xwidth, ywidth])
                 export_fig(sprintf(fns{ii}, tp), '-nocrop', '-r200')
             end
         end

@@ -803,11 +803,156 @@ aux_plotCellSegmentation3DStats
 
 
 
+%% Compare to true segmentation GLOBALLY -- nematic strength and direction 
+timeList = {timePoints, timePoints(timePoints < t0 + 75 & timePoints > -30)} ;
+timeStr = {'', '_tlimit'} ;
+stdsteStr = {'_std', '_ste'};
+for std_ste = 1:2
+    for pp = 1:2
+        close all 
+        fig = figure('units', 'centimeters', 'position', [0,0,figH,figH]) ;
+        time2do = timeList{pp} ;
+        pInds = ismember(timePoints, time2do) ;
+
+        imfn = fullfile(QS.dir.segmentation, 'pathlines', ...
+            ['cell_anisotropy_global_signed_COMPARE', timeStr{pp}]) ;
+        % Collate results
+        kk = 1;
+        meanQAspectsTrue = zeros(length(time2do), 1) ;
+        meanQAspectStdsTrue = zeros(length(time2do), 1) ;
+        meanQAspectStesTrue = zeros(length(time2do), 1) ;
+        meanQThetasTrue = meanQAspectsTrue ;
+        for tp = time2do
+            QS.setTime(tp) ;
+            if useCorrected     
+                seg3d = QS.getCurrentSegmentation3DCorrected() ; 
+            else
+                seg3d = QS.getCurrentSegmentation3D() ; 
+            end
+            meanQAspectsTrue(kk) = seg3d.seg3d.statistics.meanQ.aspectWeighted.meanQAspect ;
+            meanQAspectStdsTrue(kk) = seg3d.seg3d.statistics.meanQ.aspectWeighted.meanQAspectStd ;
+            meanQAspectStesTrue(kk) = seg3d.seg3d.statistics.meanQ.aspectWeighted.meanQAspectSte ;
+            meanQThetasTrue(kk) = seg3d.seg3d.statistics.meanQ.aspectWeighted.meanQTheta ;
+            meanQThetaStdsTrue(kk) = seg3d.seg3d.statistics.meanQ.aspectWeighted.meanQThetaStd ;
+            meanQThetaStesTrue(kk) = seg3d.seg3d.statistics.meanQ.aspectWeighted.meanQThetaSte ;
+            kk = kk + 1;
+        end
+
+
+        c2tTrue = cos(2*meanQThetasTrue(pInds))  ;
+        s2tTrue = sin(2*meanQThetasTrue(pInds))  ;
+        trueAn = meanQAspectsTrue(pInds) - 1 ;
+        trueAnStd = meanQAspectStdsTrue(pInds)  ;
+        trueAnSte = meanQAspectStesTrue(pInds)  ;
+        trueThetaStd = meanQThetaStdsTrue(pInds) ;
+        trueThetaSte = meanQThetaStesTrue(pInds) ;
+        trueLine = c2tTrue .* trueAn ;
+        trueStds = sqrt( (c2tTrue .* trueAnStd).^2 + ...
+            (trueAn .* s2tTrue * 2 .* trueThetaStd(:)).^2) ;
+        trueStes = sqrt( (c2tTrue .* trueAnSte).^2 + ...
+            (trueAn .* s2tTrue * 2 .* trueThetaSte(:)).^2) ;
+
+        c2t = cos(2*mQAtheta(pInds))  ;
+        s2t = sin(2*mQAtheta(pInds))  ;
+        An = squeeze(mQAar(pInds)) - 1 ;
+        AnStd = squeeze(mQAarStd(pInds)) ;
+        AnSte = squeeze(mQAarSte(pInds)) ;
+        ThetaStd = squeeze(mQAthetaStd(pInds)) ;
+        ThetaSte = squeeze(mQAthetaSte(pInds)) ;
+        midline = c2t .* An ;
+        stds = sqrt( (c2t .* AnStd).^2 + (An .* s2t *2 .* ThetaStd).^2) ;
+        stes = sqrt( (c2t .* AnSte).^2 + (An .* s2t *2 .* ThetaSte).^2) ;
+
+
+        timestamps = timePoints - t0 ;
+        if contains(QS.timeUnits, 'min')
+            timestamps = timestamps / 60 ;
+            timeunits = 'hr';
+        else
+            timeunits = QS.timeUnits ;
+        end
+
+        % Transformation (flip sign or subtract initial value)
+        midline = midline - midline(1) ;
+        trueLine = trueLine - trueLine(1) ;
+
+
+        if std_ste == 1
+            hs = errorbar(midline, trueLine, trueStds, trueStds, stds, stds) ;
+        else
+            [midline0, inds] = sort(midline) ;
+            trueLine0 = trueLine(inds) ;
+            trueStds0 = trueStds(inds) ;
+            trueStes0 = trueStes(inds) ;
+            bounds = [trueLine0-abs(trueStds0), trueLine0+abs(trueStds0)] ;
+            lowerB = bounds(:, 1)' ;
+            upperB = bounds(:, 2)' ;
+            fill([midline0, fliplr(midline0)], ...
+                [lowerB, fliplr(upperB)], ...
+                 colors(1, :), 'facealpha', 0.3, 'edgecolor', 'none', ...
+                 'HandleVisibility', 'off');
+             hold on;
+            hs = errorbar(midline0, trueLine0, ...
+                trueStes0, trueStes0, 'color', colors(1, :)) ;
+        end
+        hold on;
+        ylims = [ylim() xlim()] ;
+
+        % Mark zero line
+        plot([0,2], [0,2], 'k--', 'HandleVisibility','off')
+        % Labels
+        % legend(legendentries, 'interpreter', 'latex', 'location', 'northwest')
+        ylabel('cell shear, $\Delta(a/b)$',   'interpreter', 'latex')
+        xlabel('tissue shear, $\Delta(a/b)$',   'interpreter', 'latex')
+        axis equal
+        % ylim([-max(abs(ylims)), max(abs(ylims))])
+        % xlim([-max(abs(ylims)), max(abs(ylims))])
+        
+        ylim([-Inf, max(abs(ylims))])
+        xlim([-Inf, max(abs(ylims))])
+        saveas(gcf, [imfn, stdsteStr{std_ste}, '.png'])
+        saveas(gcf, [imfn, stdsteStr{std_ste}, '.pdf'])
+        
+
+
+        %% Global Difference over time
+        clf
+        x2 = [timestamps(pInds), fliplr(timestamps(pInds))] ;
+        if std_ste == 1
+            hs2 = errorbar(timestamps(pInds), trueLine(:),trueStds(:)) ;
+            hold on;
+            hs = errorbar(timestamps(pInds), midline(:), stds(:)) ;
+        else
+            fill(x2, [midline - stds, fliplr(midline + stds)], ...
+                 colors(2, :), 'facealpha', 0.3, 'edgecolor', 'none', ...
+                 'HandleVisibility', 'off');
+             hold on;
+            fill(x2, [trueLine - trueStds; flipud(trueLine + trueStds)], ...
+                 colors(1, :), 'facealpha', 0.3, 'edgecolor', 'none', ...
+                 'HandleVisibility', 'off');
+            hs2 = errorbar(timestamps(pInds), trueLine(:),trueStes(:), 'color', colors(1, :)) ;
+            hold on;
+            hs = errorbar(timestamps(pInds), midline(:), stes(:), 'color', colors(2, :)) ;
+        end
+        % Labels
+        % legend(legendentries, 'interpreter', 'latex', 'location', 'northwest')
+        xlabel(['time [' timeunits ']'],   'interpreter', 'latex')
+        ylabel('tissue shear - cell shear',   'interpreter', 'latex')
+        saveas(gcf, [imfn, stdsteStr{std_ste}, '_diff.png'])
+        saveas(gcf, [imfn, stdsteStr{std_ste}, '_diff.pdf'])
+    end
+end
+
+
+
+
 
 %% Compare to true segmentation  -- nematic strength and direction for each lobe 
 timeList = {timePoints, timePoints(timePoints < t0 + 75 & timePoints > -30)} ;
 timeStr = {'', '_tlimit'} ;
+stdsteStr = {'_std', '_ste'};
 for std_ste = 1:2
+    % for each timespan
     for pp = 1:2
         close all 
         fig = figure('units', 'centimeters', 'position', [0,0,figH,figH]) ;
@@ -829,32 +974,43 @@ for std_ste = 1:2
             else
                 seg3d = QS.getCurrentSegmentation3D() ; 
             end
-            meanQLobeAspectsTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeAspect ;
-            meanQLobeAspectStdsTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeAspectStd ;
-            if std_ste == 2
-                meanQLobeAspectStesTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeAspectSte ;
-            end
-            meanQLobeThetasTrue(:, kk) = seg3d.seg3d.statistics.lobes.meanQLobeTheta ;
+            meanQLobeAspectsTrue(:, kk) = seg3d.seg3d.statistics.lobes.aspectWeighted.meanQLobeAspect ;
+            meanQLobeAspectStdsTrue(:, kk) = seg3d.seg3d.statistics.lobes.aspectWeighted.meanQLobeAspectStd ;
+            meanQLobeAspectStesTrue(:, kk) = seg3d.seg3d.statistics.lobes.aspectWeighted.meanQLobeAspectSte ;
+            meanQLobeThetasTrue(:, kk) = seg3d.seg3d.statistics.lobes.aspectWeighted.meanQLobeTheta ;
+            meanQLobeThetaStdsTrue(:, kk) = seg3d.seg3d.statistics.lobes.aspectWeighted.meanQLobeThetaStd ;
+            meanQLobeThetaStesTrue(:, kk) = seg3d.seg3d.statistics.lobes.aspectWeighted.meanQLobeThetaSte ;
             kk = kk + 1;
         end
 
         for lobe = 1:nLobes
 
-            c2tTrue = cos(2*meanQLobeThetasTrue(lobe, :))  ;
-            trueLine = 0.5*c2tTrue .* (squeeze(meanQLobeAspectsTrue(lobe, :)) - 1) ;
-            trueUncs = 0.5*c2tTrue .* (squeeze(meanQLobeAspectStdsTrue(lobe, :)) - 1) ;
+            c2tTrue = cos(2*meanQLobeThetasTrue(lobe, pInds))  ;
+            s2tTrue = sin(2*meanQLobeThetasTrue(lobe, pInds))  ;
+            trueAn = squeeze(meanQLobeAspectsTrue(lobe, pInds)) - 1 ;
+            trueAnStd = squeeze(meanQLobeAspectStdsTrue(lobe, pInds))  ;
+            trueAnSte = squeeze(meanQLobeAspectStesTrue(lobe, pInds))  ;
+            trueThetaStd = squeeze(meanQLobeThetaStdsTrue(lobe, pInds)) ;
+            trueThetaSte = squeeze(meanQLobeThetaStesTrue(lobe, pInds)) ;
+            trueLine = c2tTrue .* trueAn ;
+            trueStds = sqrt( (c2tTrue .* trueAnStd).^2 + ...
+                (trueAn .* s2tTrue * 2 .* trueThetaStd).^2) ;
+            trueStes = sqrt( (c2tTrue .* trueAnSte).^2 + ...
+                (trueAn .* s2tTrue * 2 .* trueThetaSte).^2) ;
             
 
             % subplot(ceil(nLobes * 0.5), 2, lobe)
-            c2t = cos(2*meanQLobeThetas(lobe, pInds))  ;
-            midline = 0.5 * c2t .* (squeeze(meanQLobeAspects(lobe, pInds)) - 1) ;
-            uncs = 0.5 * c2t .* (squeeze(meanQLobeAspectStds(lobe, pInds)) - 1) ;
-            
-            % Standard errors
-            if std_ste == 2
-                trueUncEs = 0.5*c2tTrue .* (squeeze(meanQLobeAspectStesTrue(lobe, :)) - 1) ;
-                uncEs = 0.5 * c2t .* (squeeze(meanQLobeAspectStes(lobe, pInds)) - 1) ;
-            end
+            c2t = cos(2*meanQALobeThetas(lobe, pInds))  ;
+            s2t = sin(2*meanQALobeThetas(lobe, pInds))  ;
+            An = squeeze(meanQALobeAspects(lobe, pInds)) - 1 ;
+            AnStd = squeeze(meanQALobeAspectStds(lobe, pInds)) ;
+            AnSte = squeeze(meanQALobeAspectStes(lobe, pInds)) ;
+            ThetaStd = squeeze(meanQALobeThetaStds(lobe, pInds)) ;
+            ThetaSte = squeeze(meanQALobeThetaStes(lobe, pInds)) ;
+            midline = c2t .* An ;
+            stds = sqrt( (c2t .* AnStd).^2 + (An .* s2t *2 .* ThetaStd).^2) ;
+            stes = sqrt( (c2t .* AnSte).^2 + (An .* s2t *2 .* ThetaSte).^2) ;
+                       
             
             timestamps = timePoints - t0 ;
             if contains(QS.timeUnits, 'min')
@@ -863,30 +1019,55 @@ for std_ste = 1:2
             else
                 timeunits = QS.timeUnits ;
             end
-            x2 = [timestamps, fliplr(timestamps)] ;
-            % fill(x2,[midline-abs(uncs), fliplr(midline+abs(uncs))], ...
-            %     colors(lobe, :), 'facealpha', 0.3, 'edgecolor', 'none', ...
-            %     'HandleVisibility', 'off');
 
-            hs{lobe} = errorbar(midline, trueLine, trueUncs, trueUncs, uncs, uncs) ;
+            % Transformation (flip sign or subtract initial value)
+            midline = midline - midline(1) ;
+            trueLine = trueLine - trueLine(1) ;
+            
+            
+            if std_ste == 1
+                hs{lobe} = errorbar(midline, trueLine, trueStds, trueStds, stds, stds) ;
+            else
+                [midline, inds] = sort(midline) ;
+                trueLine = trueLine(inds) ;
+                trueStds = trueStds(inds) ;
+                trueStes = trueStes(inds) ;
+                bounds = [trueLine-abs(trueStds); trueLine+abs(trueStds)] ;
+                lowerB = min(bounds, [], 1) ;
+                upperB = max(bounds, [], 1) ;
+                fill([midline, fliplr(midline)], ...
+                    [lowerB, fliplr(upperB)], ...
+                     colors(lobe, :), 'facealpha', 0.2, 'edgecolor', 'none', ...
+                     'HandleVisibility', 'off');
+                 hold on;
+                hs{lobe} = errorbar(midline, trueLine, ...
+                    trueStes, trueStes, 'color', colors(lobe, :)) ;
+            end
             hold on;
             %hs{lobe} = plot(midline, tr, '.-', 'color', colors(lobe, :)) ;
 
             legendentries{lobe} = ['chamber ' num2str(lobe)] ;
         end
-        ylims = ylim() ;
-        ylim([-max(abs(ylims)), max(abs(ylims))])
+        ylims = [ylim() xlim()] ;
 
         % Mark zero line
-        plot([-0.75,1], [-0.75,1], 'k--', 'HandleVisibility','off')
+        plot([0,2], [0,2], 'k--', 'HandleVisibility','off')
         % Labels
-        legend(legendentries, 'interpreter', 'latex', 'location', 'northwest')
-        ylabel('cell anisotropy, $Q_{xx}$',   'interpreter', 'latex')
-        xlabel('integrated tissue shear',   'interpreter', 'latex')
-        sgtitle('endoderm orientation over time', 'interpreter', 'latex')
+        % legend(legendentries, 'interpreter', 'latex', 'location', 'northwest')
+        ylabel('cell shear, $\Delta(a/b)$',   'interpreter', 'latex')
+        xlabel('tissue shear, $\Delta(a/b)$',   'interpreter', 'latex')
         axis equal
-        saveas(gcf, [imfn, '.png'])
-        saveas(gcf, [imfn, '.pdf'])
+        % ylim([-max(abs(ylims)), max(abs(ylims))])
+        % xlim([-max(abs(ylims)), max(abs(ylims))])
+        
+        ylim([-Inf, max(abs(ylims))])
+        xlim([-Inf, max(abs(ylims))])
+        saveas(gcf, [imfn, stdsteStr{std_ste}, '.png'])
+        saveas(gcf, [imfn, stdsteStr{std_ste}, '.pdf'])
+        
+        % save with legend
+        legend(legendentries, 'interpreter', 'latex', 'location', 'northwest')
+        saveas(gcf, [imfn, stdsteStr{std_ste}, '_legend.pdf'])
     end
 end
 

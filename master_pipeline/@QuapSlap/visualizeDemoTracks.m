@@ -31,6 +31,9 @@ overwrite = false ;
 tracks2demo = dir(fullfile(QS.dir.tracking, 'demoTracks', 'demoTracks*.mat')) ;
 outputResolution = 4 / QS.APDV.resolution ;
 scaleByMetric = false ;
+scaleByMetricComponents = true ;
+detClim = 1.3 ;
+g11g22Clim = 1.3 ;
 
 % Unpack Options
 if nargin < 2
@@ -49,7 +52,7 @@ end
 if ~floatingFrame 
     buffer = 50 ;
 else
-    buffer = 0.075 ;
+    buffer = 0.08 ;
 end
 if isfield(Options, 'buffer') 
     buffer = Options.buffer ; 
@@ -74,6 +77,12 @@ if isfield(Options, 'scaleByMetric')
 elseif isfield(Options, 'scaledByMetric')
     % allow typo
     scaleByMetric = Options.scaledByMetric ;
+end
+if isfield(Options, 'scaleByMetricComponents')
+    scaleByMetricComponents = Options.scaleByMetricComponents ;
+elseif isfield(Options, 'scaledByMetricComponents')
+    % allow typo
+    scaleByMetricComponents = Options.scaledByMetricComponents ;
 end
 if isfield(Options, 'outputResolution')
     outputResolution = Options.outputResolution ;
@@ -218,6 +227,8 @@ else
         tname = tname{1} ;
         if scaleByMetric
             scalingStr = '_ARAPscaledByMetric' ;
+        elseif scaleByMetricComponents
+            scalingStr = '_ARAPscaledByMetricComponents' ;
         else
             scalingStr = '_ARAP' ;
         end
@@ -265,12 +276,21 @@ else
             if ~exist(outTextFullImDir, 'dir')
                 mkdir(outTextFullImDir)
             end
-            outSegImDir = fullfile(outDir, 'segOverlayTexturePatches') ;
+            outOverlayImDir = fullfile(outDir, 'segOverlayTexturePatches') ;
+            if ~exist(outOverlayImDir, 'dir')
+                mkdir(outOverlayImDir)
+            end
+            outSegImDir = fullfile(outDir, 'segmentationPatches') ;
             if ~exist(outSegImDir, 'dir')
                 mkdir(outSegImDir)
             end
+            scaleBarFn = fullfile(outDir, ...
+                sprintf('scaleBar_%06d.txt', tp)) ;
+            
             segImOutFn = fullfile(outSegImDir, ...
                 sprintf('seg_%06d.png', tp)) ;
+            overlayImOutFn = fullfile(outOverlayImDir, ...
+                sprintf('overlay_%06d.png', tp)) ;
             textureImOutFn = fullfile(outTextImDir, ...
                 sprintf('rigidTextureMap_%06d.png', tp)) ;
             textureFullImOutFn = fullfile(outTextFullImDir, ...
@@ -408,7 +428,7 @@ else
                 
                 % Account for possible total dilation/contraction near the
                 % tracked cells -- this is typically small, a few percent.
-                if scaleByMetric
+                if scaleByMetric || scaleByMetricComponents
                     [gg, ~] = constructFundamentalForms(submF, submV, V2Dr) ;
                     cellu = barycentricMap2d(submF, submU, V2Dr, cellU{1});
                     for cellID = 2:Ncells
@@ -423,19 +443,34 @@ else
                         gF(cfid, :, :) = gg{cellFaces(cfid)} ;
                     end
                     
-                    % Scale by det(g)
-                    cellg = [mean(gF(:, 1, 1)), mean(gF(:, 1, 2));...
-                        mean(gF(:, 2, 1)), mean(gF(:, 2, 2))] ;
-                    celldetg = sqrt(det(cellg)) ;
-                    V2Dr = V2Dr * sqrt(celldetg) ;
-                    subm.V2Dr_scaled = V2Dr ;
-                    
-                    % Scale each dim separately
-                    % dilX = mean(gF(:, 1, 1)) ;
-                    % dilY = mean(gF(:, 2, 2)) ;
-                    % V2Dr(:, 1) = V2Dr(:, 1) * sqrt(dilX) ;
-                    % V2Dr(:, 2) = V2Dr(:, 2) * sqrt(dilY) ;
-                    % subm.V2Dr_scaled = V2Dr ;
+                    if scaleByMetric
+                        % Scale by det(g)
+                        disp('scaling by metric dilation det(g)')
+                        cellg = [mean(gF(:, 1, 1)), mean(gF(:, 1, 2));...
+                            mean(gF(:, 2, 1)), mean(gF(:, 2, 2))] ;
+                        celldetg = sqrt(det(cellg)) ;
+                        V2Dr = V2Dr * sqrt(celldetg) ;
+                        subm.V2Dr_scaled = V2Dr ;
+                    elseif scaleByMetricComponents
+                        % Scale each dim separately
+                        disp('scaling by metric components g11, g22')
+                        dilX = mean(gF(:, 1, 1)) ;
+                        dilY = mean(gF(:, 2, 2)) ;
+                        V2Dr(:, 1) = V2Dr(:, 1) * sqrt(dilX) ;
+                        V2Dr(:, 2) = V2Dr(:, 2) * sqrt(dilY) ;
+                        subm.V2Dr_scaled = V2Dr ;
+                    else
+                        error('should not end up here')
+                    end
+                end
+                
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                % Save g result: scaling and its variation AFTER SCALING
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                [gg, ~] = constructFundamentalForms(submF, submV, V2Dr) ;
+                gF = zeros(size(submF, 1), 2, 2) ;
+                for cfid = 1:size(submF, 1)
+                    gF(cfid, :, :) = gg{cfid} ;
                 end
 
                 % Check it
@@ -508,6 +543,9 @@ else
                 comV2D = mean(comV2D_eachCell, 1) ;
 
                 % Place the cells in the center of the image and crop  
+                comV2D_p = comu ;
+                XlimU = [comV2D_p(1) - imW, comV2D_p(1) + imW] ;
+                YlimU = [comV2D_p(2) - imH, comV2D_p(2) + imH] ;
                 Xlim = [comV2D(1)-imW * dX, comV2D(1)+imW * dX] ;
                 Ylim = [comV2D(2)-imH * dY, comV2D(2)+imH * dY] ;
                 xlim(Xlim)
@@ -517,7 +555,7 @@ else
                 textureIm = imresize(textureIm, ...
                     [2*imH* outputResolution, 2*imW*outputResolution]) ;
 
-                % Plot the segmentation as patch
+                % Plot the segmentation as overlay
                 for cellID = 1:Ncells
                     hold on;
                     patch(segV2D{cellID}(:, 1), segV2D{cellID}(:, 2), ...
@@ -526,18 +564,22 @@ else
                 end
                 
                 FF = getframe(gca) ;
-                segIm = FF.cdata ;
-                segIm = imresize(segIm, ...
+                overlayIm = FF.cdata ;
+                overlayIm = imresize(overlayIm, ...
                     [2*imH* outputResolution, 2*imW*outputResolution]) ;
 
                 % Save texture image only with cells in center of image
                 imwrite(textureIm, textureImOutFn)
 
                 % Save texture image with segmentation patch overlay
-                imwrite(segIm, segImOutFn)
+                imwrite(overlayIm, overlayImOutFn)
 
                 % Save full texture image (not cropped)
                 imwrite(tim, textureFullImOutFn) ;
+                
+                % Zoom out in figure and place box over FOV, save as
+                % fullSize image withBox
+                axis equal
                 xlim([0, size(tim, 2)])
                 ylim([0, size(tim, 1)])
                 plot([Xlim(1), Xlim(1), Xlim(2), Xlim(2), Xlim(1)], ...
@@ -545,20 +587,120 @@ else
                 FF = getframe(gca) ;
                 boxIm = FF.cdata ;
                 imwrite(boxIm, textureFullBoxImOutFn)
+
+                % Save image sizes for reporting
                 dXs(tidx) = dX ;
                 dYs(tidx) = dY ;
                 imsizes(tidx, :) = size(tim) ;
+                xlims(tidx, :) = Xlim ;
+                ylims(tidx, :) = Ylim ;
+
+                % Save segmentation only, for manipulation of LUT etc in post
+                clf
+                for cellID = 1:Ncells
+                    hold on;
+                    patch(segV2D{cellID}(:, 1), segV2D{cellID}(:, 2), ...
+                        colors(cellID, :), ...
+                        'FaceAlpha', alphaVal, 'linestyle', 'none')
+                end
+                axis off
+                axis equal
+                xlim(Xlim)
+                ylim(Ylim)
+                FF = getframe(gca) ;
+                segIm = FF.cdata ;
+                segIm = imresize(segIm, ...
+                    [2*imH* outputResolution, 2*imW*outputResolution]) ;
+                imwrite(segIm, segImOutFn)
+                saveas(gcf, [segImOutFn(1:end-4) '.pdf'])
+
+                % Save (approximate) scale in text file
+                scaleBarX = diff(XlimU) / (2*imW* outputResolution) ;
+                scaleBarY = diff(YlimU) / (2*imH* outputResolution) ;
+                scaleBar = [scaleBarX, scaleBarY] ;
+                spuHeader = strrep(QS.spaceUnits, '\m', 'm') ;
+                header = ['scale of (cropped) image in ' spuHeader ' / pix'] ;
+                write_txt_with_header(scaleBarFn, scaleBar, header)
+
                 
-                % Save the frame info as mat
+                %% Save the frame info as mat
                 save(outdatFn, 'segCOMU_eachCell', ...
                     'comV2D_eachCell', 'cellU', 'segV2D', ...
-                    'subm', 'dX', 'dY', 'imref')
+                    'subm', 'dX', 'dY', 'imref', 'gg', 'scaleBar')
+
+                %% Plot scaling by metric if this was done
+                close all
+                fig = figure('units','centimeters','position',[0,0,18,9], ...
+                    'visible', 'off') ;
+                subplot(1, 3, 1)
+
+                % Determinant panel
+                dets = zeros(size(submF, 1), 1) ;
+                for cfid = 1:size(submF, 1)
+                    dets(cfid) = sqrt(det(gg{cfid})) ;
+                end
+                trisurf(submF, V2Dr(:, 1), V2Dr(:, 2), 0*V2Dr(:, 1), ...
+                    dets, 'edgecolor', 'none')
+                view(2); grid off
+                axis equal
+                xlim(XlimU)
+                ylim(YlimU)
+                climit = detClim-1 ;
+                caxis([-1,1])
+                colormap(bluewhitered)
+                caxis([1-climit, 1+climit])
+                cb = colorbar ;
+                set(gca,'XTick',[])
+                set(gca,'YTick',[])
+                ylabel(cb, '$\sqrt(\det g)$', 'interpreter', 'latex')
+
+                % g11 panel
+                subplot(1, 3, 2)
+                trisurf(submF, V2Dr(:, 1), V2Dr(:, 2), 0*V2Dr(:, 1), ...
+                    gF(:, 1, 1), 'edgecolor', 'none')
+                view(2) ; grid off ;
+                axis equal
+                xlim(XlimU)
+                ylim(YlimU)
+                climit1 = round(10*max(abs(gF(:, 1, 1)-1)))*0.1 ;
+                climit2 = round(10*max(abs(gF(:, 2, 2)-1)))*0.1 ;
+                caxis([-1, 1])
+                colormap(bluewhitered)
+                climit = g11g22Clim-1 ;
+                caxis([1-climit, 1+climit])
+                cb = colorbar ;
+                set(gca,'XTick',[])
+                set(gca,'YTick',[])
+                ylabel(cb, '$g_{11}$', 'interpreter', 'latex')
+
+                % g22 panel
+                subplot(1, 3, 3)
+                trisurf(submF, V2Dr(:, 1), V2Dr(:, 2), 0*V2Dr(:, 1), ...
+                    gF(:, 2, 2), 'edgecolor', 'none')
+                view(2) ; grid off ;
+                axis equal
+                xlim(XlimU)
+                ylim(YlimU)
+                caxis([-1, 1])
+                colormap(bluewhitered)
+                caxis([1-climit, 1+climit])
+                cb = colorbar ;
+                set(gca,'XTick',[])
+                set(gca,'YTick',[])
+                ylabel(cb, '$g_{22}$', 'interpreter', 'latex')
+
+
+                % Output figure
+                set(gcf, 'color', 'white')
+                sgtitle('map distortion in ARAP mapping', 'interpreter', 'latex')
+                saveas(gcf, fullfile(outTextFullImDir, sprintf('scaling_detg11g22_%06d.pdf', tp)))
+
             end
         end  
         disp(['dXs = ', num2str( dXs)])
-        disp(['dXs = ', num2str( dYs)])
-        disp(['imXs = ', num2str( imsizes(:, 2))])
-        disp(['imYs = ', num2str( imsizes(:, 1))])
+        disp(['dYs = ', num2str( dYs)])
+        disp(['imXs = ', num2str( imsizes(:, 2)')])
+        disp(['imYs = ', num2str( imsizes(:, 1)')])
         
     end    
 end

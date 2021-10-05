@@ -1,6 +1,7 @@
 function visualizeSegmentationPatch(QS, Options) 
 % Load demo tracks (segmented or tracked objects) and plot over pullback
-% data.
+% data from small patches of the surface mapped to the plane and
+% registered.
 %
 % Todo: allow for pathline points near periodic boundary.
 %
@@ -645,15 +646,15 @@ for tii = tidx2do
                     pause(5) ;
                 end
             end
-            
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            % Save g result: scaling and its variation AFTER SCALING
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            [gg, ~] = constructFundamentalForms(submF, submV, V2Dr) ;
-            gF = zeros(size(submF, 1), 2, 2) ;
-            for cfid = 1:size(submF, 1)
-                gF(cfid, :, :) = gg{cfid} ;
-            end
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Save g result: scaling and its variation AFTER SCALING
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        [gg, ~] = constructFundamentalForms(submF, submV, V2Dr) ;
+        gF = zeros(size(submF, 1), 2, 2) ;
+        for cfid = 1:size(submF, 1)
+            gF(cfid, :, :) = gg{cfid} ;
         end
 
         % Check it
