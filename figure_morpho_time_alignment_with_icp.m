@@ -40,12 +40,12 @@ if ~exist(icpDir, 'dir')
     mkdir(icpDir) ;
 end
 %% Global options
-sigmaTime = 5 ;
+sigmaTime = 5 ;         % smoothing window for errorbar plot
 ssample_factor = 40 ;   % subsampling of point clouds for ICP
 rsubsampling = 1 ;     % subsampling of timepoints for reference dataset
 csubsampling = 1 ;     % subsampling of timepoints for matched dataset
-t0ref = 113 ;
-overwrite_figures = false ;
+t0ref = 113 ;           % reference time index
+overwrite_figures = false ;  % overwrite current results on disk, if any
 ignoreLast = 10 ;
 ignoreFirst = 30 ;
 ssfactorMedianThres = 8 ;
@@ -56,8 +56,8 @@ if overwrite == 1
     disp('WARNING: OVERWRITE IS TURNED ON');
 end
 % Plotting
-figWidth = 12 ;
-figHeight = 9 ;
+figWidth = 7 ;
+figHeight = 6 ;
 
 %% Create Cell Array with Mesh Metadata
 dmap = buildLookupMap('/mnt/data/analysis/lookupMeta.txt'); % build the map that contains all data and its metadata

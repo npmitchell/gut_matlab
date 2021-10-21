@@ -156,10 +156,14 @@ for tp = timePoints
                 cellID = c2move(qq) ;
                 
                 % Look at what we're moving
-                subplot(2, 2, 1)
+                subtightplot(2, 2, 1)
                 imshow(tmpRGB)
-                subplot(2, 2, 3)
+                hold on;
+                plot([xmin, xmax, xmax, xmin, xmin], [ymin, ymin, ymax, ymax, ymin], 'k-') ;
+                subtightplot(2, 2, 3)
                 imshow(segIm == cellID)
+                hold on;
+                plot([xmin, xmax, xmax, xmin, xmin], [ymin, ymin, ymax, ymax, ymin], 'y-') ;
                 
                 % Check if we need to push it up in Y or down (which is,
                 % confusingly, "up" in the imshow space -- alas MATLAB)
@@ -208,14 +212,17 @@ for tp = timePoints
                     end
                     
                     disp('Check that this motion is correct')
-                    subplot(2, 2, 2)
+                    subtightplot(2, 2, 2)
                     tmpRGB2 = label2rgb(segIm, 'jet', [0,0,0], 'shuffle');
-                    imshow(tmpRGB2)
-                    subplot(2, 2, 4)
+                    hold on;                    imshow(tmpRGB2)
+                    plot([xmin, xmax, xmax, xmin, xmin], [ymin, ymin, ymax, ymax, ymin], 'k-') ;
+                    subtightplot(2, 2, 4)
                     imshow(segIm == cellID)
+                    hold on;
+                    plot([xmin, xmax, xmax, xmin, xmin], [ymin, ymin, ymax, ymax, ymin], 'y-') ;
                     set(gcf, 'visible', 'on')
-                    title('Is cell inside ROI? Close figure to continue')
-                    pause(5)
+                    sgtitle('Is cell inside ROI? pausing for a moment.')
+                    pause(1)
                     % waitfor(gcf)
                     clf
                 else 

@@ -25,6 +25,12 @@ function [meanQLobeAspect, meanQLobeTheta, meanQLobeAspectStd, ...
 % meanQLobeThetaStd : float
 %   uncertainty in the nematic tensor angle
 %
+% See also
+% --------
+% QtensorStats.m
+% QtensorFromAngle.m
+% 
+% 
 % NPMitchell 2021
 
 

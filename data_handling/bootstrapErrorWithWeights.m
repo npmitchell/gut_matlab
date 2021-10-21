@@ -58,6 +58,9 @@ else
     if isfield(options, 'subsamplingFractions')
         ssf = options.subsamplingFractions ;
     end
+    if isfield(options, 'nsamples')
+        nsamples = options.nsamples ;
+    end
     if isfield(options, 'weightMeanOrSampling')
         weightMeanOrSampling = options.weightMeanOrSampling ;
     end

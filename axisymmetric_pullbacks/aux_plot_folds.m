@@ -1,5 +1,6 @@
 function aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, rmax, nU, ...
-    timePoints, lobeDir, dvexten, sphiBase, method, overwrite, timeInterval, t0) 
+    timePoints, lobeDir, dvexten, sphiBase, method, overwrite, ...
+    timeInterval, t0) 
 % aux_plot_folds(folds, ssfold, ssfold_frac, ssmax, nU, timePoints, lobeDir, dvexten)
 %
 % Parameters

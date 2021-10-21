@@ -26,6 +26,7 @@ imW = 1260 ;
 imH = 787 ;
 xwidth = 16 ;
 ywidth = 10 ;
+areaMaxClim = 85;
 
 
 %% Draw cells colored by area
@@ -156,7 +157,7 @@ for qq = 1:length(imfns)
                 if qq == 1                    
                     ylabel(cb, ['area [' QS.spaceUnits '$^2$]'],   'interpreter', 'latex')
                     colormap inferno
-                    caxis([0, 100])
+                    caxis([0, areaMaxClim])
                 elseif qq == 2
                     ylabel(cb, 'cell aspect ratio, $a/b$',   'interpreter', 'latex')
                     colormap inferno

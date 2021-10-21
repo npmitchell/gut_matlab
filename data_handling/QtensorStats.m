@@ -9,7 +9,8 @@ function [meanQ, stdQ, steQ] = QtensorStats(QQ, weights, options)
 % weights : # tensors x 1 float
 %   one weight per observation, will be normalized here
 % options : struct with fields
-%   struct passed to bootstrapErrorWithWeights
+%   struct passed to bootstrapErrorWithWeights -- see docs for
+%   bootstrapErrorWithWeights.m
 %
 % Returns
 % -------

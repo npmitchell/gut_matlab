@@ -1,4 +1,5 @@
-function [midx, meany, stdy, ny, stey] = binDataMeanStdWeighted(x, y, xedges, weights)
+function [midx, meany, stdy, ny, stey] = binDataMeanStdWeighted(...
+    x, y, xedges, weights, nsamplesForStE, minstds)
 % binDataMeanStdWeighted(x, y, xedges, weights)
 % bin data in x, take weighted means and stdevs of y data and output binned mean and
 % weighted stdev curves
@@ -19,6 +20,9 @@ function [midx, meany, stdy, ny, stey] = binDataMeanStdWeighted(x, y, xedges, we
 % weights : weights for each observation x that bias the importance of each
 % observation. Note that these need not be normalized. Each bin's weights
 % will be normalized
+% nsamplesForStE : optional (default=500)
+% minstds : if only one observation k lies in a bin, ascribe a stdev to
+% that bin of minstds(k).
 % 
 % Returns
 % -------
@@ -35,9 +39,15 @@ function [midx, meany, stdy, ny, stey] = binDataMeanStdWeighted(x, y, xedges, we
 % NPMitchell 2021
 
 % Default edges are positive integers
+if nargin < 5
+    nsamplesForStE = 500 ;
+end
 if nargin < 3
     xedges = linspace(floor(min(x)), ceil(max(x)), ...
         ceil(max(x)) - floor(min(x)) + 1)' ;
+end
+if nargin < 4 
+    weights = 1 / length(x) ;
 end
 
 [~, ~, loc] = histcounts(x,xedges);
@@ -66,13 +76,19 @@ for bin = 1:nBins
         denom = (length(idx) -1) / length(idx) * nansum(ww) ;
         stdy(bin) = sqrt(num / denom) ;
         
+        % Lower limit to std if supplied
+        if ny(bin) == 1 && exist('minstds', 'var')
+            stdy(bin) = minstds(idx) ;
+        end
+        
         if isnan(stdy(bin))
             assert(length(idx) == 1)
             stey(bin) = NaN ;
         else
             % bootstrap for sterror if desired as output var
             if nargout > 4
-                opts = struct('simpleOrFull', 'simple') ;
+                opts = struct('simpleOrFull', 'simple', 'nsamples', nsamplesForStE) ;
+                
                 stey(bin) = bootstrapErrorWithWeights(y(idx), ww, opts) ;
             end
         end
@@ -84,6 +100,7 @@ end
 % stdy = accumarray(loc(:), y(:), [], @std);
 
 midx = 0.5*(xedges(1:end-1)+xedges(2:end));
+
 
 % Check it
 % scatter(x, y, 5, 'filled')

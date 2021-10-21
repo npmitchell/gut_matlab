@@ -8,6 +8,11 @@ function outstats = aux_computeQstats(QQ, ang1, MOIeigvalRatio, ...
 % given by xedges. Bound the largest weight by areas = maxCellSize 
 %
 %
+% See also
+% --------
+% QtensorStats.m
+% QtensorAspectTheta.m
+%
 % Npmitchell 2021
 
 

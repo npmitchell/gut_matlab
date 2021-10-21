@@ -458,6 +458,7 @@ for tp = timePoints
         foldt = [0; fold0(:); 1] ;
         ap_pos = seg3d.cdat.centroids_uv(keep, 1) ;
         xedges = linspace(0, 1, nAPBins + 1) ;
+        % QtensorStats compute here
         outstats = aux_computeQstats(QQ, ang1, mratio, ...
             keep, areas, strength, eccentricity, ...
             foldt, nLobes, ap_pos, xedges, maxCellSize) ;
