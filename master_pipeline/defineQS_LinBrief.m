@@ -215,37 +215,132 @@ opts.lambda_err = 0 ;
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
-
-%% Cell Segmentation
+%%
+% %% Cell Segmentation
+% % options = struct() ;
+% % options.overwrite = true;
+% % options.cellSize = 50 ;
+% % options.strelRadius = 0 ;
+% % options.gaussKernel = 1 ;
+% % options.heightMinimum = 2.2 ;
+% % options.coordSys= 'sprsme';
+% % options.timePoints = 213:15:258;% 93:15:200 ;
+% % QS.generateCellSegmentation2D(options) 
+% 
+% % Now manual corrections in GIMP
 % options = struct() ;
-% options.overwrite = true;
-% options.cellSize = 50 ;
-% options.strelRadius = 0 ;
-% options.gaussKernel = 1 ;
-% options.heightMinimum = 2.2 ;
-% options.coordSys= 'sprsme';
-% options.timePoints = 213:15:258;% 93:15:200 ;
-% QS.generateCellSegmentation2D(options) 
+% options.overwrite = true ;
+% options.overwriteImages = true;
+% options.timePoints = 186;
+% QS.processCorrectedCellSegmentation2D(options) 
+% 
+% %% Generate 3d
+% options = struct() ;
+% options.overwrite = false;
+% options.timePoints =96:10:206;
+% options.correctedSegmentation = true;
+% %QS.generateCellSegmentation3D(options) 
+% QS.plotSegmentationStatisticsLobes(options)
+% 
+% %% 
+% options = struct() ;
+% options.overwrite = false;
+% options.timePoints = 96:10:206;
+% options.correctedSegmentation = true;
+% QS.generateCellSegmentationPathlines3D(options)
 
-% Now manual corrections in GIMP
-options = struct() ;
-options.overwrite = true ;
-options.overwriteImages = true;
-options.timePoints = 186;
-QS.processCorrectedCellSegmentation2D(options) 
 
-%% Generate 3d
+%% Testing
+load("confirmed_t1.mat");
+load('not_always_neighbors.mat');
 options = struct() ;
 options.overwrite = false;
-options.timePoints =96:10:206;
-options.correctedSegmentation = true;
-%QS.generateCellSegmentation3D(options) 
-QS.plotSegmentationStatisticsLobes(options)
+options.preview = false ;
+timePoints = 96:2:206;
+options.scaleByMetricComponents = true;
+subdir = '/home/yuzhenglin/membraneproject';
+labelDir = fullfile(subdir, 'labeled_groundTruth');
+% consider each T1 in question
+theta_merge = zeros(size(merge_events, 1), 1);
+t1timepoints_merge = zeros(size(merge_events, 1), 1);
+theta_split = zeros(size(split_events, 1), 1);
+t1timepoints_split = zeros(size(split_events, 1), 1);
+for pp = 1:  size(merge_events, 1)
+    cellpair = not_always_neighbors_label(merge_events(pp,1),:);
+    load_label = load(fullfile(labelDir, sprintf("tracks_label_%06d.mat", timePoints(merge_events(pp,2)+1)))); % +1 since T1 happens a frame after 
+    label = load_label.imlabel;
+    cells = zeros(size(label));
+    cells(label == cellpair(1)) = 1;
+    cells(label == cellpair(2)) = 2;
+    regp = regionprops(cells,'Centroid');
+    ctd = vertcat(regp.Centroid);
+    % load cell pairs and their associated timepoints
+    %pts = t1info(pp, 1:2) ;
+    %t1tp = t1info(pp, 3) ;
 
-%% 
-options = struct() ;
-options.overwrite = false;
-options.timePoints = 96:10:206;
-options.correctedSegmentation = true;
-QS.generateCellSegmentationPathlines3D(options)
+    % Find their local pullback coordinate orientation
+    QS.setTime(timePoints(merge_events(pp,2)+1)) ;
+    [subm, newpts] = QS.computeLocalSurfacePatch(ctd, options);
+
+    % Get angle
+    dY = newpts(2, 2) - newpts(1, 2) ;
+    dX = newpts(2, 1) - newpts(1, 1) ;
+    theta_merge(pp) = atan2(dY, dX) ;
+    t1timepoints_merge(pp) = timePoints(merge_events(pp,2)+1) ;
+end
+
+for pp = 1:  size(split_events, 1)
+    cellpair = not_always_neighbors_label(split_events(pp,1),:);
+    load_label = load(fullfile(labelDir, sprintf("tracks_label_%06d.mat", timePoints(split_events(pp,2)+1)))); % +1 since T1 happens a frame after 
+    label = load_label.imlabel;
+    cells = zeros(size(label));
+    cells(label == cellpair(1)) = 1;
+    cells(label == cellpair(2)) = 2;
+    regp = regionprops(cells,'Centroid');
+    ctd = vertcat(regp.Centroid);
+    % load cell pairs and their associated timepoints
+    %pts = t1info(pp, 1:2) ;
+    %t1tp = t1info(pp, 3) ;
+
+    % Find their local pullback coordinate orientation
+    QS.setTime(timePoints(split_events(pp,2)+1)) ;
+    [subm, newpts] = QS.computeLocalSurfacePatch(ctd, options);
+
+    % Get angle
+    dY = newpts(2, 2) - newpts(1, 2) ;
+    dX = newpts(2, 1) - newpts(1, 1) ;
+    theta_split(pp) = atan2(dY, dX) ;
+    t1timepoints_split(pp) = timePoints(split_events(pp,2)+1) ;
+end
+
+
+
+subplot(2,1,1)
+histogram(theta_merge);
+title("merge")
+subplot(2,1,2)
+histogram(theta_split);
+title("split")
+% for pp = 1: size(split_events, 1)
+%     % load cell pairs and their associated timepoints
+%     %pts = t1info(pp, 1:2) ;
+%     %t1tp = t1info(pp, 3) ;
+% 
+%     % Find their local pullback coordinate orientation
+%     QS.setTime(t1tp) ;
+%     %[subm, newpts] = QS.computeLocalSurfacePatch(pts, options);
+% 
+%     % Get angle
+%     dY = newpts(2, 2) - newpts(1, 2) ;
+%     dX = newpts(2, 1) - newpts(1, 1) ;
+%     theta(pp) = atan2(dY, dX) ;
+%     t1timepoints(pp) = t1tp ;
+% end
+% save results as .mat
+%save(outfn, 'theta', 't1timepoints')
+
+% Make kymo 
+% imagesc(AngleTimeMat)
+% cb = colorbar() ;
+% ylabel(cb, 'occurences')
 

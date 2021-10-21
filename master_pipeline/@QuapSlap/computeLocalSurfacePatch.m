@@ -53,7 +53,9 @@ function [subm, newpts] = computeLocalSurfacePatch(QS, pts, options)
 %       This is typically the same as f, in which case it is not returned
 %   Ucut : (#vertices x 2 float) original pullback coordinates of submesh
 %       This is typically the same as u, in which case it is not returned
-%   V2D : 
+%   V2D : #parameterized
+%       as-rigid-as-possible re-parameterization of the embedding in a
+%       local patch of pullback space 
 %   V2D_scaled_detg : (returned if scaleByMetric==true)
 %   V2D_scaled_g11g22 : (returned if scaleByMetricComponents==true)
 %   connectivityCase : int indicator
@@ -77,9 +79,14 @@ function [subm, newpts] = computeLocalSurfacePatch(QS, pts, options)
 % Unpack options
 bufferX = 0 ;
 coordSys = 'spsme';
+scaleByMetric = false ;
+scaleByMetricComponents = true ;
+bufferX = 0.1 ;
+bufferY = 0.1 ;
+preview = false ;
 
 % Unpack options
-if nargin < 4
+if nargin < 3
     options = struct() ;
 end
 
@@ -308,6 +315,7 @@ if scaleByMetric || scaleByMetricComponents
         for cfid = 1:length(cellFaces)
             gF(cfid, :, :) = gg{cellFaces(cfid)} ;
         end
+        inBox = cellFaces ;
     else
         Ucom = QS.XY2uv(im, mean(pts), doubleCovered, 1., 1.) ;
         comV2D0 = barycentricMap2d(submF, submU, V2Dr, Ucom) ;
@@ -364,6 +372,7 @@ if scaleByMetric || scaleByMetricComponents
             sgtitle('scaling in ARAP mapping', 'interpreter', 'latex')
             set(gcf, 'color', 'white')
             pause(5) ;
+            clf
         end
     else
         cellg = [mean(gF(:, 1, 1)), mean(gF(:, 1, 2));...
@@ -387,6 +396,7 @@ if scaleByMetric || scaleByMetricComponents
             ylabel(cb, '$\sqrt(\det g)$', 'interpreter', 'latex')
             title('scaling in ARAP mapping', 'interpreter', 'latex')
             pause(5) ;
+            clf
         end
     end
 end

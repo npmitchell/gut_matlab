@@ -508,10 +508,22 @@ QS.plotRelativeMotionTracks2D(Options)
 % for hand dataset, load metadat options for texturepatch:
 % 
 Options = struct() ; 
+Options.overwrite = true ;
 Options.layerLabel = 'muscle' ;
 Options.normal_shift = 10 ;
 Options.initialDistanceThres = 5 ;
-QS.plotRelativeMotionTracks3D(Options)
+% Options.specifyTracks = []
+Options.uniqueCorrespondence = false ;
+Options.jitterCorrespondence = 1 ;
+Options.styles2do = [1] ;
+Options.specifyTracks = ...
+    [120.1, -58.51, -13.24; ...  % Pink lobe3
+    122.1,-54.33, 13.01; ... % Blue lobe3
+    132.6,-54.27, -20.05; ... % Dark olive lobe3
+    118.1, -39.42, -44.28; ... % light purple 
+    144, -42.33, -34.43; ... % pink lobe 3 deviates a bit but is nice
+    131.4, -49.87, -33.89] ; % red lobe3
+QS.plotRelativeMotionTracks(Options)
 
 %% 
 Options = struct() ;

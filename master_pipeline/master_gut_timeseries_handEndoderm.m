@@ -938,10 +938,10 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     % Options.layerSpacing = 2 ;
     
     % MUSCLE
-    metadat.normal_shift = 40 ;             % normal push, in pixels, along normals defined in data XYZ space
-    Options.numLayers = [8, 0];  % at layerSpacing 2, 2 marches ~0.5 um 
+    metadat.normal_shift = 35 ;  % normal push, in pixels, along normals defined in data XYZ space
+    Options.numLayers = [13, 0];  % at layerSpacing 2, 2 marches ~0.5 um 
     Options.layerSpacing = 2 ;
-    
+        
     
     % Save it
     save(metafn, 'metadat', 'Options')

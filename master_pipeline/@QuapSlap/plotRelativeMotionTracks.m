@@ -1,12 +1,12 @@
-function plotRelativeMotionTracks(QS, Options)
-% plotRelativeMotionTracks(QS, Options)
+function plotRelativeMotionTracks(QS, options)
+% plotRelativeMotionTracks(QS, options)
 %   Load tracked nuclei/objects in two layers of the evolving surface and
 %   plot their pathlines in 3D on the surface.
 %
 % Parameters
 % ----------
 % QS : QuapSlap object
-% Options : struct with fields
+% options : struct with fields
 %   layerLabel : str
 %   relMotionFn : str
 %       default is fullfile(QS.dir.tracking, 'relative_motion_tracks.mat')
@@ -15,8 +15,10 @@ function plotRelativeMotionTracks(QS, Options)
 %       plot only one endoderm cell for each muscle cell AND only one
 %       muscle cell for each endoderm cell
 %   jitterCorrespondence : float >=0 (default = 0) 
-%       If more than one match in object A list for a given object B,
-%       jitter matching object As by this amount in 3d
+%       If more than one match in object {A} list for a given object B in
+%       {B}, jitter matching object {A} by this amount in 3d
+%   specifyTracks :
+%
 %
 % Saves to disk
 % -------------
@@ -26,62 +28,81 @@ function plotRelativeMotionTracks(QS, Options)
 %
 % NPMitchell 2021
 
+overlayTexturePatch = true ;
+subdir_layer1 = 'overlaysEndoderm' ;
+subdir_layer2 = 'overlaysMuscle' ;
+styles2do = 1:4 ;
+layer1_adjustDataLim = [8, 4191] ;
+layer2_adjustDataLim = [8, 19241] ;
+textureFactor = 0.7 ;
 
 
 %% Prepare plot settings
-if isfield(Options, 'layerLabel')
-    subdir = Options.layerLabel ;
+if isfield(options, 'layerLabel')
+    subdir = options.layerLabel ;
     exten = [ '_' subdir ] ;
 else
     exten = '' ;
+end
+if isfield(options, 'overlayTexturePatch')
+    overlayTexturePatch = options.overlayTexturePatch ;
+end
+if isfield(options, 'subdir_layer1')
+    subdir_layer1 = options.subdir_layer1 ;
+end
+if isfield(options, 'subdir_layer2')
+    subdir_layer2 = options.subdir_layer2 ;
+end
+if isfield(options, 'styles2do')
+    styles2do = options.styles2do ;
 end
 opts = load(fullfile(QS.dir.texturePatchIm, ['metadat' exten '.mat'])) ;
 xyzlims = opts.metadat.xyzlim ;
 smoothing_lambda = opts.metadat.smoothing_lambda ;
 normal_shift = opts.metadat.normal_shift ;
 backdrop_normal_shift = opts.metadat.normal_shift ;
-% Rotation = opts.Options.Rotation ;
-% Translation = opts.Options.Translation ;
-% Dilation = opts.Options.Dilation ;
+% Rotation = opts.options.Rotation ;
+% Translation = opts.options.Translation ;
+% Dilation = opts.options.Dilation ;
 flipy = QS.flipy ;
 meshFileBase = QS.fullFileBase.mesh ;
 initialDistanceThres = Inf ;
 overwrite = false ;
-lwTrail= 1 ;
+lwTrail= 1 ;  % linewidth for the trailing track in 3d
 uniqueCorrespondence = false ;
 jitterCorrespondence = 0 ;
 
 %% Unpack options
 relMotionFn = fullfile(QS.dir.tracking, 'relative_motion_tracks.mat') ;
 timePoints = QS.xp.fileMeta.timePoints ;
-if isfield(Options, 'relMotionFn')  
-    relMotionFn = Options.relMotionFn ;
+if isfield(options, 'relMotionFn')  
+    relMotionFn = options.relMotionFn ;
 end
-if isfield(Options, 'specifyTracks')
-    tracks2plot = Options.specifyTracks ;
+if isfield(options, 'specifyTracks')
+    tracks2plot = options.specifyTracks ;
 end
-if isfield(Options, 'timePoints')
-    timePoints = Options.timePoints ;
+if isfield(options, 'timePoints')
+    timePoints = options.timePoints ;
 end
-if isfield(Options, 'normal_shift')
-    normal_shift = Options.normal_shift ;
-elseif isfield(Options, 'normalShift')
-    normal_shift = Options.normalShift ;
+if isfield(options, 'normal_shift')
+    normal_shift = options.normal_shift ;
+elseif isfield(options, 'normalShift')
+    normal_shift = options.normalShift ;
 end
-if isfield(Options, 'initialDistanceThres')
-    initialDistanceThres = Options.initialDistanceThres ;
+if isfield(options, 'initialDistanceThres')
+    initialDistanceThres = options.initialDistanceThres ;
 end
-if isfield(Options, 'overwrite')  
-    overwrite = Options.overwrite ;
+if isfield(options, 'overwrite')  
+    overwrite = options.overwrite ;
 end
-if isfield(Options, 'lwTrail')  
-    lwTrail = Options.lwTrail ;
+if isfield(options, 'lwTrail')  
+    lwTrail = options.lwTrail ;
 end
-if isfield(Options, 'jitterCorrespondence')
-    jitterCorrespondence = Options.jitterCorrespondence ;
+if isfield(options, 'jitterCorrespondence')
+    jitterCorrespondence = options.jitterCorrespondence ;
 end
-if isfield(Options, 'uniqueCorrespondence')
-    uniqueCorrespondence = Options.uniqueCorrespondence ;
+if isfield(options, 'uniqueCorrespondence')
+    uniqueCorrespondence = options.uniqueCorrespondence ;
 end
 
 % Load relative tracks
@@ -94,7 +115,11 @@ load(relMotionFn, 'dusEuclidean', 'dusGeodesic', ...
 nTracks = size(v3d_u, 1) ;
 assert(nSaved == nTracks) ;
 if ~exist('tracks2plot', 'var')
+    % No specified tracks, so just choose the ones who are closer than
+    % threshold initial distance
     tracks2plot = find(dusEuclidean(:, 1) < initialDistanceThres) ;
+    
+    % Optionally, filter pairs that are not unique
     if uniqueCorrespondence
         disp('Removing duplicate correspondences in candidate tracks... (uniqueCorrespondence)')
         [~, w] = unique( pairIDs, 'stable' );
@@ -102,10 +127,16 @@ if ~exist('tracks2plot', 'var')
         duplicate_indices = intersect(tracks2plot, duplicate_indices) ;
         tracks2plot = setdiff(tracks2plot, duplicate_indices) ;
     end
+else
+    % We specified initial tracks2plot. Did we specify these as integer
+    % indices or as coordinates in 3d?
+    if class(tracks2plot)
+        tracks2plot = pointMatch(tracks2plot, squeeze(v3d_u(:, 1, :))) ;
+    end
 end
 
 % Prepare I/O
-if isfield(Options, 'specifyTracks')
+if isfield(options, 'specifyTracks')
     subdir = 'specifiedTracks' ;
 elseif isfinite(initialDistanceThres)
     subdir = sprintf('initialDistThres%0.2f', initialDistanceThres) ;
@@ -116,7 +147,7 @@ if jitterCorrespondence > 0
     subdir = [subdir '_jitterCorrespondences'] ;
 elseif uniqueCorrespondence > 0
     try
-        assert(~isfield(Options, 'specifyTracks'))
+        assert(~isfield(options, 'specifyTracks'))
     catch
         error('Cannot both specify tracks and demand unique Correspondences, for intelligibility')
     end
@@ -139,10 +170,22 @@ end
 t0 = QS.t0set() ;
 
 close all
-% Pick colors maximally distinguishable from both black and white
-trackColors = distinguishable_colors(nTracks, [0,0,0; 1,1,1]) ;
+% Pick colors maximally distinguishable from both black //and white
+ntracks2plot = length(tracks2plot) ;
+if ntracks2plot < 8
+    trackColors = define_colors(ntracks2plot) ;
+    trackColors = trackColors ./ max(trackColors, [], 2) ;
+else
+    trackColors = distinguishable_colors(ntracks2plot, [0,0,0]) ;
+    trackColors = trackColors ./ max(trackColors, [], 2) ;
+end
 colormap(trackColors)
-for tidx = 1:length(timePoints)
+
+tidx2do = [1, 30, 31, 60] ;%1:50:length(timePoints) ;
+tidx2do = [tidx2do, setdiff(1:30:length(timePoints), tidx2do)] ;
+tidx2do = [tidx2do, setdiff(1:10:length(timePoints), tidx2do)] ;
+tidx2do = [tidx2do, setdiff(1:length(timePoints), tidx2do)] ;
+for tidx = tidx2do
     % Set the current time ------------------------------------------------
     tp = timePoints(tidx) ;
     QS.setTime(tp) 
@@ -173,21 +216,25 @@ for tidx = 1:length(timePoints)
     % --> apply rotation and translation and dilation BEFORE flipping
     VV = mesh.v ;
     V0 = mesh0.v ;
-    if isfield(opts.Options, 'Rotation')
+    
+    opts = struct('Rotation', QS.APDV.rot, ...
+        'Translation', QS.APDV.trans, ...
+        'Dilation', QS.APDV.resolution) ;
+    if isfield(opts, 'Rotation')
         disp('rotating...')
-        VV = (opts.Options.Rotation * VV')' ;
-        V0 = (opts.Options.Rotation * V0')' ;
+        VV = (opts.Rotation * VV')' ;
+        V0 = (opts.Rotation * V0')' ;
     end
-    if isfield(opts.Options, 'Translation')
+    if isfield(opts, 'Translation')
         disp('translating...')
-        VV = VV + opts.Options.Translation ;
-        V0 = V0 + opts.Options.Translation ;
+        VV = VV + opts.Translation ;
+        V0 = V0 + opts.Translation ;
     end
-    if isfield(opts.Options, 'Dilation')
+    if isfield(opts, 'Dilation')
         disp('dilating...')
-        VV = VV * opts.Options.Dilation ;
-        V0 = V0 * opts.Options.Dilation ;
-        dilation = opts.Options.Dilation ;
+        VV = VV * opts.Dilation ;
+        V0 = V0 * opts.Dilation ;
+        dilation = opts.Dilation ;
     else
         dilation = 1 ;
     end
@@ -242,8 +289,8 @@ for tidx = 1:length(timePoints)
     nearSide = v3d_u(tracks2plot, 1, 2) < 0;
     
     % Plot the tracks at this time ----------------------------------------
-    styles = {'backdrop', 'surf', 'nearOnly'} ;
-    for styleID = 1:length(styles)
+    styles = {'textureOverlay', 'backdrop', 'surf', 'nearOnly'} ;
+    for styleID = styles2do
         exten = styles{styleID} ;
         latDir = fullfile(lateralDir, styles{styleID}) ;
         venDir = fullfile(ventralDir, styles{styleID}) ;
@@ -257,10 +304,10 @@ for tidx = 1:length(timePoints)
         if ~exist(latVenDir, 'dir')
             mkdir(latVenDir)
         end
-        outputfnBase = fullfile(latVenDir, 'tracks_LateralAndVentral_%s_%06d.png') ;
         
+        %% Lateral and ventral together in one image
+        outputfnBase = fullfile(latVenDir, 'tracks_LateralAndVentral_%s_%06d.png') ;
         if ~exist(sprintf(outputfnBase, exten, tp), 'file')   || overwrite
-
             yzlims = [min(xyzlims(2:3, 1)), max(xyzlims(2:3, 2))] ;
             
             clf; 
@@ -280,15 +327,15 @@ for tidx = 1:length(timePoints)
                 end
 
                 for ii = 1:length(tracks2plot)
-                    if styleID < 3 || nearSide(ii)
-                        trackii = tracks2plot(ii) ;
+                    if styleID < 4 || nearSide(ii)
+                        % trackii = tracks2plot(ii) ;
                         scatter3(uus(ii, 1), uus(ii, 2), uus(ii, 3), ...
                             50, 'filled', 'markerfacecolor', ...
-                            trackColors(trackii, :), ...
+                            trackColors(ii, :), ...
                             'markeredgecolor', 'none') ;
                         scatter3(vvs(ii, 1), vvs(ii, 2), vvs(ii, 3), ...
                             50, '^', 'filled', 'markerfacecolor',...
-                            trackColors(trackii, :), ...
+                            trackColors(ii, :), ...
                             'markeredgecolor', 'none') ;
                     end
                 end
@@ -298,7 +345,7 @@ for tidx = 1:length(timePoints)
                     for ii = 1:length(tracks2plot)
                         if styleID < 3 || nearSide(ii)
                             trackid = tracks2plot(ii) ;
-                            colorii = trackColors(trackid, :) ;
+                            colorii = trackColors(ii, :) ;
                             plot3(v3d_u(trackid, 1:tidx, 1), ...
                                 v3d_u(trackid, 1:tidx, 2), ...
                                 v3d_u(trackid, 1:tidx, 3), '-', ...
@@ -383,19 +430,23 @@ for tidx = 1:length(timePoints)
             
         end
         
-        % ventral and lateral separately, for overlay with fluor data.
+        %% ventral and lateral separately, for overlay with fluor data.
         outputfnLateral = fullfile(latDir, 'tracks_lateral_%s_%06d.png') ;
         outputfnVentral = fullfile(venDir, 'tracks_ventral_%s_%06d.png') ;
         if ~exist(sprintf(outputfnLateral, exten, tp), 'file') || ...
             ~exist(sprintf(outputfnVentral, exten, tp), 'file') || overwrite
 
+            close all
+            
+            fig = figure('visible', 'off', ...
+                'units', 'centimeters', 'position', [0, 0, 16, 10]) ;
             clf; hold on;
 
             % make a backdrop mesh for effect
-            if styleID ~= 2
+            if styleID ~= 3 && styleID ~= 1
                 trisurf(triangulation(mesh.f, VV + [0, 200, 0]), 'facecolor', 'k')
                 trisurf(triangulation(mesh.f, VV + [0, 0, 200]), 'facecolor', 'k')
-            else
+            elseif styleID > 1
                 % make a foreground mesh for opacity/depth perception
                 trisurf(triangulation(mesh.f, V0), 'facecolor', 'k', ...
                     'edgecolor', 'none', 'facealpha', 0.2)
@@ -403,14 +454,14 @@ for tidx = 1:length(timePoints)
 
             for ii = 1:length(tracks2plot)
                 if styleID < 3 || nearSide(ii)
-                    trackii = tracks2plot(ii) ;
+                    % trackii = tracks2plot(ii) ;
                     scatter3(uus(ii, 1), uus(ii, 2), uus(ii, 3), ...
                         50, 'filled', 'markerfacecolor', ...
-                        trackColors(trackii, :), ...
+                        trackColors(ii, :), ...
                         'markeredgecolor', 'none')
                     scatter3(vvs(ii, 1), vvs(ii, 2), vvs(ii, 3), ...
                         50, '^', 'filled', 'markerfacecolor', ...
-                        trackColors(trackii, :), ...
+                        trackColors(ii, :), ...
                         'markeredgecolor', 'none')
                 end
             end
@@ -420,7 +471,7 @@ for tidx = 1:length(timePoints)
                 for ii = 1:length(tracks2plot)
                     if styleID < 3 || nearSide(ii)
                         trackid = tracks2plot(ii) ;
-                        colorii = trackColors(trackid, :) ;
+                        colorii = trackColors(ii, :) ;
                         plot3(v3d_u(trackid, 1:tidx, 1), ...
                             v3d_u(trackid, 1:tidx, 2), ...
                             v3d_u(trackid, 1:tidx, 3), '-', ...
@@ -437,22 +488,36 @@ for tidx = 1:length(timePoints)
 
             % Format the figure
             set(gcf,'color','w');
+            if styleID == 1
+                set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w', 'zcol', 'w')
+                set(gcf, 'InvertHardCopy', 'off');
+                set(gca, 'color', 'k')
+                set(gcf, 'color', 'k')
+            end
             axis equal
             xlim(xyzlims(1, :))
             ylim([xyzlims(2, 1), xyzlims(2, 2) + 200])
             zlim(xyzlims(3, :))
-            xlabel(['ap position [' QS.spaceUnits ']'], 'interpreter', 'latex')
+            xlabel(['AP position [' QS.spaceUnits ']'], 'interpreter', 'latex')
             ylabel(['lateral position [' QS.spaceUnits ']'], 'interpreter', 'latex')
-            zlabel(['dv position [' QS.spaceUnits ']'], 'interpreter', 'latex')
+            zlabel(['DV position [' QS.spaceUnits ']'], 'interpreter', 'latex')
             timeStamp = num2str((timePoints(tidx) - t0) * QS.timeInterval) ;
-            title(['$t=$' timeStamp ' ' QS.timeUnits], 'interpreter', 'latex')
+            
+            titlestr = ['$t=$' timeStamp ' ' QS.timeUnits] ;
+            if styleID == 1
+                title(titlestr, 'Interpreter', 'Latex', 'Color', 'white') 
+            else
+                title(titlestr, 'Interpreter', 'Latex', 'Color', 'k') 
+            end
             grid off
                     
+            set(fig, 'PaperUnits', 'centimeters')
+            set(fig, 'PaperPosition', [0,0,16,10])
             
             % Save the figure
-            outfn = sprintf(outputfnLateral, exten, tp) ;
-            disp(['Saving figure: ' outfn])
-            export_fig(outfn, '-nocrop', '-r150')
+            outfnL = sprintf(outputfnLateral, exten, tp) ;
+            disp(['Saving figure: ' outfnL])
+            export_fig(outfnL, '-nocrop', '-r200')
 
             % Ventral view
             view(0, 270)
@@ -470,9 +535,149 @@ for tidx = 1:length(timePoints)
             grid off
             
             % Save the figure
-            outfn = sprintf(outputfnVentral, exten, tp) ;
-            disp(['Saving figure: ' outfn])
-            export_fig(outfn, '-nocrop', '-r150')
+            outfnV = sprintf(outputfnVentral, exten, tp) ;
+            disp(['Saving figure: ' outfnV])
+            export_fig(outfnV, '-nocrop', '-r200')
+            
+            
+            % Overlay with texturepatch
+            if styleID == 1 
+                
+                % Create texturepatch image in subdir
+                disp('Creating texture patch image for layer 1...')
+                metafn = fullfile(QS.dir.texturePatchIm, ...
+                    subdir_layer1, 'metadat.mat') ;
+                load(metafn, 'metadat', 'Options')
+                opts = metadat ;
+                opts.subdir = subdir_layer1 ; 
+                opts.timePoints = tp ;
+                opts.plot_perspective = false ;
+                opts.plot_dorsal = false ;
+                opts.plot_ventral = true ;
+                opts.plot_left = true ;
+                opts.plot_right = false ;
+                opts.blackFigure = true ;
+                opts.makeColorbar = false ;
+                QS.clearTime()
+                QS.setTime(tp) ;
+                QS.data.adjustlow = layer1_adjustDataLim(1) ;
+                QS.data.adjusthigh = layer1_adjustDataLim(2) ;
+                % QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.0)
+                QS.plotSeriesOnSurfaceTexturePatch(opts, Options)
+                
+                % Create texturepatch image in subdir
+                disp('Creating texture patch image for layer 2...')
+                metafn = fullfile(QS.dir.texturePatchIm, ...
+                    subdir_layer2, 'metadat.mat') ;
+                load(metafn, 'metadat', 'Options')
+                opts = metadat ;
+                opts.subdir = subdir_layer2 ; 
+                opts.timePoints = tp ;
+                opts.plot_perspective = false ;
+                opts.plot_dorsal = false ;
+                opts.plot_ventral = true ;
+                opts.plot_left = true ;
+                opts.plot_right = false ;
+                opts.blackFigure = true ;
+                opts.makeColorbar = false ;
+                QS.clearTime()
+                QS.setTime(tp) ;
+                QS.data.adjustlow = layer2_adjustDataLim(1) ;
+                QS.data.adjusthigh = layer2_adjustDataLim(2) ;
+                % QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.995)
+                QS.plotSeriesOnSurfaceTexturePatch(opts, Options)
+                    
+                lim = imread(outfnL) ;
+                vim = imread(outfnV) ;
+                lat1fn = fullfile(QS.dir.texturePatchIm, ...
+                    subdir_layer1, 'lateral1', ...
+                    sprintf('patch_lateral1_%06d.png', tp)) ;
+                lat2fn = fullfile(QS.dir.texturePatchIm, ...
+                    subdir_layer2, 'lateral1', ...
+                    sprintf('patch_lateral1_%06d.png', tp)) ;
+                ven1fn = fullfile(QS.dir.texturePatchIm, ...
+                    subdir_layer1, 'ventral', ...
+                    sprintf('patch_ventral_%06d.png', tp)) ;
+                ven2fn = fullfile(QS.dir.texturePatchIm, ...
+                    subdir_layer2, 'ventral', ...
+                    sprintf('patch_ventral_%06d.png', tp)) ;
+                tlim1 = imread(lat1fn) ;
+                tlim2 = imread(lat2fn) ;
+                tvim1 = imread(ven1fn) ;
+                tvim2 = imread(ven2fn) ;
+                % summed texture images
+                stlim = textureFactor * (tlim1 + tlim2) ;
+                stvim = textureFactor * (tvim1 + tvim2) ;
+                
+                %% Lateral correction
+                % GET ROI for adding images inside canvas
+                axisROIFn = fullfile(lateralDir, 'embeddingROI_for_overlay.mat') ;
+                if ~exist(axisROIFn, 'file')
+                    axisROI = roipoly(stlim) ;
+                    save(axisROIFn, 'axisROI')    
+                else
+                    load(axisROIFn, 'axisROI')
+                end
+                lroi = axisROI ;
+                
+                % sum together inside axisROI
+                im2L = tlim2 ;
+                sRL = squeeze(stlim(:, :, 1)) ; % summed image
+                sGL = squeeze(stlim(:, :, 2)) ;
+                sBL = squeeze(stlim(:, :, 3)) ;
+                im2R = squeeze(im2L(:,:,1)) ;
+                im2G = squeeze(im2L(:,:,1)) ;
+                im2B = squeeze(im2L(:,:,1)) ;
+                im2R(lroi) = sRL(lroi) ;
+                im2G(lroi) = sGL(lroi) ;
+                im2B(lroi) = sBL(lroi) ;
+                
+                % Add track image inside ROI
+                trackMeanRGB = mean(lim, 3) ;
+                maskTrack = trackMeanRGB > 5 ;
+                trackimR = squeeze(lim(:, :, 1)) ;
+                trackimG = squeeze(lim(:, :, 2)) ;
+                trackimB = squeeze(lim(:, :, 3)) ;
+                im2R(maskTrack) = trackimR(maskTrack) ;
+                im2G(maskTrack) = trackimG(maskTrack) ;
+                im2B(maskTrack) = trackimB(maskTrack) ;
+                im2L = cat(3, im2R, im2G, im2B) ;
+                imwrite(im2L, outfnL)
+
+                %% VENTRAL correction
+                axisROIFn = fullfile(ventralDir, 'embeddingROI_for_overlay.mat') ;
+                if ~exist(axisROIFn, 'file')
+                    axisROI = roipoly(stvim) ;
+                    save(axisROIFn, 'axisROI')    
+                else
+                    load(axisROIFn, 'axisROI')
+                end
+                vroi = axisROI ;
+
+                % sum together inside axisROI
+                im2V = tvim2 ;
+                sRV = squeeze(stvim(:, :, 1)) ; % summed image
+                sGV = squeeze(stvim(:, :, 2)) ;
+                sBV = squeeze(stvim(:, :, 3)) ;
+                im2R = squeeze(im2V(:,:,1)) ;
+                im2G = squeeze(im2V(:,:,1)) ;
+                im2B = squeeze(im2V(:,:,1)) ;
+                im2R(vroi) = sRV(vroi) ;
+                im2G(vroi) = sGV(vroi) ;
+                im2B(vroi) = sBV(vroi) ;
+                
+                % Add track image inside ROI
+                trackMeanRGB = mean(vim, 3) ;
+                maskTrack = trackMeanRGB > 5 ;
+                trackimR = squeeze(vim(:, :, 1)) ;
+                trackimG = squeeze(vim(:, :, 2)) ;
+                trackimB = squeeze(vim(:, :, 3)) ;
+                im2R(maskTrack) = trackimR(maskTrack) ;
+                im2G(maskTrack) = trackimG(maskTrack) ;
+                im2B(maskTrack) = trackimB(maskTrack) ;
+                im2V = cat(3, im2R, im2G, im2B) ;
+                imwrite(im2V, outfnV)
+            end
             
         end
     end
