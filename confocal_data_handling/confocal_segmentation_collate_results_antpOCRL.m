@@ -111,7 +111,7 @@ end
 %% Group similar timepoints together
 % timebins = [-22.5:10:90] / 60 ;
 timebins = [-30:20:90] / 60 ;
-xlims = [-0.3, 1.125] ;
+xlims = [-0.34, 1.125] ;
 clf
 
 %WT

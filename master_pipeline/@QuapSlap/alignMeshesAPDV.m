@@ -458,9 +458,9 @@ for tidx = 1:length(timePoints)
     end
     
     %% Rotate and translate vertices and endpoints
-    % Note: all in original mesh units (not subsampled)
+    % NOTE: ars = ((rot * a')' + trans) * QS.APDV.resolution ;
     xyzrs = ((rot * (vtx_sub * ssfactor)')' + trans) * resolution;
-    % vtx_rs = (rot * (vtx_sub * ssfactor)' + trans')' * resolution ;
+    % xyzrs2 = (rot * (mesh.v)' + trans')' * resolution ;
     vn_rs = (rot * fvsub.normals')' ;
     sptr = (rot * spt')' + trans ; 
     eptr = (rot * ept')' + trans ;
@@ -477,6 +477,7 @@ for tidx = 1:length(timePoints)
         % Note: since normals point inward along y when y is flipped, it
         % remains only to flip normals along X and Z in the second line.
         xyzrs = [xyzrs(:, 1), -xyzrs(:, 2), xyzrs(:, 3)] ;  % flip vertices
+        % xyzrs2 = [xyzrs2(:, 1), -xyzrs2(:, 2), xyzrs2(:, 3)] ;  % flip vertices
         vn_rs = [-vn_rs(:, 1), vn_rs(:, 2), -vn_rs(:, 3)] ; % flip normals > normals point inward
         sptrs = [sptrs(1), -sptrs(2), sptrs(3)] ;           % flip startpt
         eptrs = [eptrs(1), -eptrs(2), eptrs(3)] ;           % flip endpt
@@ -589,9 +590,28 @@ for tidx = 1:length(timePoints)
         else
             faces_to_plot = mesh.f ;
         end
+        
         th = trisurf(faces_to_plot, xyzrs(:, 1), xyzrs(:, 2), xyzrs(:, 3), ...
             'edgecolor', 'none', 'facecolor', 'w', 'FaceAlpha', 0.5) ;
         % 'FaceVertexCData',bsxfun(@times,(1-AO),C)
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Check xyzrs against xyz2APDV(xyz)
+        % fig2=figure(2)
+        % QS.setTime(tt)
+        % rmesh = QS.getCurrentRawMesh() ;
+        % vtx2 = QS.xyz2APDV(rmesh.v) ;
+        % hold on;
+        % th = trisurf(faces_to_plot, vtx2(:, 1), vtx2(:, 2), vtx2(:, 3), ...
+        %     'edgecolor', 'none', 'facecolor', 'y', 'FaceAlpha', 0.5) ;
+        % th = trisurf(faces_to_plot, xyzrs(:, 1), xyzrs(:, 2), xyzrs(:, 3), ...
+        %     'edgecolor', 'none', 'facecolor', 'k', 'FaceAlpha', 0.1) ;
+        % % th = trisurf(faces_to_plot, xyzrs2(:, 1), xyzrs2(:, 2), xyzrs2(:, 3), ...
+        % %     'edgecolor', 'none', 'facecolor', 'g', 'FaceAlpha', 0.5) ;
+        axis equal
+        close(fig2)
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        
         try
             [~,~,~] = apply_ambient_occlusion(th, 'SoftLighting', true) ;
         catch

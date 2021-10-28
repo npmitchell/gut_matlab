@@ -134,6 +134,9 @@ if redo_rot_calc || overwrite
     elseif strcmpi(ilastikOutputAxisOrder, 'czyx')
         ddat = squeeze(ddatM(dorsalChannel, :, :, :)) ;
         ddat = permute(ddat, [3, 2, 1]) ;
+    elseif strcmpi(ilastikOutputAxisOrder, 'cyzx')
+        ddat = squeeze(ddatM(dorsalChannel, :, :, :)) ;
+        ddat = permute(ddat, [2, 3, 1]) ;
     elseif strcmpi(ilastikOutputAxisOrder, 'cyxz')
         ddat = squeeze(ddatM(dorsalChannel, :, :, :)) ;
         ddat = permute(ddat, [2, 1, 3]) ;

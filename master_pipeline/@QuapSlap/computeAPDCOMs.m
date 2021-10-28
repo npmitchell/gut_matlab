@@ -238,6 +238,26 @@ if ~load_from_disk || overwrite
                 acoms(tidx, :)
                 disp('pcom = ')
                 pcoms(tidx, :)
+                
+                clf
+                mesh = read_ply_mod(sprintf(QS.fullFileBase.mesh, tt)) ;
+                for ii = 1:3
+                    subplot(1, 3, ii)
+                    trisurf(triangulation(mesh.f, mesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
+                    hold on;
+                    plot3(acom(1) * QS.ssfactor, acom(2) * QS.ssfactor, acom(3) * QS.ssfactor, 'o')
+                    plot3(pcom(1) * QS.ssfactor, pcom(2) * QS.ssfactor, pcom(3) * QS.ssfactor, 'o')
+                    axis equal
+                    if ii == 1
+                        view(0, 90)
+                    elseif ii == 2
+                        view(90, 0)
+                    else
+                        view(180, 0)
+                    end
+                end
+                sgtitle(['t = ' num2str(tt)])
+                pause(0.001)
             end
             
             % PLOT APD points on mesh

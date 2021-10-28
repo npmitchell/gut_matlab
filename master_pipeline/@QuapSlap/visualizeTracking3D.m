@@ -14,13 +14,16 @@ function visualizeTracking3D(QS, options)
 xwidth = 16 ; % cm
 ywidth = 10 ; % cm
 
+
 % Glean options from texturePatch run
 metafn = fullfile(QS.dir.texturePatchIm, 'overlays', 'metadat.mat') ;
 load(metafn, 'metadat', 'Options')
 metadat.subdir = 'overlays';
 
 % Default options
+t0 = QS.t0set() ;
 timePoints = QS.xp.fileMeta.timePoints ;
+maxNtracks = 300 ;
 subdir = 'labeled_groundTruth';
 method = 'segmentation' ;
 overwrite = false ;
@@ -74,7 +77,8 @@ end
 
 
             
-% Plot each timepoint in 3d            
+% Plot each timepoint in 3d      
+allAreas = nan(length(timePoints), maxNtracks) ;
 for tidx = 1:length(timePoints)
     tp = timePoints(tidx) ;
     QS.setTime(tp) ;
@@ -234,8 +238,12 @@ for tidx = 1:length(timePoints)
                 'moment1', 'ang1', 'moment2', 'moinertia', 'cellMeshFaces')
         end
         
+        % store areas
+        disp('Storing areas in large array')
+        allAreas(tidx, keepBinary) = areas ;
+        
         % Plot in 3d
-        if ~exist(outImFn, 'file') || overwrite
+        if ~exist(outImFn, 'file') || overwrite 
             close all
             fig = figure('Visible', 'Off', 'units', 'centimeters', ...
                 'position', [0,0,xwidth,ywidth]) ;
@@ -264,8 +272,8 @@ for tidx = 1:length(timePoints)
             ylim(xyzlims(2, :))
             zlim(xyzlims(3, :))
 
-            colormap viridis
-            caxis([0, 100])
+            colormap inferno
+            caxis([0, 80])
             cb = colorbar() ;
             ylabel(cb, ['area, ' QS.spaceUnits '$^{2}$]'], ...
                  'interpreter', 'latex')
@@ -366,8 +374,103 @@ for tidx = 1:length(timePoints)
     else
         error('handle nuclear tracking case here')
     end
-    
 end
 
+% Plot areas over time
+nCells = size(allAreas, 2) ;
+timestamps = (timePoints-t0)*QS.timeInterval ;
+if contains(lower(QS.timeUnits), 'min') && (max(timestamps)-min(timestamps)) > 60
+    timestamps = timestamps / 60 ;
+    timeunits = 'hr';
+else
+    timeunits = QS.timeUnits ;
+end
+
+close all
+fig = figure('units', 'centimeters', 'position', [0, 0,7,7]) ;
+newA = nan(size(allAreas)) ;
+normA = nan(size(allAreas)) ;
+allAreas(allAreas == 0) = NaN ;
+for cid = 1:nCells
+    ma = medfilt1m(allAreas(:, cid), 2) ;
+    ma = movmean(ma, 3, 'omitnan') ;
+    ma(ma  == 0) = NaN;
+    newA(:, cid) = ma ;
+    normA(:, cid) = ma ./ ma(find(ma, 1)) ;
+  
+end
+
+%% Stats on true values 
+fig = figure('units', 'centimeters', 'position', [0, 0,7,7]) ;
+colors = define_colors ;
+% check it
+plot(timestamps, newA, 'color', 0.7 * [1,1,1])
+hold on;
+meansA = nanmean(newA') ;
+stdsA = nanstd(newA') ;
+stesA = stdsA ./ sum(~isnan(newA'), 1) ;
+lowerA = meansA - stdsA ;
+upperA = meansA + stdsA ;
+x2 = [timestamps, fliplr(timestamps)] ;
+fill(x2, [lowerA, fliplr(upperA)], colors(1, :), ...
+    'facealpha', 0.3, 'edgecolor', 'none')   
+hold on;
+plot(timestamps, meansA, 'color', colors(1, :))
+xlabel(['time [' timeunits ']'], 'interpreter', 'latex')
+ylabel(['cell areas, $A$'], 'interpreter', 'latex')
+saveas(gcf, fullfile(QS.dir.tracking, subdir, 'areas_over_time_true_mean.pdf'))
+
+errorbar(timestamps, meansA, stesA, 'color', colors(1, :))
+saveas(gcf, fullfile(QS.dir.tracking, subdir, 'areas_over_time_true_err.pdf'))
+
+
+%% Stats on norm changes 
+close all
+for ii = 1:2
+    fig = figure('units', 'centimeters', 'position', [0, 0,7,7]) ;
+    if ii == 1
+        plot(timestamps, normA, 'color', 0.7 * [1,1,1])
+    end
+    hold on;
+    colors = define_colors ;
+    meansN = nanmean(normA') ;
+    stdsN = nanstd(normA') ;
+    stesN = stdsN ./ sum(~isnan(normA'), 1) ;
+    lowerN = meansN - stdsN ;
+    upperN = meansN + stdsN ;
+    x2 = [timestamps, fliplr(timestamps)] ;
+    fill(x2, [lowerN, fliplr(upperN)], colors(1, :), ...
+        'facealpha', 0.3, 'edgecolor', 'none')   
+    hold on;
+    if ii == 1
+        plot(timestamps, meansN, 'color', colors(1, :))
+    else
+        errorbar(timestamps, meansN, stesN, 'color', colors(1, :))
+    end
+    xlabel(['time [' timeunits ']'], 'interpreter', 'latex')
+    ylabel(['cell areas, $A/A_0$'], 'interpreter', 'latex')
+    if ii == 1
+        saveas(gcf, fullfile(QS.dir.tracking, subdir, 'areas_over_time_stats_Curves.pdf'))
+    else
+        saveas(gcf, fullfile(QS.dir.tracking, subdir, 'areas_over_time_stats.pdf'))
+    end
+end
+
+%% Stats on mean values 
+close all
+fig = figure('units', 'centimeters', 'position', [0, 0,7,7]) ;
+colors = define_colors ;
+hold on;
+x2 = [timestamps, fliplr(timestamps)] ;
+fill(x2, [lowerA / meansA(1), fliplr(upperA / meansA(1))], colors(1, :), ...
+    'facealpha', 0.3, 'edgecolor', 'none')   
+hold on;
+plot(timestamps, meansA / meansA(1), 'color', colors(1, :))
+xlabel(['time [' timeunits ']'], 'interpreter', 'latex')
+ylabel(['cell areas, $A/\langle A_0 \rangle$'], 'interpreter', 'latex')
+saveas(gcf, fullfile(QS.dir.tracking, subdir, 'areas_over_time_divMean0_mean.pdf'))
+
+errorbar(timestamps, meansA / meansA(1), stesA / meansA(1), 'color', colors(1, :))
+saveas(gcf, fullfile(QS.dir.tracking, subdir, 'areas_over_time_divMean0_err.pdf'))
 
 

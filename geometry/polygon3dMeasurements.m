@@ -72,7 +72,7 @@ end
 % Get fieldfaces -- here called cellMeshFaces -- for centroids
 [cellCntrd3d, cellMeshFaces] = interpolate2Dpts_3Dmesh(faces, v2D, v3D, cntrds) ;
 
-if isempty(customFaceNormals)
+if ~exist('customFaceNormals', 'var') || isempty(customFaceNormals)
     fN = faceNormal(triangulation(faces, v3D)) ;
 else
     fN = customFaceNormals ./ vecnorm(customFaceNormals, 2, 2) ;

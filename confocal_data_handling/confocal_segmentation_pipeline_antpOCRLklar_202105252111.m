@@ -941,17 +941,18 @@ if ~exist(imDir_bnd3d, 'dir')
     mkdir(imDir_bnd3d)
 end
 
-tidx2do = 1:16 ;
+tidx2do = [1, 10, 11, 1:16] ;
 
 for tidx = tidx2do
+    close all
     tp = timepoints(tidx) ;
     outfn = fullfile(segDir, sprintf('T%03d_polygons3d.mat', tp)) ; 
     
     if ~exist(outfn, 'file') || overwrite
         disp(['Processing t=' num2str(tp) ': ' outfn])
         % try
-            % segfn = fullfile(segDir, sprintf('T%03dmask.png', tp)) ;
-            segfn = fullfile(segDir, sprintf('automask1_T%03d.png', tp)) ;
+            segfn = fullfile(segDir, 'ground_truth',  sprintf('T%03dmask.png', tp)) ;
+            % segfn = fullfile(segDir, sprintf('automask1_T%03d.png', tp)) ;
             
             seg = imread(segfn) ;
             load(fullfile(textureDir, sprintf('mesh_T%03d.mat', tp)), ...
@@ -985,6 +986,7 @@ for tidx = tidx2do
             c2d = cell(max(segIm(:)), 1) ;
             props = regionprops(segIm, 'centroid') ;
             
+            % Choose segmentation colormap
             % cmpQ = brewermap(max(segIm(:)), 'Paired') ;
             nCells = double(max(segIm(:))) ;
             modulation = repmat([-1,-1,-1; 1,1,1], ceil(nCells * 0.5), 1) ;
@@ -992,6 +994,10 @@ for tidx = tidx2do
             cmpQ(cmpQ > 1) = 1;
             cmpQ(cmpQ < 0) = 0;
             % cmpQ = hsv(double(max(segIm(:)))) ;
+            cmpQ = distinguishable_colors(max(segIm(:)), [0,0,0;1,1,1]) ;
+            
+            
+            
             coloredLabelsImage = label2rgb(segIm, cmpQ, 'k', 'shuffle');
             % Display the pseudo-colored image.
             coloredLabelsImage = (coloredLabelsImage) .* uint8(segIm > 1) ;
@@ -1028,7 +1034,86 @@ for tidx = tidx2do
                 polygon3dMeasurements(m2d.f, mesh.v, m2d.v, c2d, centroids2d) ;
 
             % % Check this 
-            % Color by aspect ratio
+            
+            %% View 3d polygons colored by Qxx
+            clf
+            colormap inferno
+            cmapcolors = colormap ;
+            cmin = 1 ;
+            cmax = 3 ;
+            arCmap = linspace(cmin, cmax, length(cmapcolors)) ;
+            minzum = min(mesh.v (:, 3) * pix2um) ;
+            % trisurf(triangulation(mesh.f, ...
+            %     mesh.v * pix2um - [0, 0, minzum] - [0,0,5]), ...
+            %     'edgecolor', 'none')
+            faceAlpha = 1 ;
+            qstrength = sqrt(moment2 ./ moment1) -1 ; % this is aspect ratio -1
+            for pId = 2:max(segIm(:))
+                hold on;
+                
+                plot3(c3d{pId}(:, 1) * pix2um, ...
+                    c3d{pId}(:, 2) * pix2um, ...
+                    c3d{pId}(:, 3)*0 + 2, '-', 'color', 0.5 * [1,1,1])
+                % plot3(c3d{pId}(:, 1) , ...
+                %     c3d{pId}(:, 2) , ...
+                %     c3d{pId}(:, 3) - minzum, '-')
+                
+                ar4cell = qstrength(pId) + 1 ;
+                if ar4cell > cmax
+                    color4cell = cmapcolors(end, :) ;
+                elseif ar4cell < cmin
+                    color4cell = cmapcolors(1, :) ;                    
+                else
+                    color4cell = cmapcolors(find(arCmap > ar4cell, 1), :) ;
+                end
+                p = patch(c3d{pId}(:, 1) * pix2um, ...
+                    c3d{pId}(:, 2) * pix2um, ...
+                    c3d{pId}(:, 3) * pix2um *0 + 1, color4cell) ;
+                % p = patch(c3d{pId}(:, 1) , ...
+                %     c3d{pId}(:, 2) , ...
+                %     c3d{pId}(:, 3) - minzum, color4cell) ;
+                p.FaceAlpha = faceAlpha ;
+            end
+            imagesc(resolution(1) * linspace(1, size(singlePage, 2)), ...
+                resolution(2) * linspace(1, size(singlePage,1)), ...
+                0*singlePage)
+            caxis([cmin, cmax])
+            axis equal
+            xlim([resolution(1)*1, resolution(1)*size(singlePage, 2)])
+            ylim([resolution(1)*1, resolution(1)*size(singlePage, 1)])
+            zlim([-5, 5])
+            view(2)
+            grid off
+            
+            % Combine with singlePage
+            set(gcf, 'units', 'pixels')
+            set(gcf, 'position', [0, 0, imW*2, imH*2])
+            Fim = getFigureFrameCData([], [], 'ax') ;
+            imH = size(singlePage, 1) ;
+            imW = size(singlePage, 2) ;
+            Fim = flipud(imresize(Fim, [imH ,  imW])) ;
+            rgb = Fim + 0.8*cat(3, singlePage, singlePage, singlePage) ;
+            imfn = fullfile(imDir_bnd3d, sprintf('imT%03d_aR3d.png', tp)) ;
+            imwrite(rgb, imfn)
+            
+            % Save to png with annotation
+            xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
+            ylabel('dv position [$\mu$m]', 'interpreter', 'latex')
+            cb = colorbar ;
+            set(gca,'Ydir','reverse')
+            ylabel(cb, 'cell aspect ratio, $a/b$', 'interpreter', 'latex')
+            imfn = fullfile(imDir_bnd3d, sprintf('T%03d_aR3d.pdf', tp)) ;
+            title(['t = ' num2str((tp - tp0) * timeInterval) ' ' timeUnits], ...
+                'interpreter', 'latex')
+            saveas(gcf, imfn)
+            imfn = fullfile(imDir_bnd3d, sprintf('T%03d_aR3d.png', tp)) ;
+            saveas(gcf, imfn)
+            % imfn = fullfile(imDir_bnd3d, sprintf('T%03d_aR3d_expfig.png', tp)) ;
+            % export_fig(imfn, '-nocrop', '-r300')
+            
+            
+            
+            % Color by Qxx
             clf
             aratioImage = double(0*segIm) ;
             qstrength = sqrt(moment2 ./ moment1) -1 ;

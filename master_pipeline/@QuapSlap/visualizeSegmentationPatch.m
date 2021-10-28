@@ -216,6 +216,7 @@ for tii = 1:length(timePoints)
         % Load segmentation of this timepoint
         seg = load(sprintf(QS.fullFileBase.segmentation2dCorrected, coordSys, tp)) ;
         colors = distinguishable_colors(max(seg.segIm(:))-1) ;
+        % colors = shuffleArray(colors) ;
         overlayIm = seg.segIm - 1; 
         if doubleCovered
             overlayIm(round(size(im,1)*0.75+1):end, :) = ...
@@ -266,7 +267,7 @@ for tii = 1:length(timePoints)
             Fsz = size(figIm) ;
         else
             if ~exist('Fsz', 'var')
-                outFigFn0 = fullfile(outDir, sprintf([dpname '_%06d.png'], timePoints(1))) ;
+                outFigFn0 = fullfile(outFixedDir, sprintf([dpname '_%06d.png'], timePoints(1))) ;
                 Fsz = size(imread(outFigFn0)) ;
             end
             if any(size(figIm) ~= Fsz)
@@ -283,7 +284,7 @@ for tii = 1:length(timePoints)
             Asz = size(FF.cdata) ;
         else
             if ~exist('Asz', 'var')
-                outImFn0 = fullfile(outDir, sprintf(['im_' dpname '_%06d.png'], timePoints(1))) ;
+                outImFn0 = fullfile(outFixedDir, sprintf(['im_' dpname '_%06d.png'], timePoints(1))) ;
                 Asz = size(imread(outImFn0)) ;
             end
             if any(size(axIm) ~= Asz)
@@ -590,7 +591,6 @@ for tii = tidx2do
                 waitfor(gcf)
             end
             
-
             % Scale by det(g) -- either mean dilation 
             if scaleByMetricComponents
                 % Scale each dim separately
@@ -772,6 +772,10 @@ for tii = tidx2do
             patch(segV2D{cellID}(:, 1), segV2D{cellID}(:, 2), ...
                 colors(cellID, :), ...
                 'FaceAlpha', alphaVal, 'linestyle', 'none')
+            patch(segV2D{cellID}(:, 1), segV2D{cellID}(:, 2), ...
+                'w', ...
+                'FaceAlpha', 0, 'linestyle', '-', 'edgecolor', 'w', ...
+                'edgealpha', 0.5*alphaVal)
         end
         axis equal
         xlim(Xlim)
@@ -815,7 +819,7 @@ for tii = tidx2do
             hold on;
             patch(segV2D{cellID}(:, 1), segV2D{cellID}(:, 2), ...
                 colors(cellID, :), ...
-                'FaceAlpha', alphaVal, 'linestyle', 'none')
+                'FaceAlpha', 1, 'linestyle', '-', 'edgecolor', 'w')
         end
         axis off
         axis equal

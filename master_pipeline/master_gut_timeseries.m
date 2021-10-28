@@ -108,8 +108,8 @@ clear; close all; clc;
 cd /mnt/data/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201903211930_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150/data/
+cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data 
+% cd /mnt/data/48Ygal4UASCAAXmCherry/201903211930_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150/
 % cd /mnt/crunch/48Ygal4UASsqhGFP/201902271940_excellent_notunpacked/Time6views_60sec_1p4um_25x_1p5mW_exp1p0_3/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
@@ -1540,6 +1540,7 @@ QS.measurePolarity(options) ;
 %% Cell Segmentation
 
 % Automatic segmentation gives a rough guess
+error('only do this once')
 options = struct() ;
 options.overwrite = true ;
 options.overwriteImages = false;
@@ -1548,16 +1549,16 @@ QS.generateCellSegmentation2D(options)
 
 %% PERFORM Manual corrections (in GIMP, for ex) and re-process results
 options = struct() ;
-options.overwrite = true ;
-options.overwriteImages = true;
-options.timePoints = 156; %[96:10:206] ;
+options.overwrite = false ;
+options.overwriteImages = false;
+options.timePoints = [123,126] ; %[96:10:206] ;
 QS.processCorrectedCellSegmentation2D(options) 
 
 %% Project into 3D
 options = struct() ;
-options.timePoints =  [96:10:206] ;
+options.timePoints = [123,126]; % [96:10:206] ;
 options.overwrite = false ;
-options.overwriteImages = true ;
+options.overwriteImages = false ;
 options.correctedSegmentation = true ;
 QS.generateCellSegmentation3D(options) 
 
@@ -1581,13 +1582,13 @@ options.timePoints = [96:10:206] ;
 options.overwrite = true  ;
 QS.plotSegmentationStatisticsLobes(options)
 
-%% Compare segmentation to an advected segmentation
+% Compare segmentation to an advected segmentation
 options = struct() ;
 % options.timePoints = [93:15:263] ;
 options.timePoints = [96:10:206] ;
-options.overwrite = false ;
-options.overwritePathlines = false ;
-options.overwriteImages = false ;
+options.overwrite = true ;
+options.overwritePathlines = true ;
+options.overwriteImages = true ;
 
 % Optional: load pathlines before call
 cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
@@ -1620,8 +1621,8 @@ QS.visualizeTracking3D(options)
 
 %% Visualize Segmentation in a true-scale patch
 options = struct() ;
-options.demoPatchName = 'demoPatch004' ;
-options.timePoints = [96, 126, 156, 186, 206] ;
+options.demoPatchName = 'demoPatch001' ;
+options.timePoints = [96, 126, 156, 166, 186, 206] ;
 options.scaleByMetricComponents = true ;
 options.overwrite = false ;
 QS.visualizeSegmentationPatch(options)
@@ -1850,11 +1851,11 @@ options.plot_Hgdot = false ;
 options.plot_flows = false ;
 options.plot_factors = false ;
 options.plot_kymographs = true ;
-options.plot_kymographs_cumsum = true ;
-options.plot_kymographs_cumprod = true ;
-options.plot_correlations = true ;
+options.plot_kymographs_cumsum = false ;
+options.plot_kymographs_cumprod = false ;
+options.plot_correlations = false ;
 options.plot_spaceMaps = true ;
-options.plot_raw_correlations = true ;
+options.plot_raw_correlations = false ;
 options.plot_gdot_correlations = false ;
 options.plot_gdot_decomp = false ;
 options.lambda = 0.00 ;

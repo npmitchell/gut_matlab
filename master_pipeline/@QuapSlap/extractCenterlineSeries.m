@@ -71,6 +71,9 @@ end
 if isfield(cntrlineOptions, 'overwrite')
     overwrite = cntrlineOptions.overwrite ;
 end
+if isfield(cntrlineOptions, 'overwrite_ims')
+    overwrite_ims = cntrlineOptions.overwrite_ims ;
+end
 if isfield(cntrlineOptions, 'weight')
     exponent = cntrlineOptions.weight ;
 end
@@ -230,7 +233,11 @@ for tt = timePoints
     
     %% Compute centerline if has not been saved 
     if overwrite || (~exist(outname, 'file') && ~other_exist)
-        disp(['no centerline for timepoint = ' num2str(tt)])
+        if (~exist(outname, 'file') && ~other_exist)
+            disp(['no centerline for timepoint = ' num2str(tt)])
+        else
+            disp(['Overwriting centerline for t=' num2str(tt)])
+        end
         % Load startpoint and endpoint
         tifname = sprintf(fn, tt) ;
         disp(['loading /' tifname '/spt,ept,dpt from ' startendptH5FileName])
@@ -384,7 +391,7 @@ for tt = timePoints
             camlight 
             pause(1)
             if ~skipErrors
-                error(['Could not build path'])
+                error('Could not build path')
             end
         end
         
@@ -408,24 +415,29 @@ for tt = timePoints
             for kk=1:10:size(D2,1)
                 imagesc(squeeze(D2(kk,:,:)))
                 title(['D2 for plane z=' num2str(kk)])
-                caxis([0,  max(D2(D2(:) < Inf), 1)])
+                caxis([0,  max(max(D2(D2(:) < Inf)), 1)])
                 pause(0.01)
             end
             
             % A better way to plot it
             clf
-            p = patch(isosurface(insideM,0.5));
-            hold on;
-            scatter3(startpt(1)/res, startpt(2)/res, startpt(3)/res, 30, 'filled')
-            scatter3(endpt(1)/res, endpt(2)/res, endpt(3)/res, 30, 'filled')
-            % isonormals(x,y,z,v,p)
-            p.FaceColor = 'red';
-            p.EdgeColor = 'none';
-            p.FaceAlpha = 0.2 ;
-            daspect([1 1 1])
-            view(3); 
-            axis tight
-            plot3(path(2,:), path(1, :), path(3,:), '-')
+            for ii = 1:4
+                subplot(4, 1, ii)
+                p = patch(isosurface(insideM,0.5));
+                hold on;
+                scatter3(startpt(1)/res, startpt(2)/res, startpt(3)/res, 30, 'filled')
+                scatter3(endpt(1)/res, endpt(2)/res, endpt(3)/res, 30, 'filled')
+                % isonormals(x,y,z,v,p)
+                p.FaceColor = 'red';
+                p.EdgeColor = 'none';
+                p.FaceAlpha = 0.2;
+                daspect([1 1 1])
+                view(3); 
+                axis tight
+                plot3(path(2,:), path(1, :), path(3,:), '-')
+                trisurf(triangulation(fv.faces, fv.vertices/res), 'edgecolor', 'none', 'facealpha', 0.5)
+                view([0, ii*45])
+            end
             pause(1)
         end
 
@@ -458,6 +470,29 @@ for tt = timePoints
             %     skelrs(:, 2) = -skelrs(:, 2) ;
             % end
 
+            % Check it
+            QS.setTime(tt)
+            amesh0 = QS.getCurrentAlignedMesh() ;
+            amesh = struct() ;
+            amesh.f = fv.faces ;
+            amesh.v = QS.xyz2APDV(fv.vertices) ;
+            subplot(1, 3, 1)
+            trisurf(triangulation(amesh.f, amesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
+            hold on;
+            plot3(skelrs(:, 1), skelrs(:, 2), skelrs(:, 3), '.-')
+            axis equal ; view(0, 90)
+            subplot(1, 3, 2)
+            trisurf(triangulation(amesh.f, amesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
+            hold on;
+            plot3(skelrs(:, 1), skelrs(:, 2), skelrs(:, 3), '.-')
+            axis equal ; view(0, 0)      
+            subplot(1, 3, 3)
+            trisurf(triangulation(amesh.f, amesh.v), 'edgecolor', 'none', 'facealpha', 0.1)
+            hold on;
+            plot3(skelrs(:, 1), skelrs(:, 2), skelrs(:, 3), '.-')
+            axis equal ; view(0, 90)
+            
+            
             %% Save the rotated, translated, scaled curve
             disp(['Saving rotated & scaled skeleton to txt: ', skel_rs_outfn, '.txt'])
             skeloutfn = [skel_rs_outfn '.txt'] ;

@@ -67,7 +67,7 @@ for tt = tp2do
         % If we are plotting the mesh, reverse the triangle ordering
         % for ambient occlusion to work properly, but the APDV mesh
         % should ALREADY have the correct y values (mirrored XZ)
-        if flipy
+        if QS.flipy
             tri = mesh.f(:, [1 3 2]) ;
         else
             tri = mesh.f ;

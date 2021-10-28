@@ -27,7 +27,7 @@ function generateCurrentCutMesh(QS, cutMeshOptions)
 % Parameters for cutMesh creation
 nsegs4path = 2 ;
 maxJitter = 100 ;
-maxTwChange = 0.40 ;
+maxTwChange = 0.7 ;
 preview = false ;
 definePDviaRicci_t0 = true ;
 definePDviaRicci = false ;
@@ -112,7 +112,7 @@ if tt == t0
         % Find anterior dorsal vertex in one of the boundary rings
         if ismember(adIDx, bnds{1}(:, 1))
             pInds = bnds{2} ;
-        elseif ismember(adIdx, bnds{2}(:, 1))
+        elseif ismember(adIDx, bnds{2}(:, 1))
             pInds = bnds{1} ;
         else
             error('could not find anterior dorsal vertex index in either boundary list')

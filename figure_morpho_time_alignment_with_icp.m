@@ -82,7 +82,12 @@ for mi = 1:length(keys(dmap))
             error(['did  not recognize label: ' label])
         end
         
-        meshes = dir(fullfile(dmap(label).folders{jj}, 'aligned_meshes',  'mesh_apical_stab_0*_APDV_um.ply')) ;
+        meshes = dir(fullfile(dmap(label).folders{jj}, 'alignedMesh',  'mesh_apical_stab_0*_APDV_um.ply')) ;
+        
+        if isempty(meshes)
+            dmap(label).folders{jj}
+            disp(' --> was not found!')
+        end
         
         % Write each mesh to the cell array mca
         for kk = 1:length(meshes)
@@ -191,6 +196,7 @@ if strcmp(answer, 'Yes')
                 % ---------------------------------------------------
                 redoii = true ;
                 if exist(ssrii_fn, 'file') && ~overwrite
+                    disp(['Loading ssr from: ' ssrii_fn])
                     tmp = load(ssrii_fn, 'rlist', 'ssr', 'numpts1_cc', 'numpts2_cc') ;
                     % Check that the rlist is indeed the same
                     if length(tmp.rlist) == length(rlist)

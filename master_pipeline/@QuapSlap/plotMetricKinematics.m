@@ -45,6 +45,8 @@ climit_err = 0.2 ;
 climit_veln = climit * 10 ;
 climit_H = climit * 2 ;
 climit_radius = 0 ;
+displayTimepointInRange = 0.25 ;
+figResolutionStr = '-r600' ;
 % Sampling resolution: whether to use a double-density mesh
 samplingResolution = '1x'; 
 
@@ -471,6 +473,11 @@ timeSpans{end+1} = hrTSpans{3} ;
 lhrTSpans = {max(min(tps),-90):QS.timeInterval:0, 0:QS.timeInterval:90, ...
     90:QS.timeInterval:min(max(tps), 180), ...
     max(min(tps), 0):QS.timeInterval:min(max(tps),75)} ;
+% Include one tpsan of -30m:30m, 30m:90min, 90min:150min wrt t0
+lhrTSpans = {max(min(tps),-30):QS.timeInterval:min(max(tps), 30), ...
+    min(max(tps), 30):QS.timeInterval:90, ...
+    max(min(tps), 90):QS.timeInterval:min(max(tps), 150), ...
+    0:QS.timeInterval:90} ;
 timeSpans{end+1} = lhrTSpans{1} ;
 timeSpans{end+1} = lhrTSpans{2} ;
 timeSpans{end+1} = lhrTSpans{3} ;
@@ -518,7 +525,11 @@ if plot_spaceMaps && (~files_exist || overwrite)
         
         minTP = max(min(timeSpan_i(1)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
         maxTP = max(min(timeSpan_i(end)/QS.timeInterval+tfold, max(vtimePoints)), min(vtimePoints)) ;
+        minTidx = QS.xp.tIdx(minTP) ;
+        maxTidx = QS.xp.tIdx(maxTP) ;
         tidx_i = QS.xp.tIdx(minTP):QS.xp.tIdx(maxTP) ;
+        displayTidx = minTidx + round((maxTidx - minTidx) * displayTimepointInRange) ;
+        tidx2plot = min(displayTidx, length(QS.xp.fileMeta.timePoints)) ;
         close all
         
         % Get middle mesh for this time range if not ALLTime
@@ -526,8 +537,7 @@ if plot_spaceMaps && (~files_exist || overwrite)
             QS.setTime(QS.t0set()) ;
             mesh = QS.getCurrentSPCutMeshSmRS ;
         else
-            % Match MEAN timepoint in range
-            tidx2plot = min(ceil(mean(tidx_i)), length(QS.xp.fileMeta.timePoints)) ;
+            % Match displayTimepointRange in range
             QS.setTime(QS.xp.fileMeta.timePoints(tidx2plot)) ;
             mesh = QS.getCurrentSPCutMeshSmRS ;
         end
@@ -553,6 +563,10 @@ if plot_spaceMaps && (~files_exist || overwrite)
         pOptions.clim = [-climit, climit] ;
         pOptions.visible = 'On' ;
         pOptions.view = {[0,0], [0,0], [0,0], [0,90], [0,90], [0,90]} ;
+        pOptions.xlim = {xyzlim(1, :), xyzlim(1, :), xyzlim(1, :), ...
+            [0,1], [0,1], [0,1]};
+        pOptions.zlim = {xyzlim(3, :), xyzlim(3, :), xyzlim(3, :), ...
+            [0,1], [0,1], [0,1]};
         [axs, cbs, meshHandles]  = ...
             nFieldsOnSurface({mesh, mesh, mesh, m2d, m2d, m2d}, ...
             {mH2vn(:), mdivv(:), halfgdot(:), ...
@@ -591,7 +605,7 @@ if plot_spaceMaps && (~files_exist || overwrite)
         
         % Save figure
         disp(['Saving spaceMap: ' fnout])
-        saveas(gcf, [fnout '.png']) ;
+        print(gcf, [fnout '.png'], '-dpng', figResolutionStr) ;
         saveas(gcf, [fnout '.pdf']) ;
         
         % Zoom in on color
@@ -600,7 +614,7 @@ if plot_spaceMaps && (~files_exist || overwrite)
             caxis([-climit / 2, climit / 2])
         end
         % Save figure
-        saveas(gcf, [fnout '_zoom.png']) ;
+        print(gcf, [fnout '_zoom.png'], '-dpng', figResolutionStr) ;
         saveas(gcf, [fnout '_zoom.pdf']) ;
         
         % Zoom out on color
@@ -609,7 +623,7 @@ if plot_spaceMaps && (~files_exist || overwrite)
             caxis([-climit * 2, climit * 2])
         end
         % Save figure
-        saveas(gcf, [fnout '_out.png']) ;
+        print(gcf, [fnout '_out.png'], '-dpng', figResolutionStr) ;
         saveas(gcf, [fnout '_out.pdf']) ;
         
         close all
@@ -966,7 +980,9 @@ files_exist = true ;
 for qq = 1:length(collateTSpans)
     outputFileNames{qq} = ...
         fullfile(corrDVqDir, sprintf('correlation_allQuad_times%02d_div_2Hvn', qq)) ;
-    files_exist = files_exist && exist([outputFileNames{qq} '.png'], 'file') ;
+    files_exist = files_exist && ...
+        exist([outputFileNames{qq} '.png'], 'file') && ...
+        exist([outputFileNames{qq} '_data.mat'], 'file');
 end
 
 if plot_correlations && (~files_exist || overwrite)
@@ -1060,8 +1076,8 @@ if plot_correlations && (~files_exist || overwrite)
         % Save figure
         figure(1)
         saveas(gcf, [fnout '.png']) ;
-        disp('saving pdf version...')
-        saveas(gcf, [fnout '.pdf']) ;
+        % disp('saving pdf version...')
+        % saveas(gcf, [fnout '.pdf']) ;
         disp('done')
         close all
         set(gcf, 'visible', 'off')

@@ -958,16 +958,38 @@ classdef QuapSlap < handle
         % -- for ex, for optogenetic figures
         plotAlignedMeshesPretty(QS, options)
 
-        % Load raw mesh or rawMeshRS (rotated & scaled to APDV)
+        % Load raw mesh or alignedMesh (rotated & scaled to APDV)
         function rawMesh = loadCurrentRawMesh(QS)
             meshfn = sprintf(QS.fullFileBase.mesh, QS.currentTime) ;
             rawMesh = read_ply_mod(meshfn) ;
             QS.currentMesh.rawMesh = rawMesh ;
         end
+        function rawMesh = getCurrentRawMesh(QS)
+            if isempty(QS.currentTime)
+                error('First set currentTime')
+            end
+            if isempty(QS.currentMesh.rawMesh)
+                QS.loadCurrentRawMesh() ;
+            end
+            if nargout > 0
+                rawMesh = QS.currentMesh.rawMesh ;
+            end
+        end
         function alignedMesh = loadCurrentAlignedMesh(QS)
             meshfn = sprintf(QS.fullFileBase.alignedMesh, QS.currentTime) ;
             alignedMesh = read_ply_mod(meshfn) ;
             QS.currentMesh.alignedMesh = alignedMesh ;
+        end
+        function amesh = getCurrentAlignedMesh(QS)
+            if isempty(QS.currentTime)
+                error('First set currentTime')
+            end
+            if isempty(QS.currentMesh.spcutMeshSm)
+                QS.loadCurrentAlignedMesh() ;
+            end
+            if nargout > 0
+                amesh = QS.currentMesh.alignedMesh ;
+            end
         end
         
         % Masked Data
@@ -1072,7 +1094,7 @@ classdef QuapSlap < handle
             if nargout > 0
                 spcutMesh = QS.currentMesh.spcutMesh ;
             end
-        end
+        end        
         function spcutMeshSm = getCurrentSPCutMeshSm(QS)
             if isempty(QS.currentTime)
                 error('First set currentTime')
