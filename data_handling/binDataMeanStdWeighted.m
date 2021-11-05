@@ -64,7 +64,11 @@ for bin = 1:nBins
         % see also: weightedMeanStdSte.m
         
         ny(bin) = length(idx) ;
-        ww = weights(idx) / nansum(weights(idx)) ;
+        try
+            ww = weights(idx) / nansum(weights(idx)) ;
+        catch
+            error('here')
+        end
         meany(bin) = nansum(ww .* y(idx)) ;
 
         % The var function divides by N instead of (N-1)

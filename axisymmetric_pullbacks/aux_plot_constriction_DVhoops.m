@@ -114,7 +114,8 @@ if save_ims && (~(length(fns)==length(timePoints)) || overwrite_lobeims)
         xlabel(['AP position [' spaceUnits ']'], 'interpreter', 'latex')
         ylabel(['lateral position [' spaceUnits ']'], 'interpreter', 'latex')
         zlabel(['DV position [' spaceUnits ']'], 'interpreter', 'latex')
-        title(sprintf(['Constriction dynamics, t=%03d ' timeUnits], tp4title))
+        title(sprintf(['Constriction dynamics, t=%03d ' timeUnits], tp4title), ...
+            'interpreter', 'latex')
         ofn = sprintf(fold_lat_figfn, t) ;
         disp(['Saving figure to ' ofn])
         view(0, 0) ;

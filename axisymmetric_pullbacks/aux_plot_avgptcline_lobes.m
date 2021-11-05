@@ -1,6 +1,6 @@
 function aux_plot_avgptcline_lobes(folds, fold_onset, lobeDir, dvexten, ...
     save_ims, overwrite_lobeims, timePoints, spcutMeshBase, clineDVhoopBase, ...
-    t0, timeInterval, timeUnits, spaceUnits)
+    t0, timeInterval, timeUnits, spaceUnits, tidxMap)
 %AUX_PLOT_AVGPTCLINE_LOBES auxiliary function for plotting the motion of
 %the constrictions between lobes and the centerlines over time
 % 
@@ -67,13 +67,12 @@ if save_ims && (~exist(fold_dynamics_figfn, 'file') || overwrite_lobeims)
     scatter(f1pts(:, 2), f1pts(:, 3), sz, tp, 'o'); hold on;
     scatter(f2pts(:, 2), f2pts(:, 3), sz, tp, 's');
     scatter(f3pts(:, 2), f3pts(:, 3), sz, tp, '^');
-    idx = 1:length(timePoints) ;
     fons1 = max(fold_onset(1), 1) ;
     fons2 = max(fold_onset(2), 1) ;
     fons3 = max(fold_onset(3), 1) ;
-    plot(f1pts(idx(fons1), 2), f1pts(idx(fons1), 3), 'ko', 'markersize', msz); 
-    plot(f2pts(idx(fons2), 2), f2pts(idx(fons2), 3), 'ks', 'markersize', msz);
-    plot(f3pts(idx(fons3), 2), f3pts(idx(fons3), 3), 'k^', 'markersize', msz);
+    plot(f1pts(tidxMap(fons1), 2), f1pts(tidxMap(fons1), 3), 'ko', 'markersize', msz); 
+    plot(f2pts(tidxMap(fons2), 2), f2pts(tidxMap(fons2), 3), 'ks', 'markersize', msz);
+    plot(f3pts(tidxMap(fons3), 2), f3pts(tidxMap(fons3), 3), 'k^', 'markersize', msz);
     axis equal
     xlabel(['y [' spaceUnits ']'], 'interpreter', 'latex')
     ylabel(['z [' spaceUnits ']'], 'interpreter', 'latex')

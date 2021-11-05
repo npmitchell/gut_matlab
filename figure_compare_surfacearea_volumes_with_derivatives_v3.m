@@ -23,6 +23,8 @@ smoothStyle = 'rloess' ;
 smoothSpan = 0.2 ;
 smoothDegree = 2 ;
 cutOffDerivativeEdges = true ;
+windowSzA = 5 ;
+windowSize = 7; 
 % For 2 panel figure
 axpos = [0.1300    0.5838    0.5439    0.3412] ;
 axpos_with_writhe = axpos - [0, 0, 0.07, 0] ;
@@ -228,7 +230,6 @@ for mi = 1:length(markers)
             vss = volumes / volumes(t0ind) ;
 
             % Filter the data for derivatives
-            windowSize = 7; 
             % sampling = 1:length(times) ;
             % b = (1/windowSize)*ones(1,windowSize);
             % a = 1;
@@ -462,12 +463,14 @@ at = nanmean(allAm(goodRow, :), 2) ;
 ant = nanmean(allAnm(goodRow, :), 2) ;
 astd_t = nanstd(allAm(goodRow, :), [], 2) ; 
 anstd_t = nanstd(allAnm(goodRow, :), [], 2) ;
+anstd_t = movmean(anstd_t, windowSzA) ;
 
 % vomume over time --> vt, normalized volume over time --> vnt
 vt = nanmean(allVm(goodRow, :), 2) ;
 vnt = nanmean(allVnm(goodRow, :), 2) ;
 vstd_t = nanstd(allAm(goodRow, :), [], 2) ;
 vnstd_t = nanstd(allAnm(goodRow, :), [], 2) ;
+vnstd_t = movmean(vnstd_t, windowSzA) ;
 
 % Take time derivative BEFORE SMOOTHING -- not useful
 dAnm = diff(allAnm) ;
@@ -552,11 +555,11 @@ pfoldmean = mean(posteriorFold_time_area(:, 1)) ;
 [~, pID] = min(abs(timem - pfoldmean)) ;
 
 
-plot(0, ant(mID), 'o', 'MarkerSize', markersize, ...
+mf = plot(0, ant(mID), 'o', 'MarkerSize', markersize, ...
     'Color', color2, 'HandleVisibility', 'off') ;
-plot(afoldmean / 60, ant(aID), '^', 'MarkerSize', markersize, ...
+af = plot(afoldmean / 60, ant(aID), '^', 'MarkerSize', markersize, ...
     'Color', color2, 'HandleVisibility', 'off') ;
-plot(pfoldmean / 60, ant(pID), 's', 'MarkerSize', markersize, ...
+pf = plot(pfoldmean / 60, ant(pID), 's', 'MarkerSize', markersize, ...
     'Color', color2, 'HandleVisibility', 'off') ;
 
 % Find t0idx from possible times
@@ -701,7 +704,7 @@ yyaxis left
 yyaxis left
 [~, aID] = min(abs(timem - afoldmean)) ;
 [~, pID] = min(abs(timem - pfoldmean)) ;
-plot(afoldmean / 60, dlnt(aID) * 60, 'o', 'MarkerSize', markersize, ...
+plot(afoldmean / 60, dlnt(aID) * 60, '^', 'MarkerSize', markersize, ...
     'Color', color3, 'HandleVisibility', 'off') ;
 plot(pfoldmean / 60, dlnt(pID) * 60, 's', 'MarkerSize', markersize, ...
     'Color', color3, 'HandleVisibility', 'off') ;
@@ -718,8 +721,24 @@ H2 = plot(kx, ky, '--', 'Color', [0 0 0]);
 H3 = plot(kx, ky, ':', 'Color', [0 0 0]);
 
 %% Save the figure
+tmin = -0.3
+tmax = 1.5
+axes(ax1)
+xlim([tmin, tmax])
+xticks([0, 0.5, 1., 1.5])
+axes(ax2)
+xlim([tmin, tmax])
+xticks([0, 0.5, 1., 1.5])
+axes(ax3)
+xlim([tmin, tmax])
+xticks([0, 0.5, 1., 1.5])
+axes(ax4)
+xlim([tmin, tmax])
+xticks([0, 0.5, 1., 1.5])
+
 saveas(gcf, fullfile(outdir, ['fig_area_volume_stab_comparison_derivatives.pdf']))
 % hold off
+%% ADD LEGEND
 legend(ax2, [H1 H2 H3 af pf], ...
     {'membrane labeled', 'nuclei labeled', 'actin labeled', ...
     'anterior fold', 'posterior fold'}, ...
@@ -864,7 +883,6 @@ for build = 1:4
                 vss = volumes / volumes(t0ind) ;
 
                 % Filter the data for derivatives
-                windowSize = 7; 
                 % sampling = 1:length(times) ;
                 % b = (1/windowSize)*ones(1,windowSize);
                 % a = 1;
@@ -989,7 +1007,7 @@ for build = 1:4
 
                     % grab time of anterior fold
                     a1 = [tt(ia), da(ia)] ;
-                    af = plot(a1(1) / 60, a1(2) * 60, 'o', 'MarkerSize', markersize, 'Color', graycolor) ;
+                    af = plot(a1(1) / 60, a1(2) * 60, '^', 'MarkerSize', markersize, 'Color', graycolor) ;
 
                     % grab time of posterior fold
                     p1 = [tt(ip), da(ip)] ;

@@ -50,6 +50,7 @@ mutDates = mutRes.dates ;
 expts = mutRes.expts ;
 dts = mutRes.dts ;
 pix2um = mutRes.pix2um ;
+nMutantExpts = length(expts) ;
 
 % First get mean shoulders from control as bg
 % Get mean peak for scale
@@ -152,6 +153,7 @@ for refID = [2,1]
             
             % Fit a model for the normalization
             pp = polyfit(bgVals(~isnan(bgVals)), maxVals(~isnan(bgVals)), 1) ;
+            coeffc = corrcoef(bgVals(~isnan(bgVals)), maxVals(~isnan(bgVals))) ;
             fig = figure( 'units','centimeters','position',[0,0,9,9]);
             clf
             scatter(bgVals, maxVals, 25, 'filled'); hold on;
@@ -164,6 +166,13 @@ for refID = [2,1]
                 'interpreter', 'latex')
             ylims = ylim ;
             ylim([0, ylims(2)])
+            snR = maxVals./bgVals ;
+            snR_ste = std(snR) / sqrt(length(snR)) ;
+            text(min(bgVals), 0.8*max(maxVals), ...
+                ['correlation = ' num2str(coeffc(1, 2)) ...
+                ',<snr>=' num2str(nanmean(snR)) '+/-' num2str(snR_ste)])
+            text(nanmean(bgVals), nanmean(maxVals), ...
+                ['y=' num2str(pp(1)) 'x+' num2str(pp(2))])
             saveas(gcf, fullfile(outdir, sprintf('noise_model_avgMin%d.pdf', avgMin(avgID)))) ;
             
             % GET Control after normalization

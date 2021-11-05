@@ -56,13 +56,18 @@ rotx = RU(ax2alignx, xhat) ;
 if nargin > 1
     % Rotate second axis (dorsal, for ex) to the z axis, in addition to
     % mapping the first argument to the x axis. 
-    % Normalize the supplied vector
+    % Normalize the supplied vector and subtract off component along x axis
+    % preimage.
     dvec = rotx * (ax2alignz(:)) - rotx * (dot(ax2alignz(:), ax2alignx(:)) * ax2alignx)' ;    
     dhat = reshape(dvec, [1, 3]) / norm(dvec) ;
     
     % Now, dvec should be perpendicular to [1, 0, 0]
-    assert(dot(dvec, [1, 0, 0]) < 1e-7)
-    
+    try
+        assert(dot(dvec, [1, 0, 0]) < 1e-7)
+    catch
+        disp(['Assertion failed: dorsal vector is not perp to [1,0,0]: dot prod='...
+            num2str(dot(dvec, [1, 0, 0]))])
+    end
     try 
         % Check that supplied vector was not already zhat direction, since
         % we cannot rotate a vector to itself

@@ -1335,7 +1335,7 @@ QS.plotLobes(options)
 
 % Plot motion of avgpts & DVhoops at folds in yz plane over time =========
 % Skip if already done
-overwrite_lobeims = true ;
+overwrite_lobeims = false ;
 QS.plotConstrictionDynamics(overwrite_lobeims) ;
 disp('done')
 
@@ -1556,7 +1556,7 @@ QS.processCorrectedCellSegmentation2D(options)
 
 %% Project into 3D
 options = struct() ;
-options.timePoints = [123,126]; % [96:10:206] ;
+options.timePoints = [96:10:206] ;
 options.overwrite = false ;
 options.overwriteImages = false ;
 options.correctedSegmentation = true ;

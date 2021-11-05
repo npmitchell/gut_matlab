@@ -155,7 +155,6 @@ mKDir = fullfile(QS.dir.metricKinematics.root, ...
     strrep(sprintf([sresStr 'lambda%0.3f_lmesh%0.3f_lerr%0.3f_modes%02dw%02d'], ...
     lambda, lambda_mesh, lambda_err, nmodes, zwidth), '.', 'p'));
 folds = load(QS.fileName.fold) ;
-fons = folds.fold_onset - QS.xp.fileMeta.timePoints(1) ;
 
 %% Colormap
 close all
@@ -166,6 +165,10 @@ bwr256 = bluewhitered(256) ;
 %% Load time offset for first fold, t0
 QS.t0set() ;
 tfold = QS.t0 ;
+% timepoints at which features/folds begin
+fons = folds.fold_onset - tfold ;
+% timepoint indices at which features/folds begin
+fonsIdx = folds.fold_onset - QS.xp.fileMeta.timePoints(1) + 1 ;
 
 %% load from QS
 if doubleResolution
@@ -406,8 +409,8 @@ if plot_kymographs
                 colormap(cmaps{pp})
                 % Add folds to plot
                 hold on;
-                for ii = 1:length(fons)
-                    fonsi = max(1, fons(ii) ) ; 
+                for ii = 1:length(fonsIdx)
+                    fonsi = max(1, fonsIdx(ii) ) ; 
                     plot(double(folds.folds(fonsi:end-1, ii)) / double(nU), ...
                         tps(fonsi:end))            
                 end
@@ -429,7 +432,7 @@ if plot_kymographs
                     disp(['saving kymograph detail ', fn])
                     export_fig(fn, '-png', '-nocrop', '-r200')   
                     % Zoom in on early times
-                    ylim([min(tps), min(max(tps), max(fons-tfold) + 10)])
+                    ylim([min(tps), min(max(tps), max(fons) + 10)])
                     caxis([-climits(pp)/3, climits(pp)/3])
                     fn = fullfile(odir, [names{pp} '_zoom_early.png']) ;
                     disp(['saving kymograph detail: ', fn])
@@ -1618,9 +1621,9 @@ if plot_gdot_decomp
                 colormap(bwr256)
                 % Add folds to plot
                 hold on;
-                fons1 = max(1, fons(1)) ;
-                fons2 = max(1, fons(2)) ;
-                fons3 = max(1, fons(3)) ;
+                fons1 = max(1, fonsIdx(1)) ;
+                fons2 = max(1, fonsIdx(2)) ;
+                fons3 = max(1, fonsIdx(3)) ;
                 plot(folds.folds(fons1:end-1, 1) / nU, tps(fons1:end))
                 plot(folds.folds(fons2:end-1, 2) / nU, tps(fons2:end))
                 plot(folds.folds(fons3:end-1, 3) / nU, tps(fons3:end))

@@ -1,6 +1,15 @@
 function ax = phasebar(varargin) 
-% phasebar places a circular donunt-shaped colorbar for phase 
-% from -pi to pi or -180 degrees to 180 degrees. 
+% phasebar places a circular or half-circular) donunt-shaped colorbar for 
+% phase from -pi to pi, -180 degrees to 180 degrees, OR
+%       from 0 to pi, 0 degrees to 180 degrees.
+% If vargarin has 'style', styleStr,... and if lower(styleStr) contains 
+%   'fill', then the inner radius of the donut is zero, so it is a half 
+%   circle or a full circle.
+%% Example Usage
+% 
+% cbs{1} = phasebar('colormap', phasemap, ...
+%     'location', [0., 0.0, 1, 1], ...
+%     'style', 'nematicFill') ;
 % 
 %% Syntax
 % 
@@ -46,6 +55,7 @@ function ax = phasebar(varargin)
 % This function was written by Chad A. Greene of the University of Texas 
 % at Austin's Institute for Geophysics (UTIG), May 2016. 
 % This function includes Kelly Kearney's plotboxpos function as a subfunction. 
+% NPMitchell added nematic and filled (half)circle functionality.
 % 
 % If the phasemap function is useful for you, please consider citing our 
 % paper about it: 
@@ -118,6 +128,13 @@ if any(tmp)
     style = varargin{find(tmp) + 1} ;
 end
 
+%% style: filled or not
+if contains(lower(style), 'fill')
+    innerRadius = 0 ;
+else
+    innerRadius = 10 ;
+end
+
 %% Starting settings: 
 
 currentAx = gca; 
@@ -132,9 +149,7 @@ catch
 end
 
 %% Created gridded surface: 
-
-innerRadius = 10; 
-outerRadius = innerRadius*1.618; 
+outerRadius = 10*1.618; 
 
 [x,y] = meshgrid(linspace(-outerRadius,outerRadius,300));
 [theta,rho] = cart2pol(x,y); 
@@ -142,7 +157,7 @@ outerRadius = innerRadius*1.618;
 % theta = rot90(-theta,3); 
 theta(rho>outerRadius) = nan; 
 theta(rho<innerRadius) = nan; 
-if strcmpi(style, 'nematic')
+if contains(lower(style), 'nematic')
     theta(y < 0) = nan ;
 end
 
@@ -153,17 +168,27 @@ end
 %% Plot surface: 
 
 ax = axes; 
-pcolor(x,y,theta)
+if contains(lower(style), 'grad')
+    alphaGrid = rho./outerRadius ;
+    alphaGrid(alphaGrid > 1) = 1 ;
+    ph = surf(x,y,theta,'FaceAlpha','flat',...
+        'AlphaDataMapping','scaled',...
+        'AlphaData',alphaGrid) ;
+    view(2)
+    axis equal
+else
+    ph = pcolor(x,y,theta) ;    
+end
 shading interp
 hold on
 
-if strcmpi(style, 'polar')
+if contains(lower(style), 'polar')
     % Plot a ring: 
     [xc1,yc1] = pol2cart(linspace(-pi,pi,360),innerRadius); 
     [xc2,yc2] = pol2cart(linspace(-pi,pi,360),outerRadius); 
     plot(xc1,yc1,'-','color',xcol,'linewidth',.2); 
     plot(xc2,yc2,'-','color',xcol,'linewidth',.2); 
-elseif strcmpi(style, 'nematic')
+elseif contains(lower(style), 'nematic')
     % Plot a ring: 
     [xc1,yc1] = pol2cart(linspace(0,pi,180),innerRadius); 
     [xc2,yc2] = pol2cart(linspace(0,pi,180),outerRadius); 
@@ -174,13 +199,13 @@ end
 axis image off
 colormap(gca, cm) 
 
-if strcmpi(style, 'polar')
+if contains(lower(style), 'polar')
     if usedegrees
        caxis([-180 180]) 
     else
        caxis([-pi pi]) 
     end
-elseif strcmpi(style, 'nematic')
+elseif contains(lower(style), 'nematic')
     if usedegrees
        caxis([0 180]) 
     else
@@ -191,7 +216,7 @@ else
 end
 
 %% Label: 
-if strcmpi(style, 'polar')
+if contains(lower(style), 'polar')
     % Option 1: use inner radius 
     if strcmpi(TickPos, 'inside')
         [xt,yt] = pol2cart((-1:2)*pi/2+pi/2,innerRadius); 
@@ -224,7 +249,7 @@ if strcmpi(style, 'polar')
         error('Bad Tick Position definition')
     end
     
-elseif strcmpi(style, 'nematic')
+elseif contains(lower(style), 'nematic')
     % Option 1: use inner radius 
     if strcmpi(TickPos, 'inside')
         [xt,yt] = pol2cart((0:2)*pi/2,innerRadius); 
