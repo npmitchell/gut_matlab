@@ -72,6 +72,8 @@ if isfield(labelOptions, 'label')
 end
 if isfield(labelOptions, 'colormap')
     cmap = labelOptions.colormap ;
+elseif isfield(labelOptions, 'cmap')
+    cmap = labelOptions.cmap ;
 end
 
 %% Unpack options for style (diverging, positive, negative) and cmap
@@ -257,8 +259,18 @@ if ~isempty(ylabelstr)
     end
 end
 
+% Axis position
+if isfield(labelOptions, 'axPosition')
+    set(gca, 'Position', labelOptions.axPosition) ;
+end
+
+
 %% Colorbar settings
-c = colorbar();
+if isfield(labelOptions, 'cbPosition')
+    c = colorbar('Position', labelOptions.cbPosition) ;
+else
+    c = colorbar();
+end
 % Manually flush the event queue and force MATLAB to render the colorbar
 % necessary on some versions
 drawnow

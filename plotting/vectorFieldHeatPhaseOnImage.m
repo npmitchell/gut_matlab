@@ -117,7 +117,10 @@ if nargin > 5
             visibility = lower(options.visibility) ;
         end
     end
-    if isfield(options, 'fig')
+    if isfield(options, 'ax')
+        set(gcf, 'CurrentAxes', options.ax) ;
+        fig = gcf ;
+    elseif isfield(options, 'fig')
         fig = set(0, 'CurrentFigure', options.fig) ;
     else
         close all

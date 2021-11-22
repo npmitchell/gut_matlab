@@ -1096,7 +1096,8 @@ clearvars Options
 
 %% Morphsnakes demo evolution visualizeMeshEvolution orthoviews data planes
 options = struct() ;
-options.plot_evolution = false ;
+options.plot_evolution = true ;
+options.plot_growth = false ;
 options.growth_t0 = 85 ;
 QS.visualizeMeshEvolution(options)
 
@@ -1393,9 +1394,74 @@ QS.plotSPCutMeshSmRS(options) ;
 % Skip if already done
 % Create coordinate system charts visualization using smoothed meshes
 
-% QS.coordSystemDemo()
+QS.coordSystemDemo()
+QS.setTime(QS.t0 + 90)
+mesh = QS.loadCurrentSPCutMeshSmRS() ;
+fig = figure('units', 'centimeters', 'position', [0, 0, 13, 13]) ;
+uu = mesh.u(:, 1) ;
+vv = mesh.u(:, 2) ;
+xx = (mesh.v(:, 1)) ;
+yy = (mesh.v(:, 2)) ;
+zz = (mesh.v(:, 3)) ;
+colorsV = viridis(mesh.nV) ;
+colorsU = viridis(mesh.nU) ;
 
-% COMPUTE MEAN AND GAUSSIAN CURVATURES OF SMOOTHED MESHES
+% LONGITUDE 3D
+subplot(2, 3, [1,2])
+hold off
+for qq = 1:mesh.nV  
+    plot3(xx(qq:nU:end), yy(qq:nU:end), zz(qq:nU:end), '-', ...
+        'color', colorsV(qq, :));
+    hold on ;
+end
+axis equal
+xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
+ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
+zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
+
+% AZIMUTH 3D
+subplot(2, 3, [4,5])
+hold off
+for qq = 1:2:mesh.nU
+    inds = (qq-1)*nU+1:qq*nU ;
+    plot3(xx(inds), yy(inds), zz(inds), '-', ...
+        'color', colorsV(qq, :));
+    hold on ;
+end
+axis equal
+xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
+ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
+zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
+
+% LONGITUDE
+subplot(2, 3, 3)
+hold off
+for qq = 1:mesh.nV  
+    plot(uu(qq:nU:end), vv(qq:nU:end), '-', ...
+        'color', colorsV(qq, :));
+    hold on ;
+end
+axis square
+xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
+ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
+
+% AZIMUTH
+subplot(2, 3, 6)
+hold off
+for qq = 1:mesh.nV  
+    inds = (qq-1)*nU+1:qq*nU ;
+    plot(uu(inds), vv(inds), '-', ...
+        'color', colorsV(qq, :));
+    hold on ;
+end
+axis square
+xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
+ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
+
+set(gcf, 'color', 'w')
+export_fig(fullfile(QS.dir.uvCoord, 'coordSystemDemo.png'), '-nocrop','-r600')
+
+%% COMPUTE MEAN AND GAUSSIAN CURVATURES OF SMOOTHED MESHES
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
@@ -1812,7 +1878,7 @@ options = struct() ;
 options.overwrite = false ;
 options.preview = false ;
 QS.timeAverageVelocities(options)
-% Velocity plots for pathline time averaging 
+%% Velocity plots for pathline time averaging 
 options.overwrite = false ;
 options.plot_vxyz = false ;
 options.invertImage = true ;
@@ -1848,7 +1914,7 @@ options = struct() ;
 options.overwrite = false ;
 options.overwrite_timePoints = false ;
 options.plot_Hgdot = false ;
-options.plot_flows = false ;
+options.plot_flows = true ;
 options.plot_factors = false ;
 options.plot_kymographs = true ;
 options.plot_kymographs_cumsum = false ;

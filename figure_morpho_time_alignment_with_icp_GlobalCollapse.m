@@ -1,6 +1,6 @@
 %% Align meshes in Space and Time to a reference mesh
 %
-% Isaac Breinyn / NPM
+% NPM based on Isaac Breinyn 
 %
 % This is an edited combination of mesh_temporal_alignment.m and
 % plot_aligned meshes.m
@@ -70,7 +70,7 @@ figWidth = 7 ;
 figHeight = 6 ;
 
 %% Create Cell Array with Mesh Metadata
-dmap = buildLookupMap('/mnt/data/analysis/lookupMeta.txt'); % build the map that contains all data and its metadata
+dmap = buildLookupMap('/mnt/data/analysis/lookupMeta_only6.txt'); % build the map that contains all data and its metadata
 mca = {} ; % initiate mesh cell array
 
 %% Iterate over each marker
@@ -164,7 +164,7 @@ ssr_minimum = 0*minddssr ;
 numpts1 = zeros(ndatasets, max_ntp) ;
 numpts2 = zeros(ndatasets, max_ntp) ;
 
-mindFn = fullfile(icpDir, sprintf('minddssr_rsub%03d', rsubsampling)) ;
+mindFn = fullfile(icpDir, sprintf('minddssr_rsub%03d.mat', rsubsampling)) ;
 if exist(mindFn, 'file') && ~overwrite
     answer = questdlg('Min matrix already exists? Overwrite?') ;
 else
@@ -481,6 +481,7 @@ if strcmp(answer, 'Yes')
 else
     % load results
     disp('Loading minssr results from disk')
+    ssStr = sprintf('_rsub%03d', rsubsampling) ;
     load(fullfile(icpDir, sprintf('minddssr_rsub%03d', rsubsampling))) ;
     load(fullfile(icpDir, sprintf('minerror_rsub%03d', rsubsampling))) ;
     load(fullfile(icpDir, sprintf('minname_rsub%03d', rsubsampling))) ;
@@ -488,6 +489,8 @@ else
     load(fullfile(icpDir, sprintf('ssr_minimum_rsub%03d', rsubsampling)));
     load(fullfile(icpDir, ['numpts1' ssStr]));
     load(fullfile(icpDir, ['numpts2' ssStr]));
+    load(fullfile(icpDir, ['corrPaths' ssStr]), 'corrPaths', 'corrErrors', 'ssrPaths', 'ssrPathErrors') ;
+    
 end
 
 % What is the sampling density for each surface?
@@ -501,7 +504,6 @@ for cc = 1:ndatasets
 end
 
 %% Align to global timeline
-overwrite = true ;
 [expts, exptIDs] = unpackDataMap(dmap) ;
 
 % % KEEP ONLY 1-6 right now...
@@ -643,7 +645,7 @@ std(slopes)
 close all
 figure('visible', 'off')
 ssStr = sprintf('_rsub%03d', rsubsampling) ;
-save(fullfile(icpDir, ['corrPaths' ssStr]), 'corrPaths', 'corrErrors', 'ssrPaths') ;
+% save(fullfile(icpDir, ['corrPaths' ssStr]), 'corrPaths', 'corrErrors', 'ssrPaths') ;
 shape = define_markers(ndatasets) ;
 % note: previously defined markers by hand
 % shape = {'o', 'square', '^', 'V', 'd', 'p'} ;
@@ -1257,7 +1259,7 @@ clearvars lgd ax
 
 
 
-%% Plotting Overlays using Morphological Time Plot
+%% Plotting Overlays using Morphological Time Plot -- outlines via TSP travelling salesman
 close all
 
 % TODO: make it clear which ttype is which (ie what is ttype == 3)

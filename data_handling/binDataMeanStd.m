@@ -1,4 +1,4 @@
-function [midx, meany, stdy] = binDataMeanStd(x, y, xedges)
+function [midx, meany, stdy, ny, stey] = binDataMeanStd(x, y, xedges)
 % binDataMeanStd(x, y, xedges)
 % bin data in x, take means and stdevs of y data and output binned mean and
 % stdev curves
@@ -28,6 +28,23 @@ end
 meany = accumarray(loc(:),y(:))./accumarray(loc(:),1);
 midx = 0.5*(xedges(1:end-1)+xedges(2:end));
 stdy = accumarray(loc(:), y(:), [], @std);
+
+
+% Stanadard error on the mean
+if nargout > 3
+    nBins = length(xedges) -1 ;
+    ny = zeros(nBins, 1) ;
+    for bin = 1:nBins
+        idx = find(loc == bin) ;
+        if ~isempty(idx)
+            % see also: weightedMeanStdSte.m
+
+            ny(bin) = length(idx) ;
+        end
+    end
+    stey = stdy ./ sqrt(ny) ;
+end
+
 
 % Check it
 % scatter(x, y, 5, 'filled')

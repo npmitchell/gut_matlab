@@ -6,7 +6,9 @@ function [XX, YY] = pullbackPathlines(QS, x0, y0, t0, options)
 %   supply piv, Lx, and Ly in options.
 %   Note: I've chosen to use spatial smoothing via Gaussian blur rather
 %   than temporal smoothing of velocities (as is done in metric kinematics)
-%   for this code.
+%   for this code. This can be changed by setting 
+%   QS.piv.smoothing_sigma == 0. Ie, if QS.piv.smoothing_sigma > 0, then 
+%   we advect in the smoothed piv results. 
 %
 % Parameters
 % ----------

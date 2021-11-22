@@ -22,13 +22,14 @@ preview = false ;           % preview intermediate results
 plotXslice = false ;        % optionally create orthoview of Xslice
 brighten = 255 ;            % factor by which to brighten scaled IV data
 x0 = 0 ;                    % x value for orthogonal slice
-y0 = 20 ;                   % y value for orthogonal slice
+y0 = 0 ;                   % y value for orthogonal slice
 z0 = -5 ;                   % z value for orthogonal slice
 viewAngles = [-0.75, -1.0, 0.7] ;  % viewing angles for perspective
 ambientStrength = 0.5 ;     % intrinsic (isotropic) brightess for orthosections
 ambientStrength_meshOrtho = 1.0 ; 
-forcetrue = false ;
+forcetrue = true ;
 growtht0 = QS.xp.fileMeta.timePoints(1) ;
+lwX = 2 ;
 
 % texturepatch options
 meshFileBase = QS.fullFileBase.mesh ;
@@ -705,8 +706,8 @@ if plot_evolution
     timePoints = QS.xp.fileMeta.timePoints ;
     
     first = true ;
-    tidx2do = [190] ;
-    tidx2do = [tidx2do, setdiff(1:50:length(timePoints), tidx2do)] ;
+    tidx2do = [123-30] ;
+    tidx2do = [tidx2do, setdiff(1:30:length(timePoints), tidx2do)] ;
     tidx2do = [tidx2do, setdiff(1:10:length(timePoints), tidx2do)] ;
     tidx2do = [tidx2do, setdiff(1:length(timePoints), tidx2do)] ;
     for ii = tidx2do 
@@ -789,12 +790,14 @@ disp('done')
 if plot_evolution
     outdirF = fullfile(QS.dir.mesh, 'demo_morphsnakes_figs', 'faceon') ;
     outdirP = fullfile(QS.dir.mesh, 'demo_morphsnakes_figs', 'perspective') ;
+    outdirX = fullfile(QS.dir.mesh, 'demo_morphsnakes_figs', 'outline') ;
     dirs2do = {fullfile(outdirP, 'mesh_only'), ...
         fullfile(outdirP, 'mesh'), ...
         fullfile(outdirP, 'texture'), ...
         fullfile(outdirP, 'texture_orthoviews'), ...
         fullfile(outdirF, 'mesh_only'), ...
         fullfile(outdirF, 'mesh'), ...
+        fullfile(outdirX), ...
         fullfile(outdirF, 'texture'), ...
         fullfile(outdirF, 'texture_orthoviews')} ;
     for qq =  1:length(dirs2do)
@@ -822,8 +825,9 @@ if plot_evolution
     timePoints = QS.xp.fileMeta.timePoints ;
     
     first = true ;
-    tidx2do = [190] ;
-    tidx2do = [tidx2do, setdiff(1:50:length(timePoints), tidx2do)] ;
+    tidx2do = [QS.xp.tIdx(QS.t0set())-30:30:QS.xp.tIdx(length(timePoints))] ;
+    tidx2do = fliplr(tidx2do) ;
+    tidx2do = [tidx2do, setdiff(1:30:length(timePoints), tidx2do)] ;
     tidx2do = [tidx2do, setdiff(1:10:length(timePoints), tidx2do)] ;
     tidx2do = [tidx2do, setdiff(1:length(timePoints), tidx2do)] ;
     for ii = tidx2do
@@ -835,12 +839,14 @@ if plot_evolution
         
         fnP = fullfile(outdirP, 'mesh', [sprintf(QS.fileBase.name, tp) '.png']) ;
         fnF = fullfile(outdirF, 'mesh', [sprintf(QS.fileBase.name, tp) '.png']) ;
+        fnX = fullfile(outdirX, [sprintf(QS.fileBase.name, tp) '.png']) ;
         fn_textureP = fullfile(outdirP, 'texture', [sprintf(QS.fileBase.name, tp) '.png']) ;
         fn_textureF = fullfile(outdirF, 'texture', [sprintf(QS.fileBase.name, tp) '.png']) ;
         fn_texture2P = fullfile(outdirP, 'texture_orthoviews', [sprintf(QS.fileBase.name, tp) '.png']) ;
         fn_texture2F = fullfile(outdirF, 'texture_orthoviews', [sprintf(QS.fileBase.name, tp) '.png']) ;
         
-        if ~exist(fnP, 'file') || ~exist(fn_textureP, 'file') || overwrite || forcetrue
+        if ~exist(fnP, 'file') || ~exist(fn_textureP, 'file') || ...
+                ~exist(fnX, 'file') || overwrite 
             % Plot with h5
             ploth5 = false ;
             if ploth5
@@ -978,7 +984,7 @@ if plot_evolution
         end
         
         %% Plot in APDV
-        if ~exist(fnP, 'file') || overwrite || forcetrue
+        if ~exist(fnP, 'file') || overwrite 
             clf            
             hold on;
             surface(x2, -y2, z2, iy, 'FaceColor','texturemap', ...
@@ -1043,7 +1049,60 @@ if plot_evolution
             % imwrite( patchIm.cdata, fnF);
             close all
             
-        end     
+        end 
+        
+        
+        %% Plot x-section only
+        if ~exist(fnX, 'file') || overwrite 
+            close all
+            
+            fig = figure('units', 'centimeters', ...
+                'outerposition', [0 0 xwidth xwidth], 'visible', 'off') ;
+           
+            hold on;
+            % surface(x2, -y2, z2, iy, 'FaceColor','texturemap', ...
+            %     'EdgeColor','none','CDataMapping','direct', ...
+            %     'AmbientStrength', ambientStrength_meshOrtho)
+            
+            imagesc(x2(1, :), z2(:, 1), iy) ;
+            % imagesc(iy) ;
+            colormap bone   
+            hold on;
+            
+            % Get boundary pixels via inpolyhedron
+            xyzgrid = [x2(:), -y2(:), z2(:)] ;
+            
+            
+            amesh_raw = QS.loadCurrentAlignedMesh() ;
+            amesh_raw.v = amesh_raw.v - ...
+               0.5 * QS.normalShift * amesh_raw.vn * QS.APDV.resolution ;
+            inp = inpolyhedron(amesh_raw.f(:, [2, 1, 3]), ...
+                amesh_raw.v, xyzgrid) ;
+            ba = false(size(iy)) ;
+            ba(inp) = true ;
+            xz_outlines = bwboundaries(ba) ;
+            for pp = 1:length(xz_outlines)
+                outl = xz_outlines{pp} ;
+                plot(diff(x2(1, 1:2)) * outl(:, 2) + min(x2(1, :)), ...
+                     diff(z2(1:2, 1)) * outl(:, 1) + min(z2(1, :)), ...
+                     '-', 'color', lscolor, 'linewidth', lwX) ;
+            end
+            
+            axis equal
+            axis off
+
+            set(fig, 'PaperUnits', 'centimeters');
+            set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
+
+            % Face-On view
+            % view([0,0]) 
+            disp(['saving face-on outline: ' fnX])
+            export_fig(fnX, '-r300', '-transparent')
+            % patchIm = getframe(gca);
+            % imwrite( patchIm.cdata, fnF);
+            close all
+            
+        end
         
         %% Create matching Texturepatch Image
         if ~exist(fn_textureP, 'file') ||  ~exist(fn_textureF, 'file') || overwrite

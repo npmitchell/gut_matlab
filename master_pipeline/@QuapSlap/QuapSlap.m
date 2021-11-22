@@ -1122,10 +1122,13 @@ classdef QuapSlap < handle
                 spcutMeshSmRS = QS.currentMesh.spcutMeshSmRS ;
             end
         end
-        function loadCurrentSPCutMeshSmRS(QS)
+        function mesh = loadCurrentSPCutMeshSmRS(QS)
             spcutMeshfn = sprintf(QS.fullFileBase.spcutMeshSmRS, QS.currentTime) ;
             tmp = load(spcutMeshfn, 'spcutMeshSmRS') ;
             QS.currentMesh.spcutMeshSmRS = tmp.spcutMeshSmRS ;
+            if nargout > 0
+                mesh = QS.currentMesh.spcutMeshSmRS ;
+            end
         end
         function spcutMeshSmRSC = getCurrentSPCutMeshSmRSC(QS)
             if isempty(QS.currentTime)

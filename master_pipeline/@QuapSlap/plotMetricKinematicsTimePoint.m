@@ -145,7 +145,8 @@ end
 colors2d = {H2vn2d, divv2d, gdot2d} ; 
 colors3d = {H2vn3d, divv3d, gdot3d} ;
 set(gcf, 'visible', 'off') ;
-colormap bwr
+% colormap bwr
+colormap(twilight_shifted_mod(256))
 % Check if files already exist
 fn2 = fullfile(dimDirs{1}, sprintf('incompr_%1dd_%06d.png', 2, tp)) ;
 fn3 = fullfile(dimDirs{2}, sprintf('incompr_%1dd_%06d.png', 3, tp)) ;
@@ -158,7 +159,7 @@ if plot_flows && redo_prediction
         for row = 1:2  % row
             for col = 1:3  % column
                 % create panel
-                subplot(3, length(colors2d), col + (row - 1) * 3)
+                subtightplot(3, length(colors2d), col + (row - 1) * 3)
 
                 % If 2d, plot in pullback space
                 % if 3d, plot in embedding space
@@ -211,7 +212,8 @@ if plot_flows && redo_prediction
                     view(0, 270)
                     cb = colorbar('south') ;
                     % set(cb, 'position',[.17 .1 .2 .03])
-                    set(cb, 'position',[.165 .2 .15 .03])     
+                    set(cb, 'position',[.165 .2 .15 .03], ...
+                        'XTick', [-climit, 0, climit])     
                     ylabel(cb, ['$v_n 2H$ ' unitstr], ...
                         'Interpreter', 'Latex')                    
                     caxis([-climit, climit]) 
@@ -219,7 +221,8 @@ if plot_flows && redo_prediction
                     view(0, 270)
                     cb = colorbar('south') ;
                     % set(cb, 'position',[.63 .1 .2 .03])
-                    set(cb, 'position',[.445 .2 .15 .03])
+                    set(cb, 'position',[.445 .2 .15 .03], ...
+                        'XTick', [-climit, 0, climit])
                     ylabel(cb, ...
                         ['$\nabla \cdot \bf{v}_\parallel$ ' unitstr ], ...
                         'Interpreter', 'Latex')
@@ -230,7 +233,7 @@ if plot_flows && redo_prediction
                     set(cb, 'position',[.725 .2 .15 .03], ...
                         'XTick', [-climit_err, 0, climit_err])
                     ylabel(cb, ...
-                        ['$\textrm{Tr}[g^{-1} \dot{g}]$ ' unitstr], ...
+                        ['local area change ' unitstr], ...
                         'Interpreter', 'Latex')
                     % xticks(cb, [-climit_err, climit_err]) 
                     caxis([-climit_err, climit_err]) 

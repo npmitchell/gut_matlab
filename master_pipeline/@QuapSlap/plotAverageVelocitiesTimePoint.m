@@ -137,7 +137,8 @@ end
 pivImTDir = fullfile(pivDir, 'vtH') ;  % Heatmap
 pivImGDir = fullfile(pivDir, 'vtG ') ;  % Gaussian smoothed in space
 pivImSDir = fullfile(pivDir, 'vmag') ;  % speed |v_3D|
-pivImNDir = fullfile(pivDir, 'vn') ;
+pivImNDir = fullfile(pivDir, 'vn') ;    % normal velocity
+pivImGNDir = fullfile(pivDir, 'vtG_vn') ; % Combined smoothed tangential, plus normal vel
 pivDir = QS.dir.piv.root ;
 dilDir = fullfile(pivDir, 'dilation') ;
 vxyorigDir = fullfile(pivDir, 'vxyorig') ;
@@ -147,7 +148,7 @@ vxyorigDir = fullfile(pivDir, 'vxyorig') ;
 %     ensureDir(pivAImZDir)
 % end
 dirs2make = {pivImTDir, pivImGDir,...
-    pivImNDir, dilDir, vxyorigDir, pivImSDir} ;
+    pivImNDir, dilDir, vxyorigDir, pivImSDir, pivImGNDir} ;
 for pp = 1:length(dirs2make)
     ensureDir(dirs2make{pp}) ;
 end
@@ -156,6 +157,7 @@ end
 vnfn = fullfile(pivImNDir, [sprintf(QS.fileBase.name, tp) '.png']) ;
 vthfn = fullfile(pivImTDir, [sprintf(QS.fileBase.name, tp) '.png']) ;
 vtgfn = fullfile(pivImGDir, [sprintf(QS.fileBase.name, tp) '.png']) ;
+vtgvnfn = fullfile(pivImGNDir, [sprintf(QS.fileBase.name, tp) '.png']) ;
 vxyorigfn = fullfile(vxyorigDir, [sprintf(QS.fileBase.name, tp) '.png']) ;
 speedfn = fullfile(pivImSDir, [sprintf(QS.fileBase.name, tp) '.png']) ;
 
@@ -235,7 +237,13 @@ if ~exist(vnfn, 'file') || overwrite
             'outerposition', [0 0 1 1], 'visible', 'off') ;
     labelOpts.label = '$v_n$ [$\mu$m/min]' ;
     labelOpts.title = ['normal velocity, $v_n$: $t=$' num2str(tp - t0) tunit] ;
-    scalarFieldOnImage(im, [xx', yy], vn, alphaVal, vnscale, ...
+    labelOpts.cmap = twilight_shifted_mod(256) ;
+    if invertImage
+        imw = (max(im(:))-im) * washout2d + max(im(:)) * (1-washout2d) ;
+    else
+        imw = im * washout2vnscaled + max(im(:)) * (1-washout2d) ;
+    end
+    scalarFieldOnImage(imw, [xx', yy], vn, alphaVal, vnscale, ...
         labelOpts) ;
     ylim(ylims)
     disp(['saving figure: ' vnfn])
@@ -290,6 +298,79 @@ if ~exist(vtgfn, 'file') || overwrite
     % Plot the coarse-grained tangential velocity as heatmap on top of im
     vectorFieldHeatPhaseOnImage(imw, xyf, vxb, vyb, vtscale, qopts) ;    
     clearvars qopts
+end
+
+    
+% Combined with normal velocity -- Gaussian smooth the velocities
+if ~exist(vtgvnfn, 'file') || overwrite || true 
+    disp(['Saving ' vtgvnfn])
+    
+    close all
+    clearvars qopts
+    fig = figure('units', 'centimeters', ...
+            'outerposition', [0 0 18 18], 'visible', 'off') ;
+    ax1 = subplot(1, 2, 1) ;
+       
+    % VT
+    vxb = imgaussfilt(vx, 4) ;
+    vyb = imgaussfilt(vy, 4) ;
+    if invertImage
+        imw = (max(im(:))-im) * washout2d + max(im(:)) * (1-washout2d) ;
+    else
+        imw = im * washout2d + max(im(:)) * (1-washout2d) ;
+    end
+    qopts.qsubsample = qsubsample ;
+    qopts.overlay_quiver = true ;
+    qopts.qscale = 10 ;
+    qopts.label = '$v_\parallel$ [$\mu$m/min]' ;
+    qopts.title = ['tangential tissue velocity, $v_\parallel$'] ;
+    qopts.ylim = ylims ;
+    qopts.axPosition = [0.1 0.55, 0.85, 0.4] ;
+    qopts.cbPosition = [.9 .55 .02 .2] ;
+    qopts.pbPosition = [0.9, 0.85, 0.07, 0.07] ;
+    qopts.ax = ax1 ;
+    xyf = struct() ;
+    xyf.x = xx ;
+    xyf.y = yy ;
+    % Plot the coarse-grained tangential velocity as heatmap on top of im
+    vectorFieldHeatPhaseOnImage(imw, xyf, vxb, vyb, vtscale, qopts) ;    
+    clearvars qopts
+    
+    saveas(gcf, vtgvnfn) ;
+    panel1 = imread(vtgvnfn) ; 
+    
+    % VN
+    close all
+    fig = figure('units', 'centimeters', ...
+            'outerposition', [0 0 18 18], 'visible', 'off') ;
+    axes('Position', [0.1 0.05, 0.85, 0.4])
+    % qopts.axPosition = [0.2 0.55, 0.85, 0.4] ;
+    labelOpts.cbPosition = [.9 .1 .02 .3] ;
+    labelOpts.label = '$v_n$ [$\mu$m/min]' ;
+    labelOpts.title = ['normal tissue velocity, $v_n$'] ;
+    labelOpts.cmap = twilight_shifted_mod(256) ;
+    if invertImage
+        imw = max(im(:)) - im ;
+        % imw = (max(im(:))-im) * washout2d + max(im(:)) * (1-washout2d) ;
+    else
+        imw = im * washout2vnscaled + max(im(:)) * (1-washout2d) ;
+    end
+    scalarFieldOnImage(imw, [xx', yy], vn, alphaVal, vnscale, ...
+        labelOpts) ;
+    ylim(ylims)
+    disp(['saving figure: ' vtgvnfn])
+    saveas(gcf, vtgvnfn) ;
+    close all
+    panel2 = imread(vtgvnfn) ;
+    sz = size(panel1) ;
+    sz2 = size(panel2) ;
+    assert(all(sz == sz2)) 
+    outim = zeros(sz) ;
+    szhalf = round(0.5 * sz(1));
+    outim(1:szhalf,:, :) = mat2gray(panel1(1:szhalf,:, :) );
+    outim(szhalf:end, :, :) = mat2gray(panel2(szhalf:end, :, :));
+    % Write combined image now
+    imwrite(outim, vtgvnfn)
 end
 
 % Find hyperbolic fixed points

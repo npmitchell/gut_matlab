@@ -22,10 +22,24 @@ function measurePullbackPathlines(QS, options)
 %
 % Saves to disk
 % -------------
-% sprintf(QS.fileName.pathlines.XY, t0) ;
-% sprintf(QS.fileName.pathlines.vXY, t0) ;
-% sprintf(QS.fileName.pathlines.fXY, t0) ;
-% sprintf(QS.fileName.pathlines.XYZ, t0) ;
+% refMesh: sprintf(QS.fileName.pathlines.refMesh, t0) 
+%   reference mesh in 3d and its pullback that is conformal mapping to the 
+%   plane, created using Ricci flow at time t0
+% piv_pathlines_v3d:XY: sprintf(QS.fileName.pathlines.XY, t0) 
+%   Advected PIV evaluation coordinates in XY pixel space make pathlines
+%   in XY.
+% piv_pathlines_v3d:vXY: sprintf(QS.fileName.pathlines.vXY, t0) 
+%   Advect refMesh vertex coordinates in XY pixel space in optical flow to 
+%   make pathlines in XY (pixel space).
+% piv_pathlines_v3d:fXY: sprintf(QS.fileName.pathlines.fXY, t0) 
+%   Advect refMesh face barycenters in XY pixel space to make pathlines
+% piv_pathlines_v3d:XYZ: sprintf(QS.fileName.pathlines.XYZ, t0) 
+%   Embedding coordinates of advected PIV evaluation coordinates, pushed
+%   into APDV coordinate system
+% piv_pathlines_v3d:v3d: sprintf(QS.fileName.pathlines.v3d, t0) 
+%   Embedding coordinates of advected refMesh vertices, pushed into APDV
+%   coordinate system
+%   
 %
 % See also
 % --------
@@ -445,7 +459,8 @@ end
 % end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% PIV evaluation coordinates in XY pixel space
+% Advect PIV evaluation coordinates in XY pixel space to make pathlines
+% in XY.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 plineXY = sprintf(QS.fileName.pathlines.XY, t0) ;
 if ~exist(plineXY, 'file') || overwrite
@@ -576,7 +591,8 @@ for tidx = 1:length(timePoints)
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Mesh vertex coordinates in XY pixel space
+% Advect Mesh vertex coordinates in XY pixel space in optical flow to make 
+% pathlines in XY (pixel space).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 plinevXY = sprintf(QS.fileName.pathlines.vXY, t0) ;
 if ~exist(plinevXY, 'file') || overwrite 
@@ -714,7 +730,7 @@ for tidx = 1:length(timePoints)
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Mesh face barycenters in XY pixel space
+%% Advect Mesh face barycenters in XY pixel space to make pathlines
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 plineFXY = sprintf(QS.fileName.pathlines.fXY, t0) ;
 if ~exist(plineFXY, 'file') || overwrite
@@ -803,7 +819,7 @@ else
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Push forward from pullback to embedding coordinates
+%% Push forward from pullback XY pathlines to embedding coordinates
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 plineXYZ = sprintf(QS.fileName.pathlines.XYZ, t0) ;
 if ~exist(plineXYZ, 'file') || overwrite
@@ -887,7 +903,7 @@ if ~exist(plinev3d, 'file') || overwrite
         tIdx0 = vertexPathlines.tIdx0 ;
         Lx = vertexPathlines.Lx ;
         Ly = vertexPathlines.Ly ;
-        computed_vXY = true ;
+        computed_vXY = true ; % we have loaded the result, so we've already computed it
     end
     
     % Preallocate v3d = (XX, YY, ZZ)
