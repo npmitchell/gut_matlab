@@ -11,7 +11,10 @@ overwrite = false ;
 tracksDoubleCovered = false ;
 pathlinesDoubleCovered = true ;
 preview = false ;
-xlimit = 40 ;
+xlimit = 30 ;
+tcut1 = 0.5 ;
+tcut2 = 1 ;
+tcut3 = 1.5 ;
 
 if isfield(Options, 'overwrite')
     overwrite = Options.overwrite ;
@@ -205,6 +208,7 @@ if ~exist(relMotionLagrangianFn, 'file') || overwrite
                 V_ricci = [sum(barycV .* refMesh.u_ricci(refMesh.f(fieldfacesV, :), 1)', 2), ...
                          sum(barycV .* refMesh.u_ricci(refMesh.f(fieldfacesV, :), 2)', 2)]  ;
 
+                
             end
 
             % Store location in t0 pullback via pathlines
@@ -218,7 +222,6 @@ if ~exist(relMotionLagrangianFn, 'file') || overwrite
             ptBarycenters(ii, tidx, :, :) = [barycU; barycV] ;
 
             % Check it
-
             if preview
                 figure(3)
                 clf
@@ -364,7 +367,6 @@ if ~exist(relMotionLagrangianFn, 'file') || overwrite
         phaseRaw(ii, :) = atan2(dY, dX) ;
         magXYRaw(ii, :) = vecnorm(VallRicci(ii, :, :) - UallRicci(ii, :, :), 2, 3) ;
         
-        
         dY0 = VallRicci(ii, 1, 2) - UallRicci(ii, 1, 2)  ;
         dX0 = VallRicci(ii, 1, 1) - UallRicci(ii, 1, 1)  ;
 
@@ -455,16 +457,28 @@ for absolute_relative = 1:2
         end
         timeAll = ones(nTracks, nTimePoints) .* timestamps ;
         timeAll = timeAll(:) ;
-        nonnan = ~isnan(allduX) ;
+        nonnan = ~isnan(allduX) & timeAll < tcut3 ;
         allduX = allduX(nonnan) ;
         allduY = allduY(nonnan) ;
         timeAll = timeAll(nonnan) ;
-        sh = scatterhist(allduX, allduY, 'kernel', 'on', 'Direction', 'out', ...
-            'Location', 'southwest', 'Marker', 'none') ;
+        
+        early = timeAll < tcut1 ;
+        mid = timeAll > tcut1 & timeAll < tcut2 ;
+        late = timeAll > tcut2 & timeAll < tcut3 ;
+        earlyMidLate = zeros(size(timeAll)) ;
+        earlyMidLate(early) = 1 ;
+        earlyMidLate(mid) = 2 ;
+        earlyMidLate(late) = 3 ;
+        earlyMidLate(earlyMidLate == 0 ) = NaN ;
+        % earlyMidLate = mat2cell(earlyMidLate, length(timeAll), 1) ;
+        sh = scatterhist(allduX, allduY, 'group', earlyMidLate, ...
+            'kernel', 'on', 'Direction', 'out', ...
+            'Location', 'southwest', 'LineStyle',{'-','-','-'}, ...
+            'Marker', 'nnnn', 'Legend', 'off');
         hold on;
         alphaVal = 0.5 ;
         for ii = 1:nTracks
-            lastIdx = find(isnan(duV(ii, :))) ;
+            lastIdx = find(isnan(duV(ii, :)) | timestamps > tcut3) ;
             if isempty(lastIdx)
                 if absolute_relative == 1
                     xx = abs(duV(ii, :)) .* cos(phaseV(ii, :)) ;
@@ -473,7 +487,7 @@ for absolute_relative = 1:2
                     xx = relduX(ii, :) ;
                     yy = relduY(ii, :) ;
                 end
-                aColor = 1:nTimePoints ;
+                aColor = 1:length(find(timestamps < tcut3)) ;
             else
                 
                 if absolute_relative == 1
@@ -485,7 +499,7 @@ for absolute_relative = 1:2
                 end
                 aColor = 1:lastIdx-1 ;
             end
-            mfig = patch([xx NaN], [yy NaN], [aColor nTimePoints]);
+            mfig = patch([xx NaN], [yy NaN], [aColor length(find(timestamps < tcut3))]);
             % alphamap = 0.2 * ones(length(xx), 1) ;
             % alphamap(end) = 0 ;
             set(mfig,'FaceColor','none','EdgeColor','flat',...

@@ -1020,8 +1020,25 @@ QS.plotSeriesOnSurfaceTexturePatch(options, Options)
 
 %% Morphsnakes demo evolution visualizeMeshEvolution orthoviews data planes
 options = struct() ;
-options.plot_evolution = false ;
-options.growth_t0 = 85 ;
+options.plot_growth = false ;
+options.plot_evolution = true ;
+options.growth_t0 = 45 ;
+options.overwrite = false ;
+options.preview = false ;
+QS.data.adjustlow = 1 ;
+QS.data.adjusthigh = 99 ;
+options.timePoints = xp.fileMeta.timePoints;
+options.plot_texturePatches = false ;
+options.lambda = 0.001 %35 ;
+options.normalShift = 10 ; 
+options.viewAngles = [-20, 20] ;
+options.xMin = -51 ;
+options.xMax = 268 ;
+options.yMin = -90 ;
+options.yMax = 90 ;
+options.zMin = -75 ;
+options.zMax = 80 ;
+options.y0 = -15 ;
 QS.visualizeMeshEvolution(options)
 
 %% EXTRACT CENTERLINES
@@ -1475,6 +1492,10 @@ options.overwrite = false ;
 QS.generateCellSegmentationPathlines3D(options)
 % QS.estimateIntercalationRate(options)
 
+%% 
+options = struct() ;
+QS.visualizeSegmentationPatch(options)
+
 %% Measure Cell density
 % Skip if already done
 options = struct() ;
@@ -1561,7 +1582,7 @@ tmp = load(fullfile(QS.dir.piv, 'piv_results.mat')) ;
 %% Measure velocities =============================================
 disp('Making map from pixel to xyz to compute velocities in 3d for smoothed meshes...')
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.preview = false ;
 options.show_v3d_on_data = false ;
 options.save_ims = true ;
@@ -1655,7 +1676,7 @@ QS.measurePIV3d(options) ;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Pullback pathline time averaging of velocities
 options = struct() ;
-options.overwrite = false ;
+options.overwrite = true ;
 options.preview = false ;
 QS.timeAverageVelocities(options)
 % Velocity plots for pathline time averaging 
@@ -1665,7 +1686,7 @@ options.invertImage = true ;
 options.averagingStyle = 'Lagrangian'; 
 options.samplingResolution = '1x'; 
 QS.plotTimeAvgVelocities(options)
-%% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
+% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
 options = struct() ;
 options.overwrite = false ;
 options.samplingResolution = '1x' ;
@@ -1674,7 +1695,7 @@ options.lambda = 0 ;
 options.lambda_mesh = 0 ; 
 QS.helmholtzHodge(options) ;
 
-%% Compressibility & kinematics for Lagrangian
+% Compressibility & kinematics for Lagrangian
 options = struct() ;
 options.overwrite = false ;
 options.samplingResolution = '1x'; 
@@ -1704,7 +1725,7 @@ options.lambda = 0.00 ;
 options.lambda_err = 0.00 ;
 options.lambda_mesh = 0 ;
 options.nmodes = 7 ;  %% bandwidth filtering
-options.zwidth = 1 ; 
+options.zwidth = 2 ; 
 options.climit = 0.3 ;
 QS.plotMetricKinematics(options)
 

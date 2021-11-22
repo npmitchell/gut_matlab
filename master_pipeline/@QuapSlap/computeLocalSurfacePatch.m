@@ -403,5 +403,5 @@ end
 
 % Supply new points (advected onto V2Dr)
 if nargout > 1
-    newpts = barycentricMap2d(submF, submU, V2Dr, pts) ;
+    newpts = barycentricMap2d(submF, submU, V2Dr, ptsU) ;
 end

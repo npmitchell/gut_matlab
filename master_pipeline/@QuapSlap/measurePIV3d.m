@@ -153,7 +153,7 @@ else
         timestr = sprintf('%03d', timePoints(ii) - t0) ;
         disp(['t = ' timestr])
         tp = timePoints(ii) ;
-        dt = timePoints(ii + 1) - tp ;
+        dt = (timePoints(ii + 1) - tp) * QS.timeInterval ;
         
         % Get scale of image
         if strcmp(pivimCoords, 'sp_sme') || strcmp(pivimCoords, 'spsme') 
