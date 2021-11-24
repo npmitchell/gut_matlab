@@ -1685,6 +1685,41 @@ options.subdir = 'labeled_groundTruth' ;
 options.timePoints = [96:2:206] ;
 QS.visualizeTracking3D(options)
 
+%% Dump labeled_groundTruth into manualTracks
+% load each
+dmyk = 1 ;
+first = true ;
+tracks = cell(178, 1) ;
+for qq = QS.xp.fileMeta.timePoints
+    % Load this track timepoint
+    fn = fullfile(QS.dir.tracking, 'labeled_groundTruth', ...
+        sprintf('seg2d_%06d.mat', qq)) ;
+    
+    % Check against image
+    segIm = fullfile(QS.dir.tracking, 'labeled_groundTruth', ...
+        sprintf('tracks_label_%06d.mat', qq)) ;
+    
+    if exist(fn, 'file')
+        disp(['loading ' num2str(qq)])
+        seg2d = load(fn) ;
+        for cellID = 1:length(seg2d.seg2d.cdat.centroid)
+            if first
+                tracks{cellID} = ...
+                    nan(length(QS.xp.fileMeta.timePoints), 3);
+            end
+            tracks{cellID}(dmyk, 1:2) = seg2d.seg2d.cdat.centroid(cellID, :) - [0, 500] ;
+            tracks{cellID}(dmyk, 3) = 0 ;
+        end
+        first = false ;
+    else
+        disp(['skipping ' num2str(qq)])
+    end
+    dmyk = dmyk + 1 ;
+end
+tracks{176} = tracksAppend{2} ;
+tracks{177} = tracksAppend{3} ;
+save([options.trackOutfn '_backup'], 'tracks')
+
 %% Visualize Segmentation in a true-scale patch
 options = struct() ;
 options.demoPatchName = 'demoPatch001' ;
@@ -1692,6 +1727,30 @@ options.timePoints = [96, 126, 156, 166, 186, 206] ;
 options.scaleByMetricComponents = true ;
 options.overwrite = false ;
 QS.visualizeSegmentationPatch(options)
+
+%% Manual track and compute geodesics between tracked cells
+options = struct() ;
+options.trackOutfn = fullfile(QS.dir.tracking,...
+    'manualTracking', 'manualTracks.mat') ;
+options.tracks2Add = [180] ;
+QS.manualTrackingAdd(options) 
+
+%%
+options = struct() ;
+options.overwrite = true ;
+options.coordSys = 'spsm' ;
+options.method = 'nuclei'; 
+options.subdir = 'manualTracking' ;
+options.trackOutfn = fullfile(QS.dir.tracking, ...
+    options.subdir, ...
+    'manualTracks.mat') ;
+options.selectPairs = 2 ;
+options.t0forPairs = 126 ;
+options.pairIDs = [123,   180;
+                178,   116]' ;
+options.timePoints = [126, 166, 206] ;
+options.viewAngles = [-20, 20] ;
+QS.visualizeTracking3D(options)
 
 
 

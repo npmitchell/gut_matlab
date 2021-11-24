@@ -1161,7 +1161,7 @@ classdef QuapSlap < handle
             if isempty(coordSys)
                 coordSys = 'spsmrs' ;
             end
-            if strcmpi(coordSys, 'spsmrs')
+            if strcmpi(coordSys, 'spsmrs') 
                 mesh = QS.getCurrentSPCutMeshSmRS() ;
                 mesh.u(:, 1) = mesh.u(:, 1) * umax / max(mesh.u(:, 1)) ;
             else
@@ -2708,7 +2708,64 @@ classdef QuapSlap < handle
         plotRelativeMotionTracks3D(QS, Options)
         measureRelativeMotionTracksLagrangianFrame(QS, Options)
         
+               
+        %% Tracking -- manual workflow
+        function tracks = manualTrackingAdd(QS, options)
+            % Add to current tracks on disk
+            trackOutfn = fullfile(QS.dir.tracking, 'manualTracks.mat') ;
+            tracks = [] ;
+            timePoints = QS.xp.fileMeta.timePoints ;
+            imDir = fullfile(QS.dir.im_sp_sm, 'endoderm') ;
+            imFileBase = QS.fullFileBase.im_sp_sm ;
+            tracks2Add = length(tracks)+1:length(tracks) + 10 ;
+                
+            if isfield(options, 'trackOutfn')
+                trackOutfn = options.trackOutfn ;
+            end
+            if exist(trackOutfn, 'file')
+                load(trackOutfn, 'tracks')
+            end
+            if isfield(options, 'timePoints')
+                timePoints = options.timePoints ;
+            end
+            if isfield(options, 'imFileBase')
+                imFileBase = options.fileBase ;
+            end
+            if isfield(options, 'tracks2Add')
+                tracks2Add = options.tracks2Add ;
+            end
+            % Decide on tidx0
+            if isfield(options, 'tidx0')
+                tidx0 = options.tidx0 ;
+            elseif all(timePoints == QS.xp.fileMeta.timePoints)
+                tidx0 = QS.xp.tIdx(QS.t0set()) ;
+            else
+                tidx0 = 1 ;
+            end
+            tracks = manualTrack2D(tracks, imFileBase, timePoints, trackOutfn, tracks2Add, tidx0) ;
+        end
+        
+        function manualTrackingCorrect(options)
+            disp('Review tracking results: manualCorrectTracks2D')
+            %% Ensure all pairIDs are good tracks in muscle layer
+            subdir = 'muscle' ;
+            imDir = fullfile(QS.dir.im_sp_sm, subdir) ;
+            timePoints = 1:60 ;
+            fileBase = fullfile(imDir, QS.fileBase.im_sp_sm) ;
+            trackOutfn = fullfile(QS.dir.tracking, 'muscle_tracks.mat') ;
+            load(trackOutfn, 'tracks') ;
+            tracks2Correct = 1:length(tracks) ;
+            if all(timePoints == QS.xp.fileMeta.timePoints)
+                tidx = QS.xp.tidx(QS.t0set()) ;
+            else
+                tidx = 1 ;
+            end
+
+            [newTracks, newG] = manualCorrectTracks2D(tracks, fileBase, timePoints, trackOutfn, tracks2Correct) ;
+        end
+        
         %% Visualize tracked segmentation
+        % for visualizing T1 transitions
         visualizeDemoTracks(QS, Options)
         visualizeTracking3D(QS, Options)
         visualizeSegmentationPatch(QS, Options)
@@ -2719,7 +2776,77 @@ classdef QuapSlap < handle
         %% Reconstruction of experiment via NES simulation 
         simulateNES(QS, options)
         
-        
+        %% coordSysDemo
+        function coordSystemDemo(options)
+            % Image for publication/presentation on method & coordinate system
+            % Create coordinate system charts visualization using smoothed meshes
+
+            QS.setTime(QS.t0 + 90)
+            mesh = QS.loadCurrentSPCutMeshSmRS() ;
+            fig = figure('units', 'centimeters', 'position', [0, 0, 13, 13]) ;
+            uu = mesh.u(:, 1) ;
+            vv = mesh.u(:, 2) ;
+            xx = (mesh.v(:, 1)) ;
+            yy = (mesh.v(:, 2)) ;
+            zz = (mesh.v(:, 3)) ;
+            colorsV = viridis(mesh.nV) ;
+            colorsU = viridis(mesh.nU) ;
+
+            % LONGITUDE 3D
+            subplot(2, 3, [1,2])
+            hold off
+            for qq = 1:mesh.nV  
+                plot3(xx(qq:nU:end), yy(qq:nU:end), zz(qq:nU:end), '-', ...
+                    'color', colorsV(qq, :));
+                hold on ;
+            end
+            axis equal
+            xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
+            ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
+            zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
+
+            % AZIMUTH 3D
+            subplot(2, 3, [4,5])
+            hold off
+            for qq = 1:2:mesh.nU
+                inds = (qq-1)*nU+1:qq*nU ;
+                plot3(xx(inds), yy(inds), zz(inds), '-', ...
+                    'color', colorsV(qq, :));
+                hold on ;
+            end
+            axis equal
+            xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
+            ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
+            zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
+
+            % LONGITUDE
+            subplot(2, 3, 3)
+            hold off
+            for qq = 1:mesh.nV  
+                plot(uu(qq:nU:end), vv(qq:nU:end), '-', ...
+                    'color', colorsV(qq, :));
+                hold on ;
+            end
+            axis square
+            xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
+            ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
+
+            % AZIMUTH
+            subplot(2, 3, 6)
+            hold off
+            for qq = 1:mesh.nV  
+                inds = (qq-1)*nU+1:qq*nU ;
+                plot(uu(inds), vv(inds), '-', ...
+                    'color', colorsV(qq, :));
+                hold on ;
+            end
+            axis square
+            xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
+            ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
+
+            set(gcf, 'color', 'w')
+            export_fig(fullfile(QS.dir.uvCoord, 'coordSystemDemo.png'), '-nocrop','-r600')
+        end
     end
     
     methods (Static)

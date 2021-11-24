@@ -1,4 +1,4 @@
-function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoints, trackOutfn, tracks2Add)
+function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoints, trackOutfn, tracks2Add, tidx0)
 % Manually track nTracks objects in 2D grayscale image sequence.
 % May run as script.
 %
@@ -23,7 +23,7 @@ function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoint
 %
 % Todo
 % ----
-% incorporate graph structure for tracks
+% incorporate graph structure for tracks -- third column of tracks{ii}
 % 
 % NPMitchel 2021
 
@@ -58,7 +58,7 @@ function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoint
 %% Unpack inputs
 
 pausetime = 0.5 ;
-nTracks = max(tracks2Add, length(currentTracks)) ;
+nTracks = max(max(tracks2Add(:)), length(currentTracks)) ;
 if isempty(currentTracks)
     tracks = cell(nTracks, 1) ;
 else
@@ -70,7 +70,6 @@ lwidth = 3 ;
 markerSize = 20 ;
 fig = []  ;
 viewRecaps = false ;
-
 
 % Consider each object
 figCount = 0 ;  
@@ -88,8 +87,8 @@ for ii = tracks2Add
     end
     
     % Consider each timepoint
-    tidx = 1 ;
-    Xlim = [];  
+    tidx = tidx0 ;
+    Xlim = [];
     Ylim = [] ;
     recap = false ;
     keepTracking = true ;
@@ -120,19 +119,21 @@ for ii = tracks2Add
                 currentTracks, Xlim, Ylim) ;
             
             % Now acquire or get more info about nearby timepoints
-            msg = 'Press <space> to acquire, p: play, o: play from start, a: t-1, s: t+1';
+            msg = sprintf('Track%d', ii) ;
+            msg = [msg ...
+                'Press <space> to acquire, p: play, o: play from start, a: t-1, s: t+1'] ;
             disp(msg)
             sgtitle(msg)
             pause
             currkey=get(gcf, 'CurrentKey'); 
             
             
-            while ismember(currkey, {'d', 'g', 'r', 'p', 'o', 'a', 's'}) 
+            while ismember(currkey, {'d', 'g', 'r', 'p', 'o', 'a', 's', 'z', 'x'}) 
                 
                 switch currkey
                     case {'d'} 
                         keepTracking = false ;
-                        currkey = 'x' ;
+                        currkey = 'e' ; % some unused key
                     case {'g'}
                         tidx = input('Go to timepoint index: ') ;
                         if tidx > length(timePoints) 
@@ -140,7 +141,7 @@ for ii = tracks2Add
                         elseif tidx < 1 
                             tidx = 1 ;
                         end
-                        currkey = 'x' ;
+                        currkey = 'e' ;
                     case {'r'}
                         % Rapid click for 5 frames
                         Xlim = get(ax2, 'XLim');
@@ -190,13 +191,18 @@ for ii = tracks2Add
                             currentTracks, Xlim, Ylim) ;
                         
                         anyEdits = true ;
-                        currkey = 'x' ;
-                    case {'a', 's'}
+                        currkey = 'e' ;  % some unused key
+                    case {'a', 's', 'z', 'x'}
                         % Decrememt/Increment timepoint
                         if strcmpi(currkey, 'a')
                             tidx = max(1, tidx - 1);
                         elseif strcmpi(currkey, 's')
                             tidx = min(tidx + 1, length(timePoints)) ;
+                        end
+                        if strcmpi(currkey, 'z')
+                            tidx = max(1, tidx - 10);
+                        elseif strcmpi(currkey, 'x')
+                            tidx = min(tidx + 10, length(timePoints)) ;
                         end
                         [ax0, ax1, ax2] = plotCurrentTrack(ii, tidx, timePoints, fileBase, trackii, ...
                         currentTracks, Xlim, Ylim) ;

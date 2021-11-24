@@ -1,6 +1,8 @@
 function visualizeTracking3D(QS, options)
 % visualizeTracking3D(QS, options)
-%
+% Draw cell contours (if method == segmentation) or nuclear track points
+% (if method == nuclei) and possibly connections between pairs of cells (if
+% drawGeodesics == true) in 3D on top of texturePatch image.
 %
 % Parameters
 % ----------
@@ -8,11 +10,23 @@ function visualizeTracking3D(QS, options)
 %   timePoints : timepoints to visualize
 %   method : 'segmentation' or 'nuclei'
 %   subdir : 'labeled_groundTruth'
-%
-%
+%   selectPairs : int (default=0 for no pair selection)
+%       number of cell pairs to select from segmentation for tracking.
+%       Selection occurs at t=t0.
+%   drawGeodesics : bool
+%   geodesicStyle : 'pullback' or 'geodesic'
+%       'pullback' draws a curve in 3d that connects the 2d segmentation pts
+%       as straight line in pullback space projected into 3d
+%       'geodesic' computes geodesic pairs on the surface using CGAL
+%   viewAngles : [-20,20] is default
+%       must match texturePatch angles for overlays to be accurate
+%   t0forPairs : timepoint at which we select which pairs to visualize
 
 xwidth = 16 ; % cm
 ywidth = 10 ; % cm
+lw = 0.01 ;
+lw_geoP = 0.1 ;
+viewAngles = [-20, 20] ;
 
 
 % Glean options from texturePatch run
@@ -30,6 +44,10 @@ overwrite = false ;
 preview = false ;
 coordSys = 'spsme' ;
 blackFigure = false ;
+selectPairs = 0 ;
+t0forPairs = QS.t0set() ;
+drawGeodesics = true ;
+geodesicStyle = 'pullback' ; % 'geodesic', 'pullback'
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
 end
@@ -45,6 +63,36 @@ end
 if isfield(options, 'method')
     method = options.method ;
 end
+if isfield(options, 'viewAngles')
+    viewAngles = options.viewAngles ;
+end
+if isfield(options, 'selectPairs')
+    selectPairs = options.selectPairs ;
+end
+if isfield(options, 'pairIDs')
+    pairIDs = options.pairIDs ;
+end
+if isfield(options, 't0forPairs')
+    t0forPairs = options.t0forPairs ;
+end
+if isfield(options, 'drawGeodesics')
+    drawGeodesics = options.drawGeodesics ;
+end
+if isfield(options, 'geodesicStyle')
+    geodesicStyle = options.geodesicStyle ;
+end
+
+% Obtain tracks' filename on disk -- segmentation or nuclei/points
+if strcmpi(method, 'segmentation')
+    trackOutfn = fullfile(QS.dir.tracking, subdir, 'seg2d_%06d.mat') ;
+else
+    trackOutfn = fullfile(QS.dir.tracking,  'manualTracks.mat') ;
+end
+if isfield(options, 'trackOutfn')
+    trackOutfn = options.trackOutfn ;
+end
+
+% More options
 if isfield(options, 'buffer') || isfield(options, 'bufferXYZ')
     if isfield(options, 'buffer')
         bufferXYZ = options.buffer ;
@@ -75,15 +123,114 @@ if isfield(options, 'coordSys')
     coordSys = options.coordSys ;
 end
 
+%% Select which pairs to visualize
+if selectPairs
+    if isempty(pairIDs)
+        tidx = QS.xp.tIdx(t0forPairs) ;
 
+        % Load image for t0
+        if strcmpi(coordSys, 'spsme')
+            % Get the image size and mesh
+            im = imread(sprintf(QS.fullFileBase.im_sp_sme, t0forPairs)) ;
+        elseif strcmpi(coordSys, 'spsm')
+            % Get the image size and mesh
+            im = imread(sprintf(QS.fullFileBase.im_sp_sm, t0forPairs)) ;
+        else
+            error('handle coordSys here')
+        end
+
+        if strcmpi(method, 'segmentation')
+            error('handle case here')
+        else
+            seg2dFn = trackOutfn ;
+            if exist(seg2dFn, 'file') 
+                load(seg2dFn, 'tracks')       
+                centroids = nan(length(tracks), 2) ;
+                for trackID = 1:length(tracks)
+                    centroids(trackID, :) = tracks{trackID}(tidx, 1:2) ;     
+                end
+            else
+                error('Could not find tracks on disk')
+            end
+        end
+        close all
+        imshow(im)
+        hold on;
+        plot(centroids(:, 1), centroids(:, 2), '.')
+        pxy = ginput(2 * selectPairs) ;
+        pidx = pointMatch(pxy, centroids) ;
+
+        % break into pairs
+        pairIDs = reshape(pidx, [length(pidx)*0.5, 2])' ;
+    else
+        disp(['PairIDs = '])
+        pairIDs
+    end
+end
             
-% Plot each timepoint in 3d      
+%% Plot each timepoint in 3d      
 allAreas = nan(length(timePoints), maxNtracks) ;
-for tidx = 1:length(timePoints)
-    tp = timePoints(tidx) ;
+timePoints = sort(timePoints) ;
+tidx2do = find( ismember(QS.xp.fileMeta.timePoints, timePoints)) ;
+dmyk = 1  ;
+for tidx = tidx2do 
+    tp = timePoints(dmyk) ;
     QS.setTime(tp) ;
+
+    %% PREPARE MESH
+    % load mesh and image
+    if strcmpi(coordSys, 'spsme')
+        % Get the image size and mesh
+        im = imread(sprintf(QS.fullFileBase.im_sp_sme, tp)) ;
+        cutMesh = QS.getCurrentSPCutMeshSm() ;
+        glueMesh = QS.getCurrentSPCutMeshSmRSC() ;
+        cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1)) ;
+        glueMesh.u(:, 1) = glueMesh.u(:, 1) / max(glueMesh.u(:, 1)) ;
+        shiftY = size(im, 1) * 0.5 ;
+        doubleCovered = true ;
+    elseif strcmpi(coordSys, 'spsm')
+        % Get the image size and mesh
+        im = imread(sprintf(QS.fullFileBase.im_sp_sm, tp)) ;
+        cutMesh = QS.getCurrentSPCutMeshSm() ;
+        glueMesh = QS.getCurrentSPCutMeshSmRSC() ;
+        cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1)) ;
+        glueMesh.u(:, 1) = glueMesh.u(:, 1) / max(glueMesh.u(:, 1)) ;
+        shiftY = 0 ;
+        doubleCovered = false ;
+    else
+        error('did not recognize coordSys')
+    end
+    
+    % Load/push/tile annular cutmesh
+    disp('Loading meshes')
+    cutMesh = QS.getCurrentSPCutMeshSmRS() ;
+    glueMesh = QS.getCurrentSPCutMeshSmRSC() ;
+    cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1) ) ;
+    glueMesh.u(:, 1) = glueMesh.u(:, 1) / max(glueMesh.u(:, 1) ) ;
+
+
+    % Make sure vertex normals are normalized and outward facing for
+    % cutMesh, but not for glueMesh
+    normal_shift = metadat.normal_shift * QS.APDV.resolution ;
+    if QS.flipy
+        % glueMesh vertex normals point IN, so we can shrink it a bit
+        cutMesh.vn = - cutMesh.vn ;
+    else
+        % glueMesh vertex normals point IN, so we can shrink it a bit
+        glueMesh.vn = - glueMesh.vn ;
+    end
+    cutMesh.vn = cutMesh.vn ./ sqrt( sum( cutMesh.vn.^2, 2 ) );
+    % Normally evolve vertices
+    cutMesh.v = cutMesh.v + normal_shift .* cutMesh.vn;
+    glueMesh.v = glueMesh.v + normal_shift .* glueMesh.vn ;
+    % Check that faces are outward facing
+    % trisurf(triangulation(cutMesh.f, cutMesh.v), cutMesh.vn(:, 1), ...
+    %     'edgecolor', 'none')
+
+
+    %% PREPARE CELLS OR NUCLEI
     if strcmpi( method, 'segmentation')
-        seg2dFn = fullfile(QS.dir.tracking, subdir, sprintf('seg2d_%06d.mat', tp)) ;
+        seg2dFn = sprintf(trackOutfn, tp) ;
         outFigFn = fullfile(QS.dir.tracking, subdir, 'embeddingFigure', sprintf('trackSeg3d_%06d.png', tp)) ;
         outImFn = fullfile(QS.dir.tracking, subdir, 'embeddingTexture', sprintf('trackSeg3d_%06d.png', tp)) ;
         if ~exist(fullfile(QS.dir.tracking, subdir, 'embeddingFigure'), 'dir')
@@ -144,47 +291,6 @@ for tidx = 1:length(timePoints)
         end
 
 
-        % load mesh and image
-        if strcmpi(coordSys, 'spsme')
-            % Get the image size and mesh
-            im = imread(sprintf(QS.fullFileBase.im_sp_sme, timePoints(1))) ;
-            cutMesh = QS.getCurrentSPCutMeshSm() ;
-            glueMesh = QS.getCurrentSPCutMeshSmRSC() ;
-            cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1)) ;
-            glueMesh.u(:, 1) = glueMesh.u(:, 1) / max(glueMesh.u(:, 1)) ;
-            shiftY = size(im, 1) * 0.5 ;
-            doubleCovered = true ;
-        else
-            error('did not recognize coordSys')
-        end
-
-        % Load/push/tile annular cutmesh
-        disp('Loading meshes')
-        cutMesh = QS.getCurrentSPCutMeshSmRS() ;
-        glueMesh = QS.getCurrentSPCutMeshSmRSC() ;
-        cutMesh.u(:, 1) = cutMesh.u(:, 1) / max(cutMesh.u(:, 1) ) ;
-        glueMesh.u(:, 1) = glueMesh.u(:, 1) / max(glueMesh.u(:, 1) ) ;
-        
-        
-        % Make sure vertex normals are normalized and outward facing for
-        % cutMesh, but not for glueMesh
-        normal_shift = metadat.normal_shift * QS.APDV.resolution ;
-        if QS.flipy
-            % glueMesh vertex normals point IN, so we can shrink it a bit
-            cutMesh.vn = - cutMesh.vn ;
-        else
-            % glueMesh vertex normals point IN, so we can shrink it a bit
-            glueMesh.vn = - glueMesh.vn ;
-        end
-        cutMesh.vn = cutMesh.vn ./ sqrt( sum( cutMesh.vn.^2, 2 ) );
-        % Normally evolve vertices
-        cutMesh.v = cutMesh.v + normal_shift .* cutMesh.vn;
-        glueMesh.v = glueMesh.v + normal_shift .* glueMesh.vn ;
-        % Check that faces are outward facing
-        trisurf(triangulation(cutMesh.f, cutMesh.v), cutMesh.vn(:, 1), ...
-            'edgecolor', 'none')
-        
-        
         %% PUSH INTO 3D
         seg3dFn = fullfile(QS.dir.tracking, subdir, sprintf('seg3d_%06d.mat', tp)) ;
         if ~exist(seg3dFn, 'file') || overwrite 
@@ -240,14 +346,107 @@ for tidx = 1:length(timePoints)
         
         % store areas
         disp('Storing areas in large array')
-        allAreas(tidx, keepBinary) = areas ;
+        allAreas(dmyk, keepBinary) = areas ;
         
-        % Plot in 3d
-        if ~exist(outImFn, 'file') || overwrite 
-            close all
-            fig = figure('Visible', 'Off', 'units', 'centimeters', ...
-                'position', [0,0,xwidth,ywidth]) ;
+    else
+        seg2dFn = trackOutfn ;
+        outFigFn = fullfile(QS.dir.tracking, subdir, 'embeddingFigure', sprintf('trackSeg3d_%06d.png', tp)) ;
+        outImFn = fullfile(QS.dir.tracking, subdir, 'embeddingTexture', sprintf('trackSeg3d_%06d.png', tp)) ;
+        if ~exist(fullfile(QS.dir.tracking, subdir, 'embeddingFigure'), 'dir')
+            mkdir(fullfile(QS.dir.tracking, subdir, 'embeddingFigure'))
+        end
+        if ~exist(fullfile(QS.dir.tracking, subdir, 'embeddingTexture'), 'dir')
+            mkdir(fullfile(QS.dir.tracking, subdir, 'embeddingTexture'))
+        end
+        if exist(seg2dFn, 'file') 
+            load(seg2dFn, 'tracks')       
+            cellIDs = 1:length(tracks) ;
+            centroids = nan(length(tracks), 2) ;
+            for trackID = 1:length(tracks)
+                centroids(trackID, :) = tracks{trackID}(tidx, 1:2) ;     
+            end
+            
+            if selectPairs
+                centroids = centroids(pairIDs(:), :) ;
+            end
+        else
+            error('Could not find tracks on disk')
+        end
+        
+         %% PUSH INTO 3D
+        seg3dFn = fullfile(QS.dir.tracking, subdir, sprintf('seg3d_%06d.mat', tp)) ;
+        if ~exist(seg3dFn, 'file') || overwrite  || true
+            % tile annular cutmesh for triple covering 
+            [ TF, TV2D, TV3D, TVN3D ] = tileAnnularCutMesh(cutMesh, [1,1]) ;
 
+            % Allow tracks to disappear for this frame
+            disp('Subset of the tracks that are active')
+            keepBinary = ~isnan(centroids(:, 1)) ;
+            keep = find(keepBinary) ;
+            % check that no cells have missing x position but not missing y pos
+            assert(all(keepBinary == ~isnan(centroids(:, 2)))) ;
+
+            % Filter
+            nCells = max(cellIDs(:)) ;
+            centroids = centroids(keep, :) ;
+            cellIDs = cellIDs(keep) ;
+
+            % measurements in 3D of tracked cells
+            disp('Push tracks to 3D')
+            cntrds_uv = QS.XY2uv( im, centroids, doubleCovered, 1, 1) ;
+
+            % embed with measurements
+            if strcmpi(coordSys, 'spsme') || strcmpi(coordSys, 'spsm')
+                coordSysTemp = 'spsmrs' ;
+            else
+                error('handle this coordSys here')
+            end
+            [cellCntrd3d, cellMeshFaces] = QS.uv2APDV(cntrds_uv, ...
+                coordSysTemp, 1.0, 1.0) ;
+            
+            save(seg3dFn, 'keep', 'keepBinary', 'cellIDs', ...
+                 'centroids', 'cntrds_uv', 'cellCntrd3d', 'cellMeshFaces')
+        else
+            load(seg3dFn, 'keep', 'keepBinary', 'cellIDs', ...
+                 'centroids', 'cntrds_uv', 'cellCntrd3d', 'cellMeshFaces')
+        end
+
+        if drawGeodesics
+            if strcmpi(geodesicStyle, 'geodesic')
+                error('I think the following does not quite work -- check that pt is on mesh')
+                geoP = surfaceGeodesicPairs(glueMesh.f, glueMesh.v, [1,2], ...
+                    cellCntrd3d) ;
+            elseif strcmpi(geodesicStyle, 'pullback')
+                % curve connecting the two cells in 3D based on sphi
+                disp('Push connecting curve to 3D')
+                
+                % embed with measurements
+                if strcmpi(coordSys, 'spsme') || strcmpi(coordSys, 'spsm')
+                    coordSysTemp = 'spsmrs' ;
+                else
+                    error('handle this coordSys here')
+                end
+                lspace = linspace(0, 1, 101) ;
+                for pidx = 1:size(pairIDs, 1)
+                    pbCurvX = centroids(pidx*2-1, 1) * lspace + centroids(2*pidx, 1) * (1-lspace) ;
+                    pbCurvY = centroids(pidx*2-1, 2) * lspace + centroids(2*pidx, 2) * (1-lspace) ;
+                    pbCurv_uv = QS.XY2uv( im, [pbCurvX(:), pbCurvY(:)], doubleCovered, 1, 1) ;
+                    
+                    geoP{pidx} = QS.uv2APDV(pbCurv_uv, ...
+                        coordSysTemp, 1.0, 1.0) ;
+                end
+            end
+        end
+    end
+
+    %% Plot in 3d
+    if ~exist(outImFn, 'file') || overwrite || true 
+        close all
+        fig = figure('Visible', 'Off', 'units', 'centimeters', ...
+            'position', [0,0,xwidth,ywidth]) ;
+
+        % Draw cell faces or NUCLEI
+        if strcmpi(method, 'segmentation')
             % Draw cell faces
             opts = struct() ;
             opts.centroids = cellCntrd3d ;
@@ -260,120 +459,134 @@ for tidx = 1:length(timePoints)
             hold on;
 
             % Draw contours of cells
-            lw = 0.01 ;
             for cid = 1:length(cellIDs)
                 poly = c3d(cellIDs{cid}, :) ;
                 plot3(poly(:, 1), poly(:, 2), poly(:, 3), 'k-', ...
                     'linewidth', lw)
             end
-
-            axis equal
-            xlim(xyzlims(1, :))
-            ylim(xyzlims(2, :))
-            zlim(xyzlims(3, :))
-
-            colormap inferno
-            caxis([0, 80])
-            cb = colorbar() ;
-            ylabel(cb, ['area, ' QS.spaceUnits '$^{2}$]'], ...
-                 'interpreter', 'latex')
-
-            timeinterval = QS.timeInterval ;
-            timeunits = QS.timeUnits ;
-            t0 = QS.t0set() ;
-            titlestr = ['$t = $' num2str(tp*timeinterval-t0) ' ' timeunits] ;
-            if blackFigure
-                title(titlestr, 'Interpreter', 'Latex', 'Color', 'white') 
-            else
-                title(titlestr, 'Interpreter', 'Latex', 'Color', 'k') 
-            end
-            xlabel('AP position [$\mu$m]', 'Interpreter', 'Latex')
-            ylabel('lateral position [$\mu$m]', 'Interpreter', 'Latex')
-            zlabel('DV position [$\mu$m]', 'Interpreter', 'Latex')
-
-            set(fig, 'PaperUnits', 'centimeters');
-            set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
-            view(-20, 20) ;
-
-            % Plot mesh for occlusion
-            trisurf(triangulation(glueMesh.f, glueMesh.v), 'faceColor', 'k') ;
-
-
-            % Make background black & Make tick labels white
-            if blackFigure
-                set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w', 'zcol', 'w')
-                set(gcf, 'InvertHardCopy', 'off');
-                set(gcf, 'Color', 'k')
-                set(gcf, 'color', 'k')
-            else
-                set(gcf, 'color', 'w')
-                set(gca, 'color', 'k')
-            end
-
-            % Use export_fig instead, from plotting/export_fig/
-            % saveas(fig, fullfile(figvdir, fnv))
-            export_fig(outFigFn, '-nocrop', '-r200')
-
-            pim = imread(outFigFn) ;
-            size(pim)
-
-            % Texturepatch counterpart  
-            opts = metadat ;
-            opts.timePoints = timePoints(tidx) ;
-            opts.plot_perspective = true ;
-            opts.plot_dorsal = false ;
-            opts.plot_ventral = false ;
-            opts.plot_left = false ;
-            opts.plot_right = false ;
-            opts.blackFigure = false ;
-            opts.makeColorbar = true ;
-            QS.plotSeriesOnSurfaceTexturePatch(opts, Options)
-
-
-            figoutdir = fullfile(QS.dir.texturePatchIm , opts.subdir) ;
-            figPerspDir = fullfile(figoutdir, 'perspective') ;
-            timFn = fullfile(figPerspDir, sprintf('patch_persp_%06d.png', tp)) ;
-            tim = imread(timFn) ;
-            size(tim)
-
-            % Add images together -- area to add is in axisROI
-            % tim on outside, pim right of colorbarX
-            im2 = tim ;
-            axisROIFn = fullfile(QS.dir.tracking, subdir, 'embeddingROI_for_overlay.mat') ;
-            if ~exist(axisROIFn, 'file')
-                axisROI = roipoly(0.5*pim+0.5*tim) ;
-                colorbarX = 1010 ;
-                save(axisROIFn, 'axisROI', 'colorbarX')    
-            else
-                load(axisROIFn, 'axisROI', 'colorbarX')
-            end
-            % sum together inside axisROI
-            sim = tim + 0.9 * pim ;
-            pR = squeeze(sim(:, :, 1)) ;
-            pG = squeeze(sim(:, :, 2)) ;
-            pB = squeeze(sim(:, :, 3)) ;
-            im2R = squeeze(im2(:,:,1)) ;
-            im2G = squeeze(im2(:,:,1)) ;
-            im2B = squeeze(im2(:,:,1)) ;
-            im2R(axisROI) = pR(axisROI) ;
-            im2G(axisROI) = pG(axisROI) ;
-            im2B(axisROI) = pB(axisROI) ;
-            im2 = cat(3, im2R, im2G, im2B) ;
-            % pim right of colorbarX
-            im2(:, colorbarX:end, :) = pim(:, colorbarX:end, :) ;
-
-            disp(['Saving combined image to: ' outImFn])
-            imwrite(im2, outImFn)
-
-            if preview
-                set(gcf, 'visible', 'on')
-                imshow(im2)
-                pause(3)
+        else
+            % Draw nuclei
+            plot3(cellCntrd3d(:, 1), cellCntrd3d(:, 2), cellCntrd3d(:, 3), ....
+                '.w')
+            hold on
+            if drawGeodesics
+                for pidx = 1:size(pairIDs, 1)
+                    plot3(geoP{pidx}(:, 1), geoP{pidx}(:, 2),...
+                        geoP{pidx}(:, 3), 'w', ...
+                        'linewidth', lw_geoP)
+                end
             end
         end
-    else
-        error('handle nuclear tracking case here')
+
+        axis equal
+        xlim(xyzlims(1, :))
+        ylim(xyzlims(2, :))
+        zlim(xyzlims(3, :))
+
+        colormap inferno
+        caxis([0, 80])
+        cb = colorbar() ;
+        ylabel(cb, ['area, ' QS.spaceUnits '$^{2}$]'], ...
+             'interpreter', 'latex')
+
+        timeinterval = QS.timeInterval ;
+        timeunits = QS.timeUnits ;
+        t0 = QS.t0set() ;
+        titlestr = ['$t = $' num2str(tp*timeinterval-t0) ' ' timeunits] ;
+        if blackFigure
+            title(titlestr, 'Interpreter', 'Latex', 'Color', 'white') 
+        else
+            title(titlestr, 'Interpreter', 'Latex', 'Color', 'k') 
+        end
+        xlabel('AP position [$\mu$m]', 'Interpreter', 'Latex')
+        ylabel('lateral position [$\mu$m]', 'Interpreter', 'Latex')
+        zlabel('DV position [$\mu$m]', 'Interpreter', 'Latex')
+
+        set(fig, 'PaperUnits', 'centimeters');
+        set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
+        view(viewAngles) ;
+
+        % Plot mesh for occlusion
+        trisurf(triangulation(glueMesh.f, glueMesh.v), 'faceColor', 'k') ;
+
+
+        % Make background black & Make tick labels white
+        if blackFigure
+            set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w', 'zcol', 'w')
+            set(gcf, 'InvertHardCopy', 'off');
+            set(gcf, 'Color', 'k')
+            set(gcf, 'color', 'k')
+        else
+            set(gcf, 'color', 'w')
+            set(gca, 'color', 'k')
+        end
+
+        % Use export_fig instead, from plotting/export_fig/
+        % saveas(fig, fullfile(figvdir, fnv))
+        export_fig(outFigFn, '-nocrop', '-r200')
+
+        pim = imread(outFigFn) ;
+        size(pim)
+
+        % Texturepatch counterpart  
+        opts = metadat ;
+        opts.timePoints = timePoints(dmyk) ;
+        opts.plot_perspective = true ;
+        opts.plot_dorsal = false ;
+        opts.plot_ventral = false ;
+        opts.plot_left = false ;
+        opts.plot_right = false ;
+        opts.blackFigure = false ;
+        opts.makeColorbar = true ;
+        QS.plotSeriesOnSurfaceTexturePatch(opts, Options)
+
+
+        figoutdir = fullfile(QS.dir.texturePatchIm , opts.subdir) ;
+        figPerspDir = fullfile(figoutdir, 'perspective') ;
+        timFn = fullfile(figPerspDir, sprintf('patch_persp_%06d.png', tp)) ;
+        tim = imread(timFn) ;
+        size(tim)
+
+        % Add images together -- area to add is in axisROI
+        % tim on outside, pim right of colorbarX
+        im2 = tim ;
+        axisROIFn = fullfile(QS.dir.tracking, subdir, 'embeddingROI_for_overlay.mat') ;
+        if ~exist(axisROIFn, 'file') 
+            if isa(pim, 'uint8')
+                pim = mat2gray(pim) ;
+                tim = mat2gray(tim) ;
+            end
+            axisROI = roipoly(0.5*pim+0.5*tim) ;
+            colorbarX = 1010 ;
+            save(axisROIFn, 'axisROI', 'colorbarX')    
+        else
+            load(axisROIFn, 'axisROI', 'colorbarX')
+        end
+        % sum together inside axisROI
+        sim = tim + 0.9 * pim ;
+        pR = squeeze(sim(:, :, 1)) ;
+        pG = squeeze(sim(:, :, 2)) ;
+        pB = squeeze(sim(:, :, 3)) ;
+        im2R = squeeze(im2(:,:,1)) ;
+        im2G = squeeze(im2(:,:,1)) ;
+        im2B = squeeze(im2(:,:,1)) ;
+        im2R(axisROI) = pR(axisROI) ;
+        im2G(axisROI) = pG(axisROI) ;
+        im2B(axisROI) = pB(axisROI) ;
+        im2 = cat(3, im2R, im2G, im2B) ;
+        % pim right of colorbarX
+        im2(:, colorbarX:end, :) = pim(:, colorbarX:end, :) ;
+
+        disp(['Saving combined image to: ' outImFn])
+        imwrite(im2, outImFn)
+
+        if preview
+            set(gcf, 'visible', 'on')
+            imshow(im2)
+            pause(3)
+        end
     end
+    dmyk = dmyk + 1 ;
 end
 
 % Plot areas over time
@@ -387,7 +600,7 @@ else
 end
 
 close all
-fig = figure('units', 'centimeters', 'position', [0, 0,7,7]) ;
+figure('units', 'centimeters', 'position', [0, 0,7,7]) 
 newA = nan(size(allAreas)) ;
 normA = nan(size(allAreas)) ;
 allAreas(allAreas == 0) = NaN ;
@@ -401,7 +614,7 @@ for cid = 1:nCells
 end
 
 %% Stats on true values 
-fig = figure('units', 'centimeters', 'position', [0, 0,7,7]) ;
+figure('units', 'centimeters', 'position', [0, 0,7,7]) ;
 colors = define_colors ;
 % check it
 plot(timestamps, newA, 'color', 0.7 * [1,1,1])
