@@ -11,6 +11,8 @@ classdef SagittalExperiment < handle
                                 % is 1. 
         resolution              % SE.spaceUnits per pixel
         name = 'sagittal_Z%d_T%03d' ;
+        imExten = '.png' ;
+        labelExten = '.tiff' ;
         npts_skel = 10000 ;
         minsz_hole = 50 ;
         zplanes = []            % 
@@ -42,6 +44,18 @@ classdef SagittalExperiment < handle
     % Some methods are hidden from public view. These are used internally
     % to the class.
     methods (Hidden)
+        function im = loadImage(~, fname, exten)
+            % add default file extension if not present
+            if ~contains(fname, '.')
+                fname = [fname exten] ;
+            end
+            disp(['Loading ', fname])
+            if strcmpi(fname(end-3:end), 'tif' ) || strcmpi(fname(end-4:end), 'tiff') 
+                im = loadtiff(fname) ;
+            else
+                im = imread(fname) ;
+            end
+        end
     end
     
     % Public methods, accessible from outside the class and reliant on 
@@ -62,6 +76,16 @@ classdef SagittalExperiment < handle
             SE.zplanes = settings.zplanes ;
             SE.resolution = settings.resolution ;
             SE.plotting.colors = define_colors ;
+            if isfield(settings, 'imExten')
+                SE.imExten = settings.imExten ;
+            else
+                SE.imExten = '.tif' ;
+            end
+            if isfield(settings, 'labelExten')
+                SE.labelExten = settings.labelExten ; 
+            else
+                SE.labelExten = SE.imExten ; 
+            end
             
             % Create directories
             SE.dir.zIm = fullfile(SE.dir.data, 'z%d') ; 
@@ -195,9 +219,14 @@ classdef SagittalExperiment < handle
                 im = SE.im ;
             else
                 % Original image
-                fname = fullfile(SE.zDir.zIm, [sprintf(SE.name, SE.zplane, SE.currentTime) '.tif']) ;
-                disp(['Loading ', fname])
-                im = loadtiff(fname) ;
+                if sum(SE.name == '%') == 2
+                    fname = fullfile(SE.zDir.zIm, sprintf(SE.name, SE.zplane, SE.currentTime)) ;
+                elseif sum(SE.name == '%') == 1
+                    fname = fullfile(SE.zDir.zIm, sprintf(SE.name, SE.currentTime)) ;
+                else
+                    error('Filename SE.name seems to have more than 2 numeric fields.')
+                end
+                im = SE.loadImage(fname, SE.imExten) ;
                 if size(im, 3) == 2
                     imn = zeros(size(im, 1), size(im, 2), 3) ;
                     imn(:, :, 1) = double(im(:, :, 1)) / SE.norms(1) ;
@@ -214,9 +243,14 @@ classdef SagittalExperiment < handle
                 imL = SE.imL ;
             else
                 % Labeled image
-                fname = fullfile(SE.zDir.zLabeled, ...
-                    [sprintf(SE.name, SE.zplane, SE.currentTime) '.tif']) ;
-                imL = loadtiff(fname) ;
+                if sum(SE.name == '%') == 2
+                    fname = fullfile(SE.zDir.zLabeled, sprintf(SE.name, SE.zplane, SE.currentTime)) ;
+                elseif sum(SE.name == '%') == 1
+                    fname = fullfile(SE.zDir.zLabeled, sprintf(SE.name, SE.currentTime)) ;
+                else
+                    error('Filename SE.name seems to have more than 2 numeric fields.')
+                end
+                imL = SE.loadImage(fname, SE.labelExten) ;
                 SE.imL = imL ;
             end
         end
@@ -238,11 +272,17 @@ classdef SagittalExperiment < handle
                     end
                 else
                     % Probabilities (ch1 is midgut)
-                    pname = fullfile(SE.zDir.zIm, [sprintf(SE.name, SE.zplane, SE.currentTime), '_Probabilities.h5']) ;
+                    if sum(SE.name == '%') == 1
+                        pname = fullfile(SE.zDir.zIm, [sprintf(SE.name, SE.currentTime), '_Probabilities.h5']) ;    
+                    elseif sum(SE.name == '%') == 2
+                        pname = fullfile(SE.zDir.zIm, [sprintf(SE.name, SE.zplane, SE.currentTime), '_Probabilities.h5']) ;
+                    else
+                        error('SE.name seems to have more than 2 numeric fields.')
+                    end
                     prob = h5read(pname, '/exported_data') ;
 
                     % Segment the probabilities
-                    bw = squeeze(prob(:, :, 1)) > 0.5 ;
+                    bw = squeeze(prob(1, :, :)) > 0.5 ;
                     % get largest region size and display it
                     regions = bwconncomp(bw) ;
                     regs = regionprops(regions) ;
@@ -273,7 +313,7 @@ classdef SagittalExperiment < handle
                         if ~isempty(moreRegs)
                             if strcmpi(moreRegs, 'y')
                                 canvas(cell2mat(regions.PixelIdxList(regID(nextId)))) = true;
-                                nextId = nextId + 1 ;
+                                nextId = min(nextId + 1, length(regID)) ;
                                 
                                 % Invert, filter, then invert to close holes
                                 canvas2 = ~canvas ;

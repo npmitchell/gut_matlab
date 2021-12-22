@@ -201,7 +201,7 @@ else
             end
 
             %% Identify masks manually
-            disp('Identify a closed polygon for masking then <Enter>, or <Esc> for no mask')
+            disp('Identify a closed polygon for masking this landmark pair, then <Enter>, or <Esc> for no mask')
             [bwout, xroi, yroi] = roipoly() ;
             if ref_priority
                 if isempty(bwout) && length(refs) >= lmId && length(refs{lmId}.mask) >= qq
