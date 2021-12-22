@@ -653,7 +653,7 @@ disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
 
-%% Make some mips of shallow stacks
+    %% Make some mips of shallow stacks
 adjustIV = false ; 
 % QS.makeMIPs(1, {400:490, 510:550, 570:630, 800:880}, [], adjustIV)
 stacks = {400:490, 510:550, 570:630, 800:880} ;
@@ -1100,6 +1100,38 @@ options.plot_evolution = true ;
 options.plot_growth = false ;
 options.growth_t0 = 85 ;
 QS.visualizeMeshEvolution(options)
+
+%% Highligh junction for BWF fund application
+amesh = QS.getCurrentAlignedMesh() ;
+xwidth = 32 ; % cm
+ywidth = 20 ; % cm
+% scaled mesh vertices
+amesh.v = laplacian_smooth(amesh.v, amesh.f, 'cotan', [], 0.001,'implicit',amesh.v,1000) ;
+xa = amesh.v(:, 1)  ;
+ya = amesh.v(:, 2)  ;
+za = amesh.v(:, 3)  ;
+sky    = colors(6, :) ;
+yellow = colors(3, :) ;
+lscolors = sky ;
+
+
+close all            
+fig = figure('units', 'centimeters', ...
+    'outerposition', [0 0 xwidth xwidth], 'visible', 'off') ;
+h = trimesh(amesh.f, xa, ya, za, 'EdgeColor', 'none', ...
+    'facecolor', lscolors) ;
+axis equal
+hold on;
+axis off
+
+lighting gouraud    % preferred method for lighting curved surfaces
+material dull    % set material to be dull, no specular highlights
+
+% Lighting and view 
+% view(-20, 20)
+view(viewAngles) 
+lgt = camlight('headlight') ;
+set(gcf,'color','w');
 
 %% Symmetry figure
 % meshL = read_ply_mod(sprintf(...
@@ -1732,7 +1764,7 @@ QS.visualizeSegmentationPatch(options)
 options = struct() ;
 options.trackOutfn = fullfile(QS.dir.tracking,...
     'manualTracking', 'manualTracks.mat') ;
-options.tracks2Add = [180] ;
+options.tracks2Add = [125] ;
 QS.manualTrackingAdd(options) 
 
 %%
@@ -1744,12 +1776,21 @@ options.subdir = 'manualTracking' ;
 options.trackOutfn = fullfile(QS.dir.tracking, ...
     options.subdir, ...
     'manualTracks.mat') ;
+options.drawPairRectangle = false ;
 options.selectPairs = 2 ;
-options.t0forPairs = 126 ;
-options.pairIDs = [123,   180;
-                178,   116]' ;
-options.timePoints = [126, 166, 206] ;
+options.t0forPairs = 123 ;
+options.overlayStyle = 'mask' ;
+options.nPairs = 2 ;
+options.overwriteROI = false ;
+% options.pairIDs = [121, 181, NaN, NaN] ;
+options.pairIDs = [101, 85; ...
+    189,125] ;
+options.pairColors = {[255,158,2]/255,...
+    [0,140,255]/255.}
+% options.pairIDs = [] ;
+options.timePoints = [123,126,166,176,206, 124:2:216] ;
 options.viewAngles = [-20, 20] ;
+options.normal_shift = 2 ;
 QS.visualizeTracking3D(options)
 
 

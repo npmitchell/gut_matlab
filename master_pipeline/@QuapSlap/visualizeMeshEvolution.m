@@ -93,7 +93,7 @@ yellow = colors(3, :) ;
 purple = colors(4, :) ;
 green  = colors(5, :) ;
 sky    = colors(6, :) ;
-maroon = colors(6, :) ;
+maroon = colors(7, :) ;
 lscolor = sky ;
 
 %% Directories

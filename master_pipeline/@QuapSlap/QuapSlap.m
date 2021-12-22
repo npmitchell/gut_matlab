@@ -2011,7 +2011,8 @@ classdef QuapSlap < handle
         function [p2d, p3d] = samplePullbackPathlines(QS, XY0, options)
             %[p2d, p3d] = samplePullbackPathlines(QS, XY0, options)
             % start at XY0, folow flow using barycentric coordinates of PIV
-            % pullback pathlines.
+            % pullback pathlines. This is the same as advecting along a
+            % fixed Langrangian coordinate. 
             
             % default options
             t0 = QS.t0set() ;

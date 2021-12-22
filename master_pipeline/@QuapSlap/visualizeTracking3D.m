@@ -18,14 +18,31 @@ function visualizeTracking3D(QS, options)
 %       'pullback' draws a curve in 3d that connects the 2d segmentation pts
 %       as straight line in pullback space projected into 3d
 %       'geodesic' computes geodesic pairs on the surface using CGAL
+%   pairColors : selectPairs x 1 cell array
+%       selectPairs x 1 cell array of colors (either string
+%       specifiers or 3x1 float array colors with values between 0-1.0)
+%       pairColors{ii} is the color for the pair path connecting tracked
+%       cells in pairIDs(ii, :) 
 %   viewAngles : [-20,20] is default
 %       must match texturePatch angles for overlays to be accurate
 %   t0forPairs : timepoint at which we select which pairs to visualize
+%   overlayStyle : 'mask', 'add'
+%       whether to add or mask the segmentation/tracking/geodesics over the
+%       texturePatch image
+%   lw_geoP : float or int 
+%       linewidth for the geodesic paths
+%   roiColor : string specifier for color or 3x1 float between 0-1.0
+%       color for the rectangular ROI boundary
+%   overwriteROI : bool
+%       if the ROI polygon (projected rectangle at t0) exists on disk,
+%       overwrite it with a newly calculated ROI
+%
 
 xwidth = 16 ; % cm
 ywidth = 10 ; % cm
 lw = 0.01 ;
-lw_geoP = 0.1 ;
+lw_geoP = 2 ;
+roiColor = [226, 212, 200]/255. ;
 viewAngles = [-20, 20] ;
 
 
@@ -47,7 +64,10 @@ blackFigure = false ;
 selectPairs = 0 ;
 t0forPairs = QS.t0set() ;
 drawGeodesics = true ;
-geodesicStyle = 'pullback' ; % 'geodesic', 'pullback'
+drawPairRectangle = false ;
+overwriteROI = false ;
+geodesicStyle = 'pullback' ; % 'geodesic', 'pullback', 'Lagrangian'
+overlayStyle = 'add' ; % 'mask', 'add'
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
 end
@@ -75,11 +95,31 @@ end
 if isfield(options, 't0forPairs')
     t0forPairs = options.t0forPairs ;
 end
+if isfield(options, 'drawPairRectangle')
+    drawPairRectangle = options.drawPairRectangle ;
+end
+if isfield(options, 'overwriteROI')
+    overwriteROI = options.overwriteROI ;
+end
 if isfield(options, 'drawGeodesics')
     drawGeodesics = options.drawGeodesics ;
 end
 if isfield(options, 'geodesicStyle')
     geodesicStyle = options.geodesicStyle ;
+end
+if isfield(options, 'overlayStyle')
+    overlayStyle = options.overlayStyle ;
+end
+if isfield(options, 'pairColors')
+    pairColors = options.pairColors ;
+else
+    pairColors = cell(selectPairs, 1) ;
+    for ii = 1:selectPairs 
+        pairColors{ii} = 'w' ;
+    end
+end
+if isfield(options, 'lw_geoP')
+    lw_geoP = options.lw_geoP ;
 end
 
 % Obtain tracks' filename on disk -- segmentation or nuclei/points
@@ -91,6 +131,9 @@ end
 if isfield(options, 'trackOutfn')
     trackOutfn = options.trackOutfn ;
 end
+% filename for roi rectangle as pathlines for all timepoints
+roiPathlineRectangleFn = fullfile(QS.dir.tracking, subdir, ...
+    sprintf('roiPathlineRectangle_t0_%06d.mat', t0forPairs)) ;
 
 % More options
 if isfield(options, 'buffer') || isfield(options, 'bufferXYZ')
@@ -125,7 +168,7 @@ end
 
 %% Select which pairs to visualize
 if selectPairs
-    if isempty(pairIDs)
+    if isempty(pairIDs) || any(isnan(pairIDs(:)))
         tidx = QS.xp.tIdx(t0forPairs) ;
 
         % Load image for t0
@@ -157,24 +200,35 @@ if selectPairs
         imshow(im)
         hold on;
         plot(centroids(:, 1), centroids(:, 2), '.')
-        pxy = ginput(2 * selectPairs) ;
-        pidx = pointMatch(pxy, centroids) ;
-
+        
+        if isempty(pairIDs)
+            pxy = ginput(2 * selectPairs) ;
+            pidx = pointMatch(pxy, centroids) ;
+        else
+            id2plot = pairIDs(~isnan(pairIDs)) ;
+            plot(centroids(id2plot, 1), ...
+                centroids(id2plot, 2), 's')
+            pidx = pairIDs ;
+            id2fill = find(isnan(pairIDs)) ;
+            xypts = ginput(length(id2fill)) ;
+            pidx(id2fill) = pointMatch(xypts, centroids) ;
+            pidx = pidx(:) ;
+        end
+        
         % break into pairs
-        pairIDs = reshape(pidx, [length(pidx)*0.5, 2])' ;
-    else
-        disp(['PairIDs = '])
-        pairIDs
+        pairIDs = reshape(pidx, [length(pidx)*0.5, 2])  ;
     end
+    disp(['PairIDs = '])
+    pairIDs    
 end
             
 %% Plot each timepoint in 3d      
 allAreas = nan(length(timePoints), maxNtracks) ;
 timePoints = sort(timePoints) ;
 tidx2do = find( ismember(QS.xp.fileMeta.timePoints, timePoints)) ;
-dmyk = 1  ;
+dmyii = 1  ;
 for tidx = tidx2do 
-    tp = timePoints(dmyk) ;
+    tp = timePoints(dmyii) ;
     QS.setTime(tp) ;
 
     %% PREPARE MESH
@@ -211,7 +265,11 @@ for tidx = tidx2do
 
     % Make sure vertex normals are normalized and outward facing for
     % cutMesh, but not for glueMesh
-    normal_shift = metadat.normal_shift * QS.APDV.resolution ;
+    if isfield(options, 'normal_shift')
+        normal_shift = options.normal_shift ;
+    else
+        normal_shift = metadat.normal_shift * QS.APDV.resolution ;
+    end
     if QS.flipy
         % glueMesh vertex normals point IN, so we can shrink it a bit
         cutMesh.vn = - cutMesh.vn ;
@@ -311,8 +369,8 @@ for tidx = tidx2do
 
             % measurements in 3D of tracked cells
             disp('Perform measurements in 3D')
-            cellVtxU = QS.XY2uv(im, cellVtx2D(:, [2, 1]), doubleCovered, 1, 1) ;
-            cntrds_uv = QS.XY2uv( im, centroids, doubleCovered, 1, 1) ;
+            cellVtxU = QS.XY2uv(im, cellVtx2D(:, [2, 1]), imDoubleCovered, 1, 1) ;
+            cntrds_uv = QS.XY2uv( im, centroids, imDoubleCovered, 1, 1) ;
 
             % embed with measurements
             [c3d, cellCntrd3d, areas, perim, moment1, ang1, ...
@@ -346,7 +404,7 @@ for tidx = tidx2do
         
         % store areas
         disp('Storing areas in large array')
-        allAreas(dmyk, keepBinary) = areas ;
+        allAreas(dmyii, keepBinary) = areas ;
         
     else
         seg2dFn = trackOutfn ;
@@ -375,7 +433,7 @@ for tidx = tidx2do
         
          %% PUSH INTO 3D
         seg3dFn = fullfile(QS.dir.tracking, subdir, sprintf('seg3d_%06d.mat', tp)) ;
-        if ~exist(seg3dFn, 'file') || overwrite  || true
+        if ~exist(seg3dFn, 'file') || overwrite 
             % tile annular cutmesh for triple covering 
             [ TF, TV2D, TV3D, TVN3D ] = tileAnnularCutMesh(cutMesh, [1,1]) ;
 
@@ -383,6 +441,7 @@ for tidx = tidx2do
             disp('Subset of the tracks that are active')
             keepBinary = ~isnan(centroids(:, 1)) ;
             keep = find(keepBinary) ;
+            badidx = find(~keepBinary) ;
             % check that no cells have missing x position but not missing y pos
             assert(all(keepBinary == ~isnan(centroids(:, 2)))) ;
 
@@ -411,30 +470,71 @@ for tidx = tidx2do
                  'centroids', 'cntrds_uv', 'cellCntrd3d', 'cellMeshFaces')
         end
 
-        if drawGeodesics
-            if strcmpi(geodesicStyle, 'geodesic')
-                error('I think the following does not quite work -- check that pt is on mesh')
-                geoP = surfaceGeodesicPairs(glueMesh.f, glueMesh.v, [1,2], ...
-                    cellCntrd3d) ;
-            elseif strcmpi(geodesicStyle, 'pullback')
-                % curve connecting the two cells in 3D based on sphi
-                disp('Push connecting curve to 3D')
-                
-                % embed with measurements
-                if strcmpi(coordSys, 'spsme') || strcmpi(coordSys, 'spsm')
-                    coordSysTemp = 'spsmrs' ;
-                else
-                    error('handle this coordSys here')
-                end
-                lspace = linspace(0, 1, 101) ;
-                for pidx = 1:size(pairIDs, 1)
+    end
+    
+    %% Geodesic and ROI handling
+    if drawGeodesics
+        if strcmpi(geodesicStyle, 'geodesic')
+            error('I think the following does not quite work -- check that pt is on mesh')
+            geoP = surfaceGeodesicPairs(glueMesh.f, glueMesh.v, [1,2], ...
+                cellCntrd3d) ;
+        elseif strcmpi(geodesicStyle, 'pullback')
+            % curve connecting the two cells in 3D based on sphi
+            disp('Push connecting curve to 3D')
+
+            % embed with measurements
+            if strcmpi(coordSys, 'spsme') || strcmpi(coordSys, 'spsm')
+                coordSysTemp = 'spsmrs' ;
+            else
+                error('handle this coordSys here')
+            end
+            lspace = linspace(0, 1, 101) ;
+            for pidx = 1:size(pairIDs, 1)
+                try
                     pbCurvX = centroids(pidx*2-1, 1) * lspace + centroids(2*pidx, 1) * (1-lspace) ;
                     pbCurvY = centroids(pidx*2-1, 2) * lspace + centroids(2*pidx, 2) * (1-lspace) ;
-                    pbCurv_uv = QS.XY2uv( im, [pbCurvX(:), pbCurvY(:)], doubleCovered, 1, 1) ;
-                    
-                    geoP{pidx} = QS.uv2APDV(pbCurv_uv, ...
-                        coordSysTemp, 1.0, 1.0) ;
+                catch
+                    error(['Indices do not match centroid size -- there are nans:' num2str(badidx)])
                 end
+                pbCurv_uv = QS.XY2uv( im, [pbCurvX(:), pbCurvY(:)], doubleCovered, 1, 1) ;
+
+                geoP{pidx} = QS.uv2APDV(pbCurv_uv, ...
+                    coordSysTemp, 1.0, 1.0) ;
+            end
+        end
+    end
+
+    %% Compute the rectangular patch that is formed at t0 for advection
+    % to other timepoints
+    if drawPairRectangle
+            
+        % if this is the first time that we are finding cells
+        if dmyii == 1
+            % Load the pathlines for the Rectangular ROI or compute them
+            if ~exist(roiPathlineRectangleFn, 'file') || overwriteROI 
+
+                seg3dFn0 = fullfile(QS.dir.tracking, subdir,...
+                    sprintf('seg3d_%06d.mat', t0forPairs)) ;
+                tmp = load(seg3dFn0, 'centroids') ;
+                vtxC = tmp.centroids ;
+                minU = min(vtxC(:, 1)) ;
+                minV = min(vtxC(:, 2)) ;
+                maxU = max(vtxC(:, 1)) ;
+                maxV = max(vtxC(:, 2)) ;
+                corners = [minU, minV; minU, maxV; maxU, maxV; maxU, minV];
+                
+                if ~contains(coordSys, 'e') && contains(QS.piv.imCoords, 'e')
+                    disp('adding 1/4 of image for extended/nonextended mismatch')
+                    corners = corners + [0, size(im, 2)*0.25 ] ;
+                end
+                XY0ROI = corners ;
+                pbOpts.t0 = t0forPairs ;
+                [roi2d, roi3d] = QS.samplePullbackPathlines(XY0ROI, pbOpts) ;
+
+                % Save the ROI pullback pathlines
+                save(roiPathlineRectangleFn, 'roi2d', 'roi3d')
+            else
+                load(roiPathlineRectangleFn, 'roi2d', 'roi3d') ;
             end
         end
     end
@@ -468,16 +568,58 @@ for tidx = tidx2do
             % Draw nuclei
             plot3(cellCntrd3d(:, 1), cellCntrd3d(:, 2), cellCntrd3d(:, 3), ....
                 '.w')
-            hold on
-            if drawGeodesics
-                for pidx = 1:size(pairIDs, 1)
-                    plot3(geoP{pidx}(:, 1), geoP{pidx}(:, 2),...
-                        geoP{pidx}(:, 3), 'w', ...
-                        'linewidth', lw_geoP)
-                end
-            end
+                hold on
         end
 
+        % draw Geodesic paths between pairs
+        if drawGeodesics
+            for pidx = 1:size(pairIDs, 1)
+                plot3(geoP{pidx}(:, 1), geoP{pidx}(:, 2),...
+                    geoP{pidx}(:, 3), 'color', pairColors{pidx}, ...
+                    'linewidth', lw_geoP)
+            end
+        end
+        
+        % draw patch for ROI to show deformation of rectangle
+        if drawPairRectangle
+
+            corners = squeeze(roi2d(tidx, :, :)) ;
+            if ~contains(coordSys, 'e') && contains(QS.piv.imCoords, 'e')
+                disp('adding 1/4 of image for extended/nonextended mismatch')
+                corners = corners - [0, size(im, 2)*0.25 ] ;
+            end
+            lspace = linspace(0, 1, 101) ;
+            X0ROI = [] ;
+            Y0ROI = [] ;
+            for pathPart = 1:4
+                nextID = pathPart + 1 ;
+                if nextID > 4
+                    nextID = 1 ;
+                end
+                X0ROI = [X0ROI, corners(pathPart, 1) * (1-lspace) + ...
+                    corners(nextID, 1) * lspace ] ;
+                Y0ROI = [Y0ROI, corners(pathPart, 2) * (1-lspace) + ...
+                    corners(nextID, 2) * lspace ];
+            end
+            XY0ROI = [X0ROI(:), Y0ROI(:)] ;
+            uvroi = QS.XY2uv(im, XY0ROI, doubleCovered, 1, 1) ;
+            
+            % check it
+            tmp = figure; 
+            plot(XY0ROI(:, 1), XY0ROI(:, 2), '.')
+            close(tmp) 
+            
+            if strcmpi(coordSys, 'spsme') || strcmpi(coordSys, 'spsm')
+                coordSysTemp = 'spsmrs' ;
+            else
+                error('handle this coordSys here')
+            end
+            QS.setTime(tp)
+            roi3d = QS.uv2APDV( uvroi, coordSysTemp, 1, 1) ;
+            plot3(roi3d(:, 1), roi3d(:, 2), ...
+                roi3d(:, 3), 'color', roiColor, 'linewidth', lw_geoP) ;
+        end
+        
         axis equal
         xlim(xyzlims(1, :))
         ylim(xyzlims(2, :))
@@ -530,7 +672,7 @@ for tidx = tidx2do
 
         % Texturepatch counterpart  
         opts = metadat ;
-        opts.timePoints = timePoints(dmyk) ;
+        opts.timePoints = timePoints(dmyii) ;
         opts.plot_perspective = true ;
         opts.plot_dorsal = false ;
         opts.plot_ventral = false ;
@@ -563,7 +705,22 @@ for tidx = tidx2do
             load(axisROIFn, 'axisROI', 'colorbarX')
         end
         % sum together inside axisROI
-        sim = tim + 0.9 * pim ;
+        if strcmpi(overlayStyle, 'add')
+            sim = tim + 0.9 * pim ;
+        else
+            simR = tim(:, :, 1) ;
+            simG = tim(:, :, 2) ;
+            simB = tim(:, :, 3) ;
+            inds = pim(:,:,1) > 0 | pim(:,:,2) > 0 | ...
+                pim(:,:,3) > 0 ;
+            pimR = pim(:, :, 1) ;
+            pimG = pim(:, :, 2) ;
+            pimB = pim(:, :, 3) ;
+            simR(inds) = pimR(inds) ;
+            simG(inds) = pimG(inds) ;
+            simB(inds) = pimB(inds) ;
+            sim = cat(3, simR, simG, simB) ;
+        end
         pR = squeeze(sim(:, :, 1)) ;
         pG = squeeze(sim(:, :, 2)) ;
         pB = squeeze(sim(:, :, 3)) ;
@@ -586,7 +743,7 @@ for tidx = tidx2do
             pause(3)
         end
     end
-    dmyk = dmyk + 1 ;
+    dmyii = dmyii + 1 ;
 end
 
 % Plot areas over time
