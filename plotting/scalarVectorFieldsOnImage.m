@@ -16,35 +16,35 @@ function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
 % yys : M x 1 float array
 %   y values of scalar field evaluation points
 % sf : N x M float array
-%   scalar field defined at (xxs, yys)
+%   scalar field defined at (xxs(i), yys(j)) for all i=1:N, j=1:M
 % xxv : P x 1 float array
 %   x values of vector field evaluation points
 % yyv : Q x 1 float array
 %   y values of vector field evaluation points
 % vx : P*Q x 1 float array
 %   velocity in x direction at (xxv, yyv)
-% vy : N*M x 1 float array
+% vy : P*Q x 1 float array
 %   velocity in y direction at (xxv, yyv)
 % options : struct with fields 
 %   faces : #faces x 3 (optional, if sf is defined on faces)
 %       connectivity list of vertices xxs,yys if sf is defined on faces
-%   style : str ('diverging' 'phase' 'nematic')
+%   style : str ('diverging' (default) 'phase' 'nematic')
 %       style of overlaid scalar field, default is diverging
 %       If 'phase' or 'nematic', use 'options.angle' to pass vector angles.
 %   angle : #faces x 3 (optional, if style == 'phase')
 %       scalar field for phasemap. Note that sf signals opacity if style ==
 %       'phase' and angle will replace sf for color if supplied.
 %       Otherwise, sf is used for both.
-%   sscale : float (optional, used only if style == 'phase')
+%   sscale : float (optional, used only if style == 'phase', default=max(abs(sf(:))))
 %       scalar field maximum for opacity/alpha. If zero, color limits are
 %       set to min(sf) and max(sf)
-%   alpha : float (optional, used if style ~= 'phase')
+%   alpha : float (optional, used if style ~= 'phase', default=0.8)
 %       opacity of overlaid scalar field
 %   outfn : str
 %       path to save image if given
 %   label : str
 %       colorbar label. Default is '$|v|$ [$\mu$m / min]' 
-%   qsubsample : int
+%   qsubsample : int (default=10)
 %       subsampling factor of the quiver field
 %   overlay_quiver : bool (default=true)
 %       whether to show the quiverplot overlay

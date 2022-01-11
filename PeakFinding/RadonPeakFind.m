@@ -1,13 +1,17 @@
-function  [cent, varargout]=RadonPeakFind(d, thres, filt, edg, res, fid)
+function  [cent, weights, varargout]=RadonPeakFind(d, thres, filt, edg, res, fid)
 % Analyze noisy 2D images and find peaks using local maxima (1 pixel
 % resolution) or weighted centroids (sub-pixel resolution).
 % The code is designed to be as fast as possible.
 % The local maxima method assumes that the peaks are relatively sparse,
 % so test whether there is too much pile up and set threshold or user 
 % defined filter accordingly.
+% This function is identical to the NPM-edited version of FastPeakFind.m
 %
-% How the code works:
-% In theory, each peak is a smooth point spread function (SPF), like a
+% How the code works: 
+% ===================
+% There are two methods here. 
+% 1. The original method:
+%   In theory, each peak is a smooth point spread function (SPF), like a
 % Gaussian of some size, etc. In reality, there is always noise, such as
 %"salt and pepper" noise, which typically has a 1 pixel variation.
 % Because the peak's PSF is assumed to be larger than 1 pixel, the "true"
@@ -22,6 +26,10 @@ function  [cent, varargout]=RadonPeakFind(d, thres, filt, edg, res, fid)
 % this gives sub-pixel resolution, it can miss peaks that are very close to
 % each other, and runs slightly slower. Read more about how to treat these
 % cases in the relevant code commentes.
+% 
+% 2. The connected component of threshold alternative method:
+%   Each connected component above a threshold is assumed to have just one
+%   peak --> a weighted centroid of that region.
 %
 % Note: This algorithm was modified by NPMitchell to avoid artifacts from 
 % thresholding too soon. Now, smoothing takes place first. 
@@ -177,7 +185,7 @@ if any(d(:))   %for the case of non zero raw image
                    % no edg requirement needed.
                 
                 % get peaks areas and centroids
-                stats = regionprops(logical(d),d,'Area','WeightedCentroid', 'MaxIntensity');
+                stats = regionprops(logical(d),d,'Area','WeightedCentroid', 'MeanIntensity');
                 
                 % IGNORING THIS FOR NOW
                 % find reliable peaks by considering only peaks with an area
@@ -196,8 +204,10 @@ if any(d(:))   %for the case of non zero raw image
                 
                 cent=[stats.WeightedCentroid]';
                 cent_map= bwlabel(d > 0) ; 
-                weights = [stats.Area]' .* [stats.MaxIntensity]' ;
-                
+                % Define weight as the sum of all intensity in the region
+                if nargout > 1
+                    weights = [stats.Area]' .* [stats.MeanIntensity]' ;
+                end
         end
         
         if savefileflag

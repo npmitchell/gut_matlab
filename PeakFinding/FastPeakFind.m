@@ -4,9 +4,14 @@ function  [cent, varargout]=FastPeakFind(d, thres, filt ,edg, res, fid)
 % The code is designed to be as fast as possible, so I kept it pretty basic.
 % The code assumes that the peaks are relatively sparse, test whether there
 % is too much pile up and set threshold or user defined filter accordingly.
+% Extensive modifications NPM for returning label matrix, intensity weights
 %
-% How the code works:
-% In theory, each peak is a smooth point spread function (SPF), like a
+%
+% How the code works: 
+% ===================
+% There are two methods here. 
+% 1. The original method:
+%   In theory, each peak is a smooth point spread function (SPF), like a
 % Gaussian of some size, etc. In reality, there is always noise, such as
 %"salt and pepper" noise, which typically has a 1 pixel variation.
 % Because the peak's PSF is assumed to be larger than 1 pixel, the "true"
@@ -21,6 +26,10 @@ function  [cent, varargout]=FastPeakFind(d, thres, filt ,edg, res, fid)
 % this gives sub-pixel resolution, it can miss peaks that are very close to
 % each other, and runs slightly slower. Read more about how to treat these
 % cases in the relevant code commentes.
+% 
+% 2. The connected component of threshold alternative method:
+%   Each connected component above a threshold is assumed to have just one
+%   peak --> a weighted centroid of that region.
 %
 % Inputs:
 % d     The 2D data raw image - assumes a Double\Single-precision
@@ -29,7 +38,8 @@ function  [cent, varargout]=FastPeakFind(d, thres, filt ,edg, res, fid)
 %       is between 0 and 1, I multiplied to fit uint16. This might not be
 %       optimal for generic use, so modify according to your needs.
 % thres A number between 0 and max(raw_image(:)) to remove  background
-% filt  A filter matrix used to smooth the image. The filter size
+% filt  A filter matrix used to smooth the image.
+%       Default is fspecial('gaussian', 7,1). The filter size
 %       should correspond the characteristic size of the peaks
 % edg   A number>1 for skipping the first few and the last few 'edge' pixels
 % res   A handle that switches between two peak finding methods:
@@ -43,8 +53,9 @@ function  [cent, varargout]=FastPeakFind(d, thres, filt ,edg, res, fid)
 %Optional Outputs:
 % cent        a 1xN vector of coordinates of peaks (x1,y1,x2,y2,...
 % [cent cm]   in addition to cent, cm is a binary matrix  of size(d)
-%             with 1's for peak positions. (not supported in the
-%             the weighted centroid sub-pixel resolution method)
+%             with 1's for peak positions or a label matrix if res=2.
+% weights     if res=2, weights are the summed, thresholded intensity in d
+%               for each peak region
 %
 %Example:
 %
@@ -54,6 +65,7 @@ function  [cent, varargout]=FastPeakFind(d, thres, filt ,edg, res, fid)
 %
 %   Adi Natan (natan@stanford.edu)
 %   Ver 1.7 , Date: Oct 10th 2013
+%   Edits NPMitchell 2019-2022
 %
 %% defaults
 if (nargin < 1)
@@ -145,8 +157,13 @@ if any(d(:))  ; %for the case of non zero raw image
                         %if  d(x(j),y(j)) == max(max(d((x(j)-1):(x(j)+1),(y(j)-1):(y(j)+1))))
                         %if  d(x(j),y(j))  == max(reshape(d(x(j),y(j))  >=  d(x(j)-1:x(j)+1,y(j)-1:y(j)+1),9,1))
                         
-                        cent = [cent ;  y(j) ; x(j)];
-                        cent_map(x(j),y(j))=cent_map(x(j),y(j))+1; % if a binary matrix output is desired
+                        cent = [cent ;  y(j) , x(j)];
+                        
+                        % OLD VERSION
+                        % cent_map(x(j),y(j))=cent_map(x(j),y(j))+1; % if a binary matrix output is desired
+                        
+                        % NEW VERSION: label matrix
+                        cent_map(x(j), y(j)) = j ;
                         
                     end
                 end
@@ -154,9 +171,10 @@ if any(d(:))  ; %for the case of non zero raw image
             case 2 % find weighted centroids of processed image,  sub-pixel resolution.
                    % no edg requirement needed.
                 
-                % get peaks areas and centroids
-                stats = regionprops(logical(d),d,'Area','WeightedCentroid');
+                % get peaks areas and centroids    
+                stats = regionprops(logical(d), d, 'Area','WeightedCentroid', 'MeanIntensity');
                 
+                % IGNORING THIS FOR NOW -- NPMITCHELL
                 % find reliable peaks by considering only peaks with an area
                 % below some limit. The weighted centroid method can be not
                 % accurate if peaks are very close to one another, i.e., a
@@ -169,11 +187,22 @@ if any(d(:))  ; %for the case of non zero raw image
                 % hist([stats.Area],min([stats.Area]):max([stats.Area]));
                 % to see if the limit I used (mean+2 standard deviations)
                 % is an appropriate limit for your data.
+                % rel_peaks_vec=[stats.Area]<=mean([stats.Area])+2*std([stats.Area]);
                 
-                rel_peaks_vec=[stats.Area]<=mean([stats.Area])+2*std([stats.Area]);
-                cent=[stats(rel_peaks_vec).WeightedCentroid]';
-                cent_map=[];
+                centRaw=[stats.WeightedCentroid]';
                 
+                % put peaks into xy format
+                cent = zeros(size(centRaw, 1)*0.5, 2) ;
+                for qq = 1:(size(centRaw, 1)*0.5)
+                    cent(qq, :) = centRaw(qq*2-1:qq*2) ;
+                end
+
+                if nargout > 1            
+                    cent_map= bwlabel(logical(d)) ;
+                end
+                if nargout > 2
+                    weights = [stats.Area]' .* [stats.MeanIntensity]';
+                end
         end
         
         if savefileflag
@@ -206,3 +235,5 @@ if (nargin < 1); colormap(bone);hold on; plot(cent(1:2:end),cent(2:2:end),'rs');
 
 % return binary mask of centroid positions if asked for
 if nargout>1 ;  varargout{1}=cent_map; end
+
+if nargout>2 ; varargout{2}= weights; end
