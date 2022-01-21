@@ -85,6 +85,7 @@ qsubsample = 5 ;
 nPts = 0 ;
 subsamplingMethod = 'farthestPoint' ;  % ('farthestPoint' 'random' 'custom')
 qscale = 5 ;
+qcolor = 'k' ;
 quiver_vecfield = [] ;
 visibility = 'off' ;
 axPosition = [0 0.11 0.85 0.8] ;
@@ -107,6 +108,9 @@ if nargin > 5
     end
     if isfield(options, 'qscale') 
         qscale = options.qscale ;
+    end
+    if isfield(options, 'qcolor') 
+        qcolor = options.qcolor ;
     end
     if isfield(options, 'quiver_vecfield') 
         quiver_vecfield = options.quiver_vecfield ;
@@ -172,7 +176,9 @@ catch
 end
 vangle = mod(atan2(vy, -vx), 2* pi) ;
 speed = vecnorm([vx(:), vy(:)], 2, 2) ;
+speed = reshape(speed, size(vangle)) ;
 if size(speed, 1) == numel(xx) && size(speed, 2) == numel(yy)
+    % x is linspace, y is linspace, together they make meshgrid
     gridded_data = true ;
     ww = length(xx) ;
     hh = length(yy) ;
@@ -186,6 +192,7 @@ if size(speed, 1) == numel(xx) && size(speed, 2) == numel(yy)
     h2 = imagesc(xx, yy, vangle) ;
     set(h2, 'AlphaData', speed / vscale)
 elseif isfield(xyfstruct, 'f') || isfield(xyfstruct, 'faces') 
+    % Use a patch object to color in the faces by value
     gridded_data = false ;
     
     if isfield(xyfstruct, 'f')
@@ -207,29 +214,39 @@ elseif isfield(xyfstruct, 'f') || isfield(xyfstruct, 'faces')
     else
         error('Vector field size does not match coordinates')
     end
-elseif any(size(speed) == 1) && ~any(size(xx)==1) && all(size(xx)==size(yy))
+elseif ~any(size(xx)==1) && all(size(xx)==size(yy))
     % Try reshaping speed
     speed = reshape(speed, size(xx)) ;
+    tmp = xx(1,:) ;
+    try
+        assert(numel(tmp) == numel(unique(xx)))
+        assert(all(tmp(:) == unique(xx)))
+    catch
+        error('xx and yy appear transposed compared to expected values')
+    end
     xx = xx(1,:)  ;
     yy = yy(:,1)' ;
     ww = length(xx) ;
     hh = length(yy) ;
     gridded_data = true ;
     % Compute angle of the velocity vector
-    if ~all(size(vangle) == [ww hh])
+    if ~all(size(vangle) == [ww hh]) && ~all(size(vangle) == [ hh, ww])
         vangle = reshape(vangle, [ww hh]) ;
+        speed = reshape(speed, [ww, hh]) ;
     end
     h2 = imagesc(xx, yy, vangle) ;
-    set(h2, 'AlphaData', min(1, speed(:) ./ vscale))
-elseif any(size(speed) == 1) && any(size(xx)==1) && any(size(yy)==1)
+    set(h2, 'AlphaData', min(1, speed ./ vscale))
+elseif any(size(xx)==1) && any(size(yy)==1)
     % Try reshaping speed to #xx x #yy
-    ww = length(xx) ;
-    hh = length(yy) ;
+    ww = length(unique(xx)) ;
+    hh = length(unique(yy)) ;
+    assert(ww < length(xx))
     speed = reshape(speed, [ww hh]) ;
     gridded_data = true ;
     % Compute angle of the velocity vector
     if ~all(size(vangle) == [ww hh])
         vangle = reshape(vangle, [ww hh]) ;
+        speed = reshape(speed, [ww hh]) ;
     end
     h2 = imagesc(xx, yy, vangle) ;
     set(h2, 'AlphaData', min(1, speed ./ vscale)) ;
@@ -300,7 +317,7 @@ if overlay_quiver
     end
     
     h3 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, ...
-        'k', 'LineWidth', 1.2) ;
+        qcolor, 'LineWidth', 1.2) ;
 else
     h3 = [] ;
 end
