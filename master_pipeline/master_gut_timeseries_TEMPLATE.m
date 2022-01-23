@@ -104,25 +104,7 @@
 %% Clear workspace ========================================================
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
-% change this path, for convenience
-% cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
-% cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
-% cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201903211930_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150/data/
-% cd /mnt/crunch/48Ygal4UASsqhGFP/201902271940_excellent_notunpacked/Time6views_60sec_1p4um_25x_1p5mW_exp1p0_3/data/
-% cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
-% cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
-
-% .=========.
-% |  VIP10  |
-% .=========.
-% cd /mnt/crunch/gut/48YGal4UasLifeActRuby/201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um
-% cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
-% cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
-% cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202007151930_1p4um_0p5msexp/Time3views_25x_60s/data/
-cd /mnt/crunch/gut/handGAL4klarHandGFPhistGFP/202105072030_1p4um_0p2ms_1mWGFP/view4_1p4um_25x_1mW_exp0p2ms_120spf/data ;
-
+cd /mnt/data/tubular_test/
 
 dataDir = cd ;
 
@@ -138,15 +120,11 @@ overwrite_masterSettings = false ;
 overwrite_mips = false ;
 overwrite_detOpts = false ;
 run_full_dataset_ms = false ;
-overwrite_alignAPDVOpts = false ;
 overwrite_APDVCOMs = false ;
 overwrite_APDVMeshAlignment = false ;
 overwrite_alignedMeshIms = false ;
 overwrite_centerlines = false ;
 overwrite_centerlineIms = false ;
-overwrite_TextureMeshOpts = false ;
-overwrite_endcapOpts = false ;
-overwrite_idAnomClines = false ;
 overwrite_cleanCylMesh = false ;
 
 %% DEFINE NEW MASTER SETTINGS
@@ -155,7 +133,7 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 1 ;
     channelsUsed = 1 ;
-    timePoints = 1:81; %86:211 ;
+    timePoints = 123:124; %86:211 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = false ; 
@@ -170,8 +148,8 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     fn_prestab = 'Time_%06d_c1.tif';
     set_preilastikaxisorder = 'xyzc' ;
     swapZT = 1 ;
-    t0_for_phi0 = 1 ;
-    tidx0_for_stab = 10 ;
+    t0_for_phi0 = timePoints(1) ;
+    tidx0_for_stab = timePoints(1) ;
     masterSettings = struct('stackResolution', stackResolution, ...
         'nChannels', nChannels, ...
         'channelsUsed', channelsUsed, ...
@@ -297,6 +275,9 @@ cd(dir16bit)
 dataDir = cd ;
 masterSettings.dir16bit_prestab = dir16bit_prestab ;
 makeH5SeriesPrestabForTraining(masterSettings)
+
+
+%% CHANGE DIRECTORIES TO 16 BIT
 cd(dir16bit)
 
 %% I. INITIALIZE ImSAnE PROJECT ===========================================
@@ -575,18 +556,6 @@ disp('Open with ilastik if not already done')
 
 %% TRAIN NON-STABILIZED DATA IN ILASTIK TO IDENTIFY APICAL/YOLK ===========
 % Skip if already done.
-% Open ilastik, train pre-stab h5s until probabilities and uncertainty are 
-% satisfactory, then run on stab images.
-
-%% Note that old h5's used to be different order. To convert, do
-% Skip 
-% if false
-%     tmp = h5read(fullfile(meshDir, init_ls_fn), '/implicit_levelset');
-%     % OLD ORDER: yxz for implicit levelset
-%     tmp2 = permute(tmp, [3,2,1]);
-%     h5create(fullfile(meshDir, init_ls_fn), '/implicit_levelset', size(tmp2), 'Datatype', 'int8')
-%     h5write(fullfile(meshDir, init_ls_fn), '/implicit_levelset', tmp2)
-% end
 
 %% Create MorphSnakesLevelSet from the Probabilities from ilastik ========
 % Skip if already done
@@ -606,7 +575,7 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(59:59)
+    for tp = xp.fileMeta.timePoints
         %try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
@@ -660,45 +629,11 @@ disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
 
-%% Make some mips of shallow stacks
+%% Make some mips of shallow stacks (OPTIONAL)
 adjustIV = false ; 
 % QS.makeMIPs(1, {400:490, 510:550, 570:630, 800:880}, [], adjustIV)
 stacks = {400:490, 510:550, 570:630, 800:880} ;
 QS.makeMIPs(1, stacks, [], adjustIV)
-
-%% HACK -- transpose meshes
-% xyzc -> zyxc
-% for tp = 50:60
-%     disp(['transposing axes for mesh t=' num2str(tp)])
-%     meshfn = sprintf(QS.fullFileBase.mesh, tp) ;  
-%     msh = read_ply_mod(meshfn) ;
-%     msh.v = msh.v(:, [2, 3,1]) ;
-%     msh.vn = msh.vn(:, [2,3,1]) ;
-%     plywrite_with_normals(meshfn, msh.f, msh.v, msh.vn)
-% end
-% disp('done with hack to transpose meshes')
-
-
-
-%% Inspect all meshes in 3D
-% Skip if already done
-
-% Make an output directory for the quick-and-dirty inspection
-for tp = xp.fileMeta.timePoints(48:end)
-    % Load the mesh
-    meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;    
-    mesh = read_ply_mod(meshfn) ;
-    % Plot the mesh in 3d. Color here by Y coordinate
-    trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
-        mesh.v(:, 3), 'edgecolor', 'none', 'Facealpha', 0.5)
-    % saveas(gcf, fullfile(outputdir, sprintf('inspect_%04d.png', tp)))
-    title(['t=' num2str(tp)])
-    axis equal
-    view(2)
-    pause(0.1)
-end
-
-
 
 %% APDV ilastik training
 % Train on anterior (A), posterior (P), background (B), and 
@@ -807,7 +742,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         apdvOpts.posteriorChannel = posteriorChannel ;
         apdvOpts.dorsalChannel = dorsalChannel ;% filename pattern for the apdv training probabilities
         apdvOpts.tpref = t0_for_phi0 ;
-        apdvOpts.ilastikOutputAxisOrder = 'cyxz' ;
+        apdvOpts.ilastikOutputAxisOrder = 'cxyz' ;
         
         alignAPDVOpts.weight = weight ;
         alignAPDVOpts.normal_step = normal_step ;
@@ -818,7 +753,7 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         alignAPDVOpts.dorsalChannel = dorsalChannel ;
         alignAPDVOpts.dorsal_thres = 0.5 ;
         alignAPDVOpts.tref = t0_for_phi0 ;
-        alignAPDVOpts.ilastikOutputAxisOrder = 'cyxz' ;
+        alignAPDVOpts.ilastikOutputAxisOrder = 'cxyz' ;
         
         % alignAPDVOpts.fn = fn ;  % filename base
 
