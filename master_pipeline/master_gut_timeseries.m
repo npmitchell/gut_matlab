@@ -113,6 +113,8 @@ cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um
 % cd /mnt/crunch/48Ygal4UASsqhGFP/201902271940_excellent_notunpacked/Time6views_60sec_1p4um_25x_1p5mW_exp1p0_3/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
+% cd /mnt/data/antpGAL4UASCAAXmChHGFP/202103281352_1p4um_0p15ms0p25ms_1mW1mW_GFPRFP/Time3views_180s/data/
+cd /mnt/data/UbxGAL4UASCAAXmChHGFP/202105132247_UbxG4kCAAXHGFP_1p2um_0p1ms0p2ms_1mW1mW_3v300s/data
 
 
 % .=========.
@@ -122,6 +124,7 @@ cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202007151930_1p4um_0p5msexp/Time3views_25x_60s/data/
+% cd /mnt/data/gut/AntpGal4OCRL/202104142135_antpG4kOCRL_1p4um_0p3ms1ms_1mW1mW_GFPRFP/Time2views_60s_RFPRFP_2137_tp0at2132/data/
 
 dataDir = cd ;
 
@@ -284,12 +287,14 @@ stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
     mipDir, mipoutdir, mips_stab_check, Options)
 
 
-%   -I. master_gut_timeseries_prestab_for_training.m
+%%   -I. master_gut_timeseries_prestab_for_training.m
 % Skip if already done
 cd(dir16bit)
 dataDir = cd ;
 masterSettings.dir16bit_prestab = dir16bit_prestab ;
 makeH5SeriesPrestabForTraining(masterSettings)
+
+%% 
 cd(dir16bit)
 
 %% I. INITIALIZE ImSAnE PROJECT ===========================================
@@ -653,7 +658,7 @@ disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
 
-    %% Make some mips of shallow stacks
+%% Make some mips of shallow stacks
 adjustIV = false ; 
 % QS.makeMIPs(1, {400:490, 510:550, 570:630, 800:880}, [], adjustIV)
 stacks = {400:490, 510:550, 570:630, 800:880} ;
@@ -1099,6 +1104,7 @@ options = struct() ;
 options.plot_evolution = true ;
 options.plot_growth = false ;
 options.growth_t0 = 85 ;
+options.viewAngles = [-0.75, 1, 0.7] ;
 QS.visualizeMeshEvolution(options)
 
 %% Highligh junction for BWF fund application

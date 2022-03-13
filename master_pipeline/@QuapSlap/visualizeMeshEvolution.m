@@ -84,6 +84,9 @@ end
 if isfield(options, 'ywidth')
     ywidth = options.ywidth ;
 end
+if isfield(options, 'viewAngles')
+    viewAngles = options.viewAngles ;
+end
 
 %% Colors
 colors = define_colors(7) ; 

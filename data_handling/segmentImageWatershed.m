@@ -18,7 +18,7 @@ function [bgm, DL] = segmentImageWatershed(img, adaphisteqClip, strelRadius)
 % DL : 2d NxM float array
 %   watershed transform of morphological reconstruction of img
 %
-% Yuzeng Lin & NPMitchell 2021
+% Yuzheng Lin & NPMitchell 2021
 
 if nargin < 2
     adaphisteqClip = 0.2 ;
@@ -36,7 +36,9 @@ end
 % rectangle_position = round(roi.Position);
 % cropped1 = imcrop(img, rectangle_position);
 %histeq(img)
-clipped = adapthisteq(img,'clipLimit',adaphisteqClip,'Distribution','rayleigh');
+if adaphisteqClip > 0
+    clipped = adapthisteq(img,'clipLimit',adaphisteqClip,'Distribution','rayleigh');
+end
 
 % Now perform morphological reconstruction
 % see https://www.mathworks.com/help/images/understanding-morphological-reconstruction.html

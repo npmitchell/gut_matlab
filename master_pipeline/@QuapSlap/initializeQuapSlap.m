@@ -4,19 +4,37 @@ function initializeQuapSlap(QS, xp, opts)
 %
 % Parameters
 % ----------
-% QS : QuapSlap object whose properties to fill in
-% xp : Imsane Experiment class instance belonging to QS
+% QS : QuapSlap object whose properties to fill in with this function
+% xp : Imsane Experiment class instance belonging to QS or struct
+%    if imsane class instance, tubular uses imsane fields to populate
+%    metadata. Otherwise this needs to be a struct with fields
+%      fileMeta
+%      expMeta
+%    See docs for entries in these fields and their descriptions.
 % opts : struct with fields
-%   xp : ImSAnE class object instance
 %   flipy : bool
+%       Set to true if lab coordinates are mirrored along some axis wrt to 
+%       data coords.
 %   meshDir : str
+%       path to where meshes are stored and output will be placed
 %   timeUnits : str
+%       units of time, for ex 'min'
 %   spaceUnits : str
+%       units of space, for ex '$mu$m' for microns
 %   nU : int
+%       resolution in the longitudinal direction, in number of sampling
+%       points per proper length of the mesh
 %   nV : int
+%       resolution in the circumferential direction, in number of sampling
+%       points per circumference
 %   lambda : optional float 
+%       smoothing applied to fields on a mesh before computation of DEC
+%       derivatives
 %   lambda_mesh : optional float 
+%       smoothing (diffusion constant) applied to mesh vertices before
+%       computation of DEC fields
 %   lambda_err : optional float
+%       additional smoothing for fields derived from DEC fields
 %   
 %
 % NPMitchell 2020
@@ -411,6 +429,14 @@ QS.fileBase.ricciSolution = 'ricciSolution_%04diter_%06d.mat' ;
 QS.fullFileBase.ricciSolution = fullfile(QS.dir.ricci.solution, QS.fileBase.ricciSolution) ;
 QS.fileBase.ricciMu = 'ricciMesh_mus_%04diter_%06d.mat' ;
 QS.fullFileBase.ricciMu = fullfile(QS.dir.ricci.mu, QS.fileBase.ricciMu) ;
+
+
+QS.fileBase.ricciMeshWithResampling = 'ricciMeshWithResampling_%04diter_%06d.mat' ;
+QS.fullFileBase.ricciMeshWithResampling = fullfile(QS.dir.ricci.meshWithResampling, QS.fileBase.ricciMeshWithResampling) ;
+QS.fileBase.ricciSolutionWithResampling = 'ricciSolutionWithResampling_%04diter_%06d.mat' ;
+QS.fullFileBase.ricciSolutionWithResampling = fullfile(QS.dir.ricci.solutionWithResampling, QS.fileBase.ricciSolutionWithResampling) ;
+QS.fileBase.ricciMuWithResampling = 'ricciMesh_musWithResampling_%04diter_%06d.mat' ;
+QS.fullFileBase.ricciMuWithResampling = fullfile(QS.dir.ricci.muWithResampling, QS.fileBase.ricciMuWithResampling) ;
 
 %% double resolution cutMeshes
 if dynamic

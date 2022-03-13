@@ -2778,75 +2778,167 @@ classdef QuapSlap < handle
         simulateNES(QS, options)
         
         %% coordSysDemo
-        function coordSystemDemo(options)
+        function coordSystemDemo(QS, options)
             % Image for publication/presentation on method & coordinate system
             % Create coordinate system charts visualization using smoothed meshes
 
-            QS.setTime(QS.t0 + 90)
-            mesh = QS.loadCurrentSPCutMeshSmRS() ;
-            fig = figure('units', 'centimeters', 'position', [0, 0, 13, 13]) ;
-            uu = mesh.u(:, 1) ;
-            vv = mesh.u(:, 2) ;
-            xx = (mesh.v(:, 1)) ;
-            yy = (mesh.v(:, 2)) ;
-            zz = (mesh.v(:, 3)) ;
-            colorsV = viridis(mesh.nV) ;
-            colorsU = viridis(mesh.nU) ;
-
-            % LONGITUDE 3D
-            subplot(2, 3, [1,2])
-            hold off
-            for qq = 1:mesh.nV  
-                plot3(xx(qq:nU:end), yy(qq:nU:end), zz(qq:nU:end), '-', ...
-                    'color', colorsV(qq, :));
-                hold on ;
+            exten = '.png' ;
+            style = 'mesh' ;
+            if nargin < 2
+                options = struct() ;
             end
-            axis equal
-            xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
-            ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
-            zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
-
-            % AZIMUTH 3D
-            subplot(2, 3, [4,5])
-            hold off
-            for qq = 1:2:mesh.nU
-                inds = (qq-1)*nU+1:qq*nU ;
-                plot3(xx(inds), yy(inds), zz(inds), '-', ...
-                    'color', colorsV(qq, :));
-                hold on ;
+            if isfield(options, 'exten')
+                exten = options.exten ;
             end
-            axis equal
-            xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
-            ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
-            zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
-
-            % LONGITUDE
-            subplot(2, 3, 3)
-            hold off
-            for qq = 1:mesh.nV  
-                plot(uu(qq:nU:end), vv(qq:nU:end), '-', ...
-                    'color', colorsV(qq, :));
-                hold on ;
+            if isfield(options, 'style')
+                style = options.style ;
             end
-            axis square
-            xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
-            ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
+            if strcmpi(style, 'curves')
+                assert(~isempty(QS.currentTime))
+                mesh = QS.loadCurrentSPCutMeshSmRS() ;
+                fig = figure('units', 'centimeters', 'position', [0, 0, 13, 13]) ;
+                uu = mesh.u(:, 1) ;
+                vv = mesh.u(:, 2) ;
+                xx = (mesh.v(:, 1)) ;
+                yy = (mesh.v(:, 2)) ;
+                zz = (mesh.v(:, 3)) ;
+                colorsV = viridis(mesh.nV) ;
+                colorsU = viridis(mesh.nU) ;
+                nU = mesh.nU ;
+                nV = mesh.nV ;
 
-            % AZIMUTH
-            subplot(2, 3, 6)
-            hold off
-            for qq = 1:mesh.nV  
-                inds = (qq-1)*nU+1:qq*nU ;
-                plot(uu(inds), vv(inds), '-', ...
-                    'color', colorsV(qq, :));
-                hold on ;
+                % LONGITUDE 3D
+                subplot(2, 3, [1,2])
+                hold off
+                for qq = 1:mesh.nV  
+                    plot3(xx(qq:nU:end), yy(qq:nU:end), zz(qq:nU:end), '-', ...
+                        'color', colorsV(qq, :));
+                    hold on ;
+                end
+                axis equal
+                xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
+                ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
+                zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
+
+                % AZIMUTH 3D
+                subplot(2, 3, [4,5])
+                hold off
+                for qq = 1:mesh.nU
+                    inds = (qq-1)*nU+1:qq*nU ;
+                    plot3(xx(inds), yy(inds), zz(inds), '-', ...
+                        'color', colorsV(qq, :));
+                    hold on ;
+                end
+                axis equal
+                xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
+                ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
+                zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
+
+                % LONGITUDE
+                subplot(2, 3, 3)
+                hold off
+                for qq = 1:mesh.nV  
+                    plot(uu(qq:nU:end), vv(qq:nU:end), '-', ...
+                        'color', colorsV(qq, :));
+                    hold on ;
+                end
+                axis square
+                xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
+                ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
+
+                % AZIMUTH
+                subplot(2, 3, 6)
+                hold off
+                for qq = 1:mesh.nV  
+                    inds = (qq-1)*nU+1:qq*nU ;
+                    plot(uu(inds), vv(inds), '-', ...
+                        'color', colorsV(qq, :));
+                    hold on ;
+                end
+                axis square
+                xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
+                ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
+            else
+                assert(~isempty(QS.currentTime))
+                mesh = QS.loadCurrentSPCutMeshSmRS() ;
+                fig = figure('units', 'centimeters', 'position', [0, 0, 13, 13]) ;
+                uu = mesh.u(:, 1) ;
+                vv = mesh.u(:, 2) ;
+                xx = (mesh.v(:, 1)) ;
+                yy = (mesh.v(:, 2)) ;
+                zz = (mesh.v(:, 3)) ;
+                colorsV = viridis(mesh.nV) ;
+                colorsU = viridis(mesh.nU) ;
+                nU = mesh.nU ;
+                nV = mesh.nV ;
+
+                % LONGITUDE 3D
+                subplot(2, 3, [1,2])
+                hold off
+                h1 = trisurf(triangulation(mesh.f, mesh.v), 'facevertexcdata', ...
+                    mesh.u(:, 1), 'edgecolor', 'none')
+                shading interp
+                lightangle(-5,30)
+                h1.FaceLighting = 'gouraud';
+                h1.AmbientStrength = 0.9;
+                h1.DiffuseStrength = 0.9;
+                h1.SpecularStrength = 0.5;
+                h1.SpecularExponent = 5;
+                h1.BackFaceLighting = 'unlit';
+                colormap viridis
+                axis equal
+                xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
+                ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
+                zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
+                grid off
+
+                % AZIMUTH 3D
+                subplot(2, 3, [4,5])
+                h2 = trisurf(triangulation(mesh.f, mesh.v), 'facevertexcdata', ...
+                    mesh.u(:, 2), 'edgecolor', 'none')
+                shading interp
+                lightangle(-5,30)
+                h2.FaceLighting = 'gouraud';
+                h2.AmbientStrength = 0.9;
+                h2.DiffuseStrength = 0.9;
+                h2.SpecularStrength = 0.5;
+                h2.SpecularExponent = 5;
+                h2.BackFaceLighting = 'unlit';
+                colormap viridis
+                axis equal
+                xlabel('ap position [$\mu$m]', 'interpreter', 'latex')
+                ylabel('lateral position [$\mu$m]', 'interpreter', 'latex')
+                zlabel('dv position [$\mu$m]', 'interpreter', 'latex')
+                grid off
+                
+                % LONGITUDE
+                subplot(2, 3, 3)
+                hold off
+                mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) ;
+                u3d = [mesh.u, 0*mesh.u(:, 1)] ;
+                h3 = trisurf(triangulation(mesh.f, u3d), 'facevertexcdata', ...
+                    mesh.u(:, 1), 'edgecolor', 'none')
+                view(2)
+                axis square
+                xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
+                ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
+
+                % AZIMUTH
+                subplot(2, 3, 6)
+                hold off
+                mesh.u(:, 1) = mesh.u(:, 1) / max(mesh.u(:, 1)) ;
+                u3d = [mesh.u, 0*mesh.u(:, 1)] ;
+                trisurf(triangulation(mesh.f, u3d), 'facevertexcdata', ...
+                    mesh.u(:, 2), 'edgecolor', 'none')
+                view(2)
+                axis square
+                xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
+                ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
             end
-            axis square
-            xlabel('$s$ [$\mu$m]', 'interpreter', 'latex')
-            ylabel('$\phi$ [1/$2\pi$]', 'interpreter', 'latex')
-
             set(gcf, 'color', 'w')
-            export_fig(fullfile(QS.dir.uvCoord, 'coordSystemDemo.png'), '-nocrop','-r600')
+            export_fig(fullfile(QS.dir.uvCoord, [sprintf(...
+                'coordSystemDemo_%06d_', QS.currentTime) style exten]), ...
+                '-nocrop','-r600')
         end
     end
     

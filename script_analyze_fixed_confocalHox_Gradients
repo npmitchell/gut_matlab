@@ -1,0 +1,5 @@
+%% K99 figure for gradients in hox genes
+
+
+rootdir = '/mnt/data/antibodies/antp/UbxMutants/20210808200_UbxMutant1854_fixAntp8C11_1t50_ms488_1t500_1pc405flat_5pc488Flat/';
+imread(fullfile(rootdir, 'e17_15a_2p25x0p5um_RightDorsLatBand_C01_MAX.tif'))

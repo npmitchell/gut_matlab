@@ -1,5 +1,13 @@
 function segmentImageWatershedSimple(prob, cellSize, strelRadius, gaussKernel)
+% segmentImageWatershedSimple(prob, cellSize, strelRadius, gaussKernel)
 % 
+% Parameters
+% ----------
+% prob : 
+% cellSize : for laplacian of Gaussian to sharpen
+% strelRadius : structured element disk radius for 
+% gaussKernel : smoothing size
+%
 % Simple method for segmenting cells, following Nick Noll's procedure
 %
 % Nick Noll & NPMitchell 2021

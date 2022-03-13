@@ -608,8 +608,8 @@ for tidx = 1:length(timePoints)
         %     'edgecolor', 'none', 'facecolor', 'k', 'FaceAlpha', 0.1) ;
         % % th = trisurf(faces_to_plot, xyzrs2(:, 1), xyzrs2(:, 2), xyzrs2(:, 3), ...
         % %     'edgecolor', 'none', 'facecolor', 'g', 'FaceAlpha', 0.5) ;
-        axis equal
-        close(fig2)
+        % axis equal
+        % close()
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
         try
