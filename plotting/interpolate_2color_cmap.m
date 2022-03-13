@@ -1,4 +1,5 @@
 function[map] = interpolate_2color_cmap(s,rgb1,rgb2)
+%[map] = interpolate_2color_cmap(s,rgb1,rgb2)
 %This function is based on Kenneth Moreland's code for greating Diverging
 % Colormaps.  Created by Andy Stein, improved Noah P Mitchell 2019.
 % template accessed from: https://www.kennethmoreland.com/color-maps/
@@ -10,9 +11,9 @@ function[map] = interpolate_2color_cmap(s,rgb1,rgb2)
 % ----------
 % s : array with values spanning [0, 1]
 %   The values to be mapped to colors, spanning [0, 1]
-% rgb1 : length(3) array or int
+% rgb1 : length(3) array, or int to index common colors
 %   An RGB triplet for value 0 or an integer indexing common rgb triplets
-% rgb2 : length(3) array or int
+% rgb2 : length(3) array, or int to index common colors
 %   An RGB triplet for value 1 or an integer indexing common rgb triplets
 %
 % Output
@@ -24,9 +25,9 @@ function[map] = interpolate_2color_cmap(s,rgb1,rgb2)
 % Example Usage
 % -------------
 % % Blue to red:
-% bwr = diverging_cmap([0:0.01:1], 1, 2)
+% bwr = interpolate_2color_cmap([0:0.01:1], 1, 2)
 % % Black to white:
-% cmap2 = diverging_cmap([0:0.01:1], [0,0,0], [1,1,1])
+% cmap2 = interpolate_2color_cmap([0:0.01:1], [0,0,0], [1,1,1])
 
 % If the arguments rgb1 and rgb2 are ints, then use these arguments 
 % to index from a list of commonly used rgb values
@@ -39,9 +40,13 @@ rgb_5 = [0.217, 0.525, 0.910] ;  % light blue
 rgbs = [rgb_1; rgb_2; rgb_3; rgb_4; rgb_5] ;
 if all(size(rgb1) == 1)
     rgb1 = rgbs(rgb1, :) ;
+elseif any(rgb1 > 1)
+    rgb1 = rgb1 / 255 ;
 end
 if all(size(rgb2) == 1)
     rgb2 = rgbs(rgb2, :) ;
+elseif any(rgb2 > 1)
+    rgb2 = rgb2 / 255 ;
 end
 
 map = zeros(length(s),3);
@@ -51,32 +56,32 @@ end
 end
 
 % Interpolate a diverging color map.
-    function[result] = interpolate_2color_map_1val(s, rgb1, rgb2)
-    %s1 is a number between 0 and 1
+function[result] = interpolate_2color_map_1val(s, rgb1, rgb2)
+%s1 is a number between 0 and 1
 
-        lab1 = RGBToLab(rgb1);
-        lab2 = RGBToLab(rgb2);
-  
-        msh1 = LabToMsh(lab1);
-        msh2 = LabToMsh(lab2);
-        
-        % If one color has no saturation, then its hue value is invalid.  In this
-        % case, we want to set it to something logical so that the interpolation of
-        % hue makes sense.
-        if ((msh1(2) < 0.05) && (msh2(2) > 0.05))
-            msh1(3) = AdjustHue(msh2, msh1(1));
-        elseif ((msh2(2) < 0.05) && (msh1(2) > 0.05))
-            msh2(3) = AdjustHue(msh1, msh2(1));
-        end
+    lab1 = RGBToLab(rgb1);
+    lab2 = RGBToLab(rgb2);
 
-        mshTmp(1) = (1-s)*msh1(1) + s*msh2(1);
-        mshTmp(2) = (1-s)*msh1(2) + s*msh2(2);
-        mshTmp(3) = (1-s)*msh1(3) + s*msh2(3);
+    msh1 = LabToMsh(lab1);
+    msh2 = LabToMsh(lab2);
 
-        % Now convert back to RGB
-        labTmp = MshToLab(mshTmp);
-        result = LabToRGB(labTmp);
+    % If one color has no saturation, then its hue value is invalid.  In this
+    % case, we want to set it to something logical so that the interpolation of
+    % hue makes sense.
+    if ((msh1(2) < 0.05) && (msh2(2) > 0.05))
+        msh1(3) = AdjustHue(msh2, msh1(1));
+    elseif ((msh2(2) < 0.05) && (msh1(2) > 0.05))
+        msh2(3) = AdjustHue(msh1, msh2(1));
     end
+
+    mshTmp(1) = (1-s)*msh1(1) + s*msh2(1);
+    mshTmp(2) = (1-s)*msh1(2) + s*msh2(2);
+    mshTmp(3) = (1-s)*msh1(3) + s*msh2(3);
+
+    % Now convert back to RGB
+    labTmp = MshToLab(mshTmp);
+    result = LabToRGB(labTmp);
+end
 
 
 %Convert to and from a special polar version of CIELAB (useful for creating
@@ -87,9 +92,14 @@ end
         b = Lab(3);
 
         M = sqrt(L*L + a*a + b*b);
-        s = (M > 0.001) * acos(L/M);
-        h = (s > 0.001) * atan2(b,a);
-
+        if M > 0.001
+            s = acos(L/M);
+            h = atan2(b,a);
+        else
+            s = 0 ;
+            h = 0 ;
+        end
+        
         Msh = [M s h];
     end
 
@@ -105,12 +115,12 @@ end
         Lab = [L a b];
     end
 
-%Given two angular orientations, returns the smallest angle between the two.
-    function[adiff] = AngleDiff(a1, a2)
-        v1    = [cos(a1) sin(a1)];
-        v2    = [cos(a2) sin(a2)];        
-        adiff = acos(dot(v1,v2));
-    end
+%%Given two angular orientations, returns the smallest angle between the two.
+% function[adiff] = AngleDiff(a1, a2)
+%     v1    = [cos(a1) sin(a1)];
+%     v2    = [cos(a2) sin(a2)];        
+%     adiff = acos(dot(v1,v2));
+% end
         
 %% For the case when interpolating from a saturated color to an unsaturated
 %% color, find a hue for the unsaturated color that makes sense.
