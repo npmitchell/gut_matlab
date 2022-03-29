@@ -38,6 +38,7 @@ labelstr = '$|v|$ [$\mu$m / min]' ;
 overlay_quiver = true ;
 qsubsample = 10 ;
 qscale = 10 ;
+transposeVectorShape = false ;
 
 % Unpack options
 if isfield(options, 'label')
@@ -51,6 +52,12 @@ if isfield(options, 'qsubsample')
 end
 if isfield(options, 'qscale') 
     qscale = options.qscale ;
+end
+if isfield(options, 'transposeVectorShape') 
+    transposeVectorShape = options.transposeVectorShape ;
+end
+if isfield(options, 'fig') 
+    fig = options.fig ;
 end
 
 
@@ -68,20 +75,35 @@ if ~all(size(vangle) == [ww, hh])
 end
 
 % Set up the figure
-close all
-fig = figure('units', 'normalized', ...
-    'outerposition', [0 0 1 1], 'visible', 'off') ;
-h1 = imshow(im) ;
+if ~ishandle(fig)
+    close all
+    fig = figure('units', 'normalized', ...
+        'outerposition', [0 0 1 1], 'visible', 'off') ;
+end
+if max(im(:)) <= 1
+    h1 = imshow(im) ;
+else
+    h1 = imagesc(im) ;
+    axis equal 
+    axis tight
+end
 hold on;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % QUIVER 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-vx = reshape(vx, [ww, hh]) ;
-vy = reshape(vy, [ww, hh]) ;
-QX = imresize(vx, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
-QY = imresize(vy, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
+if transposeVectorShape
+    vxR = reshape(vx, [hh, ww]) ;
+    vyR = reshape(vy, [hh, ww]) ;
+    QX = imresize(vxR, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
+    QY = imresize(vyR, [hh / qsubsample, ww / qsubsample], 'bicubic') ;
+else
+    vxR = reshape(vx, [ww, hh]) ;
+    vyR = reshape(vy, [ww, hh]) ;
+    QX = imresize(vxR, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
+    QY = imresize(vyR, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
+end
 xq = 1:qsubsample:ww ;
 yq = 1:qsubsample:hh ;
 [xg, yg] = meshgrid(xx(xq), yy(yq)) ;
@@ -92,7 +114,7 @@ h2 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, 'k', 'LineWidth', 1
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Phasemap
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-error('finish this function: make arrow to show scale')
+% error('finish this function: make arrow to show scale')
 
 if isfield(options, 'outfn')
     saveas(fig, options.outfn) ;   
