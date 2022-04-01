@@ -31,6 +31,11 @@ function [h1, h2] = vectorFieldQuiverOnImage(im, xx, yy, vx, vy, vscale, ...
 % h1 : handle for imshow
 % h3 : handle for quiverplot
 %
+% Example Usage 
+% -------------
+% 
+%
+%
 % NPMitchell 2020
 
 % Default options
