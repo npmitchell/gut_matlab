@@ -1,4 +1,4 @@
-function plotMetricKinematics(QS, options)
+ function plotMetricKinematics(QS, options)
 % plotMetricKinematics(QS, options)
 %   Plot the metric Kinematics as kymographs and correlation plots
 %   Out-of-plane motion is v_n * 2H, where v_n is normal velocity and H is
@@ -291,6 +291,8 @@ for tp = QS.xp.fileMeta.timePoints(1:end-1)
     pOptions.climit_err = climit ;
     pOptions.climit_veln = climit_veln ;
     pOptions.climit_H = climit_H ;
+    pOptions.axisOn = false ;
+    pOptions.pbLabelOn = true ;
     QS.plotMetricKinematicsTimePoint(tp, pOptions)
     
     %% Store in matrices
@@ -515,7 +517,7 @@ for qq = 2:length(timeSpans)
         sprintf('spaceMapKinematics_times%02d_div_2Hvn', qq)) ;
     files_exist = files_exist && exist([outputFileNames{qq}, '_zoom.pdf'], 'file') ;
 end
-if plot_spaceMaps && (~files_exist || overwrite)
+if plot_spaceMaps && (~files_exist || overwrite || true) 
     if ~exist(mapDir, 'dir')
         mkdir(mapDir)
     end
@@ -552,12 +554,13 @@ if plot_spaceMaps && (~files_exist || overwrite)
         mdivv = squeeze(mean(divv_M(tidx_i, :, :), 1)) ;
         mH2vn = squeeze(mean(H2vn_M(tidx_i, :, :), 1)) ;
         halfgdot = mdivv - mH2vn ;
-        pOptions.labels = {'$2Hv_n$', '$\nabla \cdot v_t$', ...
-            '$\frac{1}{2}\mathrm{Tr}\left[\mathbf{g}^{-1} \dot{\mathbf{g}}\right]=\nabla \cdot v_t-2Hv_n$', ...
+        pOptions.labels = {'$2Hv_n$', '$\nabla \cdot \bf{v_\parallel}$', ...
+            '$\frac{1}{2}\mathrm{Tr}\left[\mathbf{g}^{-1} \dot{\mathbf{g}}\right]=\nabla \cdot {\bf{v}}_\parallel-2Hv_n$', ...
             '', '', ''} ;
         pOptions.cbarlabels = {'', '', '', ...
-            '$2Hv_n$', '$\nabla \cdot v_t$', ...
+            '$2Hv_n$', '$\nabla \cdot \bf{v_\parallel}$', ...
             '$\frac{1}{2}\mathrm{Tr}\left[\mathbf{g}^{-1} \dot{\mathbf{g}}\right]$'} ;
+        
         pOptions.makeCbar = [false, false, false, true, true, true] ;
         % pOptions.cmap = bwr ;
         % pOptions.cmap = twilight_shifted_trueWhite(256) ;
@@ -580,6 +583,8 @@ if plot_spaceMaps && (~files_exist || overwrite)
         for ii = 1:3
             set(gcf, 'CurrentAxes', axs{ii})
             pos{ii} = get(gca, 'position') ;
+            axis on ;
+            grid off
         end
         for ii = 4:length(axs)
             set(gcf, 'CurrentAxes', axs{ii})

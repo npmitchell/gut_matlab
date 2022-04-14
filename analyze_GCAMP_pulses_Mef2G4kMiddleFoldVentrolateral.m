@@ -18,7 +18,8 @@ expts = {'202107041445_e2_anterior_middle',...
     '202107041445_e3_anterior_middle_rotneg5deg',...
     } ;
 
-% poster frames: 202106211253_e3, 202106211440_e1, 202106211440_e2
+% 202107041445_e2: frame 24 <-- USE THIS ONE
+% 202107041445_e3: frames 8,11,18,21,35 <-- originally used frame 35 here
 
 clipY0s = {[105,105+205], [169,169+167]} ;         % 202107041445 e2, e3
 clipYAdjs = {[0, 0], [50,-50]}; 

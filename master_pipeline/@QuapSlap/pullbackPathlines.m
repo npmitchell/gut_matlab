@@ -21,6 +21,10 @@ function [XX, YY] = pullbackPathlines(QS, x0, y0, t0, options)
 %   time at which to begin the pathlines, must be member of
 %   QS.xp.fileMeta.timePoints
 % options : struct with fields 
+%   pivimCoords : str specifier
+%       default is QS.piv.imCoords
+%   debug : bool
+%       view results to debug as series of plots
 %   preview : bool
 %       view intermediate results
 %   timePoints : 1d int array
@@ -45,6 +49,10 @@ debug = false ;
 pivimCoords = QS.piv.imCoords ;
 timePoints = QS.xp.fileMeta.timePoints ;
 samplingResolution = '1x' ;
+
+if nargin < 5
+    options = struct() ;
+end
 
 %% Unpack options
 if isfield(options, 'preview')
@@ -299,7 +307,7 @@ end
 %% Check debugged pathlines
 if debug
     if preview
-        for qq = 1:50:size(x0, 1)
+        for qq = 1:size(x0, 1)
             for pp = 1:50:size(x0, 2)
                 plot3(1:length(timePoints), XX(:, qq, pp), YY(:, qq, pp), '-')
                 hold on;
@@ -311,10 +319,10 @@ if debug
         title('Artificial flow for streamline checking')
     end
     view(2)
-    saveas(gcf, fullfile(QS.dir.pivAvg, 'streamline_test_xt.png'))
+    saveas(gcf, fullfile(QS.dir.piv.avg, 'streamline_test_xt.png'))
     view(90, 90)    
-    saveas(gcf, fullfile(QS.dir.pivAvg, 'streamline_test_yt.png'))
+    saveas(gcf, fullfile(QS.dir.piv.avg, 'streamline_test_yt.png'))
     view(90, 0)
-    saveas(gcf, fullfile(QS.dir.pivAvg, 'streamline_test_xy.png'))
+    saveas(gcf, fullfile(QS.dir.piv.avg, 'streamline_test_xy.png'))
     waitfor(gcf)
 end

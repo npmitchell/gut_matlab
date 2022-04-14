@@ -17,6 +17,8 @@ end
 overwrite = false ;         % bool, overwrite output files on disk
 plot_growth = true ;       % bool, plot the growth of the mesh to fill the organ for a single (first?) timepoint
 plot_evolution = true ;     % bool, plot the evolution of the mesh over time
+plot_meshOnly = true ;      % bool, plot the evolution of the mesh without data planes
+plot_texture = false ;      % bool, plot the data on the textured surface
 faceon = false ;            % visualize the results laterally rather than perspective
 preview = false ;           % preview intermediate results
 plotXslice = false ;        % optionally create orthoview of Xslice
@@ -30,6 +32,7 @@ ambientStrength_meshOrtho = 1.0 ;
 forcetrue = true ;
 growtht0 = QS.xp.fileMeta.timePoints(1) ;
 lwX = 2 ;
+
 
 % texturepatch options
 meshFileBase = QS.fullFileBase.mesh ;
@@ -51,6 +54,12 @@ end
 if isfield(options, 'plot_evolution')
     plot_evolution = options.plot_evolution ;
 end
+if isfield(options, 'plot_texture')
+    plot_meshOnly = options.plot_texture ;
+end
+if isfield(options, 'plot_meshOnly')
+    plot_meshOnly = options.plot_meshOnly ;
+end
 if isfield(options, 'growth_t0')
     growtht0 = options.growth_t0 ;
 end
@@ -63,8 +72,9 @@ end
 if isfield(options, 'plotXslice')
     plotXslice = options.plotXslice ;
 end
-if isfield(options, 'adjust_high')
-    adjust_high = options.adjust_high ;
+
+if isfield(options, 'brighten')
+    brighten = options.brighten ;
 end
 if isfield(options, 'x0')
     x0 = options.x0 ;
@@ -699,7 +709,7 @@ end
 %% PART IIa: Mesh only ========================================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % navigate to the outputdir for figures
-if plot_evolution
+if plot_meshOnly
     projectDir = QS.dir.data ;
     meshDir = QS.dir.mesh ;
     [rot, trans] = QS.getRotTrans ;
@@ -709,7 +719,7 @@ if plot_evolution
     timePoints = QS.xp.fileMeta.timePoints ;
     
     first = true ;
-    tidx2do = [123-30] ;
+    tidx2do = [173] ;
     tidx2do = [tidx2do, setdiff(1:30:length(timePoints), tidx2do)] ;
     tidx2do = [tidx2do, setdiff(1:10:length(timePoints), tidx2do)] ;
     tidx2do = [tidx2do, setdiff(1:length(timePoints), tidx2do)] ;
@@ -829,7 +839,7 @@ if plot_evolution
     
     first = true ;
     tidx2do = [QS.xp.tIdx(QS.t0set())-30:30:QS.xp.tIdx(length(timePoints))] ;
-    tidx2do = fliplr(tidx2do) ;
+    tidx2do = [191, 123+75, 183, fliplr(tidx2do)] ;
     tidx2do = [tidx2do, setdiff(1:30:length(timePoints), tidx2do)] ;
     tidx2do = [tidx2do, setdiff(1:10:length(timePoints), tidx2do)] ;
     tidx2do = [tidx2do, setdiff(1:length(timePoints), tidx2do)] ;
@@ -840,6 +850,7 @@ if plot_evolution
         timestr = sprintf('%06d', tp) ;
         disp(['Considering time ' timestr])
         
+        scalebarFn = fullfile(outdirP, 'scalebar.mat') ;
         fnP = fullfile(outdirP, 'mesh', [sprintf(QS.fileBase.name, tp) '.png']) ;
         fnF = fullfile(outdirF, 'mesh', [sprintf(QS.fileBase.name, tp) '.png']) ;
         fnX = fullfile(outdirX, [sprintf(QS.fileBase.name, tp) '.png']) ;
@@ -984,6 +995,9 @@ if plot_evolution
             ix = brighten * ix / 2^(16) ;
             iy = brighten * iy / 2^(16) ;
             iz = brighten * iz / 2^(16) ;
+            ix(ix > 255) = 255 ;
+            iy(iy > 255) = 255 ;
+            iz(iz > 255) = 255 ;
         end
         
         %% Plot in APDV
@@ -1014,7 +1028,8 @@ if plot_evolution
                 'facecolor', lscolor) ;
             axis equal
             hold on;
-            axis off
+            % axis off
+            grid off
 
             lighting gouraud    % preferred method for lighting curved surfaces
             material dull    % set material to be dull, no specular highlights
@@ -1039,6 +1054,9 @@ if plot_evolution
             set(fig, 'PaperUnits', 'centimeters');
             set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
 
+            save(scalebarFn, 'xMin', 'xMax', 'yMin', ...
+                'yMax', 'zMin', 'zMax') ;
+            
             % saveas(fig, fn) ;
             export_fig(fnP, '-nocrop', '-transparent')
             % patchIm = getframe(gca);
@@ -1108,7 +1126,7 @@ if plot_evolution
         end
         
         %% Create matching Texturepatch Image
-        if ~exist(fn_textureP, 'file') ||  ~exist(fn_textureF, 'file') || overwrite
+        if plot_texture && (~exist(fn_textureP, 'file') ||  ~exist(fn_textureF, 'file') || overwrite)
             
             % raw shifted mesh vertices  
             rmesh = QS.loadCurrentRawMesh() ;          

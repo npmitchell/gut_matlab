@@ -114,7 +114,7 @@ cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 % cd /mnt/data/antpGAL4UASCAAXmChHGFP/202103281352_1p4um_0p15ms0p25ms_1mW1mW_GFPRFP/Time3views_180s/data/
-cd /mnt/data/UbxGAL4UASCAAXmChHGFP/202105132247_UbxG4kCAAXHGFP_1p2um_0p1ms0p2ms_1mW1mW_3v300s/data
+% cd /mnt/data/UbxGAL4UASCAAXmChHGFP/202105132247_UbxG4kCAAXHGFP_1p2um_0p1ms0p2ms_1mW1mW_3v300s/data
 
 
 % .=========.
@@ -375,7 +375,7 @@ expMeta.description         = 'Drosophila gut';
 expMeta.dynamicSurface      = 1;
 expMeta.jitterCorrection    = 0;  % 1: Correct for sample translation
 expMeta.fitTime             = fileMeta.timePoints(first_tp);
-expMeta.detectorType        = 'surfaceDetection.integralDetector';
+expMeta.detectorType        = 'surfaceDetection.morphsnakesDetector';
 expMeta.fitterType          = 'surfaceFitting.meshWrapper';
 
 % Now set the meta data in the experiment.
@@ -541,6 +541,21 @@ meshDir = detectOptions.mslsDir ;
 % Set detect options ------------------------------------------------------
 xp.setDetectOptions( detectOptions );
 disp('done')
+
+%% Dictionary for updating detectOptions
+% detectOptions.pressure = detectOptions.nu ;
+% detectOptions.tension = detectOptions.smoothing ;
+% detectOptions.pre_pressure = detectOptions.pre_nu ;
+% detectOptions.post_pressure = detectOptions.post_nu ;
+% detectOptions.pre_tension = detectOptions.pre_smoothing ;
+% detectOptions.post_tension = detectOptions.post_smoothing ;
+% 
+% detectOptions = rmfield(detectOptions, 'nu') ;
+% detectOptions = rmfield(detectOptions, 'pre_nu') ; 
+% detectOptions = rmfield(detectOptions, 'post_nu') ;
+% detectOptions = rmfield(detectOptions, 'smoothing') ;
+% detectOptions = rmfield(detectOptions, 'pre_smoothing') ;
+% detectOptions = rmfield(detectOptions, 'post_smoothing') ;
 
 %% CREATE THE SUBSAMPLED H5 FILE FOR INPUT TO ILASTIK =====================
 % skip if already done
@@ -1103,8 +1118,13 @@ clearvars Options
 options = struct() ;
 options.plot_evolution = true ;
 options.plot_growth = false ;
+options.plot_texture = false ;
+options.plot_meshOnly = false ;
+options.brighten = 100; 
 options.growth_t0 = 85 ;
-options.viewAngles = [-0.75, 1, 0.7] ;
+options.y0 = 20 ;
+options.overwrite = true ;
+% options.viewAngles = [-0.75, 1, 0.7] ;
 QS.visualizeMeshEvolution(options)
 
 %% Highligh junction for BWF fund application
@@ -1511,7 +1531,7 @@ QS.measureCurvatures(options)
 % Skip if already done
 disp('Create pullback using S,Phi coords with time-averaged Meshes')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-for tt = fliplr(QS.xp.fileMeta.timePoints)
+for tt = QS.t0set() % , QS.xp.fileMeta.timePoints]
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     tidx = QS.xp.tIdx(tt);
     
@@ -1535,18 +1555,22 @@ for tt = fliplr(QS.xp.fileMeta.timePoints)
     
     % Establish custom Options for MIP
     pbOptions = struct() ;
-    pbOptions.overwrite = false ;
+    pbOptions.overwrite = true ;
     pbOptions.numLayers = [0 0] ; % previously [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
-    pbOptions.generate_rsm = true ;
+    pbOptions.generate_rsm = false ;
     pbOptions.generate_spsm = false ;
     pbOptions.generate_sphi = false ;
     pbOptions.generate_uvprime = false ;
     pbOptions.generate_ruvprime = false ;
+    pbOptions.generate_ricci = true ;
+    pbOptions.imSize = 2000 ;
+    pbOptions.normal_shift = -4 ;
     QS.data.adjustlow = adjustlow ;
     QS.data.adjusthigh = adjusthigh ;
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
 end
+
 
 %% TILE/EXTEND SMOOTHED IMAGES IN Y AND RESAVE =======================================
 % Skip if already done
@@ -2022,7 +2046,7 @@ options.overwrite_timePoints = false ;
 options.plot_Hgdot = false ;
 options.plot_flows = true ;
 options.plot_factors = false ;
-options.plot_kymographs = true ;
+options.plot_kymographs = false ;
 options.plot_kymographs_cumsum = false ;
 options.plot_kymographs_cumprod = false ;
 options.plot_correlations = false ;

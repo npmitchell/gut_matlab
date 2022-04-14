@@ -16,6 +16,16 @@ overwrite = options.overwrite ;
 plot_flows = options.plot_flows ;
 plot_Hgdot = options.plot_Hgdot ;
 plot_factors = options.plot_factors ;
+if isfield(options, 'axisOn')
+    axisOn = options.axisOn ;
+else
+    axisOn = true ;
+end
+if isfield(options, 'pbLabelOn')
+    pbLabelOn = options.pbLabelOn ;
+else
+    pbLabelOn = true ;
+end
 
 % parameter options
 doubleResolution = options.doubleResolution ;
@@ -140,7 +150,7 @@ if isempty(mesh)
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Plot the prediction, the measurement, and the difference
+%% Plot the divergence, the out-of-plane deformation, and the difference
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 colors2d = {H2vn2d, divv2d, gdot2d} ; 
 colors3d = {H2vn3d, divv3d, gdot3d} ;
@@ -159,7 +169,7 @@ if plot_flows && redo_prediction
         for row = 1:2  % row
             for col = 1:3  % column
                 % create panel
-                subtightplot(3, length(colors2d), col + (row - 1) * 3)
+                ax = subtightplot(3, length(colors2d), col + (row - 1) * 3) ;
 
                 % If 2d, plot in pullback space
                 % if 3d, plot in embedding space
@@ -172,12 +182,10 @@ if plot_flows && redo_prediction
                     xlim([0, QS.a_fixed])
                     ylim([0, 1]) 
                     caxis([-climit, climit]) 
-                    axis off
                 else
                     trisurf(mesh.f, mesh.v(:, 1), mesh.v(:, 2), mesh.v(:, 3), ...
                         colors3d{col}, 'edgecolor', 'none')
                     axis equal
-                    axis off
                     caxis([-climit, climit]) 
 
                     % xlabel('AP position, [$\mu$m]', 'Interpreter', 'Latex')
@@ -187,6 +195,7 @@ if plot_flows && redo_prediction
                     ylim(xyzlim(2, :))
                     zlim(xyzlim(3, :))
                 end
+
 
                 % Set title and colorbars
                 if col == 1 && row == 1
@@ -210,18 +219,24 @@ if plot_flows && redo_prediction
                     caxis([-climit_err, climit_err]) 
                 elseif col == 1 && row == 2
                     view(0, 270)
+                    axpos = get(ax, 'position') ;
+                    xmid = 0.5 * axpos(3) + axpos(1) ;
                     cb = colorbar('south') ;
-                    % set(cb, 'position',[.17 .1 .2 .03])
-                    set(cb, 'position',[.165 .2 .15 .03], ...
+                    % col1pos = [.165 .2 .15 .03] ;
+                    cbpos = [xmid-0.075, .2, .15, .03] ;
+                    set(cb, 'position', cbpos, ...
                         'XTick', [-climit, 0, climit])     
                     ylabel(cb, ['$v_n 2H$ ' unitstr], ...
                         'Interpreter', 'Latex')                    
                     caxis([-climit, climit]) 
                 elseif col == 2 && row == 2
                     view(0, 270)
+                    axpos = get(ax, 'position') ;
+                    xmid = 0.5 * axpos(3) + axpos(1) ;
+                    % [.44 .2 .15 .03]
                     cb = colorbar('south') ;
-                    % set(cb, 'position',[.63 .1 .2 .03])
-                    set(cb, 'position',[.445 .2 .15 .03], ...
+                    cbpos = [xmid-0.075, .2, .15, .03] ;
+                    set(cb, 'position', cbpos, ...
                         'XTick', [-climit, 0, climit])
                     ylabel(cb, ...
                         ['$\nabla \cdot \bf{v}_\parallel$ ' unitstr ], ...
@@ -229,15 +244,46 @@ if plot_flows && redo_prediction
                     caxis([-climit, climit]) 
                 elseif col == 3 && row == 2
                     view(0, 270)
+                    axpos = get(gca, 'position') ;   
+                    % [.75 .2 .15 .03] 
+                    xmid =  axpos(1) + 0.5 * axpos(3) ;
                     cb = colorbar('south') ;
-                    set(cb, 'position',[.725 .2 .15 .03], ...
+                    cbpos = [xmid-0.075, .2, .15, .03] ;
+                    set(cb, 'position', cbpos, ...
                         'XTick', [-climit_err, 0, climit_err])
                     ylabel(cb, ...
                         ['local area change ' unitstr], ...
                         'Interpreter', 'Latex')
                     % xticks(cb, [-climit_err, climit_err]) 
                     caxis([-climit_err, climit_err]) 
-               end
+                end
+                
+                % Annotate the axes (added this for publication)
+                if pbLabelOn && (col == 1 && row == 2) && dim == 2
+                    axis on
+                    xticks([])
+                    yticks([])
+                    Ylm=ylim;                          % get x, y axis limits 
+                    Xlm=xlim;                          % so can position relative instead of absolute
+                    Xlb=mean(Xlm);                    % set horizontally at midpoint
+                    Ylb=1.0001*Ylm(2);                  % and just 1% below minimum y value
+                    xlabel('$s$', 'interpreter', 'latex', ...
+                        'Position', [Xlb, Ylb], ...
+                        'VerticalAlignment','top',...
+                        'HorizontalAlignment','center')
+                    ylabel('$\phi$', 'interpreter', 'latex', ...
+                        'rotation', 0)
+                elseif axisOn && row == 1
+                    axis on
+                    grid off
+                    %     set(ax,'YTickLabel',[]);
+                    %     yticks([])
+                    %     ax.YAxis.Visible = 'off';
+                    set(ax,'YTick',{}); 
+                    ax.YColor = 'w';% use white color 
+                else
+                    axis off
+                end
             end
         end
 
@@ -246,6 +292,7 @@ if plot_flows && redo_prediction
         disp(['saving ', fn])
         set(gcf, 'Color', 'white')
         export_fig(fn, '-png', '-nocrop', '-r200') 
+        
     end
 end
 

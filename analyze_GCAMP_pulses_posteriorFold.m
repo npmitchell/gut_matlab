@@ -20,6 +20,7 @@ expts = {'202106221951_e2_1p5x40x_90spf_9sps_12pc_2p5um_hcOilMembrane_1p2usDwell
     '202106231830_e3' } ;
 
 % poster frames: 202106211253_e3, 202106211440_e1, 202106211440_e2
+% For eLife figure 4 supplement: 202106231830_e1: frame 33 = 16.5 minutes
 
 clipY0s = {[70, 70+282], [70,70+300], ...
     [11,11+251], [27,27+300], ...
@@ -51,7 +52,7 @@ foldXs = [556, 558, ...       % 202106221951 e2, e3
 foldTs = [38, 28, ...         % 202106221951 e2, e3
     18,37,...                 % 202106211440
     22,29,44] ;               % 202106231830
-% onset of anterior folding in minutes
+% onset of posterior folding in minutes
 t0 = 1.5 * [38, 28, ...         % 202106221951 e2, e3
     18,37,...                 % 202106211440
     22,29,44] ;               % 202106231830

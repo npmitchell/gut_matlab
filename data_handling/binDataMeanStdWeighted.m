@@ -59,7 +59,7 @@ stey = nan(nBins, 1) ;
 ny = zeros(nBins, 1) ;
 
 for bin = 1:nBins
-    idx = find(loc == bin & ~isnan(weights)) ;
+    idx = find(loc(:) == bin & ~isnan(weights)) ;
     if ~isempty(idx)
         % see also: weightedMeanStdSte.m
         

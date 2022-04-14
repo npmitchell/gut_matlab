@@ -1812,7 +1812,7 @@ classdef QuapSlap < handle
                 catch
                     options.timePoints = [QS.currentTime] ;
                     options.corrected = true ;
-                    QS.processCorrectedCellSegmentation3D(options) ;
+                    QS.generateCellSegmentation3D(options)
                     QS.currentSegmentation.seg3dCorrected = ...
                         load(sprintf(QS.fullFileBase.segmentation3dCorrected, QS.currentTime)) ;
                 end
@@ -2781,7 +2781,9 @@ classdef QuapSlap < handle
         function coordSystemDemo(QS, options)
             % Image for publication/presentation on method & coordinate system
             % Create coordinate system charts visualization using smoothed meshes
-
+            % options : struct with fields
+            %   style : 'curves' or 'surface'
+            %
             exten = '.png' ;
             style = 'mesh' ;
             if nargin < 2

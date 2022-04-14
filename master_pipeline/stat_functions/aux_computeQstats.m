@@ -7,7 +7,13 @@ function outstats = aux_computeQstats(QQ, ang1, MOIeigvalRatio, ...
 % between foldt =[0, ... 1] and in binned ap positions ap_pos, in bins
 % given by xedges. Bound the largest weight by areas = maxCellSize 
 %
+% Parameters
+% ----------
 %
+%
+% Returns
+% -------
+% 
 % See also
 % --------
 % QtensorStats.m
@@ -116,6 +122,9 @@ end
 
 %% Statistics by AP position
 disp('statistics by AP position...')
+[mid_ap, mean_Aspect_ap, std_Aspect_ap, ~, ste_Aspect_ap] = ...
+    binDataMeanStdWeighted(ap_pos, sqrt(MOIeigvalRatio(keep)), ...
+        xedges, weights) ;
 [mid_ap, mean_QAc2t_ap, std_QAc2t_ap, ~, ste_QAc2t_ap] = ...
     binDataMeanStdWeighted(ap_pos, strength(keep) .* cos2thetas, ...
         xedges, weights) ;
@@ -409,5 +418,10 @@ QEapStats.apSin2ThetaStd = std_QEs2t_ap ;
 QEapStats.apCos2ThetaSte = ste_QEc2t_ap ;
 QEapStats.apSin2ThetaSte = ste_QEs2t_ap ;
 outstats.apStats.eccentricityWeighted = QEapStats ;
+
+% aspect ratios along ap
+outstats.apStats.mean_Aspect_ap = mean_Aspect_ap ;
+outstats.apStats.std_Aspect_ap = std_Aspect_ap ;
+outstats.apStats.ste_Aspect_ap = ste_Aspect_ap ;
 
     

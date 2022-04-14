@@ -61,8 +61,10 @@ end
 if isfield(options, 'xyzlims')
     xyzlims = options.xyzlims ;
 end
-if isfield(options, 'correctedSegmentation')
+if isfield(options, 'correctedSegmentation') 
     corrected = options.correctedSegmentation ;
+elseif isfield(options, 'corrected')
+    corrected = options.corrected ;
 end
 
 % Directory preparation
@@ -144,10 +146,13 @@ nAPBins = 20 ;
 % (aspect-1)-weighted Q tensor stats
 mean_QAc2ts = zeros(length(timePoints), nAPBins) ;
 mean_QAs2ts = zeros(length(timePoints), nAPBins) ;
+mean_QAs = zeros(length(timePoints), nAPBins) ;
 std_QAc2ts = zeros(length(timePoints), nAPBins) ;
 std_QAs2ts = zeros(length(timePoints), nAPBins) ;
+std_QAs = zeros(length(timePoints), nAPBins) ;
 ste_QAc2ts = zeros(length(timePoints), nAPBins) ;
 ste_QAs2ts = zeros(length(timePoints), nAPBins) ;
+ste_QAs = zeros(length(timePoints), nAPBins) ;
 meanQALobeAspects = zeros(nLobes, length(timePoints)) ;
 meanQALobeAspectStds = zeros(nLobes, length(timePoints)) ;
 meanQALobeAspectStes = zeros(nLobes, length(timePoints)) ;
@@ -655,8 +660,9 @@ else
     segSubDir = 'seg3d' ;
 end
 
-aux_plotCellSegmentation3DStats
-
+if length(timePoints) > 1
+    aux_plotCellSegmentation3DStats
+end
 
 %% Testing for shape characterization
 % % Is the result dependent on the distribution of vertices? No! yay.

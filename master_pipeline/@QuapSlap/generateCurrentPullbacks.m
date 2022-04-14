@@ -234,6 +234,23 @@ end
 if generate_ricci
     if isfield(pbOptions, 'ricciMesh')
         ricciMesh = pbOptions.ricciMesh ;
+    else
+        ricciMesh = QS.getCurrentRicciMesh() ;
+    end
+    
+    % Push vertices into texture space from APDV frame and get ready for
+    % normal shift
+    rRect = ricciMesh.rectangle ;
+    rRect.pathPairs = [1:rRect.nU; ...
+        ((rRect.nV-1)*rRect.nU + 1):(rRect.nV*rRect.nU)]' ;
+    rRect.v = QS.APDV2xyz(rRect.v) ;
+    ricciGlue = glueRectCylinderCutMeshSeam(rRect) ;
+    rRect.vn = per_vertex_normals(ricciGlue.v, ricciGlue.f) ;
+    rRect.vn(rRect.nU*(rRect.nV-1)+1:rRect.nU*rRect.nV, :) = ...
+        rRect.vn(1:rRect.nU, :) ;
+    
+    if abs(normal_shift) > 0
+        rRect.v = rRect.v + normal_shift * rRect.vn ;
     end
 end
 
@@ -265,6 +282,7 @@ end
 imfn_uvprime = sprintf( QS.fullFileBase.im_uvprime, tt) ;
 imfn_ruvprime = sprintf( QS.fullFileBase.im_r_uvprime, tt) ;
 imfn_ricci = sprintf( QS.fullFileBase.im_ricci, tt) ;
+ricciInfoFn = sprintf( [QS.fullFileBase.im_ricci(1:end-4) '_info.mat'], tt) ;
 do_pb1 = ~exist(imfn_uv, 'file') && generate_uv ;
 do_pb2 = ~exist(imfn_r, 'file') && generate_relaxed ;
 do_pb3 = ~exist(imfn_sp, 'file') && generate_sphi ;
@@ -278,7 +296,7 @@ else
 end
 do_pb7 = ~exist(imfn_uvprime, 'file') && generate_uvprime ;
 do_pb8 = ~exist(imfn_ruvprime, 'file') && generate_ruvprime ;
-do_pb9 = ~exist(imfn_ricci, 'file') && generate_ricci;
+do_pb9 = (~exist(imfn_ricci, 'file') || ~exist(ricciInfoFn, 'file')) && generate_ricci;
 
 do_pb = [do_pb1, do_pb2, do_pb3, do_pb4, do_pb5, do_pb6, do_pb7, do_pb8, do_pb9] ;
 do_pullbacks = (any(do_pb) || overwrite) ;
@@ -352,16 +370,37 @@ else
     disp('Skipping UP pullback image generation ')
 end
 
-if (~exist(imfn_ricci, 'file') || overwrite) && generate_ricci
+if (~exist(imfn_ricci, 'file') || ~exist(ricciInfoFn, 'file') ||...
+        overwrite) && generate_ricci
     fprintf(['Loading mesh for generating ricci output image: ' imfn_ricci]);
     % Assigning field ricciMesh.u to be [s, phi] (ringpath
     % and azimuthal angle)
-    spcutMesh.u = ricciMesh.uphi ;
-    aux_generate_orbifold( spcutMesh, a_fixed, IV, imfn_up, ...
+    rRect.u(:, 1) = rRect.u(:, 1) / (2*pi) ;
+    rRect.u(:, 2) = rRect.u(:, 2) / (2*pi) ;
+    a_fixed = max(rRect.u(:, 1))  ;
+    aux_generate_orbifold( rRect, a_fixed, IV, imfn_ricci, ...
         pbOptions, axisorder, save_as_stack)
-    spcutMesh = rmfield(spcutMesh, 'u') ;
+    % Save deformation map
+    xWorld = [0, a_fixed] ;
+    yWorld = [0, 1] ;
+    RA = imref2d(size(imread(imfn_ricci)), xWorld, yWorld) ;
+    bcUV = barycenter(rRect.u, rRect.f) ;
+    [Xbc,Ybc] = RA.worldToIntrinsic(bcUV(:, 1), bcUV(:, 2)) ;
+    [Xv,Yv] = RA.worldToIntrinsic(rRect.u(:, 1), rRect.u(:, 2)) ;
+    bcXY = [Xbc,Ybc] ;
+    gIm2XYZ = inducedMetric(rRect.f, rRect.v, [Xv, Yv]) ;
+    % record pix2um in each dimension on each face
+    % metric here decreases with increasing image size: so it represents
+    % (data distance / image pixel)^2
+    PBpix2XYZpix = zeros(length(gIm2XYZ), 2) ;
+    for qq = 1:length(gIm2XYZ)
+        PBpix2XYZpix(qq, :) = sqrt([gIm2XYZ{qq}(1, 1), gIm2XYZ{qq}(2, 2)]) ;
+    end
+    % convert to pix per um: PBpix * (XYZpix/PBpix) * (um/XYZpix)
+    PBpix2um = PBpix2XYZpix * QS.APDV.resolution ;
+    save(ricciInfoFn, 'PBpix2XYZpix', 'PBpix2um', 'gIm2XYZ', 'bcUV', 'bcXY', 'rRect')
 else
-    disp('Skipping UP pullback image generation ')
+    disp('Skipping Ricci pullback image generation ')
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -445,13 +484,13 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Save ricci pullback image
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-if (~exist(imfn_ricci, 'file') || overwrite) && generate_ricci
-    disp(['Generating image for ricci coords: ' imfn_ricci])
-    aux_generate_orbifold(ricciMesh.rectangle, IV, imfn_ricci, ...
-        pbOptions, axisorder, save_as_stack)
-else
-    disp('Skipping Ricci pullback image generation ')
-end
+% if (~exist(imfn_ricci, 'file') || overwrite) && generate_ricci
+%     disp(['Generating image for ricci coords: ' imfn_ricci])
+%     aux_generate_orbifold(ricciMesh.rectangle, IV, imfn_ricci, ...
+%         pbOptions, axisorder, save_as_stack)
+% else
+%     disp('Skipping Ricci pullback image generation ')
+% end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
