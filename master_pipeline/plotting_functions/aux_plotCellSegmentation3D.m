@@ -6,7 +6,7 @@ function aux_plotCellSegmentation3D(QS, tp, seg3d, imdir, overwrite,...
 
 
 % Parse options
-occlude = false ;
+occlude = true ;
 occludeStr = '' ;
 if nargin > 7 
     if ~isempty(mesh4occlusion)
@@ -106,6 +106,9 @@ end
 if ~exist(fullfile(imdir, ['order' occludeStr]), 'dir')
     mkdir(fullfile(imdir, ['order' occludeStr]))
 end
+if ~exist(fullfile(imdir, ['anisotropyQr' occludeStr]), 'dir')
+    mkdir(fullfile(imdir, ['anisotropyQr' occludeStr]))
+end
 
 
 %% Color segmentation by area
@@ -114,6 +117,7 @@ areaimfn = fullfile(imdir, ['areas' occludeStr], sprintf('cellseg3d_area_%06d', 
 %% Nematic anisotropy tensor WITH BONDS       
 aimfn = fullfile(imdir, ['aspectRatio' occludeStr], sprintf('cellseg3d_aspectRatioBonds_%06d', tp)) ;
 aQimfn = fullfile(imdir, ['anisotropyQ' occludeStr],sprintf('cellseg3d_anisotropyQBonds_%06d', tp)) ;
+aQimfn_reverse = fullfile(imdir, ['anisotropyQr' occludeStr],sprintf('cellseg3d_anisotropyQreverseBonds_%06d', tp)) ;
 
 
 %% Nematic eccentricity tensor WITH BONDS    
@@ -121,9 +125,11 @@ eimfn = fullfile(imdir, ['eccentricity' occludeStr], sprintf('cellseg3d_eccentri
 eQimfn = fullfile(imdir, ['eccentricityQ' occludeStr], sprintf('cellseg3d_eccentricityQBonds_%06d', tp)) ;
 
 %% Nematic order  WITH BONDS    
-oimfn = fullfile(imdir, ['order' occludeStr], sprintf('cellseg3d_orderBonds_%06d', tp)) ;
-imfns = {areaimfn, aimfn, aQimfn, eimfn, eQimfn, oimfn} ;
-colorVs = {areaV, aaV, QAxxV, eeV, QExxV, cos(2*ang1V(:))} ;
+oimfn = fullfile(imdir, ['order' occludeStr], ...
+    sprintf('cellseg3d_orderBonds_%06d', tp)) ;
+
+imfns = {areaimfn, aimfn, aQimfn, eimfn, eQimfn, oimfn, aQimfn_reverse} ;
+colorVs = {areaV, aaV, QAxxV, eeV, QExxV, cos(2*ang1V(:)), -QAxxV} ;
 
 for qq = 1:length(imfns)
     for viewID = 0:1
@@ -165,7 +171,8 @@ for qq = 1:length(imfns)
                 elseif qq == 3
                     ylabel(cb, 'cell anisotropy, $\left(a/b-1 \right)\cos 2\theta$',   'interpreter', 'latex')
                     caxis([-1.5, 1.5])
-                    colormap(blueblackred)
+                    % colormap(blueblackred)
+                    colormap(brewermap(256, '*RdBu'))
                 elseif qq == 4
                     ylabel(cb, 'cell eccentricity, $e$',   'interpreter', 'latex')
                     caxis([0, 1])
@@ -173,12 +180,19 @@ for qq = 1:length(imfns)
                 elseif qq == 5
                     ylabel(cb, 'cell anisotropy, $e \cos 2\theta$',   'interpreter', 'latex')
                     caxis([-1, 1])
-                    colormap(blueblackred)
+                    % colormap(blueblackred)
+                    colormap(brewermap(256, '*RdBu'))
                 elseif qq == 6
                     ylabel(cb, 'cell orientation, $\cos(2\theta)$', ...
                         'interpreter', 'latex')
                     caxis([-1, 1])
-                    colormap(blueblackred)
+                    % colormap(blueblackred)
+                    colormap(brewermap(256, '*RdBu'))
+                elseif qq == 7
+                    ylabel(cb, 'cell anisotropy, $\left(1-a/b \right)\cos 2\theta$',   'interpreter', 'latex')
+                    caxis([-1.5, 1.5])
+                    % colormap(blueblackred)
+                    colormap(brewermap(256, '*RdBu'))
                 else
                     error('handle this field name here')
                 end

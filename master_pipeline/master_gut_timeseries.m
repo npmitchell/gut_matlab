@@ -108,7 +108,7 @@ clear; close all; clc;
 cd /mnt/data/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data 
+% cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data 
 % cd /mnt/data/48Ygal4UASCAAXmCherry/201903211930_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150/
 % cd /mnt/crunch/48Ygal4UASsqhGFP/201902271940_excellent_notunpacked/Time6views_60sec_1p4um_25x_1p5mW_exp1p0_3/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
@@ -431,7 +431,7 @@ else
     % for caax_great
     ssfactor=4
     niter=35
-    niter0=35
+    niter0=35;
     ofn_ply='mesh_ms_'
     ofn_ls='msls_'
     ofn_smoothply = 'mesh_stab_' ; % mesh_apical_stab_' ;
@@ -666,9 +666,18 @@ opts.a_fixed = 2.0 ;
 opts.adjustlow = 1.00 ;         % floor for intensity adjustment
 opts.adjusthigh = 99.9 ;        % ceil for intensity adjustment (clip)
 opts.phiMethod = 'curves3d' ;
-opts.lambda_mesh = 0.002 ;
-opts.lambda = 0.01 ;
-opts.lambda_err = 0.01 ;
+% for caax
+opts.lambda_mesh = 0.00 ;
+opts.lambda = 0.0 ;
+opts.lambda_err = 0.0 ;
+
+% for histRFP:
+opts.nmodes = 7 ;
+opts.zwidth = 1 ;
+opts.lambda_mesh = 0.00 ;
+opts.lambda = 0.01; % should use 0.01 for fig2/3 eLife, I think
+opts.lambda_err = 0.01; %shoudl use 0.01 for fig2/3 eLife ;
+
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
@@ -1392,11 +1401,84 @@ options = struct() ;
 options.overwrite = true ;
 QS.plotLobes(options)
 
-% Plot motion of avgpts & DVhoops at folds in yz plane over time =========
+%% Plot motion of avgpts & DVhoops at folds in yz plane over time =========
 % Skip if already done
-overwrite_lobeims = false ;
-QS.plotConstrictionDynamics(overwrite_lobeims) ;
+opts = struct() ;
+opts.overwrite = true ;
+opts.timePoints = [123:30:256] ;
+QS.plotConstrictionDynamics(opts) ;
 disp('done')
+
+%% Tubular figure dec rotation smoothed
+
+outdir = fullfile([QS.dir.piv.avgDEC.rot3d '_smoothed']) ;
+mkdir(outdir)
+[~,~,~,xyzlims] = QS.getXYZLims() ;
+for tt = QS.t0set():10:max(QS.xp.fileMeta.timePoints)-1
+    
+    % smooth dec in time
+    first = true ;
+    twidth = 15 ;
+    tIdxs2Add = -twidth:twidth ;
+    tpulse = tripulseFunction(twidth) ;
+    for qq = 1:length(tIdxs2Add)
+        tadd = tIdxs2Add(qq) ;
+        QS.setTime(tt+tadd)
+        dec = QS.getCurrentDEC() ;
+        rotv_qq = dec.rots.rotv(1:end-QS.nU) ;
+        mesh = QS.getCurrentSPCutMeshSmRSC() ;
+
+        % Silence endcaps
+        rotv_qq(1:QS.nU:end) = 0 ;
+        rotv_qq(QS.nU:QS.nU:end) = 0 ;
+        
+        if first
+            rotv = tpulse(qq) * rotv_qq ;
+            first = false ;
+        else
+            rotv = rotv + tpulse(qq) * rotv_qq ;
+        end
+    end
+    
+    % get current mesh
+    QS.setTime(tt)
+    mesh = QS.getCurrentSPCutMeshSmRSC() ;
+
+    % Smooth result in space
+    rotv = laplacian_smooth(mesh.v, mesh.f, 'cotan',[],0.05,'implicit',rotv,1000) ;
+    opts = struct('nmodesY', 7, 'widthX', 3) ;
+    rotv = reshape(rotv, [QS.nU, QS.nV-1]) ;
+    rotv = modeFilterQuasi1D(rotv, opts) ;
+    
+    % Plot it
+    subtightplot(2, 1, 1)
+    trisurf(triangulation(mesh.f, mesh.v), rotv(:), ...
+        'edgecolor', 'none') ;
+    % colormap(brewermap(256, '*RdBu'))
+    colormap(bwr)
+    cmax = 0.1 ;
+    caxis(cmax*[-1,1]) ;
+    axis equal
+    grid off
+    set(gcf, 'color', 'w')
+    view(0,0)
+    xlim(xyzlims(1, :))
+    ylim(xyzlims(2, :))
+    zlim(xyzlims(3, :))
+    axis off
+    
+    % flat pullback with aspect 1:1
+    subtightplot(2, 1, 2)
+    rotvM = rotv ;
+    rotvM(:,QS.nV) = rotv(:, 1) ;
+    imagesc(linspace(0, 1.31953235, 100), linspace(0,1,100), rotvM')
+    axis equal
+    axis tight
+    axis off
+    caxis(cmax*[-1,1]) ;
+    outfn = fullfile(outdir, sprintf('rot_sm_%06d.png',tt)) ;
+    saveas(gcf, outfn) 
+end
 
 %% SMOOTH MEAN CENTERLINE RADIUS ==========================================
 % Skip if already done
@@ -1556,7 +1638,7 @@ for tt = QS.t0set() % , QS.xp.fileMeta.timePoints]
     % Establish custom Options for MIP
     pbOptions = struct() ;
     pbOptions.overwrite = true ;
-    pbOptions.numLayers = [0 0] ; % previously [7, 7] ;  % previously [5,5]
+    pbOptions.numLayers = [7 15] ; % previously [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
     pbOptions.generate_rsm = false ;
     pbOptions.generate_spsm = false ;
@@ -1568,6 +1650,7 @@ for tt = QS.t0set() % , QS.xp.fileMeta.timePoints]
     pbOptions.normal_shift = -4 ;
     QS.data.adjustlow = adjustlow ;
     QS.data.adjusthigh = adjusthigh ;
+    pbOptions.save_as_stack = true ;
     QS.generateCurrentPullbacks([], [], [], pbOptions) ;
 end
 
@@ -1707,16 +1790,16 @@ end
 options = struct() ;
 options.correctedSegmentation = true ;
 options.timePoints = [96:10:206] ;
-options.overwrite = true  ;
+options.overwrite = false  ;
 QS.plotSegmentationStatisticsLobes(options)
 
-% Compare segmentation to an advected segmentation
+%% Compare segmentation to an advected segmentation
 options = struct() ;
 % options.timePoints = [93:15:263] ;
 options.timePoints = [96:10:206] ;
-options.overwrite = true ;
-options.overwritePathlines = true ;
-options.overwriteImages = true ;
+options.overwrite = false ;
+options.overwritePathlines = false ;
+options.overwriteImages = false ;
 
 % Optional: load pathlines before call
 cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
@@ -1729,6 +1812,11 @@ cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
 % options.segmentationPathlines.cellIDs = cellIDs ;
 QS.generateCellSegmentationPathlines3D(options)
 % QS.estimateIntercalationRate(options)
+
+
+%% Visualize kymograph of trace of strain
+% TODO HERE
+
 
 %% Visualize demoTracks in 2D ARAP submesh parameterization patch
 tracks2demo = dir(fullfile(QS.dir.tracking, 'demoTracks', 'demoTracks*0.mat')) ;
@@ -2092,18 +2180,19 @@ options.overwrite = false ;
 options.gridTopology = 'triangulated' ;
 QS.plotPathlineVelocities(options)
 
-% Measure Pathline Kinematics
+%% Measure Pathline Kinematics
+% todo here
 options = struct() ;
 options.overwrite = false ;
-options.lambda = 0 ;
-options.lambda_error = 0 ;
+options.lambda = 0.01 ;
+options.lambda_error = 0.01 ;
 options.lambda_mesh = 0 ;
 options.nmodes = 7 ;
 options.zwidth = 1 ; 
 QS.measurePathlineMetricKinematics(options)
 % todo: resume this BLOCK !!!
 
-% Plot Pathline Kinematics
+%% Plot Pathline Kinematics
 options = struct() ;
 options.overwrite = true ;
 options.plot_kymographs = true ;

@@ -47,7 +47,7 @@ end
 
 %% Now load the image, select a region and get the scale in that region
 datdir = '/mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/PullbackImages_010step_ricci/';
-imfn = fullfile(datdir, 'Time_000123_c1_stab_ricci.tif') ;
+imfn = fullfile(datdir, 'MAX_Time_000123_c1_stab_ricci_z11to14.tif') ;
 ggfn = fullfile(datdir, 'Time_000123_c1_stab_ricci_info.mat') ;
 scaleBarum= 10 ;
 
@@ -67,10 +67,12 @@ disp(['scale is um/pix: ' num2str(pix2um)])
 xlims = min(round(xlim), size(im, 2)) ;
 ylims = min(round(ylim), size(im, 1)) ;
 snap = im(ylims(1):ylims(2), xlims(1):xlims(2)) ;
-imwrite(snap, fullfile(datdir, 'snap2_noScale.tif')) ;
+% imwrite(snap, fullfile(datdir, 'snap3_leftVentral_noScale.tif')) ;
+imwrite(snap, fullfile(datdir, 'snap3_leftDorsal_noScale.tif')) ;
 snap(15:20, 240:240+round(scaleBarum/pix2um)) = 255 ;
 figure ; imshow(snap)
-imwrite(snap, fullfile(datdir, sprintf('snap2_wScale_%02dum.tif', scaleBarum))) ;
+%imwrite(snap, fullfile(datdir, sprintf('snap3_leftVentral_wScale_%02dum.tif', scaleBarum))) ;
+imwrite(snap, fullfile(datdir, sprintf('snap4_leftDorsal_wScale_%02dum.tif', scaleBarum))) ;
 
 % Check that we are sampling in the right place on original image
 figure ; 

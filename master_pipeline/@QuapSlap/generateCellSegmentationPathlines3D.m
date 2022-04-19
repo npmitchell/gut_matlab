@@ -776,9 +776,15 @@ for tp = timePoints
     
     mid_ap = seg3d.statistics.apStats.aspectWeighted.apBins ;
     
-    %% Plot this timepoint's segmentation in 3d
+    %% Plot this timepoint's segmentation in 3d    
+    glueMesh = QS.getCurrentSPCutMeshSmRSC() ;
+    if ~QS.flipy
+        glueMesh.vn = -glueMesh.vn ;
+    end
+    glueMesh.v = glueMesh.v + glueMesh.vn .* 6*QS.APDV.resolution ;
+    
     aux_plotCellSegmentation3D(QS, tp, seg3d, imdir, ...
-        overwriteImages, xyzlims, ~useCorrected)
+        overwriteImages, xyzlims, ~useCorrected, glueMesh)
     
     %% Plot as histogram
     edges = linspace(-1, 1, 100) ;

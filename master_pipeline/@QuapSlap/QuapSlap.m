@@ -1628,7 +1628,31 @@ classdef QuapSlap < handle
         measureFoldRadiiVariance(QS, options)
         [lengths, areas, volumes] = measureLobeDynamics(QS, options)
         plotLobes(QS, options) 
-        function plotConstrictionDynamics(QS, overwrite)
+        function plotConstrictionDynamics(QS, opts)
+            % plot details on folds/constrictions including cross-sectional
+            % profiles
+            % 
+            %
+            if nargin < 2
+                opts = struct() ;
+            end
+            if isfield(opts, 'timePoints')
+                timePoints = opts.timePoints ;
+            else
+                timePoints = QS.xp.fileMeta.timePoints ;
+            end
+            if isfield(opts, 'overwrite')
+                overwrite = opts.overwrite ;
+            else
+                overwrite = false ;
+            end
+            if isfield(opts, 'colors')
+                colors = opts.colors ;
+            else
+                colors = QS.plotting.colors ;
+                % isolum(size(QS.features.folds, 2))*0.9
+            end
+            
             % Plot the location of the constrictions over time along with
             % centerlines over time
             QS.getXYZLims() ;
@@ -1638,25 +1662,25 @@ classdef QuapSlap < handle
             tidxMap = nan(max(QS.xp.fileMeta.timePoints), 1) ;
             tidxMap(QS.xp.fileMeta.timePoints) = 1:length(QS.xp.fileMeta.timePoints); 
             
-            % Plot motion of avgpts at folds in yz plane over time
-            aux_plot_avgptcline_lobes(QS.features.folds, ...
-                QS.features.fold_onset, QS.dir.lobe, ...
-                QS.uvexten, QS.plotting.save_ims, ...
-                overwrite, QS.xp.fileMeta.timePoints,...
-                QS.fullFileBase.spcutMesh, QS.fullFileBase.clineDVhoop, ...
-                QS.t0, QS.timeInterval, QS.timeUnits, QS.spaceUnits, ...
-                tidxMap)
-            
             % Plot motion of DVhoop at folds in yz plane over time
             aux_plot_constriction_DVhoops(QS.features.folds, ...
                 QS.features.fold_onset, QS.dir.foldHoopIm,...
                 QS.uvexten, QS.plotting.save_ims, ...
                 overwrite, ...
-                QS.xp.fileMeta.timePoints, QS.fullFileBase.spcutMesh, ...
+                timePoints, QS.fullFileBase.spcutMesh, ...
                 QS.fullFileBase.alignedMesh, ...
                 QS.normalShift, QS.APDV.rot, QS.APDV.trans, QS.APDV.resolution, ...
-                QS.plotting.colors, QS.plotting.xyzlim_um_buff, QS.flipy, ...
-                QS.t0, QS.timeInterval, QS.timeUnits, QS.spaceUnits)
+                colors, QS.plotting.xyzlim_um_buff, QS.flipy, ...
+                QS.t0, QS.timeInterval, QS.timeUnits, QS.spaceUnits, tidxMap)
+            
+            % Plot motion of avgpts at folds in yz plane over time
+            aux_plot_avgptcline_lobes(QS.features.folds, ...
+                QS.features.fold_onset, QS.dir.lobe, ...
+                QS.uvexten, QS.plotting.save_ims, ...
+                overwrite, timePoints,...
+                QS.fullFileBase.spcutMesh, QS.fullFileBase.clineDVhoop, ...
+                QS.t0, QS.timeInterval, QS.timeUnits, QS.spaceUnits, ...
+                tidxMap)
             
             % Plot shape of DVhoop at folds in locally transverse plane 
             % over time
@@ -2450,6 +2474,11 @@ classdef QuapSlap < handle
         helmholtzHodge(QS, options)
         measurePathlineVelocities(QS, options)
         plotPathlineVelocities(QS, options)
+        
+        function dec = getCurrentDEC(QS, options)
+            % getCurrentDEC(QS, options)
+            dec = load(sprintf(QS.fullFileBase.decAvg, QS.currentTime)) ;
+        end
         
         %% Velocities -- simple/surface-Lagrangian averaging
         timeAverageVelocitiesSimple(QS, samplingResolution, options)
