@@ -1,17 +1,21 @@
 function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoints, trackOutfn, tracks2Add, tidx0)
-% Manually track nTracks objects in 2D grayscale image sequence.
+% Manually track nTracks objects in 2D grayscale or RGB image sequence.
 % May run as script.
 %
 % Parameters
 % ----------
 % currentTracks : cell array or empty
 %   existing tracks to build off of
+% fileBase : string 
+%   images to load, when completed with sprintf(fileBase, timePoints(ii))
 % timePoints : length #timepoints numeric array
 %   timepoints in which to track
 % trackOutfn : str path
 %   where to periodically save the results as .mat
-% nTracks : int
-%   how many objects to track
+% tracks2Add : int array
+%   track indices to add
+% tidx0 : int 
+%   index of timePoints at which to begin tracking
 % 
 % Returns
 % -------

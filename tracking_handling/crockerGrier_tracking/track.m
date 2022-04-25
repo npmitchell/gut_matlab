@@ -176,16 +176,27 @@ function tracks = track(xyzs,maxdisp,param)
 dd = length(xyzs(1,:));
 
 %use default parameters if none given
+
+%default values
+memory_b=0; % if mem is not needed set to zero
+goodenough = 0;  % if goodenough is not wanted set to zero
+dim = dd - 1;
+quiet=0;
+
 if nargin==2
-    %default values
-    memory_b=0; % if mem is not needed set to zero
-    goodenough = 0;  % if goodenough is not wanted set to zero
-    dim = dd - 1;
-    quiet=0;
-else
+    param = struct() ;
+end
+
+if isfield(param, 'mem')
     memory_b    =   param.mem;
+end
+if isfield(param, 'good')
     goodenough  =   param.good;
+end
+if isfield(param, 'dim')
     dim         =   param.dim;
+end
+if isfield(param, 'quiet')
     quiet       =   param.quiet;
 end
 
@@ -992,7 +1003,7 @@ for i=istart:z
         
         % again goodenough keyword
         if quiet~=1
-            disp(strcat(num2str(i), ' of ' ,num2str(z), ' done.  Tracking  ',num2str(ntrk),' particles  ', num2str(n),' tracks total'));
+            disp([num2str(i), ' of ' ,num2str(z), ' done.  Tracking  ',num2str(ntrk),' particles,  ', num2str(n),' tracks total']);
         end
         bigresx(i-(ispan)+1:i,:) = resx(1:ispan,:);
         resx = zeros(zspan,n) - 1;

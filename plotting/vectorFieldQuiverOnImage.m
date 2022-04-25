@@ -25,6 +25,9 @@ function [h1, h2] = vectorFieldQuiverOnImage(im, xx, yy, vx, vy, vscale, ...
 %       overall scale of the quivers
 %   outfn : str
 %       output filename for figure as png 
+%   colorVectors : bool
+%       color the vectors by qopts.colors (default parula colors)
+%
 %
 % Returns
 % -------
@@ -44,6 +47,8 @@ overlay_quiver = true ;
 qsubsample = 10 ;
 qscale = 10 ;
 transposeVectorShape = false ;
+lw = 1.2 ;
+colorVectors = false ;
 
 % Unpack options
 if isfield(options, 'label')
@@ -63,6 +68,29 @@ if isfield(options, 'transposeVectorShape')
 end
 if isfield(options, 'fig') 
     fig = options.fig ;
+end
+if isfield(options, 'colorVectors') 
+    colorVectors = options.colorVectors ;
+end
+if isfield(options, 'lw') 
+    lw = options.lw ;
+end
+
+if colorVectors
+    mags = sqrt(vx.^2 + vy.^2) ; 
+    
+    if isfield(options, 'climv')
+        climv = options.climv ;
+    else
+        maxv = max(mags(:)) ;
+        climv = [0,maxv] ;
+    end
+    if isfield(options, 'colors')
+        colors = options.colors ;
+    else
+        colors = parula(100) ;
+    end
+    
 end
 
 
@@ -113,7 +141,13 @@ xq = 1:qsubsample:ww ;
 yq = 1:qsubsample:hh ;
 [xg, yg] = meshgrid(xx(xq), yy(yq)) ;
 
-h2 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, 'k', 'LineWidth', 1.2) ;
+if colorVectors
+    mags = sqrt(QX.^2 + QY.^2) ; 
+    h2 = quiverColorVectors2D(xg(:), yg(:), QX(:)*  qscale, QY(:)*qscale, mags(:), colors, climv, lw) ;
+else
+    h2 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, 'k', 'LineWidth', lw) ;   
+end
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

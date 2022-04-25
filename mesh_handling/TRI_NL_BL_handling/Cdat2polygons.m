@@ -48,6 +48,7 @@ method = 'graph' ;  % 'walking' or 'graph'
 debug = false ;     % whether to debug the algorithm
 maxNumEdges = 20 ;  % maximum number of edges a valid cell can have
 pausetime = 0.3 ;   % pausing time in seconds for viewing badly behaved cell polygons
+roi = [] ; 
 if nargin < 5
     options = struct() ;
 end
@@ -98,6 +99,9 @@ for cid = 1:length(Cdat)
             Cdat(cid).centroid.coord(1) < roi(1, 2) & ...
             Cdat(cid).centroid.coord(2) > roi(2,1) & ...
             Cdat(cid).centroid.coord(2) < roi(2,2) ;  
+    elseif isempty(roi)
+        disp('no roi, no trimming...')
+        inROI = true ;
     else
         error('handle more general roi here')
     end
