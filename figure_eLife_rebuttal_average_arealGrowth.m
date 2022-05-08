@@ -1,10 +1,30 @@
+% for handGAL4 handGFP histGFP, define as
+% options.lambda = 0 ;
+% options.lambda_err = 0 ;
+% options.lambda_mesh = 0 ;
+QS.dir.metricKinematics.pathline.measurements = ...
+    '/mnt/data/handGAL4klarHandGFPhistGFP/202105072030_1mWGFP/deconvolved_16bit/msls_output/gridCoords_nU0100_nV0100/metricKinematics_dtOffBy2/lambda0p000_lmesh0p000_lerr0p000_modes07w02/pathline_0001t0/measurements';
+tSpan = 45 ;
+div2 = true ;
+
+%% Other wise use:
+tSpan = 90 ;
+div2 = false ;
 
 %% Figure for eLife rebuttal
-apKymos = load(fullfile(sprintf(...
-   QS.dir.metricKinematics.pathline.measurements, QS.t0set()),...
-   'apKymographMetricKinematics.mat')) ;
+
+try
+    apKymos = load(fullfile(sprintf(...
+       QS.dir.metricKinematics.pathline.measurements, QS.t0set()),...
+       'apKymographMetricKinematics.mat')) ;
+catch
+    error('apKymos not saved')
+end
 firstpass = true ;
-tps = QS.t0set():QS.t0set()+90 ;
+tps = QS.t0set():QS.t0set()+tSpan ;
+gdotM = cell(1,1) ;
+divvM = cell(1,1) ;
+H2vnM = cell(1,1) ;
 for tt = tps
     divv = load(fullfile(sprintf(...
         QS.dir.metricKinematics.pathline.measurements, QS.t0set()),...
@@ -26,6 +46,10 @@ for tt = tps
         divvAll = divvAll + divv.divv ;
         H2vnAll = H2vnAll + H2vn.H2vn ;
     end
+    gdotM{tt} = gdot.gdot ;
+    divvM{tt} = divv.divv ;
+    H2vnM{tt} = H2vn.H2vn ;
+    
 end
 gdotAll = gdotAll ./ length(tps) ;
 divvAll = divvAll ./ length(tps) ;
@@ -43,9 +67,19 @@ QS.setTime(QS.t0set())
 mesh = QS.getCurrentSPCutMeshSmRS() ;
 
 % for histRFP: lambda0p010_lmesh0p000_lerr0p010_modes07w01
+% for handGAL4handhistGFP: lambda0p000_lmesh0p000_lerr0p000_modes07w02
+if div2 
+    gdotAll = gdotAll * 0.5 ;
+    divvAll = divvAll * 0.5 ;
+    H2vnAll = H2vnAll * 0.5 ;
+end
 
 %% Keep certain time window
-gdot90 = apKymos.gdot_apM(QS.xp.tIdx(QS.t0set()):QS.xp.tIdx(QS.t0set()+90),:) ;
+gdot90 = apKymos.gdot_apM(QS.xp.tIdx(QS.t0set()):QS.xp.tIdx(QS.t0set()+tSpan),:) ;
+
+if div2 
+    gdot90 = gdot90 * 0.5 ;
+end
 
 close all
 fig = figure('Position', [0 0 1200 900], 'Units', 'pixels') ;
@@ -94,8 +128,9 @@ plot(linspace(0,1,QS.nU), leftH2vn) ; hold on;
 plot(linspace(0,1,QS.nU), rightH2vn) ;
 plot(linspace(0,1,QS.nU), leftH2vn-rightH2vn) ;
 
-ofn = fullfile('/mnt/data/analysis/tubular/gut_asymmetries', 'kinematics_histRFP_0p01_0p00_0p01.mat') ;
-save(ofn, 'H2vnAll', 'divvAll', 'gdotAll', 'dorsH2vn', 'ventH2vn', 'leftH2vn', 'rightH2vn')
+%ofn = fullfile('/mnt/data/analysis/tubular/gut_asymmetries', 'kinematics_histRFP_0p01_0p00_0p01.mat') ;
+ofn = fullfile('/mnt/data/analysis/tubular/gut_asymmetries', 'kinematics_handGAL4handGFPhistGFP_0p00_0p00_0p00.mat') ;
+save(ofn, 'H2vnAll', 'divvAll', 'gdotAll', 'dorsH2vn')
 
 %%
 fields = {H2vnAll, divvAll, gdotAll} ;

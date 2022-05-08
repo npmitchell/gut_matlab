@@ -225,10 +225,17 @@ vunitstr = [ '[' QS.spaceUnits '/' QS.timeUnits ']' ];
 runitstr = [ '[' QS.spaceUnits ']' ] ;
     
 % Compute or load all timepoints
-for tp = QS.xp.fileMeta.timePoints(1:end-1)
+ntp = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
+tidx2do = 1:30:ntp ;
+tidx2do = [tidx2do, setdiff(1:10:ntp, tidx2do)] ;
+tidx2do = [tidx2do, setdiff(14:10:ntp, tidx2do)] ;
+tidx2do = [tidx2do, setdiff(1:5:ntp, tidx2do)] ;
+tidx2do = [tidx2do, setdiff(1:2:ntp, tidx2do)] ;
+tidx2do = [tidx2do, setdiff(1:ntp, tidx2do)] ;
+for tidx = tidx2do 
+    tp = QS.xp.fileMeta.timePoints(tidx) ;
     close all
     disp(['t = ' num2str(tp)])
-    tidx = QS.xp.tIdx(tp) ;
 
     % Check for timepoint measurement on disk
     Hfn = fullfile(outdir, sprintf('HH_vertices_%06d.mat', tp))   ;
@@ -563,8 +570,9 @@ if plot_spaceMaps && (~files_exist || overwrite || true)
         
         pOptions.makeCbar = [false, false, false, true, true, true] ;
         % pOptions.cmap = bwr ;
+        pOptions.cmap = brewermap(256, '*RdBu') ;
         % pOptions.cmap = twilight_shifted_trueWhite(256) ;
-        pOptions.cmap = twilight_shifted_mod(256) ;
+        % pOptions.cmap = twilight_shifted_mod(256) ;
         pOptions.axisOn = false ;
         pOptions.clim = [-climit, climit] ;
         pOptions.visible = 'On' ;

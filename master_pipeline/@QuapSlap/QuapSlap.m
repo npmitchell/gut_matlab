@@ -1259,7 +1259,8 @@ classdef QuapSlap < handle
             if nargin < 2
                 options = struct() ;
             end
-            if isempty(QS.pathlines.beltrami)
+            if isempty(QS.pathlines.beltrami) || ...
+                    isempty(QS.pathlines.beltrami.mu_material)
                 QS.pathlines.beltrami = QS.loadBeltramiCoefficient(options) ;
             end
             if nargout > 0 
@@ -2300,7 +2301,7 @@ classdef QuapSlap < handle
             
             if nargin < 3
                 varargin = {'pivPathlines', 'vertexPathlines', ...
-                    'facePathlines'} ;
+                    'facePathlines', 'vertexPathlines3d'} ;
             end
             if any(contains(varargin, 'pivPathlines'))
                 load(sprintf(QS.fileName.pathlines.XY, t0), 'pivPathlines')
@@ -2405,7 +2406,7 @@ classdef QuapSlap < handle
         
         %% Velocities -- Lagrangian Averaging
         timeAverageVelocities(QS, samplingResolution, options)
-        function loadVelocityAverage(QS, varargin)
+        function vels = loadVelocityAverage(QS, varargin)
             % Load and pack into struct
             if isempty(varargin)
                 varargin = {'v3d', 'v2dum', 'v2d', 'vn', 'vf', 'vv'};
@@ -2430,12 +2431,16 @@ classdef QuapSlap < handle
                 load(QS.fileName.pivAvg.vv, 'vvsmM') ;
                 QS.velocityAverage.vv = vvsmM ;
             end
+            
+            if nargout > 0 
+                vels = QS.velocityAverage ;
+            end
         end
-        function getVelocityAverage(QS, varargin)
+        function vels = getVelocityAverage(QS, varargin)
             % todo: check if all varargin are already loaded
-            loadVelocityAverage(QS, varargin{:})
+            vels = loadVelocityAverage(QS, varargin{:}) ;
         end
-        function loadVelocityAverage2x(QS, varargin)
+        function vels = loadVelocityAverage2x(QS, varargin)
             % Load and pack into struct
             if isempty(varargin)
                 varargin = {'v3d', 'v2dum', 'v2d', 'vn', 'vf', 'vv'};
@@ -2464,6 +2469,10 @@ classdef QuapSlap < handle
                 load(QS.fileName.pivSimAvg2x.vv, 'vvsmM') ;
                 QS.velocityAverage2x.vv = vvsmM ;
             end
+            
+            if nargout > 0 
+                vels = QS.velocityAverage ;
+            end
         end
         function getVelocityAverage2x(QS, varargin)
             if isempty(QS.velocityAverage2x.v3d)
@@ -2473,7 +2482,35 @@ classdef QuapSlap < handle
         plotTimeAvgVelocities(QS, options)
         helmholtzHodge(QS, options)
         measurePathlineVelocities(QS, options)
+        function vels = getPathlineVelocities(QS, options)
+            try
+                QS.loadPathlineVelocities()
+            catch
+                QS.measurePathlineVelocities()
+            end
+        end
         plotPathlineVelocities(QS, options)
+        function vels = loadPathlineVelocities(QS, t0, options)
+            % 
+            fileNames = QS.fileName.pathlines.velocities ;
+            load(sprintf(fileNames.v2dum, t0), 'v2dum') ;
+            load(sprintf(fileNames.v2d, t0)) ;
+            load(sprintf(fileNames.vv2dum, t0)) ;
+            load(sprintf(fileNames.vv2d, t0)) ;
+            load(sprintf(fileNames.vn, t0)) ;    
+            load(sprintf(fileNames.v3d, t0)) ;
+            load(sprintf(fileNames.vf, t0)) ;    
+            load(sprintf(fileNames.vv, t0)) ;
+            load(sprintf(fileNames.v2dsmum, t0)) ; 
+            load(sprintf(fileNames.v2dsm, t0)) ;
+            load(sprintf(fileNames.vnsm, t0)) ;     
+            load(sprintf(fileNames.v3dsm, t0)) ;
+            load(sprintf(fileNames.vfsm, t0)) ;   
+            load(sprintf(fileNames.vvsm, t0)) ;
+            load(sprintf(fileNames.vv2dsmum, t0)) ;  
+            load(sprintf(fileNames.vv2dsm, t0)) ;
+            load(sprintf(fileNames.vvnsm, t0)) ;
+        end
         
         function dec = getCurrentDEC(QS, options)
             % getCurrentDEC(QS, options)
@@ -2553,6 +2590,7 @@ classdef QuapSlap < handle
         plotMetricKinematics(QS, options)
         measurePathlineMetricKinematics(QS, options)
         plotPathlineMetricKinematics(QS, options)
+        measurePathlineVorticity(QS, options)
         
         %% infer stokes forces
         measureStokesForces(QS, options)

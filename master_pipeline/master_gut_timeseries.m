@@ -105,17 +105,17 @@
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
-cd /mnt/data/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
+% cd /mnt/data/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-% cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data 
+cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data 
 % cd /mnt/data/48Ygal4UASCAAXmCherry/201903211930_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150/
 % cd /mnt/crunch/48Ygal4UASsqhGFP/201902271940_excellent_notunpacked/Time6views_60sec_1p4um_25x_1p5mW_exp1p0_3/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 % cd /mnt/data/antpGAL4UASCAAXmChHGFP/202103281352_1p4um_0p15ms0p25ms_1mW1mW_GFPRFP/Time3views_180s/data/
 % cd /mnt/data/UbxGAL4UASCAAXmChHGFP/202105132247_UbxG4kCAAXHGFP_1p2um_0p1ms0p2ms_1mW1mW_3v300s/data
-
+% cd /mnt/data/handGAL4klarHandGFPhistGFP/202105072030_1mWGFP/
 
 % .=========.
 % |  VIP10  |
@@ -672,15 +672,17 @@ opts.lambda = 0.0 ;
 opts.lambda_err = 0.0 ;
 
 % for histRFP:
-opts.nmodes = 7 ;
-opts.zwidth = 1 ;
-opts.lambda_mesh = 0.00 ;
-opts.lambda = 0.01; % should use 0.01 for fig2/3 eLife, I think
-opts.lambda_err = 0.01; %shoudl use 0.01 for fig2/3 eLife ;
+% opts.nmodes = 7 ;
+% opts.zwidth = 1 ;
+% opts.lambda_mesh = 0.00 ;
+% opts.lambda = 0.01; % should use 0.01 for fig2/3 eLife, I think
+% opts.lambda_err = 0.01; %shoudl use 0.01 for fig2/3 eLife ;
 
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
+
+%% See dynamicAtlas figure script: figure_script_dynamicAtlas_gut_correlations.m
 
 %% Make some mips of shallow stacks
 adjustIV = false ; 

@@ -5,11 +5,13 @@
 % panels (area + writhe, volume + length)
 
 
-clear 
+clear all
+clc
 close all
 
 % Select where figure will go
-outdir = '/mnt/data/analysis/2021/' ;
+outdir = '/mnt/data/analysis/2022/' ;
+mkdir(outdir)
 markers = {'caax', 'hrfp', 'la'} ;
 labels = {'Membrane', 'Nuclei', 'Actin'}; 
 fontsize = 10 ;
@@ -18,7 +20,7 @@ graycolor = 0.8 * [1,1,1] ;
 opacity = 0.4 ;
 lw_mean = 2 ;
 foldText = {'middle', 'fold'} ;
-possibleTimes = -100:200 ;  % all possible timestamps in timeUnits
+possibleTimes = -125:265 ;  % all possible timestamps in timeUnits
 smoothStyle = 'rloess' ;
 smoothSpan = 0.2 ;
 smoothDegree = 2 ;
@@ -52,9 +54,9 @@ end
 % - 201901021550_folded_2part: TP 0, 54, 54 [LR 78]
 % LifeAct:
 % - 201904021800_great: TP 19, 55, 54 [LR 74] (tps begin 1)
-tf1_membrane = {151-109, 36 };
-tfa_membrane = {178-109, 61};
-tfp_membrane = {181-109, 69};
+tf1_membrane = {123, 36} ; % {151-109, 36 };
+tfa_membrane = {161, 61} ; % {178-109, 61};
+tfp_membrane = {173, 69} ; % {181-109, 69};
 tLRb_membrane = {206-109, 98};
 tf1_actin = {19, 0};
 tfa_actin = {55, 34};
@@ -70,12 +72,12 @@ crunch = '/mnt/crunch/' ;
 data = '/mnt/data/' ;
 % membrane_excellent
 caax_root = '48Ygal4UASCAAXmCherry/' ;
-caax_paths = {[crunch caax_root '201902072000_excellent/' ...
-    'Time6views_60sec_1_4um_25x_obis1_5_2/data/deconvolved_16bit/'...
-    'msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/'], ...
-    [crunch caax_root '201903211930_great/'...
-    'Time6views_60sec_1p4um_25x_1p0mW_exp0p150/data/deconvolved_16bit/'...
-    'msls_output_prnun5_prs1_nu0p00_s0p10_pn2_ps4_l1_l1/']} ;
+caax_paths = {[data caax_root '201902072000_excellent/' ...
+    'Time6views_60sec_1p4um_25x_obis1p5_2/data/deconvolved_16bit/'...
+    'msls_output/'], ...
+    [data caax_root '201903211930_great/'...
+    'Time6views_60sec_1p4um_25x_1p0mW_exp0p150/deconvolved_16bit/'...
+    'msls_output/']} ;
 caax_nUs = {100, 100, } ;
 caax_nVs = {100, 100, } ;
 caax_shifts = {10, 10, } ;
@@ -84,8 +86,8 @@ caax_shifts = {10, 10, } ;
 hist_root = '48Ygal4-UAShistRFP/' ;
 hist_paths = {[crunch hist_root '201901021550_folded_2part/'...
     'Time12views_60sec_1.2um_25x_4/data/deconvolved_16bit/'...
-    'msls_output_prnu0_prs0_nu0p10_s1p00_pn4_ps4_l1_l1/'], ...
-    [crunch hist_root '201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/'...
+    'msls_output/'], ...
+    [data hist_root '201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/'...
     'data/deconvolved_16bit/msls_output/'], ...
     [crunch hist_root '201903312000_closure_folding_errorduringtwist/'...
     'Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2_folding/data/deconvolved_16bit/'...
@@ -97,7 +99,7 @@ hist_shifts = {10, 10, 10, } ;
 
 % actin
 la_root = '48YGal4UasLifeActRuby/' ;
-la_paths = {[crunch la_root '201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/'...
+la_paths = {[data la_root '201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/'...
     'data/deconvolved_16bit/msls_output/'], ...
     [data la_root '201907311600_48YGal4UasLifeActRuby_60s_exp0p150_1p0mW_25x_1p4um/'...
     'Time4views_60sec_1p4um_25x_1p0mW_exp0p15/data/deconvolved_16bit/msls_output/']};
@@ -184,7 +186,14 @@ for mi = 1:length(markers)
 
         if exist(fn, 'file')
             % Load the surface area and volume from disk
-            load(fn, 'aas', 'vvs', 'dt')
+            tmp = load(fn, 'aas', 'vvs', 'dt') ;
+            aas = tmp.aas ;
+            vvs = tmp.vvs ;
+            try 
+                dt = tmp.dt ;
+            catch 
+                dt = 1 ;
+            end
             areas = aas ;
             volumes = vvs ;
 
@@ -459,17 +468,17 @@ allAm(emptyID) = NaN ;
 allAnm(emptyID) = NaN ;
 
 % area of time --> at, normalized area over time --> ant
-at = nanmean(allAm(goodRow, :), 2) ;
-ant = nanmean(allAnm(goodRow, :), 2) ;
-astd_t = std(allAm(goodRow, :), [], 2, 'ignore_nan') ; 
-anstd_t = nanstd(allAnm(goodRow, :), [], 2) ;
+at = mean(allAm(goodRow, :), 2, 'omitnan') ;
+ant = mean(allAnm(goodRow, :), 2, 'omitnan') ;
+astd_t = std(allAm(goodRow, :), [], 2, 'omitnan') ; 
+anstd_t = std(allAnm(goodRow, :), [], 2, 'omitnan') ;
 anstd_t = movmean(anstd_t, windowSzA) ;
 
 % vomume over time --> vt, normalized volume over time --> vnt
-vt = nanmean(allVm(goodRow, :), 2) ;
-vnt = nanmean(allVnm(goodRow, :), 2) ;
-vstd_t = nanstd(allAm(goodRow, :), [], 2) ;
-vnstd_t = nanstd(allAnm(goodRow, :), [], 2) ;
+vt = mean(allVm(goodRow, :), 2, 'omitnan') ;
+vnt = mean(allVnm(goodRow, :), 2, 'omitnan') ;
+vstd_t = std(allAm(goodRow, :), [], 2, 'omitnan') ;
+vnstd_t = std(allAnm(goodRow, :), [], 2, 'omitnan') ;
 vnstd_t = movmean(vnstd_t, windowSzA) ;
 
 % Take time derivative BEFORE SMOOTHING -- not useful
@@ -494,8 +503,8 @@ end
 
 % dan_std_t = nanstd(dAnm(goodRowDeriv, :), [], 2) ;
 % dvn_std_t = nanstd(dVnm(goodRowDeriv, :), [], 2) ;
-dan_std_t = movmedian(nanstd(dan_smt(goodRowDeriv, :), [], 2), windowSize) ;
-dvn_std_t = movmedian(nanstd(dvn_smt(goodRowDeriv, :), [], 2), windowSize) ;
+dan_std_t = movmedian(std(dan_smt(goodRowDeriv, :), [], 2, 'omitnan'), windowSize) ;
+dvn_std_t = movmedian(std(dvn_smt(goodRowDeriv, :), [], 2, 'omitnan'), windowSize) ;
 
 
 %% Average curves for length and writhe 
@@ -517,24 +526,30 @@ all_dLnm(emptyID) = NaN ;
 allWrm(emptyID) = NaN ;
 all_dWrm(emptyID) = NaN ;
 % area of time --> at, normalized area over time --> ant
-lent = nanmean(allLm(goodRow, :), 2) ;
-lnt = nanmean(allLnm(goodRow, :), 2) ;
-ln_std_t = nanstd(allLnm(goodRow, :), [], 2) ;
-dlnt = nanmean(all_dLnm(goodRow, :), 2) ;
-dln_std_t = nanstd(all_dLnm(goodRow, :), [], 2) ;
-wt = nanmean(allWrm(goodRow, :), 2) ;
-dwt = nanmean(all_dWrm(goodRow, :), 2) ;
-wstd_t = nanstd(allWrm(goodRow, :), [], 2) ;
-dw_std_t = nanstd(all_dWrm(goodRow, :), [], 2) ;
+lent = mean(allLm(goodRow, :), 2, 'omitnan') ;
+lnt = mean(allLnm(goodRow, :), 2, 'omitnan') ;
+ln_std_t = std(allLnm(goodRow, :), [], 2, 'omitnan') ;
+dlnt = mean(all_dLnm(goodRow, :), 2, 'omitnan') ;
+dln_std_t = std(all_dLnm(goodRow, :), [], 2, 'omitnan') ;
+wt = mean(allWrm(goodRow, :), 2, 'omitnan') ;
+dwt = mean(all_dWrm(goodRow, :), 2, 'omitnan') ;
+wstd_t = std(allWrm(goodRow, :), [], 2, 'omitnan') ;
+dw_std_t = std(all_dWrm(goodRow, :), [], 2, 'omitnan') ;
 
 %% save to disk
 validLengthIDs = find(any(allL, 2));
 validVolumeIDs = find(any(allV, 2));
 validAreaIDs = find(any(allV, 2));
-save(fullfile(outdir, 'surface_area_volume_length.mat', ...
-    'allLnm', 'allLm', 'validLengthIDs', ...
-    'allVnm', 'allVm', 'validVolumeIDs', ...
-    'allAnm', 'allAm', 'validAreaIDs')) ;
+centerlineLength = allLm ;
+centerlineLength_normalized = allLnm ;
+volume = allVm ;
+volume_normalized = allVnm ;
+surfaceArea = allAm ;
+surfaceArea_normalized = allAnm ;
+save(fullfile(outdir, 'surface_area_volume_length.mat'), ...
+    'centerlineLength_normalized', 'centerlineLength', 'validLengthIDs', ...
+    'volume_normalized', 'volume', 'validVolumeIDs', ...
+    'surfaceArea_normalized', 'surfaceArea', 'validAreaIDs') ;
 
 %% Add to figure
 % figure(fig1)

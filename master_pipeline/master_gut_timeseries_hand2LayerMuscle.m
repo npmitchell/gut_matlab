@@ -113,6 +113,7 @@ clear; close all; clc;
 % cd /mnt/crunch/48Ygal4UASsqhGFP/201902271940_excellent_notunpacked/Time6views_60sec_1p4um_25x_1p5mW_exp1p0_3/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
+cd /mnt/data/handGAL4klarHandGFPhistGFP/202105072030_1mWGFP/
 
 % .=========.
 % |  VIP10  |
@@ -121,7 +122,7 @@ clear; close all; clc;
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202007151930_1p4um_0p5msexp/Time3views_25x_60s/data/
-cd /mnt/crunch/gut/handGAL4klarHandGFPhistGFP/202105072030_1p4um_0p2ms_1mWGFP/view4_1p4um_25x_1mW_exp0p2ms_120spf/data ;
+% cd /mnt/crunch/gut/handGAL4klarHandGFPhistGFP/202105072030_1p4um_0p2ms_1mWGFP/view4_1p4um_25x_1mW_exp0p2ms_120spf/data ;
 
 
 dataDir = cd ;
@@ -377,7 +378,7 @@ expMeta.description         = 'Drosophila gut';
 expMeta.dynamicSurface      = 1;
 expMeta.jitterCorrection    = 0;  % 1: Correct for sample translation
 expMeta.fitTime             = fileMeta.timePoints(first_tp);
-expMeta.detectorType        = 'surfaceDetection.integralDetector';
+expMeta.detectorType        = 'surfaceDetection.morphsnakesDetector';
 expMeta.fitterType          = 'surfaceFitting.meshWrapper';
 
 % Now set the meta data in the experiment.
@@ -539,6 +540,7 @@ meshDir = detectOptions.mslsDir ;
 % These are now in QS.
 % meshFileBase = [ofn_smoothply '%06d'] ;
 % alignedMeshBase = [ofn_smoothply '%06d_APDV_um'] ;
+% detectOptions.mslsDir  = '/mnt/data/handGAL4klarHandGFPhistGFP/202105072030_1mWGFP/deconvolved_16bit/msls_output/'
 
 % Set detect options ------------------------------------------------------
 xp.setDetectOptions( detectOptions );
@@ -639,6 +641,7 @@ else
 end
 
 %% Define QuapSlap object
+% todo here
 nU = masterSettings.nU ;
 nV = masterSettings.nV ;
 opts.meshDir = meshDir ;
@@ -656,6 +659,13 @@ opts.phiMethod = 'curves3d' ;
 opts.lambda_mesh = 0.002 ;
 opts.lambda = 0.01 ;
 opts.lambda_err = 0.01 ;
+
+% For HandGAL4HandGFP pathline measurements, use:
+opts.lambda = 0 ;
+opts.lambda_err = 0 ;
+opts.lambda_mesh = 0 ;
+opts.zwidth = 2 ;
+
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')

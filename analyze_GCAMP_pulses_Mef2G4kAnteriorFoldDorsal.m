@@ -1,11 +1,15 @@
 % Analyze the GCAMP pulses for width of anterior fold using Mef2GAL4
 % NPMitchell 2021
 
+close all
+clear all
+clc
 
 preview = false ;
 overwrite = true ;
 resDirFn = 'anteriorFoldResults' ;
 pausetime = 3 ;
+refStr = '' % I have no idea what this was for. It used to say 'nonFoldRef'
 
 gutMatlabDir = '/mnt/data/code/gut_matlab/' ;
 % gutMatlabDir = '/Users/npmitchell/Dropbox/Soft_Matter/UCSB/gut_morphogenesis/gut_matlab/' ;

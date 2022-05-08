@@ -693,7 +693,8 @@ if dynamic
     QS.dir.pathlines.strain_images = fullfile(QS.dir.pathlines.data, 'images_strain') ;
     QS.dir.pathlines.strain = fullfile(QS.dir.pathlines.data, 'strain') ;
     QS.dir.pathlines.dxdyFiltered = fullfile(QS.dir.pathlines.data, 'DxDyStrainFiltered') ;
-
+    QS.dir.pathlines.vorticity = fullfile(QS.dir.pathlines.data, 'vorticity') ;
+    
     % pathline fileNames
     QS.fileName.pathlines = struct() ;
     pdir = QS.dir.pathlines.data ;
@@ -755,16 +756,22 @@ if dynamic
     pvdir = QS.dir.pathlines.velocities ;
     QS.fileName.pathlines.velocities.v3d = fullfile(pvdir, 'vM.mat')  ;
     QS.fileName.pathlines.velocities.vn  = fullfile(pvdir, 'vnM.mat') ;
+    QS.fileName.pathlines.velocities.vvn  = fullfile(pvdir, 'vvnM.mat') ;
     QS.fileName.pathlines.velocities.vv  = fullfile(pvdir, 'vvM.mat') ;
     QS.fileName.pathlines.velocities.vf  = fullfile(pvdir, 'vfM.mat') ;
     QS.fileName.pathlines.velocities.v2d = fullfile(pvdir, 'v2dM.mat') ;
     QS.fileName.pathlines.velocities.v2dum = fullfile(pvdir, 'v2dMum.mat') ;
+    QS.fileName.pathlines.velocities.vv2d = fullfile(pvdir, 'v2dM.mat') ;
+    QS.fileName.pathlines.velocities.vv2dum = fullfile(pvdir, 'v2dMum.mat') ;
     QS.fileName.pathlines.velocities.v3dsm   = fullfile(pvdir, 'vsmM.mat') ;
     QS.fileName.pathlines.velocities.vnsm    = fullfile(pvdir, 'vnsmM.mat') ;
+    QS.fileName.pathlines.velocities.vvnsm    = fullfile(pvdir, 'vvnsmM.mat') ;
     QS.fileName.pathlines.velocities.vvsm    = fullfile(pvdir, 'vvsmM.mat') ;
     QS.fileName.pathlines.velocities.vfsm    = fullfile(pvdir, 'vfsmM.mat') ;
     QS.fileName.pathlines.velocities.v2dsm   = fullfile(pvdir, 'v2dsmM.mat') ;
     QS.fileName.pathlines.velocities.v2dsmum = fullfile(pvdir, 'v2dsmMum.mat') ;
+    QS.fileName.pathlines.velocities.vv2dsm   = fullfile(pvdir, 'vv2dsmM.mat') ;
+    QS.fileName.pathlines.velocities.vv2dsmum = fullfile(pvdir, 'vv2dsmMum.mat') ;
 
     % pathline fileBases
     QS.fileBase.pathlines = struct() ;

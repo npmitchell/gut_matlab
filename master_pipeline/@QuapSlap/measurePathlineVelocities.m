@@ -29,6 +29,9 @@ imethod = 'linear' ;
 % as PIV reference coord sys
 pivimCoords = QS.piv.imCoords ;
 
+if nargin < 2
+    options = struct() ;
+end
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
 end
@@ -79,12 +82,14 @@ QS.clearTime() ;
 
 %% Build grids for averaging
 if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
+        ~exist(fileNames.vv2dum, 'file') || ~exist(fileNames.vv2d, 'file') || ...
         ~exist(fileNames.vn, 'file') || ~exist(fileNames.v3d, 'file') || ...
         ~exist(fileNames.vf, 'file') || ~exist(fileNames.vv, 'file') || ...
         ~exist(fileNames.v2dsmum, 'file') || ~exist(fileNames.v2dsm, 'file') || ...
         ~exist(fileNames.vnsm, 'file') || ~exist(fileNames.v3dsm, 'file') || ...
         ~exist(fileNames.vfsm, 'file') || ~exist(fileNames.vvsm, 'file') || ...
-        overwrite
+        ~exist(fileNames.vv2dsmum, 'file') || ~exist(fileNames.vv2dsm, 'file') || ...
+        ~exist(fileNames.vvnsm, 'file') || overwrite
     
     disp('Could not find time-smoothed velocities on disk')
     disp('Computing them...')
@@ -122,8 +127,11 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
                 size(piv3d.v3dvertices, 1), ...
                 size(piv3d.v3dvertices, 2)); 
             vnM = zeros(ntps, size(piv3d.v0n_rs, 1), size(piv3d.v0n_rs, 2));
+            vvnM = zeros(ntps, size(piv3d.v3dvertices, 1), size(piv3d.v0n_rs, 2));
             v2dM = zeros(ntps, size(piv3d.v0t2d, 1), size(piv3d.v0t2d, 2));
             v2dMum = zeros(ntps, size(piv3d.v0t2d, 1), size(piv3d.v0t2d, 2));
+            vv2dM = zeros(ntps, size(piv3d.v3dvertices, 1), size(piv3d.v0t2d, 2));
+            vv2dMum = zeros(ntps, size(piv3d.v3dvertices, 1), size(piv3d.v0t2d, 2));
             first = false ;
         end
         
@@ -184,6 +192,7 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         Fn = griddedInterpolant(x0', y0', v0nrsN', imethod, 'nearest') ;
         % Query velocities
         v0n_rs = Fn(XX(:), YY(:)) ;
+        vv0n_rs = Fn(vX(:), vY(:)) ;
 
         % 4. Interpolate onto mesh vertices (v3dvertices)
         % Query velocities
@@ -196,6 +205,7 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         Fy = griddedInterpolant(x0', y0', v0t2dY', imethod, 'nearest') ;
         % Query velocities
         v0t2d = [Fx(XX(:), YY(:)), Fy(XX(:), YY(:))] ;
+        vv0t2d = [Fx(vX(:), vY(:)), Fy(vX(:), vY(:))] ;
 
         % 6. Interpolate v0t2dum
         v0t2dx = reshape(piv3d.v0t2d(:, 1) ./ piv3d.dilation, size(x0)) ;
@@ -204,14 +214,18 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
         Fy = griddedInterpolant(x0', y0', v0t2dy', imethod, 'nearest') ;
         % Query velocities
         v0t2dum = [Fx(XX(:), YY(:)), Fy(XX(:), YY(:))] ;
+        vv0t2dum = [Fx(vX(:), vY(:)), Fy(vX(:), vY(:))] ;
 
         %% BUILD ARRAYS
-        vM(tidx, :, :) = v0_rs ;             % in um/dt rs at PIV evaluation points
-        vfM(tidx, :, :) = v3dfaces_rs ;      % in um/dt rs at face barycenters
-        vnM(tidx, :, :) = v0n_rs ;           % in um/dt rs at 
-        vvM(tidx, :, :) = v3dvertices ;      % in um/min rs
-        v2dM(tidx, :, :) = v0t2d ;           % in pixels/ min
-        v2dMum(tidx, :, :) = v0t2dum ;       % in scaled pix/min, but proportional to um/min
+        vM(tidx, :, :) = v0_rs ;             % in spaceUnits/dt rs at PIV evaluation points
+        vfM(tidx, :, :) = v3dfaces_rs ;      % in spaceUnits/dt rs at face barycenters
+        vnM(tidx, :, :) = v0n_rs ;           % in spaceUnits/dt rs at piv grid evaluation coords
+        vvnM(tidx, :, :) = vv0n_rs ;         % in spaceUnits/dt rs at vertices
+        vvM(tidx, :, :) = v3dvertices ;      % in spaceUnits/dt rs
+        v2dM(tidx, :, :) = v0t2d ;           % in pixels/ dt
+        v2dMum(tidx, :, :) = v0t2dum ;       % in scaled pix/min, but proportional to um/dt
+        vv2dM(tidx, :, :) = vv0t2d ;         % on vertices in pixels/ dt
+        vv2dMum(tidx, :, :) = vv0t2dum ;     % on vertices in scaled pix/min, but proportional to spaceUnits/dt
         
     end
     
@@ -223,9 +237,12 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
     fvM   = sprintf(QS.fileName.pathlines.velocities.v3d, t0) ;
     fvfM  = sprintf(QS.fileName.pathlines.velocities.vf, t0) ;
     fvnM  = sprintf(QS.fileName.pathlines.velocities.vn, t0) ;
+    fvvnM  = sprintf(QS.fileName.pathlines.velocities.vvn, t0) ;
     fvvM  = sprintf(QS.fileName.pathlines.velocities.vv, t0) ;
     fv2dM = sprintf(QS.fileName.pathlines.velocities.v2d, t0) ;
     fv2dMum = sprintf(QS.fileName.pathlines.velocities.v2dum, t0) ; 
+    fvv2dM = sprintf(QS.fileName.pathlines.velocities.vv2d, t0) ;
+    fvv2dMum = sprintf(QS.fileName.pathlines.velocities.vv2dum, t0) ; 
     if ~exist(outdir, 'dir')
         mkdir(outdir)
     end
@@ -235,12 +252,18 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
     save(fvfM, 'vfM') 
     disp(['Saving: ' fvnM])
     save(fvnM, 'vnM') 
+    disp(['Saving: ' fvvnM])
+    save(fvvnM, 'vvnM') 
     disp(['Saving: ' fvvM])
     save(fvvM, 'vvM') 
     disp(['Saving: ' fv2dM])
     save(fv2dM, 'v2dM') 
     disp(['Saving: ' fv2dMum])
     save(fv2dMum, 'v2dMum')
+    disp(['Saving: ' fvv2dM])
+    save(fvv2dM, 'vv2dM') 
+    disp(['Saving: ' fvv2dMum])
+    save(fvv2dMum, 'vv2dMum')
     
     %% Filter in time axis -- light time smoothing tripulse of length 5
     % linfilt = 0.1 * ones(10, 1, 1) ;
@@ -262,8 +285,11 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
     vsmM = imfilter(vM, tripulse3, 'replicate');         % in um/min, rs
     vvsmM = imfilter(vvM, tripulse3, 'replicate');       % in um/min, rs
     vnsmM = imfilter(vnM, tripulse3, 'replicate');       % in um/min
+    vvnsmM = imfilter(vvnM, tripulse3, 'replicate');       % in um/min
     v2dsmM = imfilter(v2dM, tripulse3, 'replicate');     % in pix/min
     v2dsmMum = imfilter(v2dMum, tripulse3, 'replicate'); % in scaled pix/min, proportional to um/min  
+    vv2dsmM = imfilter(vv2dM, tripulse3, 'replicate');     % in pix/min
+    vv2dsmMum = imfilter(vv2dMum, tripulse3, 'replicate'); % in scaled pix/min, proportional to um/min  
     vfsmM = imfilter(vfM, tripulse3, 'replicate') ;      % in um/min, rs
 
     % Save the simpleminded averaging
@@ -271,9 +297,12 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
     fvsmM   = sprintf(QS.fileName.pathlines.velocities.v3dsm, t0) ;
     fvfsmM  = sprintf(QS.fileName.pathlines.velocities.vfsm, t0) ;
     fvnsmM  = sprintf(QS.fileName.pathlines.velocities.vnsm, t0) ;
+    fvvnsmM  = sprintf(QS.fileName.pathlines.velocities.vvnsm, t0) ;
     fvvsmM  = sprintf(QS.fileName.pathlines.velocities.vvsm, t0) ;
     fv2dsmM = sprintf(QS.fileName.pathlines.velocities.v2dsm, t0) ;
     fv2dsmMum = sprintf(QS.fileName.pathlines.velocities.v2dsmum, t0) ;
+    fvv2dsmM = sprintf(QS.fileName.pathlines.velocities.vv2dsm, t0) ;
+    fvv2dsmMum = sprintf(QS.fileName.pathlines.velocities.vv2dsmum, t0) ;
     disp(['Saving: ' fvsmM])
     save(fvsmM, 'vsmM') ;          % in um/min
     disp(['Saving: ' fvvsmM])
@@ -282,14 +311,21 @@ if ~exist(fileNames.v2dum, 'file') || ~exist(fileNames.v2d, 'file') || ...
     save(fvfsmM, 'vfsmM') ;        % in um/min, rs
     disp(['Saving: ' fvnsmM])
     save(fvnsmM, 'vnsmM') ;        % in um/min
+    disp(['Saving: ' fvvnsmM])
+    save(fvvnsmM, 'vvnsmM') ;        % in um/min
     disp(['Saving: ' fv2dsmM])
     save(fv2dsmM, 'v2dsmM') ;      % in pix/min
     disp(['Saving: ' fv2dsmMum])
     save(fv2dsmMum, 'v2dsmMum') ;  % in scaled pix/min, proportional to um/min 
+    disp(['Saving: ' fvv2dsmM])
+    save(fvv2dsmM, 'vv2dsmM') ;      % in pix/min
+    disp(['Saving: ' fvv2dsmMum])
+    save(fvv2dsmMum, 'vv2dsmMum') ;  % in scaled pix/min, proportional to um/min 
     
     %% Plot this timepoint
     for tidx = 1:ntps
         close all
+        tp = QS.xp.fileMeta.timePoints(tidx) ;
         % Load streamline positions at this timePoint
         plotOptions.XX = pivPathlines.XX(tidx, :, :) ;
         plotOptions.YY = pivPathlines.YY(tidx, :, :) ;

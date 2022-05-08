@@ -1,5 +1,9 @@
 %% Make first GCaMP panel
 
+clear all
+close all
+clc
+
 rootdir = '/mnt/data/confocal_data/gut/Mef2GAL4klarUASGCAMP6sIII/' ;
 rootdir = fullfile(rootdir, 'analysis_mef2G4kGCaMP6sIII') ;
 resDirFn = 'anteriorFoldResults' ;
@@ -164,7 +168,9 @@ ylabel('fluctuating GCaMP intensity, $\delta I$ [a.u.]', 'interpreter', 'latex')
 title('Max of dv-integrated signal within each region')
 
 % Save what was plotted
-save('/mnt/data
+outrootdir = '/mnt/data/analysis/eLife_gut2022_minimalData/';
+fn = fullfile(outrootdir, 'figure5_calcium_example_embryo_dorsalAnterior/timetrace_anteriorConstriction.mat') ;
+save(fn, 'r00', 'med00', 'timestamps')
 
 %% read poster frame
 % for posterFrameOffsets = -1:25 ;
