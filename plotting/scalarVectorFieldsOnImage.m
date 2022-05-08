@@ -51,6 +51,10 @@ function [h1, h2, h3] = scalarVectorFieldsOnImage(im, xxs, yys, sf, ...
 %   qscale : float
 %       overall multiplication of the quiver magnitude for overlay
 %       (then plotted at true value, "scale=0" in quiver())
+%   qcolor : color specifier (default='k')
+%       quiver arrow color 
+%   qlinewidth : float
+%       linewidth for quiver arrows
 %   outfn : str
 %       output filename for figure as png 
 %   figWidth : int (optional, default = 16) 
@@ -95,6 +99,7 @@ labelstr = '' ;
 overlay_quiver = true ;
 qsubsample = 10 ;
 qscale = 10 ;
+qcolor = 'k' ;
 sscale = max(abs(sf(:))) ;
 alphaVal = 0.8 ;
 style = 'phase' ;  % 'diverging' (scalar), 'nematic', or 'phase' (polar)
@@ -102,6 +107,7 @@ style = 'phase' ;  % 'diverging' (scalar), 'nematic', or 'phase' (polar)
 figWidth = 16 ; % cm
 figHeight = 10 ; % cm
 visibility = 'off' ;
+lw = 1.2 ;
 
 %% Unpack options
 if isfield(options, 'style') 
@@ -121,6 +127,12 @@ if isfield(options, 'qsubsample')
 end
 if isfield(options, 'qscale') 
     qscale = options.qscale ;
+end
+if isfield(options, 'qcolor') 
+    qcolor = options.qcolor ;
+end
+if isfield(options, 'qlinewidth') 
+    lw = options.qlinewidth ;
 end
 if isfield(options, 'alpha') 
     alphaVal = options.alpha ;
@@ -185,6 +197,13 @@ if sf_on_faces
         else
             caxis([-max(abs(sf(:))), max(abs(sf(:)))])
         end
+    elseif strcmpi(style, 'linear')
+        alpha(alphaVal) ;
+        if sscale > 0
+            caxis([0, sscale])
+        else
+            caxis([min(sf(:)), max(sf(:))])
+        end
     end
 else
     % The scalar field is defined on VERTICES (same as #pts given)
@@ -212,6 +231,15 @@ else
         set(h2, 'alphaData', 0.5)
         if sscale > 0
             caxis([-sscale, sscale])
+        else
+            caxis([-max(abs(sf(:))), max(abs(sf(:)))])
+        end
+    elseif strcmpi(style, 'linear')
+        alpha(alphaVal) ;
+        if sscale > 0
+            caxis([0, sscale])
+        else
+            caxis([min(sf(:)), max(sf(:))])
         end
     end
 end
@@ -222,22 +250,47 @@ end
 if overlay_quiver   
     if qsubsample > 1
         disp('scalarVectorFieldsOnImage: subsampling quiver')
-        wwv = length(xxv) ;
-        hhv = length(yyv) ;
-        vx = reshape(vx, [wwv, hhv]) ;
-        vy = reshape(vy, [wwv, hhv]) ;
+        if sum(size(xxv) > 1) == 1 && sum(size(xxv) > 1) == 1 
+            wwv = length(xxv) ;
+            hhv = length(yyv) ;
+        else
+            disp('xxv and yyv are 2D')
+            wwv = size(xxv, 1) ;
+            hhv = size(yyv, 2) ;
+            assert(all(size(xxv) == size(yyv)))
+            xxv = unique(xxv) ;
+            yyv = unique(yyv) ;
+        end
+        if any(size(vx) == 1)
+            vx = reshape(vx, [wwv, hhv]) ;
+            vy = reshape(vy, [wwv, hhv]) ;
+        elseif size(vx, 1) == hhv && size(vx, 2) == wwv            
+            vx = vx' ;
+            vy = vy' ;
+        end
         QX = imresize(vx, [wwv / qsubsample, hhv / qsubsample], 'bicubic') ;
         QY = imresize(vy, [wwv / qsubsample, hhv / qsubsample], 'bicubic') ;
         xq = 1:qsubsample:wwv ;
         yq = 1:qsubsample:hhv ;
         [xg, yg] = meshgrid(xxv(xq), yyv(yq)) ;
-
-        h3 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, 'k', 'LineWidth', 1.2) ;
+        
+        h3 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, qcolor, 'LineWidth', lw) ;
+    
     else
-        size(xxv)
-        size(vx)
-        size(vy)
-        h3 = quiver(xxv(:), yyv(:), qscale * vx(:), qscale * vy(:), 0, 'k', 'LineWidth', 1.2) ;
+        % size(xxv)
+        % size(vx)
+        % size(vy)
+        try
+            h3 = quiver(xxv(:), yyv(:), qscale * vx(:), qscale * vy(:), 0, qcolor, 'LineWidth', lw) ;
+        catch
+            try
+                % This will work if xxv and yyv are matrices matching vx and vy
+                h3 = quiver(xxv, yyv, qscale * vx, qscale * vy, ...
+                    0, qcolor, 'LineWidth', 1.2) ;
+            catch
+                h3 = quiver(xxv(:), yyv(:), qscale * vx, qscale * vy, 0, qcolor, 'LineWidth', lw) ;
+            end
+        end
     end
 else
     h3 = [] ;
@@ -337,8 +390,48 @@ elseif strcmp(style, 'diverging')
     if isfield(options, 'cticks')
         c.Ticks = options.cticks ;
     end
+elseif strcmp(style, 'linear')
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Linear colormap (0, sscale)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    try
+        colormap(batlowk)
+    catch
+        try
+            colormap(brewermap(256, '*YlGnBu'))
+        catch
+            disp('using default (parula) colormap')
+            colormap(parula)
+        end
+    end
+    if isfield(options, 'ylim')
+        ylim(options.ylim)
+    end
+    set(gca, 'Position', [0 0.11 0.85 0.8]) ;
+    % Add colorbar
+    c = colorbar('Position',[.9 .333 .02 .333]) ;
+    % ylabel(cax, labelstr, 'color', 'k', ...
+    %     'Interpreter', 'Latex')
+    
+    % Make colorbar share the alpha of the image
+    % Manually flush the event queue and force MATLAB to render the colorbar
+    % necessary on some versions
+    drawnow
+    % Get the color data of the object that correponds to the colorbar
+    cdata = c.Face.Texture.CData;
+    % Change the 4th channel (alpha channel) to 10% of it's initial value (255)
+    cdata(end,:) = uint8(alphaVal * cdata(end,:));
+    % Ensure that the display respects the alpha channel
+    c.Face.Texture.ColorType = 'truecoloralpha';
+    % Update the color data with the new transparency information
+    c.Face.Texture.CData = cdata;
+    c.Label.Interpreter = 'latex' ;
+    c.Label.String = labelstr ;
+    if isfield(options, 'cticks')
+        c.Ticks = options.cticks ;
+    end
 else
-    error('have not coded for this style yet')
+    error('unknown style!')
 end
 
 %% Save the image to disk if outfn is supplied

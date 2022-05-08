@@ -128,6 +128,16 @@ if any(tmp)
     style = varargin{find(tmp) + 1} ;
 end
 
+tmp = strncmpi(varargin, 'axis',3); 
+if any(tmp)
+    ax = varargin{find(tmp) + 1} ;
+    if isempty(ax)
+        ax = axes ;
+    end
+else
+    ax = axes ;
+end
+
 %% style: filled or not
 if contains(lower(style), 'fill')
     innerRadius = 0 ;
@@ -167,7 +177,8 @@ end
 
 %% Plot surface: 
 
-ax = axes; 
+% ax = axes;  allow for input here instead. NPMitchell 2022
+
 if contains(lower(style), 'grad')
     alphaGrid = rho./outerRadius ;
     alphaGrid(alphaGrid > 1) = 1 ;

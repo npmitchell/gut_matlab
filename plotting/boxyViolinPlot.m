@@ -1,5 +1,7 @@
 function boxyViolinPlot(xvals, yvals, boxWidths, ...
     boxHeights, style, faceColors, edgeColors, lineWidths)
+% boxyViolinPlot(xvals, yvals, boxWidths, ...
+%    boxHeights, style, faceColors, edgeColors, lineWidths)
 %
 % Parameters
 % ----------
@@ -7,11 +9,11 @@ function boxyViolinPlot(xvals, yvals, boxWidths, ...
 %   x positions of each violin box
 % yvals : length(N) numeric (default = [1])
 %   y positions of each violin box
-% boxWidths : N x 1 numeric or 1x1 numeric (default = diff(xvals) or 1)
+% boxWidths : optional N x 1 numeric or 1x1 numeric (default = diff(xvals) or 1)
 %   width of each box in the plot
-% boxHeights : N x 1 numeric or 1x1 numeric (default = diff(yvals) or 1)
+% boxHeights : optional N x 1 numeric or 1x1 numeric (default = diff(yvals) or 1)
 %   height of each box in the plot
-% style : string specifier ('left', 'center', default ='center')
+% style : optional string specifier ('left', 'center', default ='center')
 %   if left, uses bottom left for (xvals, yvals)
 %   if center, interprets (xvals, yvals) as center of box
 % FaceColors
@@ -20,6 +22,13 @@ function boxyViolinPlot(xvals, yvals, boxWidths, ...
 %   
 % LineWidths
 %
+% Example usage
+% -------------
+% N = 1000 ;
+% x = ones(N, 1) ;
+% y = rand(N, 1) ;
+% boxyViolinPlot(x, y)
+% 
 % NPMitchell 2021
 
 
@@ -43,8 +52,13 @@ end
 if nargin < 4  || isempty(boxHeights)
     % try something reasonable for heights
     if numel(yvals) > 1
-        boxHeights = diff(yvals) ;
-        boxHeights = [boxHeights, boxHeights(end)] ;
+        try
+            assert(all(yvals == unique(yvals(:))))
+        catch
+            error('If yvals are not ordered, then boxHeights must be supplied')
+        end
+        boxHeights = diff(yvals(:)) ;
+        boxHeights = [boxHeights; boxHeights(end)]' ;
     else
         boxHeights = 1 ;
     end
@@ -53,8 +67,12 @@ end
 if nargin < 3  || isempty(boxWidths)
     % try something reasonable for widths
     if numel(xvals) > 1
-        boxWidths = diff(xvals) ;
-        boxWidths = [boxWidths, boxWidths(end)] ;
+        try
+            boxWidths = mean(diff((xvals(:)))) ;
+            %  boxWidths = [boxWidths; boxWidths(end)]' ;
+        catch
+            boxWidths = 1 ;
+        end
     else
         boxWidths = 1 ;
     end

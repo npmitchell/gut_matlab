@@ -87,7 +87,7 @@ if nargin > 1
         load_tstools = false ;
     catch
         disp(['labelRectilinearMeshBonds: ', ...
-            'topological structure tools could not be parsed'])
+            'no topological structure tool inputs could be parsed, computing...'])
     end
     if isfield(options, 'preview')
         preview = options.preview ;

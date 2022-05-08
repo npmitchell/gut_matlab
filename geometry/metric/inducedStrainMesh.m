@@ -1,11 +1,12 @@
 function [strain, tre, dev, theta, outputStruct] = ...
-    inducedStrainPeriodicMesh(deformedCutMesh, refCutMesh, options)
+    inducedStrainMesh(deformedMesh, refMesh, options)
 %strainRateMesh(cutMesh, dxdy, options)
 %   Compute strain tensor on faces of a mesh given the rest lengths of the 
 %   mesh bonds in the fixed/reference Lagrangian frame.
-%   Tiles the mesh before making computations. If tiled mesh is
-%   not supplied in options, then it is computed. Assumes periodic in Y
-%   direction only. Returns strain tensors on each face, the trace
+%       ==> strain = 0.5 * (inv(g0) * (g1 - g0))
+%
+%   DO NOT tile the mesh before making computations. 
+%   Returns strain tensors on each face, the trace
 %   (note this is the full trace, not 1/2 trace) of the strain rate in the
 %   embedding Tr[inv(g) epsilon], the deviatoric component magnitude
 %   (Frobenius norm of the deviator, which is
@@ -19,34 +20,27 @@ function [strain, tre, dev, theta, outputStruct] = ...
 %   fundamental forms fundForms, and the symmetrized gradient of the
 %   velocities.
 %
-% todo: generalize to tauri and other topologies
 % 
 % Parameters
 % ----------
-% cutMesh : struct with fields 
-%   Rectilinear cutMesh with pullback space u and embedding space v. 
+% deformedMesh : struct with fields 
+%   Mesh with pullback space u and embedding space v. 
 %   f : #faces x 3 int array
 %       mesh face connectivity list 
 %   v : #vertices x 3 float array
 %       embedding space mesh vertices of the cut mesh
 %   u : #vertices x 2 float array
 %       pullback mesh vertices of the cut mesh
-%   pathPairs : P x 2 int array
-%       path along boundary that is glued together (identified) in the
-%       closed form of the mesh
-% dxdy : 
+% refMesh : struct with fields 
+%   Mesh with pullback space u and embedding space v. 
+%   f : #faces x 3 int array
+%       mesh face connectivity list 
+%   v : #vertices x 3 float array
+%       embedding space mesh vertices of the cut mesh
+%   u : #vertices x 2 float array
+%       pullback mesh vertices of the cut mesh
 % options : optional struct with fields
-%   refMesh : struct with fields f, u, v, like cutMesh but without seam
-%   deformedMesh : struct with fields f, u, v, like cutMesh but without seam
-%   debug : bool (default=false)
-%       view intermediate results for debugging
-%   pullbackTheta : bool (default=false)
-%       return strain deviator elongation angles theta in pullback
-%       coordinates rather than in embedding coordinates (angles relative
-%       to the embedded projections (ie push forwards) of unit vectors 
-%       vec{du} and vec{dv} from pullback space into 3D). Default behavior
-%       is to return theta s as angles from the du vector pushed into 3D.
-%   tiledMesh
+%   passed to labelRectilinearMeshBonds()
 %
 % Returns
 % -------
@@ -61,23 +55,16 @@ function [strain, tre, dev, theta, outputStruct] = ...
 %   bondDxDy : struct with fields
 %       dx : length of dx in embedding space / length of dx in pullback space
 %       dy : length of dy in embedding space / length of dy in pullback space
-%       dxTiled : length of dx in embedding space / length of dx in
-%           pullback space for tiled mesh
-%       dyTiled : length of dy in embedding space / length of dy in
-%           pullback space for tiled mesh
 %   theta_pb : #tiledFaces x 1 float array
 %       elongation angle, theta, in pullback space (differs from
 %       theta by scaling of the eigenvectors by (dx, dy) returned in
 %       bondDxDy
-%   faceIDs : #faces x 1 int array
-%       indices of tiled faces that return the faces of the
-%       original input mesh, so that strain_orig = strain(faceIDs)
 %
 % See Also
 % --------
-% strainRateMesh -- for non-periodic boundary conditions / open meshes
+% inducedStrainPeriodicMesh -- for 1d-periodic boundary conditions / cylindrical-like meshes
 %
-% NPMitchell 2020
+% NPMitchell 2022
 
 %% Default options
 debug = false ;
@@ -92,20 +79,12 @@ else
     options = struct() ;
 end
 
-%% Tile the mesh and the associated velocity vectors to triple cover
-% Tile the cut mesh to close it
-tileCount = [1, 1] ;
-[ TF0, TV2D0, TV3D0] = tileAnnularCutMesh( refCutMesh, tileCount ) ;
-[ TF1, TV2D1, TV3D1] = tileAnnularCutMesh( deformedCutMesh, tileCount ) ;
-% The face list should now be 3x the original size
-assert(size(TF0, 1) == 3 * size(refCutMesh.f, 1)) ;
-
 %% Compute the fundamental forms
-[g0cell, b0cell] = constructFundamentalForms(TF0, TV3D0, TV2D0) ;
+[g0cell, b0cell] = constructFundamentalForms(refMesh.f, refMesh.v, refMesh.u) ;
 % Use tiled, open mesh (glued seam) to compute the second fundamental form
 % [~, b0cell] = constructFundamentalForms(TF0, TV3D0, TV2D0) ;
 
-[g1cell, b1cell] = constructFundamentalForms(TF1, TV3D1, TV2D1) ;
+[g1cell, b1cell] = constructFundamentalForms(deformedMesh.f, deformedMesh.v, deformedMesh.u) ;
 % Use tiled, open mesh (glued seam) to compute the second fundamental form
 % [~, b1cell] = constructFundamentalForms(TF1, TV3D1, TV2D1) ;
 
@@ -149,27 +128,13 @@ for qq = 1:size(g0cell, 1)
     
 end
 
-disp('compute strain here')
+% disp('compute strain here')
 
 %% Find dx and dy -- lengths of projected / lengths of pullback
-refTiled = struct() ;
-refTiled.u = TV2D0 ;
-refTiled.v = TV3D0 ;
-refTiled.v = TV3D0 ;
-refTiled.f = TF0 ;
-refTiled.nU = refCutMesh.nU ;
-refTiled.nV = 3 * refCutMesh.nV - 2 ;
-% defTiled = struct() ;
-% defTiled.u = TV2D1 ;
-% defTiled.v = TV3D1 ;
-% defTiled.v = TV3D1 ;
-% defTiled.f = TF1 ;
-% defTiled.nU = deformedCutMesh.nU ;
-% defTiled.nV = 3 * deformedCutMesh.nV - 2 ;
-[~, dbonds_ref, ~] = labelRectilinearMeshBonds(refTiled, options) ;
+[~, dbonds_ref, ~] = labelRectilinearMeshBonds(refMesh, options) ;
 % [~, dbonds_def, ~] = labelRectilinearMeshBonds(defTiled, options) ;
-dxTiled = (vecnorm(dbonds_ref.realSpace.u, 2, 2)) ./ vecnorm(dbonds_ref.baseSpace.u, 2, 2) ;
-dyTiled = (vecnorm(dbonds_ref.realSpace.v, 2, 2)) ./ vecnorm(dbonds_ref.baseSpace.v, 2, 2) ;
+dx = (vecnorm(dbonds_ref.realSpace.u, 2, 2)) ./ vecnorm(dbonds_ref.baseSpace.u, 2, 2) ;
+dy = (vecnorm(dbonds_ref.realSpace.v, 2, 2)) ./ vecnorm(dbonds_ref.baseSpace.v, 2, 2) ;
 
 %% Metric strain -- separate trace and deviatoric strain comp, angle
 tre = zeros(size(strain, 1), 1) ;  % traceful dilation
@@ -185,7 +150,7 @@ for qq = 1:size(strain, 1)
     % to the embedding-space projection of zeta_hat. 
     try
         [tre(qq), dev(qq), theta(qq), theta_pb(qq)] = ...
-            traceDeviatorPullback(eq, gq, dxTiled(qq), dyTiled(qq)) ;
+            traceDeviatorPullback(eq, gq, dx(qq), dy(qq)) ;
     catch
         disp('what is going wrong?')
     end
@@ -197,8 +162,8 @@ end
 %% Output the fundamental forms, embedding bond lengths, and theta_pb
 if nargout > 4
     %% Find dx and dy -- lengths of projected / lengths of pullback
-    [~, dbonds_ref, ~] = labelRectilinearMeshBonds(refCutMesh, options) ;
-    [~, dbonds_def, ~] = labelRectilinearMeshBonds(deformedCutMesh, options) ;
+    [~, dbonds_ref, ~] = labelRectilinearMeshBonds(refMesh, options) ;
+    [~, dbonds_def, ~] = labelRectilinearMeshBonds(deformedMesh, options) ;
     % dx_ref = vecnorm(dbonds_ref.realSpace.u, 2, 2) ./ vecnorm(dbonds_ref.baseSpace.u, 2, 2) ;
     % dy_ref = vecnorm(dbonds_ref.realSpace.v, 2, 2) ./ vecnorm(dbonds_ref.baseSpace.v, 2, 2) ;
     % dx_def = vecnorm(dbonds_def.realSpace.u, 2, 2) ./ vecnorm(dbonds_def.baseSpace.u, 2, 2) ;
@@ -219,8 +184,8 @@ if nargout > 4
     bondDxDy.dbonds_def = dbonds_def ;
     bondDxDy.dx_strain = dx_strain ;
     bondDxDy.dy_strain = dy_strain ;
-    bondDxDy.dxTiled = dxTiled ;
-    bondDxDy.dyTiled = dyTiled ;
+    bondDxDy.dx = dx ;
+    bondDxDy.dy = dy ;
 
     % theta in pullback space -- theta_pb    
     % Pack them all into output struct
@@ -228,10 +193,6 @@ if nargout > 4
     outputStruct.bondDxDy = bondDxDy ;
     outputStruct.theta_pb = theta_pb ;
     
-    % Map from tiled mesh to original cut mesh (middle third of faces)
-    % Check that TF1 has #faces divisible by 3
-    assert(mod(size(TF1, 1) / 3 + 1, 1) == 0)
-    outputStruct.faceIDs = (size(TF1, 1) / 3 + 1):(size(TF1, 1) * 2 / 3) ;
 end
 
 
