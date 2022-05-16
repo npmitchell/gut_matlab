@@ -1,5 +1,5 @@
 function[map] = interpolate_3color_cmap(s,rgb1, rgb2, rgb3, normalize)
-%This function is based on Kenneth Moreland's code for greating Diverging
+%This function is based on Kenneth Moreland's code for creating Diverging
 % Colormaps, modified by Andy Stein. Created by Noah P Mitchell 2019
 % template accessed from: https://www.kennethmoreland.com/color-maps/
 %s is a vector that goes between zero and one 
@@ -13,7 +13,11 @@ function[map] = interpolate_3color_cmap(s,rgb1, rgb2, rgb3, normalize)
 % rgb1 : length(3) array or int
 %   An RGB triplet for value 0 or an integer indexing common rgb triplets
 % rgb2 : length(3) array or int
+%   An RGB triplet for value 0.5 or an integer indexing common rgb triplets
+% rgb3 : length(3) array or int
 %   An RGB triplet for value 1 or an integer indexing common rgb triplets
+% normalize : bool (default=false)
+%   normalize each row of the RGb colormap
 %
 % Output
 % ------
@@ -23,10 +27,13 @@ function[map] = interpolate_3color_cmap(s,rgb1, rgb2, rgb3, normalize)
 % 
 % Example Usage
 % -------------
-% % Blue to red:
-% bwr = diverging_cmap([0:0.01:1], 1, 2)
-% % Black to white:
-% cmap2 = diverging_cmap([0:0.01:1], [0,0,0], [1,1,1])
+% % Purple to black to green:
+% pkg = diverging_cmap(linspace(0, 1, 256), [185, 255,110], [0,0,0], [185, 110, 255]))
+%
+
+if nargin < 5
+    normalize = false ;
+end
 
 % If the arguments rgb1 and rgb2 are ints, then use these arguments 
 % to index from a list of commonly used rgb values

@@ -1,7 +1,16 @@
 function [expts, exptIDs] = unpackDataMap(dmap)
+%[expts, exptIDs] = unpackDataMap(dmap)
+% Utility function for a containers map
 %
-%
-%
+% Parameters
+% ----------
+% dmap : containers map with keys dmap.keys
+%   the container map to unpack
+% 
+% Returns
+% -------
+% expts : Nx1 cell of dmap(key).folders for all keys
+% exptIDs : Nx1 cell of dmap(key).ids for all keys
 %
 
 dmyk = 1;

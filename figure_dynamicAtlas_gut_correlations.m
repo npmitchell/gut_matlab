@@ -402,6 +402,12 @@ for dd = 2:6
     xlim([-5, 139.5])
     
     ylim([-5, 139.5])
+    hold on;
+    sz = 10 ;
+    scatter(30, 30, sz, 'o')
+    scatter(60, 60, sz, 's')
+    scatter(90, 90, sz, '^')
+    scatter(120, 120, sz, 'd')
     
 end
 saveas(gcf, fullfile(QS.dir.uvCoord, 'autocorrelations_zoom_bwr.pdf')) 
