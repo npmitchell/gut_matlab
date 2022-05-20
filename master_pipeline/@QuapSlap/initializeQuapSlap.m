@@ -965,6 +965,10 @@ if dynamic
     QS.dir.eulerianKinematics = fullfile(QS.dir.uvCoord, 'eulerianKinematics') ;
 end
 
+%% PCA and mode analysis directories
+QS.dir.PCAoverTime = fullfile(QS.dir.mesh, 'PCAoverTime') ;
+
+
 %% Ensure directories
 dirs2make = struct2cell(QS.dir) ;
 for ii=1:length(dirs2make)

@@ -167,13 +167,14 @@ numpts1 = zeros(ndatasets, max_ntp) ;
 numpts2 = zeros(ndatasets, max_ntp) ;
 
 
-for refID = 1:ndatasets
+for refID = 2:ndatasets
     % rename experiment ID from referenceID and list of labels
     refExptID = strrep(labels{refID}, ' ', '') ;
 
-    mindFn = fullfile(icpDir, sprintf('minddssr_ref%s_rsub%03d.mat', refExptID,rsubsampling)) ;
+    fnmin =  sprintf('minddssr_ref%s_rsub%03d.mat', refExptID,rsubsampling) ;
+    mindFn = fullfile(icpDir, fnmin) ;
     if exist(mindFn, 'file') && ~overwrite
-        answer = questdlg('Min matrix already exists? Overwrite?') ;
+        answer = questdlg(['Min matrix ' fnmin ' already exists? Overwrite?']) ;
     else
         answer = 'Yes' ;
     end
@@ -188,7 +189,7 @@ for refID = 1:ndatasets
         if ~exist(ssrDir, 'dir')
             mkdir(ssrDir)
         end
-        for cc = 1:ndatasets
+        for cc = randperm(ndatasets) % 1:ndatasets
             cExptID = strrep(labels{cc}, ' ', '') ;
             
             % define the SSR directory for this dataset
@@ -388,108 +389,108 @@ for refID = 1:ndatasets
                 toc
             end
 
-%             % Now ssrM is fully filled in
-%             corrPathFn = fullfile(ssrDir, ...
-%                 [sprintf('correspondencePath_r%s_c%s', refExptID, cExptID), ...
-%                 extn '.mat']) ;
-% 
-%             if ~exist(corrPathFn, 'file') || overwrite || forceTrue
-%                 clf
-%                 imagesc(timestamps(cc, 1:ntps(cc))/60, timestamps(1, :)/60, ssrM') ;
-%                 axis equal
-%                 axis tight
-%                 cb = colorbar() ;
-%                 ylabel(cb, '$\sqrt{\langle \sigma_{ij} \rangle \langle \sigma_{ji} \rangle}$', ...
-%                     'interpreter', 'latex')
-%                 xlabel(['time ' cExptID ' [hr]'], 'interpreter', 'latex')
-%                 ylabel(['time ' refExptID ' [hr]'], 'interpreter', 'latex')
-%                 saveas(gcf, fullfile( ssrDir, ...
-%                     sprintf(['ssr_heatmap_c%s_r%s' extn '.png'], cExptID, refExptID)))
-%                 save(fullfile( ssrDir, ...
-%                     sprintf(['ssr_c%s_r%s' extn '.mat'], cExptID, refExptID)), ...
-%                     'ssrM')
-% 
-% 
-%                 % Get shortest path
-%                 % Define correspondence pairs like in dynamicAtlas
-%                 ssr4path = imgaussfilt(-ssrM, sigmaTime / rsubsampling) ;
-%                 ssr4path = ssr4path - min(ssr4path(:)) ;
-%                 pathOpts = struct('exponent', 1.0) ;
-%                 corrPath = shortestPathInImage(ssr4path, pathOpts) ;
-% 
-%                 % Interpolate to get measure of the ssR along the path
-%                 % imagesc(timestamps(cc, 1:ntps(cc)), timestamps(1,:), ssrM')
-%                 [tc, tr] = meshgrid(timestamps(cc, 1:ntps(cc))-timestamps(cc,1), ...
-%                     timestamps(1,:)- timestamps(1, 1)) ;
-%                 ssrPath = interp2(tc, tr, ssrM', corrPath(:, 1), corrPath(:, 2), 'linear') ;
-% 
-% 
-%                 % Save corrPaths and save image
-%                 corrRaw = minddssr(cc, 1:ntps(cc)) ;
-%                 corrError = movmean(minerror(cc, 1:ntps(cc)), 5) ;
-%                 % Check if we need to truncate the correpondence path at start
-%                 % or end
-%                 if length(corrPath) < length(corrRaw)
-%                     if corrPath(1, 1) == 1
-%                         rawID = 1:length(corrPath) ;
-%                         corrRaw = corrRaw(rawID) ;
-%                         corrError = corrError(rawID) ;
-%                     else
-%                         rawID = (length(corrRaw)-length(corrPath)):length(corrRaw) ;
-%                         corrRaw = corrRaw(rawID) ;
-%                         corrError = corrError(rawID) ;
-%                     end
-%                 else
-%                     rawID = 1:length(corrRaw) ;
-%                 end
-% 
-%                 % Estimate uncertainty by difference between ssR at raw and
-%                 % smoothed paths
-%                 rawcorrSSRs = [] ;
-%                 for ptID = 1:length(corrRaw)
-%                     rrowP = corrRaw(ptID) ;
-%                     ccolP = rawID(ptID) ;
-%                     rawcorrSSRs(ptID) = ssrM(ccolP,rrowP) ;
-%                 end
-%                 ssrPathError = abs(ssrPath - rawcorrSSRs') ;
-% 
-%                 % Visualization
-%                 clf
-%                 imagesc(ssrM)
-%                 hold on;
-%                 plot(corrPath(:, 2), corrPath(:, 1), 'o') ;
-%                 plot(corrRaw, rawID, 'k.') 
-%                 plot(corrPath(:, 2) -corrError', corrPath(:, 1), 'k-')
-%                 plot(corrPath(:, 2) +corrError', corrPath(:, 1), 'k-')
-%                 cb = colorbar() ;
-%                 ylabel(cb, '$\langle \sigma_{ij} \rangle \langle \sigma_{ji} \rangle$', ...
-%                     'interpreter', 'latex')  
-%                 colormap(viridis_r)
-%                 axis equal 
-%                 axis tight
-%                 xlabel(['time ' refExptID ' [min]'], 'interpreter', 'latex')
-%                 ylabel(['time ' cExptID ' [min]'], 'interpreter', 'latex')
-%                 corrPathFigFn = fullfile(ssrDir, ...
-%                     sprintf(['correspondencePath_r%s_c%s' extn '.pdf'], ...
-%                     refExptID, cExptID)) ;
-%                 saveas(gcf, corrPathFigFn)
-% 
-%                 % SAVE DATA RESULT
-%                 save(corrPathFn, 'corrPath', 'corrRaw', 'corrError', 'ssrPath', 'ssrPathError') ;
-%             else
-%                 load(corrPathFn, 'corrPath', 'corrRaw', 'corrError', 'ssrPath', 'ssrPathError') ;
-%             end
-%             corrPaths{cc} = corrPath ;
-%             corrErrors{cc} = corrError ;
-%             ssrPaths{cc} = ssrPath ; 
-%             ssrPathErrors{cc} = ssrPathError ;
+            % Now ssrM is fully filled in
+            corrPathFn = fullfile(ssrDir, ...
+                [sprintf('correspondencePath_r%s_c%s', refExptID, cExptID), ...
+                extn '.mat']) ;
+
+            if ~exist(corrPathFn, 'file') || overwrite || forceTrue
+                clf
+                imagesc(timestamps(cc, 1:ntps(cc))/60, timestamps(1, :)/60, ssrM') ;
+                axis equal
+                axis tight
+                cb = colorbar() ;
+                ylabel(cb, '$\sqrt{\langle \sigma_{ij} \rangle \langle \sigma_{ji} \rangle}$', ...
+                    'interpreter', 'latex')
+                xlabel(['time ' cExptID ' [hr]'], 'interpreter', 'latex')
+                ylabel(['time ' refExptID ' [hr]'], 'interpreter', 'latex')
+                saveas(gcf, fullfile( ssrDir, ...
+                    sprintf(['ssr_heatmap_c%s_r%s' extn '.png'], cExptID, refExptID)))
+                save(fullfile( ssrDir, ...
+                    sprintf(['ssr_c%s_r%s' extn '.mat'], cExptID, refExptID)), ...
+                    'ssrM')
+
+
+                % Get shortest path
+                % Define correspondence pairs like in dynamicAtlas
+                ssr4path = imgaussfilt(-ssrM, sigmaTime / rsubsampling) ;
+                ssr4path = ssr4path - min(ssr4path(:)) ;
+                pathOpts = struct('exponent', 1.0) ;
+                corrPath = shortestPathInImage(ssr4path, pathOpts) ;
+
+                % Interpolate to get measure of the ssR along the path
+                % imagesc(timestamps(cc, 1:ntps(cc)), timestamps(1,:), ssrM')
+                [tc, tr] = meshgrid(timestamps(cc, 1:ntps(cc))-timestamps(cc,1), ...
+                    timestamps(1,:)- timestamps(1, 1)) ;
+                ssrPath = interp2(tc, tr, ssrM', corrPath(:, 1), corrPath(:, 2), 'linear') ;
+
+
+                % Save corrPaths and save image
+                corrRaw = minddssr(cc, 1:ntps(cc)) ;
+                corrError = movmean(minerror(cc, 1:ntps(cc)), 5) ;
+                % Check if we need to truncate the correpondence path at start
+                % or end
+                if length(corrPath) < length(corrRaw)
+                    if corrPath(1, 1) == 1
+                        rawID = 1:length(corrPath) ;
+                        corrRaw = corrRaw(rawID) ;
+                        corrError = corrError(rawID) ;
+                    else
+                        rawID = (length(corrRaw)-length(corrPath)):length(corrRaw) ;
+                        corrRaw = corrRaw(rawID) ;
+                        corrError = corrError(rawID) ;
+                    end
+                else
+                    rawID = 1:length(corrRaw) ;
+                end
+
+                % Estimate uncertainty by difference between ssR at raw and
+                % smoothed paths
+                rawcorrSSRs = [] ;
+                for ptID = 1:length(corrRaw)
+                    rrowP = corrRaw(ptID) ;
+                    ccolP = rawID(ptID) ;
+                    rawcorrSSRs(ptID) = ssrM(ccolP,rrowP) ;
+                end
+                ssrPathError = abs(ssrPath - rawcorrSSRs') ;
+
+                % Visualization
+                clf
+                imagesc(ssrM)
+                hold on;
+                plot(corrPath(:, 2), corrPath(:, 1), 'o') ;
+                plot(corrRaw, rawID, 'k.') 
+                plot(corrPath(:, 2) -corrError', corrPath(:, 1), 'k-')
+                plot(corrPath(:, 2) +corrError', corrPath(:, 1), 'k-')
+                cb = colorbar() ;
+                ylabel(cb, '$\langle \sigma_{ij} \rangle \langle \sigma_{ji} \rangle$', ...
+                    'interpreter', 'latex')  
+                colormap(viridis_r)
+                axis equal 
+                axis tight
+                xlabel(['time ' refExptID ' [min]'], 'interpreter', 'latex')
+                ylabel(['time ' cExptID ' [min]'], 'interpreter', 'latex')
+                corrPathFigFn = fullfile(ssrDir, ...
+                    sprintf(['correspondencePath_r%s_c%s' extn '.pdf'], ...
+                    refExptID, cExptID)) ;
+                saveas(gcf, corrPathFigFn)
+
+                % SAVE DATA RESULT
+                save(corrPathFn, 'corrPath', 'corrRaw', 'corrError', 'ssrPath', 'ssrPathError') ;
+            else
+                load(corrPathFn, 'corrPath', 'corrRaw', 'corrError', 'ssrPath', 'ssrPathError') ;
+            end
+            corrPaths{cc} = corrPath ;
+            corrErrors{cc} = corrError ;
+            ssrPaths{cc} = ssrPath ; 
+            ssrPathErrors{cc} = ssrPathError ;
 
         end
 
         disp('Saving minddssr, minname, minweights, minerror, numpts')
         ssStr = sprintf('_ref%s_rsub%03d', refExptID, rsubsampling) ;
-%         save(fullfile(icpDir, ['corrPaths' ssStr '.mat']), 'corrPaths', ...
-%             'corrErrors', 'ssrPaths', 'ssrPathErrors') ;
+        save(fullfile(icpDir, ['corrPaths' ssStr '.mat']), 'corrPaths', ...
+              'corrErrors', 'ssrPaths', 'ssrPathErrors') ;
         save(fullfile(icpDir, ['ssr_minimum' ssStr '.mat']), 'ssr_minimum');
         save(fullfile(icpDir, ['minddssr' ssStr '.mat']), 'minddssr');
         save(fullfile(icpDir, ['minname' ssStr '.mat']), 'minname');
