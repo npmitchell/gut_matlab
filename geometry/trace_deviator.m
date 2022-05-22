@@ -9,7 +9,21 @@ function [tr, dev, theta] = trace_deviator(eq, gq)
 %   tensor to decompose
 % gq : 2x2 numeric array
 %   metric tensor, first fundamental form of surface
-% 
+%
+% Returns
+% -------
+% tr : float
+%   trace of the tensor eq with metric gq
+% dev : float
+%   deviator magnitude of the tensor eq with metric gq
+% theta : float
+%   angle wrt x axis of the deviatoric component of the tensor eq with 
+%   metric gq
+%
+% See also
+% --------
+% traceDeviatorPullback()
+%
 % NPMitchell 2020
 
 %% traceful component -- 1/2 Tr[g^{-1} gdot] = Tr[g^{-1} eps] 
