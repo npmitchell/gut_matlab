@@ -155,9 +155,6 @@ end
 clearvars dmyk jjkey key datestamp kk
 disp('done with labels generation')
 
-%% Declare the range of morphological time and datasets
-rlist = 1:rsubsampling:max_ntp;
-clist = 1:csubsampling:max_ntp;
 
 %% Use ICP to align meshes in time
 forceTrue = false ;
@@ -204,282 +201,35 @@ for refID = 2:ndatasets
             lastTP = ntps(cc) ;
             ntimepoints_ref = ntps(refID) ;
             assert(length(area) == lastTP)
-            ssrM = [] ;
 
-            % Consider each dataset TP (t_c) and match to reference mesh
-            for ii = clist(clist < (lastTP + 1)) % index of dataset thats being parsed against reference
-                
-                tic 
-                
-                % Consider the mesh only if mca{i,c} is populated with
-                % struct that has field 'name'.
-                if isfield(mca{cc, ii}, 'name') == 1
+            % SSR Matrix
+            options.ssrccDir = ssrccDir ;
+            options.rsubsampling = rsubsampling ;
+            options.ssample_factor = ssample_factor ;
+            [ssrM, minddssr_cc, minname_cc, minerror_cc, ...
+                minweights_cc, ssr_minimum_cc ] = ...
+                computeSSRMatrixMeshes(mca, clist, lastTP, rlist, refExptID, options) ;
 
-                    % Check if SSR(cc, ii, rlist) has already been saved
-                    ssrii_fn = fullfile(ssrccDir, ...
-                        sprintf('ssr_ref%s_tp%04d_rsub%03d_ptsub%03d.mat',...
-                        refExptID, ii, rsubsampling, ssample_factor)) ;
+            minddssr(cc, :) = minddssr_cc ;
+            % Place reference timepoint that matches this (cc, ii)
+            % tuple into minname
+            minname{cc, :} = minname_cc;
+            minerror(cc, :) = minerror_cc ; % store error to use later in plotting
+            minweights(cc, ii) = minweights_cc ;
+            ssr_minimum(cc,ii) = ssr_minimum_cc ;
 
-                    % Assume that we must redo calculation unless proven
-                    % that otherwise if file exists and overwrite == false
-                    % ---------------------------------------------------
-                    redoii = true ;
-                    if exist(ssrii_fn, 'file') && ~overwrite
-                        disp(['Loading ssr from: ' ssrii_fn])
-                        tmp = load(ssrii_fn, 'rlist', 'ssr', 'numpts1_cc', 'numpts2_cc') ;
-                        % Check that the rlist is indeed the same
-                        if length(tmp.rlist) == length(rlist)
-                            if all(tmp.rlist == rlist)
-                                % Calculation exists for the same rlist for this ii
-                                redoii = false ;
-                                % assign ssr for this cc, ii
-                                ssr = tmp.ssr ;
-                                try
-                                    numpts1(cc,:) = tmp.numpts1_cc ;
-                                    numpts2(cc,:) = tmp.numpts2_cc ;
-                                catch
-                                    disp('no numpts on disk!')
-                                end
-                            end
-                        end
-                    end
-
-                    % (Re)Compute the SSR(cc, ii, rr) if we could not load ssr
-                    if redoii
-                        % prepare the dataset pointcloud
-                        cCloud = pcread(fullfile(mca{cc, ii}.folder, mca{cc, ii}.name)); % the mesh in question
-                        cxyz = cCloud.Location(1:ssample_factor:end,:) ;
-
-                        % preallocate ssr
-                        ssr = zeros(length(rlist), 1) ;
-                        tforms = zeros(length(rlist), 4, 4) ;
-
-                        % Consider each reference mesh to find match
-                        % Use dummy index qq to allow subsampled rlist
-                        for qq = 1:length(rlist)
-                            rr = rlist(qq) ;
-                            if rr < ntimepoints_ref + 1
-                                if mod(qq, 50) == 0 || qq == 1
-                                    disp(['dataset_c=',sprintf('%d',cc), ...
-                                        ' timepoint_i=',sprintf('%d/%d',ii,lastTP), ...
-                                        ' against refTP_r=',sprintf('%d',rr), ...
-                                        ' of reference dataset=', sprintf('%s', refExptID)])
-                                end
-
-                                % Load the CAAX mesh used for comparison
-                                refCloud = pcread(fullfile(mca{refID, rr}.folder, mca{refID, rr}.name));
-                                refxyz = refCloud.Location;
-                                refxyz = refxyz(1:ssample_factor:end,:);
-                                tform = pcregistericp(cCloud,refCloud,'Extrapolate',true); % extracting the 4x4 transform from cmesh to refmesh
-                                cxyzpad = horzcat(cxyz, (zeros(length(cxyz),1)+1)); % pad the locations with a ones vector
-                                cxyztrans = cxyzpad*tform.T;    % apply the transform
-                                cxyztrans = cxyztrans(:,1:3);   % remove padding
-
-                                numpts1(cc,rr) = length(refxyz) ;
-                                numpts2(cc,rr) = length(cxyztrans) ;
-
-                                % find sum of squared residuals using two different ref orders
-                                % and finding geometric mean to penalize
-                                % dissimilarities in both directions of time
-                                indx1 = pointMatch(refxyz, cxyztrans);
-                                indx2 = pointMatch(cxyztrans, refxyz);
-
-                                % Normalize by the number of points considered in each
-                                % mesh separately to get true mean distance between
-                                % correspondence points
-                                ssr1 = sum(sum((cxyztrans(indx1,:)-refxyz).^2,2)) / length(indx1) ;
-                                ssr2 = sum(sum((refxyz(indx2,:)-cxyztrans).^2,2)) / length(indx2) ;
-                                % Geometric mean of the two SSRs
-                                ssr(qq) = sqrt(ssr1*ssr2);
-                                tforms(qq, :, :) = tform.T ;
-                            end
-
-                        end
-                        % save matching curve for this cc tp == ii
-                        disp(['saving tforms: ' ssrii_fn])
-                        numpts1_cc = numpts1(cc, :) ;
-                        numpts2_cc = numpts2(cc, :) ;
-                        save(ssrii_fn, 'rlist', 'ssr', 'tforms', ...
-                            'numpts1_cc', 'numpts2_cc')
-                    end
-
-                    ssrM(ii, :) = ssr ;                
-
-                    % -------------------------------------------------
-                    % 1D FITTING TO SSR CURVE AS FUNCTION OF REFTIME
-                    % -------------------------------------------------
-                    % Apply median filter if we have a fine enough sampling
-                    if rsubsampling < ssfactorMedianThres
-                        ssr = movmedian(ssr, 11);
-                    end
-                    [minssr_value,ix] = min(ssr);
-
-                    %find polyfit of min to find error of match
-                    if ix + fitrange > length(ssr)
-                        endmax = length(ssr) ;
-                    else
-                        endmax = ix + fitrange ;
-                    end
-                    if ix > fitrange && (ix + fitrange) <= length(rlist)
-                        xpoly = rlist(ix-fitrange:endmax) ;
-                        ypoly = ssr(ix-fitrange:endmax) ;
-                    elseif ix < fitrange
-                        xpoly = rlist(1:2*fitrange);
-                        ypoly = ssr(1:2*fitrange);
-                    elseif ix + fitrange > length(rlist)
-                        xpoly = rlist(length(rlist)-2*fitrange:end) ;
-                        ypoly = ssr(length(rlist)-2*fitrange:end) ;
-                    elseif ix == fitrange && (ix + fitrange) <= length(rlist)
-                        xpoly = rlist(ix-fitrange+1:endmax) ;
-                        ypoly = ssr(ix-fitrange+1:endmax) ;
-                    else
-                        error('could not assign xpoly & ypoly')
-                    end
-
-                    % Fit to parabola
-                    [f, S] = polyfix(xpoly', ypoly, 2, rlist(ix), min(ssr), rlist(ix), 0) ;
-                    [poly, delta] = polyval(f, xpoly, S) ;
-                    Rinv = inv(S.R) ;
-                    covm = (Rinv*Rinv')*S.normr^2/S.df ;
-                    vara = covm(1,1) ;
-                    varb = covm(2,2) ;
-                    varc = covm(3,3) ;
-                    dix = ( ix* 0.5 ) * sqrt(vara/f(1)^2 + varb/f(2)^2) ;
-                    disp(['Uncertainty = ' num2str(dix)])
-                    % store minimum index as minddssr
-                    minddssr(cc, ii) = rlist(ix);
-                    % Place reference timepoint that matches this (cc, ii)
-                    % tuple into minname
-                    minname{cc, ii} = mca{1, rlist(ix)}.name;
-                    minerror(cc, ii) = dix ; % store error to use later in plotting
-                    minweights(cc, ii) = 1/dix^2 ;
-                    ssr_minimum(cc,ii) = min(ssr) ;
-                    assert(abs(polyval(f, rlist(ix)) - min(ssr))<1e-7)
-
-                    % make figure invisible for speedup
-                    figDirOut = fullfile(ssrccDir, ['figs_' sprintf('rsub%03d',rsubsampling)]) ;
-                    if ~exist(figDirOut, 'dir')
-                        mkdir(figDirOut)
-                    end
-                    figoutfn = fullfile(figDirOut, ['ICPPlot2_Dataset_', ...
-                        sprintf('%s',cExptID),'_', ...
-                        sprintf('%s',refExptID),'_', ...
-                        sprintf('%03d',ii),'.png']) ;    
-                    if redoii || ~exist(figoutfn, 'file') || overwrite_figures
-                        fig = figure('visible', 'off') ;
-                        plot(rlist - t0ref, ssr, '.');
-                        hold on
-                        plot(xpoly - t0ref, ypoly, '-') ;
-                        plot(rlist(ix) - t0ref, minssr_value, 'o')
-                        plot(xpoly - t0ref,poly, 'color', 'magenta', 'linewidth', 1) ;
-                        ylim([min(ssr)-10 max(ssr)+10])
-                        title(['dataset ', cExptID, ' vs ', refExptID,...
-                            ': $t=$', sprintf('%03d', ii), '$\rightarrow$', ...
-                            sprintf('%03.1f', rlist(ix) - t0ref), '$\pm$', ...
-                            sprintf('%0.1f', dix), ' min'], ...
-                            'Interpreter', 'Latex')
-                        xlabel('Reference Timepoint [min]', 'Interpreter', 'Latex');
-                        labstr = 'Mismatch, $\langle \Sigma |\mathrm{min}(\vec{x}_c - \vec{x}_{\mathrm{ref}})|^2 \rangle$ [$\mu$m]$^2$' ;
-                        ylabel(labstr, 'Interpreter', 'Latex');
-                        disp(['Saving ' figoutfn]);
-                        saveas(fig, figoutfn);
-                        close all
-                    end
-                end
-                toc
-            end
-
-            % Now ssrM is fully filled in
-            corrPathFn = fullfile(ssrDir, ...
-                [sprintf('correspondencePath_r%s_c%s', refExptID, cExptID), ...
-                extn '.mat']) ;
-
-            if ~exist(corrPathFn, 'file') || overwrite || forceTrue
-                clf
-                imagesc(timestamps(cc, 1:ntps(cc))/60, timestamps(1, :)/60, ssrM') ;
-                axis equal
-                axis tight
-                cb = colorbar() ;
-                ylabel(cb, '$\sqrt{\langle \sigma_{ij} \rangle \langle \sigma_{ji} \rangle}$', ...
-                    'interpreter', 'latex')
-                xlabel(['time ' cExptID ' [hr]'], 'interpreter', 'latex')
-                ylabel(['time ' refExptID ' [hr]'], 'interpreter', 'latex')
-                saveas(gcf, fullfile( ssrDir, ...
-                    sprintf(['ssr_heatmap_c%s_r%s' extn '.png'], cExptID, refExptID)))
-                save(fullfile( ssrDir, ...
-                    sprintf(['ssr_c%s_r%s' extn '.mat'], cExptID, refExptID)), ...
-                    'ssrM')
-
-
-                % Get shortest path
-                % Define correspondence pairs like in dynamicAtlas
-                ssr4path = imgaussfilt(-ssrM, sigmaTime / rsubsampling) ;
-                ssr4path = ssr4path - min(ssr4path(:)) ;
-                pathOpts = struct('exponent', 1.0) ;
-                corrPath = shortestPathInImage(ssr4path, pathOpts) ;
-
-                % Interpolate to get measure of the ssR along the path
-                % imagesc(timestamps(cc, 1:ntps(cc)), timestamps(1,:), ssrM')
-                [tc, tr] = meshgrid(timestamps(cc, 1:ntps(cc))-timestamps(cc,1), ...
-                    timestamps(1,:)- timestamps(1, 1)) ;
-                ssrPath = interp2(tc, tr, ssrM', corrPath(:, 1), corrPath(:, 2), 'linear') ;
-
-
-                % Save corrPaths and save image
-                corrRaw = minddssr(cc, 1:ntps(cc)) ;
-                corrError = movmean(minerror(cc, 1:ntps(cc)), 5) ;
-                % Check if we need to truncate the correpondence path at start
-                % or end
-                if length(corrPath) < length(corrRaw)
-                    if corrPath(1, 1) == 1
-                        rawID = 1:length(corrPath) ;
-                        corrRaw = corrRaw(rawID) ;
-                        corrError = corrError(rawID) ;
-                    else
-                        rawID = (length(corrRaw)-length(corrPath)):length(corrRaw) ;
-                        corrRaw = corrRaw(rawID) ;
-                        corrError = corrError(rawID) ;
-                    end
-                else
-                    rawID = 1:length(corrRaw) ;
-                end
-
-                % Estimate uncertainty by difference between ssR at raw and
-                % smoothed paths
-                rawcorrSSRs = [] ;
-                for ptID = 1:length(corrRaw)
-                    rrowP = corrRaw(ptID) ;
-                    ccolP = rawID(ptID) ;
-                    rawcorrSSRs(ptID) = ssrM(ccolP,rrowP) ;
-                end
-                ssrPathError = abs(ssrPath - rawcorrSSRs') ;
-
-                % Visualization
-                clf
-                imagesc(ssrM)
-                hold on;
-                plot(corrPath(:, 2), corrPath(:, 1), 'o') ;
-                plot(corrRaw, rawID, 'k.') 
-                plot(corrPath(:, 2) -corrError', corrPath(:, 1), 'k-')
-                plot(corrPath(:, 2) +corrError', corrPath(:, 1), 'k-')
-                cb = colorbar() ;
-                ylabel(cb, '$\langle \sigma_{ij} \rangle \langle \sigma_{ji} \rangle$', ...
-                    'interpreter', 'latex')  
-                colormap(viridis_r)
-                axis equal 
-                axis tight
-                xlabel(['time ' refExptID ' [min]'], 'interpreter', 'latex')
-                ylabel(['time ' cExptID ' [min]'], 'interpreter', 'latex')
-                corrPathFigFn = fullfile(ssrDir, ...
-                    sprintf(['correspondencePath_r%s_c%s' extn '.pdf'], ...
-                    refExptID, cExptID)) ;
-                saveas(gcf, corrPathFigFn)
-
-                % SAVE DATA RESULT
-                save(corrPathFn, 'corrPath', 'corrRaw', 'corrError', 'ssrPath', 'ssrPathError') ;
-            else
-                load(corrPathFn, 'corrPath', 'corrRaw', 'corrError', 'ssrPath', 'ssrPathError') ;
-            end
+            % CORRESPONDENCE CURVES
+            options = struct() ;
+            options.overwrite = overwrite ;
+            options.ssrDir = ssrDir;
+            options.timestamps = timestamps;
+            options.refExptID = refExptID ;
+            options.cExptID = cExptID ;
+            options.sigmaTime = sigmaTime ;
+            rsubsampling = options.rsubsampling ;
+            [corrPath, corrRaw, corrError, ssrPath, ssrPathError] = ...
+                computeCorrespondenceCurve(ssrM, minddssr, minerror, options) ;
+            
             corrPaths{cc} = corrPath ;
             corrErrors{cc} = corrError ;
             ssrPaths{cc} = ssrPath ; 
