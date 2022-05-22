@@ -1,10 +1,12 @@
 function [meshHandle, cbs] = plotNematicField(mag, theta, options)
 % [meshHandle, cbs] = plotNematicField(mag, theta, options)
 % 
-% Plot nematic field on a mesh using a phasemap
+% Plot nematic field on a mesh using a phasemap, including with quivers
 %
 % Parameters
 % ----------
+% mag : magnitude of the quivers to draw
+% theta : 
 % options : optional struct with fields
 %   clim_mag : float, colorlimit for magnitude
 %   mesh : mesh on which to plot nematic field 
