@@ -6,9 +6,10 @@
 directory= './';
 fnSearchStr = 'Time*.ome.tif' ; %'*stripe7*.png' ;
 
-existingStrReplace= true;
+existingStrReplace= false;
 knownLocReplace = false ;
-renameTimeStamps = true ;
+renameTimeStamps = false ;
+divideTimeStampsIntoChannels = true ;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -55,7 +56,7 @@ directory = './' ;
 fnSearchStr = 'Time*ome.tif';
 fns = dir(fullfile(directory, fnSearchStr)) ;
 
-addTime = 2 ;
+addTime = 1 ;
 prepend = 'Time_' ;
 postpend = '_Angle_' ;
 if renameTimeStamps
@@ -78,3 +79,40 @@ if renameTimeStamps
     end
 end
 
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Convert t=0 to t=0 (ch1), t=1 to t=0 (ch2), t=2 to t=1 (ch1)...
+% This is for use after repacking from Vishank with 2 channels
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+directory = './' ;
+fnSearchStr = 'Time*ome.tif';
+fns = dir(fullfile(directory, fnSearchStr)) ;
+
+divTime = 2 ;
+prepend = 'Time_' ;
+postpend = '_Angle_' ;
+if divideTimeStampsIntoChannels
+    for ii = 1:length(fns)
+        fn2rename = fullfile(directory, fns(ii).name) ;
+        fn = fns(ii).name ;
+        end0 = strfind(fn, postpend) ;
+        start0 = strfind(fn, prepend) ;
+        tstamp = fn(start0+5:end0-1) ;
+        disp(['t=' tstamp])
+
+        % Convert to number, adjust 
+        if mod(str2double(tstamp) / divTime, 1) == 0
+            tstampNew = sprintf('%06d', str2double(tstamp)/divTime) ; 
+            newname = [prepend tstampNew fn(end0:end)] ;
+        else
+            tstampNew = sprintf('%06d', floor(str2double(tstamp)/divTime)) ; 
+            newname = [prepend tstampNew fn(end0:end)] ;
+            newname = strrep(newname, 'c1', 'c2') ;
+        end
+        
+        infn = fullfile(directory, fn2rename) ;
+        outfn = fullfile(directory, newname) ;
+        disp([infn ' -> ' outfn])
+        movefile(infn, outfn) ;
+    end
+end

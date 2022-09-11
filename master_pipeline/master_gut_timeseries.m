@@ -117,6 +117,8 @@ cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um
 % cd /mnt/data/UbxGAL4UASCAAXmChHGFP/202105132247_UbxG4kCAAXHGFP_1p2um_0p1ms0p2ms_1mW1mW_3v300s/data
 % cd /mnt/data/handGAL4klarHandGFPhistGFP/202105072030_1mWGFP/
 
+cd /mnt/crunch/bynGAL4klarCAAXmChHGFP/202207131248_1p4um_2p5mW1mW_4views_0p25ms_60s/
+
 % .=========.
 % |  VIP10  |
 % .=========.
@@ -152,12 +154,13 @@ overwrite_idAnomClines = false ;
 overwrite_cleanCylMesh = false ;
 
 %% DEFINE NEW MASTER SETTINGS
+overwrite_masterSettings = true ;
 if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     % Metadata about the experiment
     stackResolution = [.2619 .2619 .2619] ;
-    nChannels = 1 ;
-    channelsUsed = 1 ;
-    timePoints = 1:234; %86:211 ;
+    nChannels = 2 ;
+    channelsUsed = 2 ;
+    timePoints = [0:10:130, 150]; %86:211 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
@@ -165,8 +168,8 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     timeUnits = 'min' ; % physical unit of time between timepoints
     spaceUnits = '$\mu$m' ; % physical unit of time between timepoints
     scale = 0.04 ;      % scale for conversion to 16 bit
-    % file32Base = 'TP%d_Ch0_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
-    file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
+    file32Base = 'TP%d_Ch%d_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
+    % file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
     fn = 'Time_%06d_c1_stab';
     fn_prestab = 'Time_%06d_c1.tif';
@@ -233,7 +236,8 @@ if loadMaster
     nU = masterSettings.nU ;
     nV = masterSettings.nV ;
 end
-dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
+%dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
+dir32bit = fullfile(dataDir, 'deconvolved13iter') ;
 dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
 dir16bit_prestab = fullfile(dir16bit, 'data_pre_stabilization') ;
 
@@ -247,7 +251,7 @@ Options.overwrite_mips = overwrite_mips ;
 Options.scale = scale ;
 makeMips(timePoints, dir32bit, file32Base, mipDir, Options)
 
-%%  -IV. convert 32 to 16bit images
+%  -IV. convert 32 to 16bit images
 % Skip if already done
 convert32to16bit(timePoints, scale, dir32bit, dir16bit_prestab,...
     file32Base, fn_prestab)
@@ -283,11 +287,11 @@ Options.overwrite_tiffs = false ;
 Options.im_intensity = 1 ; % 0.01 ;
 Options.imref_intensity = 1 ; % 0.005 ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
-    timePoints, timePoints, timePoints(50), ...
+    timePoints, timePoints, timePoints(1), ...
     mipDir, mipoutdir, mips_stab_check, Options)
 
 
-%%   -I. master_gut_timeseries_prestab_for_training.m
+%   -I. master_gut_timeseries_prestab_for_training.m
 % Skip if already done
 cd(dir16bit)
 dataDir = cd ;
@@ -1821,10 +1825,10 @@ QS.generateCellSegmentationPathlines3D(options)
 
 
 %% Visualize demoTracks in 2D ARAP submesh parameterization patch
-tracks2demo = dir(fullfile(QS.dir.tracking, 'demoTracks', 'demoTracks*0.mat')) ;
+tracks2demo = dir(fullfile(QS.dir.tracking, 'demoTracks', 'demoTracks*1.mat')) ;
 options = struct() ;
 options.tracks2demo = tracks2demo ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.scaleByMetric = false ;
 options.scaleByMetricComponents = true ;
 QS.visualizeDemoTracks(options)

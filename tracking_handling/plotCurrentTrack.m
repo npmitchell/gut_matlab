@@ -122,21 +122,29 @@ plot(nearbyDone(:, 1), nearbyDone(:,2),...
 % Show other tracks NOT DONE in green -- OTHERS -- CURRENT
 if ii < nTracks
     kk = 1 ;
-    nearbyNext  = nan(length(otherIDs), 2) ;
-    for otherID = otherIDs(otherIDs>ii)
-        otherTrack = currentTracks{otherID} ;
-        xx = otherTrack(max(1, tidx-1), 1) ;
-        yy = otherTrack(max(1, tidx-1), 2) ;
-        if xx > minX && xx < maxX && yy > minY && yy < maxY
-            nearbyNext(kk, :) = [xx-minX, yy-minY] ;
-            kk = kk + 1 ;
+    % try
+        nearbyNext  = nan(length(otherIDs), 2) ;
+        for otherID = otherIDs(otherIDs>ii)
+            otherTrack = currentTracks{otherID} ;
+            if isempty(otherTrack)
+                disp('plotCurrentTrack: Track is empty!')
+            else
+                xx = otherTrack(max(1, tidx-1), 1) ;
+                yy = otherTrack(max(1, tidx-1), 2) ;
+                if xx > minX && xx < maxX && yy > minY && yy < maxY
+                    nearbyNext(kk, :) = [xx-minX, yy-minY] ;
+                    kk = kk + 1 ;
+                end
+            end
         end
-    end
-    nearbyNext = nearbyNext(1:kk-1, :) ;
-    
-    % Show other tracks NOT DONE in green -- OTHERS -- CURRENT
-    plot(nearbyNext(:, 1), nearbyNext(:, 2),...
-        's', 'color', green, 'markerSize', markerSize, 'lineWidth', 1) 
+        nearbyNext = nearbyNext(1:kk-1, :) ;
+
+        % Show other tracks NOT DONE in green -- OTHERS -- CURRENT
+        plot(nearbyNext(:, 1), nearbyNext(:, 2),...
+            's', 'color', green, 'markerSize', markerSize, 'lineWidth', 1) 
+    % catch
+    %     disp('Could not display track next')
+    % end
 end
 
 hold off;
@@ -160,11 +168,15 @@ nearbyDone  = nan(length(otherIDs), 2) ;
 kk = 1 ;
 for otherID = otherIDs
     otherTrack = currentTracks{otherID} ;
-    xx = otherTrack(tidx, 1) ;
-    yy = otherTrack(tidx, 2) ;
-    if xx > minX && xx < maxX && yy > minY && yy < maxY
-        nearbyDone(kk, :) = [xx-minX, yy-minY] ;
-        kk = kk + 1 ;
+    if isempty(otherTrack)
+        disp('plotCurrentTrack: no other tracks to plot!')
+    else
+        xx = otherTrack(tidx, 1) ;  
+        yy = otherTrack(tidx, 2) ;
+        if xx > minX && xx < maxX && yy > minY && yy < maxY
+            nearbyDone(kk, :) = [xx-minX, yy-minY] ;
+            kk = kk + 1 ;
+        end
     end
 end
 nearbyDone = nearbyDone(1:kk-1, :) ;
@@ -179,11 +191,15 @@ if ii < nTracks
     kk = 1 ;
     for otherID = otherIDs(otherIDs>ii)
         otherTrack = currentTracks{otherID} ;
-        xx = otherTrack(tidx, 1) ;
-        yy = otherTrack(tidx, 2) ;
-        if xx > minX && xx < maxX && yy > minY && yy < maxY
-            nearbyNext(kk, :) = [xx-minX, yy-minY] ;
-            kk = kk + 1 ;
+        if isempty(otherTrack)
+            disp('plotCurrentTrack: no other tracks to plot')
+        else
+            xx = otherTrack(tidx, 1) ;
+            yy = otherTrack(tidx, 2) ;
+            if xx > minX && xx < maxX && yy > minY && yy < maxY
+                nearbyNext(kk, :) = [xx-minX, yy-minY] ;
+                kk = kk + 1 ;
+            end
         end
     end
     nearbyNext = nearbyNext(1:kk-1, :) ;

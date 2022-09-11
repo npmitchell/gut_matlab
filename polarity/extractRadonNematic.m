@@ -4,6 +4,8 @@ function [angle, magnitude, results] = extractRadonNematic(im, options)
 %   and average vectors in 2*theta space. Then divide angle by 2 and return
 %   the vector magnitude.
 % 
+% Todo: hmaximum transform (a morphological operation)
+%
 % Requires PeakFinding/ to be in current path
 % 
 % Parameters
@@ -24,12 +26,13 @@ function [angle, magnitude, results] = extractRadonNematic(im, options)
 %                   Note that res=2 method takes ~20% more time on average.
 %         theta     array of angles onto which to project
 %         savefn    full path of where to save figure summarizing result
+%         show_fig  bool, show figure of the peaks detected
 %         title     Title of the figure to save if savefn == true
 %         Additional options for res == 1
 %         peak_ar   aspect ratio in pix/Dela(deg) of neighborhood
 %         peakw     width of area to sample around peak to measure weight 
 %                   (ie robustness)
-%
+%         num2keep  int, number of peaks to use in finding orientation
 %
 % Returns
 % -------
@@ -44,33 +47,45 @@ function [angle, magnitude, results] = extractRadonNematic(im, options)
 %       
 % NPMitchell
  
+%% Default options
+num2keep = Inf ;
+thres = 0.97 ;
+show_fig = false ;
+theta = -40:220 ;
+filt = fspecial('gaussian', 7, 2) ;
+edg = 2 ;
+options.res = 1 ;
+peakw = 6.5 ;
+peak_ar = 3. ; % aspect ratio in pix/Dela(deg) of neighborhood
+
 %% Find peaks in the transform
 
 % thresholding on CDF to find peaks
 if isfield(options, 'thres')
     thres = options.thres ;
-else
-    thres = 0.97 ;
+end
+
+if isfield(options, 'num2keep')
+    num2keep = options.num2keep ;
+end
+
+% show the figure or not
+if isfield(options, 'show_fig')
+    show_fig = options.show_fig ;
 end
 
 % Angles to sample -- note must extend below 0 and above 180 
 if isfield(options, 'theta')
     theta = options.theta ;
-else
-    theta = -40:220 ;
 end
 
 % filter to use on radon transform
-if ~isfield(options, 'filt')
-    filt = fspecial('gaussian', 7, 2) ;
-else
+if isfield(options, 'filt')
     filt = options.filt ; 
 end
 
 % width of boundary pixels to ignore
-if ~isfield(options, 'edg')
-    edg = 2 ;
-else
+if isfield(options, 'edg')
     edg = options.edg ;
 end
 
@@ -83,13 +98,9 @@ end
 % peak width for region around peak to measure average intensity
 if isfield(options, 'peakw')
     peakw = options.peakw ;
-else
-    peakw = 6.5 ;
 end
 if isfield(options, 'peak_ar')
     peak_ar = options.peak_ar ; 
-else
-    peak_ar = 3. ; % aspect ratio in pix/Dela(deg) of neighborhood
 end
 
 
@@ -148,21 +159,35 @@ keep = weights > 0 ;
 xyc = xyc(keep, :) ;
 weights = weights(weights > 0) ;
 
-% Take average vector to the various positions [cos(2t), sin(2t)]
-vecs = [cos(2 * xyc(:, 1) * pi / 180), sin(2 * xyc(:, 1) * pi / 180) ] ;
-% Weight vector magnitudes by weights
-vecw = [weights .* vecs(:, 1), weights .* vecs(:, 2)] ;
-vec = sum(vecw, 1) ;
-% Note: divide by two since we used cos(2t), sin(2t)
-angle = atan2(vec(2), vec(1)) * 0.5 ;
-magnitude = norm(vec) ;
+% Keep k peaks
+if num2keep > 1
+    if isfinite(num2keep)
+        [~, idx] = maxk(weights, num2keep) ;
+        xyc = xyc(idx, :) ;
+        weights = weights(idx, :) ;
+    end
+    
+    % Take average vector to the various positions [cos(2t), sin(2t)]
+    vecs = [cos(2 * xyc(:, 1) * pi / 180), sin(2 * xyc(:, 1) * pi / 180) ] ;
+    % Weight vector magnitudes by weights
+    vecw = [weights .* vecs(:, 1), weights .* vecs(:, 2)] ;
+    vec = sum(vecw, 1) ;
+    % Note: divide by two since we used cos(2t), sin(2t)
+    angle = mod(atan2(vec(2), vec(1)) * 0.5, pi) ;
+    magnitude = norm(vec) ;
+else
+    
+    [magnitude, idx] = max(weights) ;
+    angle = xyc(idx, 1) * pi / 180 ;
+    
+end
 
 % Visualize the result if we don't return output
 save_fig = isfield(options, 'savefn') ;
 if save_fig
     save_fig = ~isempty(options.savefn)  ;
 end
-if nargout < 1 || save_fig
+if show_fig || save_fig
     close all
     fig = figure ;
     cmap = colormap ;
@@ -178,9 +203,11 @@ if nargout < 1 || save_fig
     else
         title('Filtered projected intensity')
     end
-    colorbar
+    cb = colorbar ;
+    ylabel(cb, 'weights')
+    caxis([min(weights), max(weights)])
     ylim([min(xp), max(xp)])
-    if options.savefn
+    if isfield(options, 'savefn') && options.savefn
         saveas(gcf, options.savefn)
     else
         waitfor(fig) 

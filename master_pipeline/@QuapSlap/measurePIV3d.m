@@ -1,6 +1,8 @@
 function measurePIV3d(QS, options)
 % measurePIV3D(QS, options)
-%   Measure 3d flows from PIV results on smoothed (s,phi) MIP pullbacks
+%   Measure 3d flows from PIV results on smoothed (s,phi) MIP pullbacks.
+%   Note that this code accounts for the time interval QS.timeInterval in 
+%   the dt between frames.
 %   
 %   default options for created MIPS (done before this method) are:
 %     pbOptions = struct() ;
@@ -23,6 +25,9 @@ function measurePIV3d(QS, options)
 %       overwrite previous results
 %   preview : bool
 %       view intermediate results
+%   includeMeshesInPullbackInspection : bool (default=false)
+%       draw an advected mesh and reference
+%       mesh on top of pullback images to inspect
 %   timePoints : numeric 1D array
 %       the timepoints to consider for the measurement. For ex, could
 %       choose subset of the QS experiment timePoints
@@ -30,7 +35,7 @@ function measurePIV3d(QS, options)
 %
 % Returns
 % -------
-% m0XY : Px2 float: 2d mesh vertices in pullback image pixel space [pullback pix[" ;
+% m0XY : Px2 float: 2d mesh vertices in pullback image pixel space [pullback pix]" ;
 % m0f : #facesx3 float: mesh connectivity list" ;
 % m0v3d : Px3 float: 3d mesh coordinates in embedding pixel space [mesh pix / dt]" ;
 % x0 : QxR float: x value of 2d velocity evaluation coordinates in pullback image pixel space [pullback pix]" ;
@@ -56,49 +61,49 @@ function measurePIV3d(QS, options)
 % NPMitchell 2020
 
 %% Default options
+overwrite = false ;
+preview = false ;
+includeMeshesInPullbackInspection = false ;
+timePoints = QS.xp.fileMeta.timePoints ;
+doubleCovered = true;
+pivimCoords = 'sp_sme' ;
+show_v3d_on_data = true ;
+save_ims = true ;
+save_piv3d_im = false ;
 vnscale = 2 ;
 vtscale = 5 ;
+
+if nargin < 2
+    options = struct() ;
+end
 
 %% Unpack options
 if isfield(options, 'overwrite')
     overwrite = options.overwrite ;
-else
-    overwrite = false ;
 end
 if isfield(options, 'preview')
     preview = options.preview ;
-else
-    preview = false ;
+end
+if isfield(options, 'includeMeshesInPullbackInspection')
+    includeMeshesInPullbackInspection = options.includeMeshesInPullbackInspection ;
 end
 if isfield(options, 'timePoints')
     timePoints = options.timePoints ;
-else
-    timePoints = QS.xp.fileMeta.timePoints ;
 end
 if isfield(options, 'doubleCovered')
     doubleCovered = options.doubleCovered ; 
-else
-    doubleCovered = true;
 end
 if isfield(options, 'pivimCoords')
     pivimCoords = options.pivimCoords ;
-else
-    pivimCoords = 'sp_sme' ;
 end
 if isfield(options, 'show_v3d_on_data')
     show_v3d_on_data = options.show_v3d_on_data ;
-else
-    show_v3d_on_data = true ;
 end
 if isfield(options, 'save_ims')
     save_ims = options.save_ims ;
-else
-    save_ims = true ;
 end
 if isfield(options, 'save_piv3d_im')
     save_piv3d_im = options.save_piv3d_im ;
-else
-    save_piv3d_im = false ;
 end
 if isfield(options, 'vtscale')
     vtscale = options.vtscale ;
@@ -115,10 +120,14 @@ resolution = QS.APDV.resolution ;
 [~, ~, ~, xyzlim_APDV] = QS.getXYZLims() ;
 axis_order = QS.data.axisOrder ;
 pivOutDir = QS.dir.piv.v3d ;
+t0 = QS.t0set() ;
+
+%% Colors
 blue = QS.plotting.colors(1, :) ;
 red = QS.plotting.colors(2, :) ;
+yellow = QS.plotting.colors(3, :) ;
 green = QS.plotting.colors(4, :) ;
-t0 = QS.t0set() ;
+
 
 %% Check if all timepoints' piv3d exist already
 redo_piv3d = overwrite ; 
@@ -144,8 +153,13 @@ else
     % preallocate piv3d
     piv3d = cell(ntps, 1) ;
     
-    disp('Loading raw PIV results')
-    piv = load(QS.fileName.pivRaw.raw) ;
+    disp('Attempint to load raw PIV results')
+    try
+        piv = load(QS.fileName.pivRaw.raw) ;
+    catch
+        QS.measurePIV2d(options)
+        piv = load(QS.fileName.pivRaw.raw) ;
+    end
     
     % Iterate over all images with flow fields ----------------------------
     for ii=1:(ntps - 1)
@@ -361,8 +375,11 @@ else
             quiver(m0x, m0y, addx, addy, 0, 'color', yellow, 'linewidth', 2)
             % plot(m0x, m0y, 'o')
             % plot(mesh0adv_pix(:, 1), mesh0adv_pix(:, 2), 's')
-            triplot(mesh0.f, m0x, m0y, 'color', red, 'linewidth', 2)
-            triplot(mesh0.f, m0x + addx, m0y + addy, 'color', green, 'linewidth', 2)
+            
+            if includeMeshesInPullbackInspection
+                triplot(mesh0.f, m0x, m0y, 'color', red, 'linewidth', 2)
+                triplot(mesh0.f, m0x + addx, m0y + addy, 'color', green, 'linewidth', 2)
+            end
             % axis equal
             title('(r:t0) (g:advected t0) (b:t1) (y:PIV)')
             waitfor(gcf)
@@ -563,7 +580,7 @@ else
         end
         
         % Test validity of result
-        v0_rs =  QS.dx2APDV(v0) / dt ;
+        v0_rs =  QS.dx2APDV(v0) ;
         if any(isnan(v0_rs(:))) || any(isnan(v0_rs(:)))
            % disp('inpainting NaNs in pt0 & pt1')
            error('why nans?')
@@ -589,30 +606,30 @@ else
         datstruct.y0 = y0 ;
         datstruct.pt0 = pt0 ;
         datstruct.pt1 = pt1 ;
-        datstruct.v0 = v0 / dt ;
-        datstruct.v0n = v0n / dt ;
-        datstruct.v0t = v0t / dt ;
+        datstruct.v0 = v0 ;
+        datstruct.v0n = v0n ;
+        datstruct.v0t = v0t  ;
         datstruct.facenormals = facenormals ;
         
         % Face-centered velocities
         datstruct.v3dvertices = v3dvertices ;
         datstruct.v3dfaces = v3dfaces ;
-        datstruct.v3dfaces_rs = QS.dx2APDV(v3dfaces) / dt ; 
+        datstruct.v3dfaces_rs = QS.dx2APDV(v3dfaces) ;  % note we already /dt
         assert(all(size(v3dfaces) == size(datstruct.m0f)))
         
         % rotated and scaled velocities
-        datstruct.v0_rs = QS.dx2APDV(v0) / dt ;
-        datstruct.v0t_rs = QS.dx2APDV(v0t) / dt ;
+        datstruct.v0_rs = QS.dx2APDV(v0) ; % note we already /dt in v0 def
+        datstruct.v0t_rs = QS.dx2APDV(v0t) ; % note we already /dt in v0 def
         if QS.flipy
             % Direct normals inward
-            datstruct.v0n_rs = -v0n * resolution / dt ;
+            datstruct.v0n_rs = -v0n * resolution ; % note we already /dt in v0 def
             normals_rs = (rot * facenormals')' ;            
             % Put the normal direction as inward -- revert X,Z
             datstruct.normals_rs = normals_rs ;
             datstruct.normals_rs(:, 1) = -normals_rs(:, 1) ;
             datstruct.normals_rs(:, 3) = -normals_rs(:, 3) ;            
         else
-            datstruct.v0n_rs = v0n * resolution / dt ;
+            datstruct.v0n_rs = v0n * resolution ; % note we already /dt in v0 def
             datstruct.normals_rs = (rot * facenormals')' ;
         end
         
@@ -644,7 +661,7 @@ else
         
         % package the struct with a readme
         readme = struct ;
-        readme.m0XY = "Px2 float: 2d mesh vertices in pullback image pixel space [pullback pix[" ;
+        readme.m0XY = "Px2 float: 2d mesh vertices in pullback image pixel space [pullback pix]" ;
         readme.m0f = "#facesx3 float: mesh connectivity list" ;
         readme.m0v3d = "Px3 float: 3d mesh coordinates in embedding pixel space [mesh pix / dt]" ;
         readme.x0 = "QxR float: x value of 2d velocity evaluation coordinates in pullback image pixel space [pullback pix]" ;
@@ -657,12 +674,12 @@ else
         readme.facenormals = "#faces x 3 float: face normals for all faces [unitless, mesh pix / mesh pix]" ;
         readme.v3dfaces = "#faces x 3 float: face-centered velocities in embedding space (eval at face barycenters) [mesh pix / dt]" ;
         readme.v3dvertices = "#mesh vertices x 3 float: vertex-centered velocities in embedding space [mesh pix / dt]" ;
-        readme.v0_rs = "Nx3 float: rotated/scaled 3d velocities at PIV evaluation points [um/min]" ;
-        readme.v0n_rs = "Nx3 float: scaled normal velocities at PIV evaluation points [um/min]" ;
-        readme.v0t_rs = "Nx3 float: rotated/scaled tangential 3d velocities at PIV evaluation points [um/min]" ;
-        readme.normals_rs = "Nx3 float: normal vector of field faces in 3d (at PIV evaluation points) [unitless, um/um]" ;
+        readme.v0_rs = "Nx3 float: rotated/scaled 3d velocities at PIV evaluation points [spaceUnits/dt]" ;
+        readme.v0n_rs = "Nx3 float: scaled normal velocities at PIV evaluation points [spaceUnits/dt]" ;
+        readme.v0t_rs = "Nx3 float: rotated/scaled tangential 3d velocities at PIV evaluation points [spaceUnits/dt]" ;
+        readme.normals_rs = "Nx3 float: normal vector of field faces in 3d (at PIV evaluation points) [unitless, spaceUnits/spaceUnits]" ;
         readme.v0t2d = "Nx2 float: in-plane velocity (at PIV evaluation points) [pullback pix / dt]" ;
-        readme.g_ab = "Nx2x2 float: pullback metric" ;
+        readme.g_ab = "Nx2x2 float: pullback metric (length_2d [pullback_pix^2] / length_3d [mesh_pix^2])" ;
         readme.dilation = "Nx1 float: dilation of face from 3d to 2d (A_2d [pullback_pix^2] / A_3d [mesh_pix^2])" ;
         readme.jac = "#faces x 1 cell: jacobian of 3d->2d transformation" ;
         readme.fieldfaces = "Nx1 int: face indices into spcutMesh where v defined" ;
@@ -782,7 +799,7 @@ else
             imRGB = cat(3, im0, im0, im0) ;  % convert to rgb for no cmap change
             im = imRGB * washout2d + max(im0(:)) * (1-washout2d) ;
             options.label = ['scaled tangential velocity, ', ...
-                '$|v_t|/||g^{-1}||$ [$\mu$m/', QS.timeUnits, ']'] ;
+                '$|v_t|/||g^{-1}||$ [' QS.spaceUnits '/', QS.timeUnits, ']'] ;
             options.xlim = [0, size(im, 2)] ;
             if doubleCovered
                 options.ylim = size(im, 1) * [0.25, 0.75] ;

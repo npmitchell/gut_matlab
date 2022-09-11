@@ -3,7 +3,7 @@ function writeTiff5D(im, name_out, bitDepth)
 % 
 % Parameters
 % ----------
-% im : (nX x nY x nC x nS x nT) 16-bit array 
+% im : (nX x nY x nC x nZ x nT) 16-bit array 
 % name_out : str
 %   full path of output TIFF filename
 % bitDepth : int (default=16)

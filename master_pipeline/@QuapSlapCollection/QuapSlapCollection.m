@@ -2,16 +2,73 @@ classdef QuapSlapCollection < handle
     % Collection of instances of Quasi-Axisymmetric Pullback 
     %   for Surface Lagrangian Pullbacks
     %
+    % Example usage:
+    % see example_QuapSlapCollection.m
 
     properties
         QuapSlaps
         outputDir
+        ss = [] 
     end
     
     methods
         function QSC = QuapSlapCollection(QSs, opts)
             QSC.QuapSlaps = QSs ;
             QSC.outputDir = opts.outputDir ;
+        end
+
+        function alignByFolds(QSC, options)
+            
+            % Get fold positions for each dataset
+            QSC.getFolds() ;
+            folds = QSC.folds ;
+            sA = cell(Ndat, 1) ;
+            sB = cell(Ndat, 1) ;
+            sC = cell(Ndat, 1) ;
+            ss = cell(Ndat, 1) ;
+
+            for qq = 1:Ndat
+                % get mean position of first fold
+                Apos = mean(double(folds(:, 1)-1)./(nU-1)) ;
+                sA{qq} = linspace(0, Apos, folds(qq, 1)) ;
+
+                % get mean position of second fold
+                Bpos = mean(double(folds(:, 2)-1)./(nU-1)) ;
+                sBtmp = linspace(Apos, Bpos, folds(qq, 2)-folds(qq, 1)+1) ;
+                sB{qq} = sBtmp(2:end) ;
+
+                % get mean position of third fold
+                Cpos = mean(double(folds(:, 3)-1)./(nU-1)) ;
+                sCtmp = linspace(Bpos, Cpos, folds(qq, 3)-folds(qq, 2)+1) ;
+                sC{qq} = sCtmp(2:end) ;
+
+                % get mean position of third fold
+                Dpos = 1 ;
+                sDtmp = linspace(Cpos, Dpos, nU-folds(qq, 3)+1) ;
+                sD{qq} = sDtmp(2:end) ;
+
+                ss{qq} = [sA{qq}, sB{qq}, sC{qq}, sD{qq}] ;
+            end
+            QSC.ss = ss ;
+        end
+
+        function getFolds(QSC, options)
+            % Load fold locations from disk
+            for ii = 1:length(QSC.QuapSlaps)
+                QSC.QuapSlaps{ii}.getFeatures() ;
+                tmp = QSC.QuapSlaps{ii}.features ;
+                ff = tmp.folds ;
+                if ii == 1
+                    foldU = zeros(length(QSC.QuapSlaps), size(ff, 2)) ;
+                end
+                for fid = 1:size(ff, 2)
+                    foldU(ii, fid) = ff(tmp.fold_onset(fid), fid) ;
+                end
+            end
+            folds = [35,56,80;
+                29,57,82;
+                29,47,67];
+            QSC.folds = folds ;
         end
         
         function collectStrainRates(QSC, options)

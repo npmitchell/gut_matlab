@@ -226,9 +226,9 @@ runitstr = [ '[' QS.spaceUnits ']' ] ;
     
 % Compute or load all timepoints
 ntp = length(QS.xp.fileMeta.timePoints(1:end-1)) ;
-tidx2do = 1:30:ntp ;
-tidx2do = [tidx2do, setdiff(1:10:ntp, tidx2do)] ;
+tidx2do = 14:30:ntp ;
 tidx2do = [tidx2do, setdiff(14:10:ntp, tidx2do)] ;
+tidx2do = [tidx2do, setdiff(1:10:ntp, tidx2do)] ;
 tidx2do = [tidx2do, setdiff(1:5:ntp, tidx2do)] ;
 tidx2do = [tidx2do, setdiff(1:2:ntp, tidx2do)] ;
 tidx2do = [tidx2do, setdiff(1:ntp, tidx2do)] ;

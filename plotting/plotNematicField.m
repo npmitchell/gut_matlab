@@ -39,6 +39,9 @@ addQuiver = false ;
 qsub = max(1, round(length(mag) / 200)) ;
 qScale = 1 ;
 cbarlabel = [] ;
+pm256 = phasemap(256)  ;
+pm256 = pm256 / max(pm256(:)) ; 
+cmap = pm256 ;
 if nargin > 2
     if isfield(options, 'clim_mag')
         clim_mag = options.clim_mag ;
@@ -96,9 +99,12 @@ if nargin > 2
     if isfield(options, 'cbarlabel')
         cbarlabel = options.cbarlabel ;
     end
+    if isfield(options, 'colormap')
+        cmap = options.colormap ;
+    end
 else
     options = struct() ;
-    reverseYaxis = true ;
+    reverseYAxis = true ;
 end
 
 if isempty(mesh)
@@ -122,10 +128,8 @@ end
 caxis([0, clim_mag])
 
 % Intensity from mag and color from the theta
-pm256 = phasemap(256)  ;
-pm256 = pm256 / max(pm256(:)) ;
-indx = max(1, round(mod(2*theta(:), 2*pi)*size(pm256, 1)/(2 * pi))) ;
-colors = pm256(indx, :) ;
+indx = max(1, round(mod(2*theta(:), 2*pi)*size(cmap, 1)/(2 * pi))) ;
+colors = cmap(indx, :) ;
 colors = min(mag(:) / clim_mag, 1) .* colors ;
 
 
@@ -155,8 +159,14 @@ end
 % Add quiver to the plot
 if addQuiver
     hold on;
-    idx = 1:qsub:size(mesh.f, 1) ;
     bc = barycenter(mesh.v, mesh.f) ;
+    
+    if size(theta, 1) ~= size(mesh.f, 1) && ...        
+    	size(theta, 1) ~= size(mesh.v, 1) && ...
+        size(theta(:), 1) == size(mesh.v, 1)
+        theta = theta(:) ;
+        mag = mag(:) ;
+    end
     
     if size(theta, 1) == size(mesh.f, 1)
         % Add quiver to subsampled faces
@@ -169,12 +179,14 @@ if addQuiver
             Qf = pushVectorField2Dto3DMesh(mag .* [cos(theta), sin(theta)], ...
                 mesh.u, mesh.v, mesh.f, 1:length(mesh.f)) ;
             plot_on_faces = true ;
-        end
+        end    
+        idx = 1:qsub:size(mesh.f, 1) ;
     elseif size(theta, 1) == size(mesh.v, 1)
         if is2d
             % Just plot the bars on the vertices
             Qf = mag .* [cos(theta), sin(theta), 0*theta] ;
-            plot_on_faces = false ;
+            plot_on_faces = false ;    
+            idx = 1:qsub:size(mesh.v, 1) ;
         else
             % Push nematic to faces
             [V2F, ~] = meshAveragingOperators(mesh.f, mesh.v) ;
@@ -187,19 +199,21 @@ if addQuiver
             Qf = (V2F * mag) .* Qf ;
             % normalize
             plot_on_faces = true ;
+            idx = 1:qsub:size(mesh.f, 1) ;
         end
     else
         error('Could not add quiver since theta is not #faces or #vertices x 1 array')
     end
     
     if plot_on_faces
+        hold on;
         % Place rods at 3D face barycenters
         quiver3(bc(idx, 1), bc(idx, 2), bc(idx, 3), ...
             Qf(idx, 1), Qf(idx, 2), Qf(idx, 3), qScale, 'w', 'ShowArrowHead', 'off') 
         quiver3(bc(idx, 1), bc(idx, 2), bc(idx, 3), ...
             -Qf(idx, 1), -Qf(idx, 2), -Qf(idx, 3), qScale, 'w', 'ShowArrowHead', 'off')
     else
-        quiver(mesh.v(idx, 1), mesh.v(idx, 2), mesh.v(idx, 3),...
+        quiver3(mesh.v(idx, 1), mesh.v(idx, 2), mesh.v(idx, 3),...
             Qf(idx, 1), Qf(idx, 2), Qf(idx, 3), qScale, 'w', 'ShowArrowHead', 'off') 
         quiver3(mesh.v(idx, 1), mesh.v(idx, 2), mesh.v(idx, 3), ...
             -Qf(idx, 1), -Qf(idx, 2), -Qf(idx, 3), qScale, 'w', 'ShowArrowHead', 'off')
@@ -215,9 +229,9 @@ end
 
 % Colorbar and phasewheel
 if makeCbar
-    colormap(gca, phasemap)
+    colormap(gca, cmap)
     cbs = cell(2, 1) ;
-    cbs{1} = phasebar('colormap', phasemap, ...
+    cbs{1} = phasebar('colormap', cmap, ...
         'location', [0.76, 0.05, 0.12, 0.135], ...
         'style', 'nematic') ;
     shrink = 0.6 ;

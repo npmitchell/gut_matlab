@@ -16,10 +16,12 @@ for zp = 1:2
     close all
     set(gcf, 'visible', 'off')
     
-    % Used to say:
-    % spcm = QS.currentMesh.spcutMesh ;
-    % Now do:
-    spcm = QS.currentMesh.spcutMeshSm ;
+    if strcmpi(coordSys, 'sphi')
+        spcm = tubi.currentMesh.spcutMesh ;
+    elseif strcmpi(coordSys, 'sphism') || strcmpi(coordSys, 'sphi_sm')
+        spcm = tubi.currentMesh.spcutMeshSm ;
+    elseif strcmpi(coordSys, 'uv')
+        spcm = tubi.getCurrentUVCutMesh ;
     
     % Rotate vertices and prep figure colors
     xyzrs = xyz2APDV(QS, spcm.v) ;

@@ -109,7 +109,9 @@ clear; close all; clc;
 % cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1.4um_25x_obis1.5_2/data
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_180s/data/
 % cd /mnt/data/antpGAL4UASCAAXmChHGFP/202103281352_1p4um_0p15ms0p25ms_1mW1mW_GFPRFP/Time3views_180s/data/
-cd /mnt/data/UbxGAL4UASCAAXmChHGFP/202105132247_UbxG4kCAAXHGFP_1p2um_0p1ms0p2ms_1mW1mW_3v300s/data
+% cd /mnt/data/UbxGAL4UASCAAXmChHGFP/202105132247_UbxG4kCAAXHGFP_1p2um_0p1ms0p2ms_1mW1mW_3v300s/data
+
+cd /mnt/crunch/bynGAL4klarCAAXmChHGFP/202207131248_1p4um_2p5mW1mW_4views_0p25ms_60s/
 
 % .=========.
 % |  VIP10  |
@@ -146,21 +148,21 @@ overwrite_idAnomClines = false ;
 overwrite_cleanCylMesh = false ;
 
 %% DEFINE NEW MASTER SETTINGS
-if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
+if ~exist('./masterSettings.mat', 'file') || overwrite_masterSettings 
     % Metadata about the experiment
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 2 ;
     channelsUsed = [1 2];
-    timePoints = 0:75 ;
+    timePoints = [0, 100]; % [0:10:130, 150] ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
     flipy = true ; 
     timeInterval = 5 ;  % physical interval between timepoints
     timeUnits = 'min' ; % physical unit of time between timepoints
     spaceUnits = '$\mu$m' ; % physical unit of time between timepoints
-    scale = [0.3, 0.03] ; % [0.03 0.2] ;      % scale for conversion to 16 bit
-    % file32Base = 'TP%d_Ch0_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
-    file32Base = 'TP%d_Ch%d_Ill0_Ang0,60,120,180,240,300.tif'; 
+    scale = [0.3, 0.3] ; % [0.3, 0.03] for UbxGAL4 datasets ; % [0.03 0.2] ;      % scale for conversion to 16 bit
+    file32Base = 'TP%d_Ch%d_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
+    % file32Base = 'TP%d_Ch%d_Ill0_Ang0,60,120,180,240,300.tif'; 
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
     fn = 'Time_%06d_c%d_stab';
     fnCombined = 'Time_%06d_stab' ;
@@ -234,7 +236,8 @@ if loadMaster
     nU = masterSettings.nU ;
     nV = masterSettings.nV ;
 end
-dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
+% dir32bit = fullfile(dataDir, 'deconvolved_32bit') ;
+dir32bit = fullfile(dataDir, 'deconvolved13iter') ;
 dir16bit = fullfile(dataDir, 'deconvolved_16bit') ;
 dir16bit_prestab = fullfile(dir16bit, 'data_pre_stabilization') ;
 

@@ -10,7 +10,8 @@
 clear; close all; clc;
 
 % Add necessary directories to path ---------------------------------------
-addpath(genpath('/mnt/crunch/djcislo/MATLAB/euclidean_orbifolds'));
+% addpath(genpath('/mnt/crunch/djcislo/MATLAB/euclidean_orbifolds'));
+addpath(genpath('/mnt/data/code/gut_matlab/euclidean_orbifolds'));
 addpath(genpath('/mnt/data/code/gptoolbox'));
 addpath(genpath('/mnt/data/code/gut_matlab/'));
 

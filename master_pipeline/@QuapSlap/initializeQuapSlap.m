@@ -119,8 +119,12 @@ QS.dir.uvCoord = uvDir ;
 
 %% fileBases
 QS.fileBase.name = xp.fileMeta.filenameFormat(1:end-4) ;
-QS.fileBase.mesh = ...
-    [xp.detector.options.ofn_smoothply '%06d'] ;
+try
+    QS.fileBase.mesh = ...
+        [xp.detector.options.ofn_smoothply '%06d'] ;
+catch
+    QS.fileBase.mesh = [xp.detectOptions.ofn_smoothply '%06d'] ;
+end
 QS.fileBase.alignedMesh = ...
     [QS.fileBase.mesh '_APDV_um'] ;
 QS.fileBase.apdProb = [QS.fileBase.name '_Probabilities_APDVcoords.h5']  ;
@@ -453,7 +457,7 @@ QS.dir.writhe =  fullfile(QS.dir.clineDVhoop, 'writhe') ;
 
 %% Images
 QS.dir.im_uv = [imFolderBase '_uv'] ;
-QS.dir.im_uve = [imFolderBase '_uv_extended'] ;
+QS.dir.im_uve = fullfile([imFolderBase '_uv'], 'extended') ;
 QS.dir.im_r = [imFolderBase '_sphi_relaxed'] ;
 QS.dir.im_re = fullfile(QS.dir.im_r, 'extended') ;
 QS.dir.im_r_uvprime = [imFolderBase '_uvprime_relaxed'] ;
@@ -553,6 +557,7 @@ end
 % uv
 QS.fileBase.im_uv = [QS.fileBase.name, '_pbuv.tif'] ;
 QS.fullFileBase.im_uv = fullfile(QS.dir.im_uv, QS.fileBase.im_uv) ;
+QS.fullFileBase.im_uve = fullfile(QS.dir.im_uve, QS.fileBase.im_uv) ;
 % relaxed sp
 QS.fileBase.im_r = [QS.fileBase.name, '_pbr.tif'] ;
 QS.fullFileBase.im_r = fullfile(QS.dir.im_r, QS.fileBase.im_r) ;

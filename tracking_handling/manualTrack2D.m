@@ -1,4 +1,5 @@
-function [tracks, trackGraph] = manualTrack2D(currentTracks, fileBase, timePoints, trackOutfn, tracks2Add, tidx0)
+function [tracks, trackGraph] = manualTrack2D(currentTracks, ...
+    fileBase, timePoints, trackOutfn, tracks2Add, tidx0)
 % Manually track nTracks objects in 2D grayscale or RGB image sequence.
 % May run as script.
 %
@@ -127,7 +128,12 @@ for ii = tracks2Add
             msg = [msg ...
                 'Press <space> to acquire, p: play, o: play from start, a: t-1, s: t+1'] ;
             disp(msg)
-            sgtitle(msg)
+            try
+                delete(thandle)
+            catch
+                disp('no title handle to delete')
+            end
+            thandle = sgtitle(msg) ;
             pause
             currkey=get(gcf, 'CurrentKey'); 
             
@@ -162,7 +168,14 @@ for ii = tracks2Add
                                 tidx, timePoints, fileBase, trackii, ...
                                 tracks, Xlim, Ylim) ;
                             msg = 'Click with crosshairs: acquire / <escape>: no detection' ;
-                            sgtitle(msg)
+                           
+                            
+                            try
+                                delete(thandle)
+                            catch
+                                disp('no title handle to delete')
+                            end
+                            thandle = sgtitle(msg) ;
                             disp(msg)
                             [xx,yy] = ginput(1) ;
                             currkey=get(gcf, 'CurrentKey'); 
@@ -278,7 +291,13 @@ for ii = tracks2Add
             % Acquire the XY coordinate for this timepoint
             if keepTracking
                 msg = 'Click with crosshairs: acquire / <escape>: no detection' ;
-                sgtitle(msg)
+               
+                try
+                    delete(thandle)
+                catch
+                    disp('no title handle to delete')
+                end
+                thandle = sgtitle(msg) ;
                 disp(msg)
                 [xx,yy] = ginput(1) ;
                 anyEdits = true ;
@@ -321,7 +340,14 @@ for ii = tracks2Add
         % Check if we should exit
         if tidx > length(timePoints) && anyEdits
             msg = 'All done with detections? [y/n]' ;
-            sgtitle(msg)
+            
+            try
+                delete(thandle)
+            catch
+                disp('no title handle to delete')
+            end
+            
+            thandle = sgtitle(msg) ;
             disp(msg)
             okstring = input(msg, 's') ;
             notOk = contains(lower(okstring), 'n') ;

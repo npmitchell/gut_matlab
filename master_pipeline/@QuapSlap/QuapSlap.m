@@ -2595,6 +2595,114 @@ classdef QuapSlap < handle
         %% infer stokes forces
         measureStokesForces(QS, options)
         
+        %% measure Radon transform on images, plot in 2D/3D surface
+        function radon = measureRadonNematicFPS(QS, options)
+            
+            % ========================================================================
+            % LOAD MESH AND CREATE TILED PULLBACK IMAGES
+            QS.setTime(QS.t0set()) ;
+            mesh0 = QS.getCurrentSPCutMesh() ;
+            mesh = struct('u', mesh0.uv, ...
+                'v', mesh0.v, ...
+                'f', mesh0.f) ;
+
+            % ========================================================================
+            % BEGIN RADON TRANSFORM PIPELINE
+            tesMesh = generateFPSSTessellation( mesh.f, mesh.v, ...
+                'NumPoints', 10, 'Overlap', 0.1 );
+
+            % View Results -----------------------------------------------------------
+            % A color for each Voronoi submesh
+            cellColors = distinguishable_colors(length(tesMesh), [1 0 0]);
+
+            inCell = cell( size(mesh.f, 1), 1 );
+            faceColors = zeros( size(mesh.f, 1), 3 );
+            for fID = 1:size(mesh.f, 1)
+
+                progressbar(fID, size(mesh.f,1));
+
+                curInCell = [];
+                for j = 1:length(tesMesh)
+
+                    if ismember( fID, tesMesh(j).FinFullMesh )
+                        curInCell = [ curInCell j ];
+                    end
+
+                end
+
+                inCell{fID} = curInCell;
+                faceColors(fID, :) = mean(cellColors(curInCell, :), 1);
+
+            end
+            clear curInCell
+
+            % Plot patches
+            cIDx = reshape( [ tesMesh.Center ], 2, length(tesMesh) ).';
+            cIDx = cIDx(:,1);
+            cXYZ = barycentricToCartesian( triangulation( mesh.f, mesh.v ), ...
+                cIDx, ones( numel(cIDx), 3 ) ./ 3 );
+            patch('Faces', mesh.f, 'Vertices', mesh.v, ...
+                'FaceVertexCData', faceColors, ...
+                'FaceColor', 'flat', 'EdgeColor', 'none', ...
+                'SpecularStrength', 0.1, 'DiffuseStrength', 0.1, ...
+                'AmbientStrength', 0.8 );
+            hold on
+            scatter3( cXYZ(:,1), cXYZ(:,2), cXYZ(:,3), ...
+                'filled', 'r' )
+            hold off
+            axis equal tight
+            camlight
+
+            % Map each patch to the plane in rigid-as-possible
+
+        end
+        function radon = measureRadonNematic2D(QS, options) 
+            % Parameters
+            % ----------
+            % options : optional struct with optional fields
+            %   coordSys
+            %   timePoints
+            %   additional fields for extractRadonNematic()
+            coordSys = 'uve' ;
+            timePoints = QS.timePoints ;
+            if isfield(options, 'coordSys')
+                coordSys = options.coordSys ;
+            end
+            if isfield(options, 'timePoints')
+                timePoints = options.timePoints ;
+            end
+            
+            % Define the image directory and file basename
+            if strcmpi(coordSys, 'uve')
+                imdir = QS.dir.im_uve ;
+                fbase = QS.fullFileBase.im_uve ;
+            else
+                error('Code for this coordsys here')
+            end
+            % Ensure that the coordsys exists if images are extended 
+            if strcmpi(coordSys(end), 'e')
+                if ~exist(fullfile(imdir, sprintf(fbase, QS.t0set())), 'file')
+                    opts = struct('coordsys', coordSys) ;
+                    QS.doubleCoverPullbackImages(opts) ;
+                end
+            end
+            for tp = timePoints
+                im = imread(fn) ;
+                if strcmpi(coordSys,'uve')
+                    im = imresize(im, [max(size(im)), max(size(im))]) ;
+                end
+                [angle, magnitude, results] = extractRadonNematic(im, options) ;
+                
+                % Plot image in 2D of the result
+                
+                
+                % convert to struct with angles/mags on Mesh
+                cti = scatteredInterpolant(ct) ;
+                angleMesh = atan2(sti(xx,yy), cti(xx,yy)) ;
+                magMesh = magi(xx, yy) ;
+            end
+        end
+        
         %% Strain RATE
         measureMetricStrainRate(QS, options)
         measureStrainRate(QS, options)

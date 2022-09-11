@@ -1,10 +1,12 @@
-function generateCellSegmentation2D(QS, options)
-% Unfinished code -- Lin working on it.
-% ToDo: 
+function generateCellSegmentation2D(tubi, options)
+% generateCellSegmentation2D(tubi, options)
+%   segment cell membranes in 2d pullback projections
+%   NOTE: Dependency is Nick Noll's tissueAnalysisSuite: this must be in
+%   the current Matlab path.
 %
 % Parameters
 % ----------
-%   QS : 
+%   tubi : 
 %   options : struct with fields
 %       coordSys : coordinate system on which to compute the segmentation
 %
@@ -38,11 +40,11 @@ overwrite = false ;
 skipPolygons = false ;
 overwriteImages = false ;
 % timepoints to process
-timePoints = QS.xp.fileMeta.timePoints ;
+timePoints = tubi.xp.fileMeta.timePoints ;
 % how far in pixels is too far to connect two cell vertices
 very_far = 250 ;
 % which coordinate system to use for segmentation
-coordSys = QS.currentSegmentation.coordSys ; 
+coordSys = tubi.currentSegmentation.coordSys ; 
 % Toggle for iLastik version control -- zero for newer version
 iLastikVersion = 0;
 cellSize = 50 ;
@@ -92,29 +94,29 @@ end
 
 %% Load in h5 from ilastik.
 if strcmpi(erase(coordSys, '_'), 'spsme') 
-    Folder = [QS.dir.im_sp_sme, '_pixelClassification'] ;
+    Folder = [tubi.dir.im_sp_sme, '_pixelClassification'] ;
     if ~exist(Folder, 'dir')
         mkdir(Folder)
         error(['Populate ' Folder ' with pixelClassification on pullbacks with coordSys ' coordSys])
     end
-    filebase = [QS.fileBase.im_sp_sme(1:end-4) '_Probabilities.h5'] ;
+    filebase = [tubi.fileBase.im_sp_sme(1:end-4) '_Probabilities.h5'] ;
 elseif strcmpi(erase(coordSys, '_'), 'sprsme') || ...
         strcmpi(erase(coordSys, '_'), 'rspsme') || ...
         strcmpi(erase(coordSys, '_'), 'rsme')
     coordSys = 'sprsme' ;
-    Folder = [QS.dir.im_r_sme, '_pixelClassification'] ;
+    Folder = [tubi.dir.im_r_sme, '_pixelClassification'] ;
     if ~exist(Folder, 'dir')
         mkdir(Folder)
         error(['Populate ' Folder ' with pixelClassification on pullbacks with coordSys ' coordSys])
     end
-    filebase = [QS.fileBase.im_r_sme(1:end-4) '_Probabilities.h5'] ;
+    filebase = [tubi.fileBase.im_r_sme(1:end-4) '_Probabilities.h5'] ;
 else
     error('Have not coded for this coordinate system yet. Do so here')
 end
 
 for tp = timePoints
     
-    outfn = sprintf(QS.fullFileBase.segmentation2d, tp) ;
+    outfn = sprintf(tubi.fullFileBase.segmentation2d, tp) ;
     if ~exist(outfn, 'file') || overwrite
 
         % Define path to this timePoint's hdf5 probabilities file
@@ -218,8 +220,8 @@ for tp = timePoints
         end
         
         %% Save the segmentation to disk
-        if ~exist(fullfile(QS.dir.segmentation, 'seg2d'), 'dir')
-            mkdir(fullfile(QS.dir.segmentation, 'seg2d'))
+        if ~exist(fullfile(tubi.dir.segmentation, 'seg2d'), 'dir')
+            mkdir(fullfile(tubi.dir.segmentation, 'seg2d'))
         end
 
         save(outfn, 'seg2d', 'segIm', 'coordSys')
@@ -293,9 +295,9 @@ for tp = timePoints
     imfn = [outfn(1:end-3) 'png'] ;
     if ~exist(imfn, 'file') || overwrite || overwriteImages
         if strcmpi( coordSys, 'spsme')
-            imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
+            imageFn = sprintf(tubi.fullFileBase.im_sp_sme, tp) ;
         elseif strcmpi( coordSys, 'sprsme')
-            imageFn = sprintf(QS.fullFileBase.im_r_sme, tp) ;
+            imageFn = sprintf(tubi.fullFileBase.im_r_sme, tp) ;
         else
             error('Have not yet coded for this CoordSys');
         end
@@ -320,8 +322,8 @@ for tp = timePoints
         hold on;
         q = quiver(Xs,Ys, Us, Vs, 0, 'color', [ 0.8500    0.3250    0.0980]);
         axis equal
-        t0 = QS.t0set() ;
-        title(['t = ' sprintf('%03d', tp - t0) ' ' QS.timeUnits])
+        t0 = tubi.t0set() ;
+        title(['t = ' sprintf('%03d', tp - t0) ' ' tubi.timeUnits])
         q.ShowArrowHead = 'off';
         saveas(gcf, imfn)
     end
@@ -333,9 +335,9 @@ for tp = timePoints
         
         
         if strcmpi( coordSys, 'spsme')
-            imageFn = sprintf(QS.fullFileBase.im_sp_sme, tp) ;
+            imageFn = sprintf(tubi.fullFileBase.im_sp_sme, tp) ;
         elseif strcmpi( coordSys, 'sprsme')
-            imageFn = sprintf(QS.fullFileBase.im_r_sme, tp) ;
+            imageFn = sprintf(tubi.fullFileBase.im_r_sme, tp) ;
         else
             error('Have not yet coded for this CoordSys');
         end
@@ -374,8 +376,8 @@ for tp = timePoints
         set(hh,'FaceColor','interp',...
            'FaceVertexCData',colorV,...
            'CDataMapping','scaled');
-        t0 = QS.t0set() ;
-        title(['t = ' sprintf('%03d', tp - t0) ' ' QS.timeUnits])
+        t0 = tubi.t0set() ;
+        title(['t = ' sprintf('%03d', tp - t0) ' ' tubi.timeUnits])
         colormap parula
         % saveas(gcf, imfn)
         disp(['saving image: ' imfn])
