@@ -53,7 +53,7 @@ if nargin < 4  || isempty(boxHeights)
     % try something reasonable for heights
     if numel(yvals) > 1
         try
-            assert(all(yvals == unique(yvals(:))))
+            assert(all(yvals(:) == unique(yvals(:))))
         catch
             error('If yvals are not ordered, then boxHeights must be supplied')
         end

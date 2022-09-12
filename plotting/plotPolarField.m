@@ -1,12 +1,41 @@
 function [meshHandle, cbs] = plotPolarField(mag, theta, options)
-% plotPolarField()
-% 
+% [meshHandle, cbs] = plotPolarField(mag, theta, options)
+% Plot an image or mesh colored by its orientation and magnitude, with 
+%   magnitude detemining opacity/intensity and orientation determining hue. 
 %
 % Parameters
 % ----------
+% mag : NxM numeric
+%   magnitude, translated to opacity or intensity
+% theta : NxM numeric
+%   orientation, translated to color 
+% options : struct with fields
+%   clim_mag : 1x1 numeric
+%       maximum magnitude for opacity or intensity
+%   mesh : struct with fields v and f 
+%       mesh onto which we paint the polar field
+%       v : vertices, as #verticesxDimension float
+%       f : face connectivity list, as #facesx3 int
+%   edgecolor : color specifier
+%       edgecolor of the mesh triangles
+%   label : optional string
+%       label for the title
+%   cbarlabels : optioanl string
+%       label for the colorbar
+%   makeCbar : bool
+%       create a polar colorbar
+%   axisOff or axisOn : bool
+%       turn off/on axis    
+%   
 %
 % Returns
 % -------
+% meshHandle : handle for plotting mesh
+% cbs : handle for colorbars
+%
+% See also
+% --------
+% vectorFieldQuiverOnImage()
 %
 % NPMitchell 2021
 

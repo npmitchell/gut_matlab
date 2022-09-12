@@ -8,6 +8,8 @@ fn = fullfile(datdir, 'gut_peristalsis_motility_%04d.png') ;
 filebase = fullfile(datdir, 'gut_peristalsis_motility_%04d_Probabilities.h5') ;
 segImFn = fullfile(rootdir, 'seg2d', 'seg_%04d.png') ;
 trackImFn = fullfile(rootdir, 'track2d', 'track', 'track_%04d.png') ;
+mkdir(fullfile(rootdir, 'track2d', 'track'))
+mkdir(fullfile(rootdir, 'track2d', 'metrics'))
 segFn = fullfile(rootdir, 'seg2d', 'seg_%04d.mat') ;
 trackFn = fullfile(rootdir, 'track2d', 'track_%04d.mat') ;
 outdir = rootdir ;
@@ -230,6 +232,8 @@ for tidx = 1:length(timePoints)
     % Plot area over time
     if nCells < 3
         cmpQ = distinguishable_colors(nCells, [0,0,0;1,1,1;0,0,1;1,0,0;0,1,0;1,0.10345,0.72414]);
+        cmpQ(1, :) = [1, 1, 0] ;
+        cmpQ(2, :) = [1, 0.3, 0] ;
     else
         cmpQ = isolum(nCells+1) ; 
         cmpQ = cmpQ(1:nCells, :) ;

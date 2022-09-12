@@ -1,17 +1,16 @@
-function [h1, h2, cb] = vectorFieldQuiverOnImage(im, xx, yy, vx, vy, vscale, ...
+function [h1, h2] = tensorFieldQuiverOnImage(im, xx, yy, txx,txy,tyx,tyy, vscale, ...
     options)
-%VECTORFIELDQUIVERONIMAGE(im, xx, yy, vx, vy, vscale, options)
-%   Plot a vector field (vx,vy) evaluated at grid[xx, yy] on an image im as
-%   quiverplot (subsampled quiver)
+%tensorFieldQuiverOnImage(im, xx, yy, vx, vy, vscale, options)
+%   Plot a tensor field (txx,txy;tyx,tyy) evaluated at grid[xx, yy] on an 
+%   image im as quiverplot (subsampled quiver)
+%  USE PLOTNEMATICFIELD INSTEAD!
 %
 % xx : N x 1 float array
 %   x values of PIV grid evaluation points
 % yy : M x 1 float array
 %   y values of PIV grid evaluation points
-% vx : N*M x 1 float array
+% QQ : N*M x 4 float array
 %   velocity in x direction
-% vy : N*M x 1 float array
-%   velocity in y direction
 % vscale : float
 %   magnitude associated with maximum color/intensity in velocity image
 % qopts : struct with fields
@@ -19,9 +18,6 @@ function [h1, h2, cb] = vectorFieldQuiverOnImage(im, xx, yy, vx, vy, vscale, ...
 %       path to save image if given
 %   label : str
 %       colorbar label. Default is '$|v|$ [$\mu$m / min]' 
-%   transposeVectorShape : bool
-%       allows transposition from xx,yy to yy,xx indexing of vectors onto
-%       image.
 %   qsubsample : int
 %       subsampling factor of the quiver field
 %   qscale : float
@@ -30,12 +26,6 @@ function [h1, h2, cb] = vectorFieldQuiverOnImage(im, xx, yy, vx, vy, vscale, ...
 %       output filename for figure as png 
 %   colorVectors : bool
 %       color the vectors by qopts.colors (default parula colors)
-%   color : color specifier (ex, 'k', 'w', or [1,0.5,0])
-%       single color for all arrows, if colorVectors is false
-%   clim : 2x1 numeric
-%       color limits for the image (not for vectors)
-%   fig : figure handle
-%       figure on which to plot
 %
 %
 % Returns
@@ -45,32 +35,25 @@ function [h1, h2, cb] = vectorFieldQuiverOnImage(im, xx, yy, vx, vy, vscale, ...
 %
 % Example Usage 
 % -------------
-% 
+%  USE PLOTNEMATICFIELD or PLOTTENSORFIELDCROSSESONIMAGE INSTEAD!
 %
-% See also
-% --------
-% plotPolarField()
+% 
 %
 %
 % NPMitchell 2020
 
+error('this function is not finished -- see instead plotTensorFieldCrossesOnImage() and plotNematicField()')
+
 % Default options
-labelstr = '|v| [$\mu$m / min]' ;
+labelstr = '$|Q|$' ;
+overlay_quiver = true ;
 qsubsample = 10 ;
 qscale = 10 ;
 transposeVectorShape = false ;
 lw = 1.2 ;
 colorVectors = false ;
-fig = 'A' ;
-color = 'k' ;
-makeCbar = true ;
-axisOff = true ;
-clim = [] ;  % for image, not vectors
 
 % Unpack options
-if isfield(options, 'label')
-    labelstr = options.label ;
-end
 if isfield(options, 'qsubsample')
     qsubsample = options.qsubsample ;
 end
@@ -84,33 +67,17 @@ if isfield(options, 'fig')
     fig = options.fig ;
 end
 if isfield(options, 'colorVectors') 
-    colorVectors = options.colorVectors ;
+    colorTensors = options.colorVectors ;
 end
 if isfield(options, 'lw') 
     lw = options.lw ;
 end
-if isfield(options, 'fig') 
-    fig = options.fig ;
-end
-if isfield(options, 'clim') 
-    clim = options.clim ;  % for image, not vectors
-end
-if isfield(options, 'color') 
-    color = options.color ;
-end
-if isfield(options, 'makeCbar')
-    makeCbar = options.makeCbar ;
-end
-if isfield(options, 'axisOff')
-    axisOff = options.axisOff ;
-elseif isfield(options, 'axisOn')
-    axisOff = ~options.axisOn ;
-end
 
-
-if colorVectors
-    mags = sqrt(vx.^2 + vy.^2) ; 
-    
+if colorTensors
+    mags = 
+    for pp = 1:size(QQ, 3)
+        mags(pp) = det(vx.^2 + vy.^2) ; 
+    end
     if isfield(options, 'climv')
         climv = options.climv ;
     else
@@ -152,11 +119,6 @@ else
     axis equal 
     axis tight
 end
-
-if ~isempty(clim)
-    caxis(clim)
-end
-
 hold on;
 
 
@@ -180,21 +142,11 @@ yq = 1:qsubsample:hh ;
 
 if colorVectors
     mags = sqrt(QX.^2 + QY.^2) ; 
-    h2 = quiverColorVectors2D(xg(:), yg(:), QX(:)* qscale, QY(:)*qscale, mags(:), colors, climv, lw) ;
+    h2 = quiverColorVectors2D(xg(:), yg(:), QX(:)*  qscale, QY(:)*qscale, mags(:), colors, climv, lw) ;
 else
-    h2 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, color, 'LineWidth', lw) ;   
+    h2 = quiver(xg(:), yg(:), qscale * QX(:), qscale * QY(:), 0, 'k', 'LineWidth', lw) ;   
 end
 
-if makeCbar
-    cb = colorbar ;
-    ylabel(cb, labelstr) ;
-else
-    cb = [] ;
-end
-
-if axisOff
-    axis off ;
-end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

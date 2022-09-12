@@ -12,6 +12,12 @@ sumHf = cell(length(dirs), 1) ;
 colors = [   0.9000    0.5500    0.5500
     0.5000    0.5000    0.5000
     0.6200    0.7600    0.8400] ;
+
+
+colors = [110,110,110; ...
+    31, 177, 3; ...
+    203, 41,123] ./ 255.0 ;
+
 clf
 for jj = 1:length(dirs)
     outdir = fullfile(dirs{jj}, 'analysis') ;
