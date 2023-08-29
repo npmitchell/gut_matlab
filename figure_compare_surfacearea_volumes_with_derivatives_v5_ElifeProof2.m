@@ -11,6 +11,7 @@ close all
 
 % Select where figure will go
 outdir = '/mnt/data/analysis/2022/' ;
+addpath(genpath('/mnt/data/code/gut_matlab/plotting/'))
 mkdir(outdir)
 markers = {'caax', 'hrfp', 'la'} ;
 labels = {'Membrane', 'Nuclei', 'Actin'}; 
@@ -441,6 +442,7 @@ for mi = 1:length(markers)
 end
 
 
+
 %% Data Figure
 % figure(fig1)
 axes(ax1)
@@ -550,10 +552,60 @@ volume = allVm ;
 volume_normalized = allVnm ;
 surfaceArea = allAm ;
 surfaceArea_normalized = allAnm ;
+fn_out_v5 = fullfile(outdir, 'surface_area_volume_length_v5.mat') ;
+if ~exist(fn_out_v5, 'file')
 save(fullfile(outdir, 'surface_area_volume_length_v5.mat'), ...
     'centerlineLength_normalized', 'centerlineLength', 'validLengthIDs', ...
     'volume_normalized', 'volume', 'validVolumeIDs', ...
     'surfaceArea_normalized', 'surfaceArea', 'validAreaIDs') ;
+end
+
+%% Fig 2
+figure(2) ; clf
+set(gcf, 'units', 'centimeters', 'position', [0,0,6,6])
+windw = 6 ;
+% Plot volume
+volumemean = plot(timem / 60, movmean(vnt, windw), '-', ...
+    'color', color1, 'linewidth', lw_mean) ;
+% Shaded std
+lineprops = {'color', color1, 'linewidth', lw_mean};
+shadedErrorBar(timem / 60, movmean(vnt, windw), movmean(vnstd_t, windw),...
+    'lineProps', lineprops) ;
+hold on ;
+% Plot area
+areamean = plot(timem / 60, movmean(ant, windw), '-', ...
+    'color', color2, 'linewidth', lw_mean) ;
+% Shaded std
+lineprops = {'color', color2, 'linewidth', lw_mean};
+shadedErrorBar(timem / 60, movmean(ant, windw), movmean(anstd_t, windw), 'lineProps', lineprops) ;
+hold on;
+
+% Plot mean fold times
+afoldmean = mean(anteriorFold_time_area(:, 1)) ;
+pfoldmean = mean(posteriorFold_time_area(:, 1)) ;
+[~, mID] = min(abs(timem)) ;
+[~, aID] = min(abs(timem - afoldmean)) ;
+[~, pID] = min(abs(timem - pfoldmean)) ;
+
+mf = plot(0, ant(mID), 'o', 'MarkerSize', markersize, ...
+    'Color', color2, 'HandleVisibility', 'off') ;
+af = plot(afoldmean / 60, ant(aID), '^', 'MarkerSize', markersize, ...
+    'Color', color2, 'HandleVisibility', 'off') ;
+pf = plot(pfoldmean / 60, ant(pID), 's', 'MarkerSize', markersize, ...
+    'Color', color2, 'HandleVisibility', 'off') ;
+
+% Plot length
+lengthmean = plot(timem / 60, movmean(lnt, windw), '-', ...
+    'color', color3, 'linewidth', lw_mean) ;
+% Shaded std
+lineprops = {'color', color3, 'linewidth', lw_mean};
+shadedErrorBar(timem / 60, movmean(lnt, windw), movmean(ln_std_t, windw), 'lineProps', lineprops) ;
+
+% Find t0idx from possible times
+t0idx_possible = find(timem == 0) ;
+% mf = plot(0, 1, '^', 'MarkerSize', markersize, 'Color', 'k', 'HandleVisibility', 'Off') ;
+plot([0,0], ylims, 'k--', 'HandleVisibility', 'off') ;
+
 
 %% Add to figure
 % figure(fig1)

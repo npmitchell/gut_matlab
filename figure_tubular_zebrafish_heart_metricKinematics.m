@@ -2,8 +2,10 @@
 t0Pathline = 1; 
 sresStr = '' ;
 nU = tubi.nU ;
-outdir = './TubULAR_Paper_Figures/Kymographs_Pathlines/' ;
+outdir = './TubULAR_Paper_Figures/Kymographs_Pathlines_lambda0p020_nmodes05w03/' ;
+mkdir(outdir)
 
+tubi.smoothing.nmodes = 5 ; tubi.smoothing.zwidth = 3 ; 
 ntp = length(tubi.xp.fileMeta.timePoints) ;
 H2vn_apM = zeros(ntp-1, nU) ;
 divv_apM = zeros(ntp-1, nU) ;
@@ -20,13 +22,13 @@ for tidx = 1:ntp-1
     tubi.smoothing.lambda_err, tubi.smoothing.nmodes, ...
     tubi.smoothing.zwidth), '.', 'p'));
     mKPDir = fullfile(mKDir, sprintf('pathline_%04dt0', t0Pathline)) ;
-    outdir = fullfile(mKPDir, 'measurements') ;
-    Hfn = fullfile(outdir, sprintf('HH_pathline%04d_%06d.mat', t0Pathline, tp))   ;
-    efn = fullfile(outdir, sprintf('gdot_pathline%04d_%06d.mat', t0Pathline, tp)) ;
-    dfn = fullfile(outdir, sprintf('divv_pathline%04d_%06d.mat', t0Pathline, tp)) ;
-    nfn = fullfile(outdir, sprintf('veln_pathline%04d_%06d.mat', t0Pathline, tp)) ;
-    rfn = fullfile(outdir, sprintf('radius_pathline%04d_%06d.mat', t0Pathline, tp)) ;
-    H2vnfn = fullfile(outdir, sprintf('H2vn_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+    tmpdir = fullfile(mKPDir, 'measurements') ;
+    Hfn = fullfile(tmpdir, sprintf('HH_pathline%04d_%06d.mat', t0Pathline, tp))   ;
+    efn = fullfile(tmpdir, sprintf('gdot_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+    dfn = fullfile(tmpdir, sprintf('divv_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+    nfn = fullfile(tmpdir, sprintf('veln_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+    rfn = fullfile(tmpdir, sprintf('radius_pathline%04d_%06d.mat', t0Pathline, tp)) ;
+    H2vnfn = fullfile(tmpdir, sprintf('H2vn_pathline%04d_%06d.mat', t0Pathline, tp)) ;
 
     tmp1 = load(H2vnfn) ;
     H2vn_apM(tidx, :) = tmp1.H2vn_ap ;
@@ -45,8 +47,8 @@ end
 
 %% Some plotting params
 
-climit = 0.1; % 0.2 ;
-climit_err = 0.1; % 0.2 ;
+climit = 0.075*1.1; % 0.2 ;
+climit_err = 0.75*1.1; % 0.2 ;
 climit_veln = climit * 10 ;
 climit_H = climit * 2 ;
 climit_radius = 45;
@@ -77,7 +79,7 @@ end
 
 titleadd = ': circumferentially averaged';
 
-plotTypes = {'gdot'} ; % , 'divv', 'H2vn', 'veln', 'HH', 'radius'} ;
+plotTypes = {'gdot' , 'divv', 'H2vn', 'veln', 'HH', 'radius'} ;
 
 for ii = 1:length(plotTypes)
     plotType= plotTypes{ii} ;

@@ -5,84 +5,87 @@ dirs = {'septin_knockdown', 'wildtype_control', ...
 shorthand = {'KD', 'WT', 'OE'} ;
 % Do not use the normed signal!
 
-%% Testing code here
-sumH = cell(length(dirs), 1) ;
-sumHf = cell(length(dirs), 1) ;
+addpath(genpath('/mnt/data/code/gut_matlab/'))
+addpath(genpath('/mnt/data/code/tubular/DECLab'))
 
-colors = [   0.9000    0.5500    0.5500
-    0.5000    0.5000    0.5000
-    0.6200    0.7600    0.8400] ;
-
-
-colors = [110,110,110; ...
-    31, 177, 3; ...
-    203, 41,123] ./ 255.0 ;
-
-clf
-for jj = 1:length(dirs)
-    outdir = fullfile(dirs{jj}, 'analysis') ;
-    fns = dir(fullfile(dirs{jj}, '*.ply')) ;
-    for ii = 1:length(fns)
-        
-        % mesh = read_ply_mod(fullfile(fns(ii).folder, fns(ii).name)) ;
-        fn = strrep(fns(ii).name, '.ply', '') ;
-        Hfn = fullfile(outdir, [fn '_meanCurvature.mat']) ;
-        % load(Hfn, 'H3d', 'areas')
-        % [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
-        % H3d_faces = (V2F * H3d) ;
-        load(Hfn, 'H3d', 'areas', 'H3d_faces')
-        sumH{jj}(ii) = sum(abs(H3d)) ;
-        sumHf{jj}(ii) = sum(abs(H3d_faces) .* areas / sum(areas)) ;
-    end
-    
-    % errorbar(jj, mean(sumH{jj}), std(sumH{jj}) / sqrt(length(sumH{jj})), 'o')
-    plot(jj * ones(length(sumHf{jj})), sumHf{jj}, '.', 'color', colors(jj, :))
-    hold on;
-    errorbar(jj, mean(sumHf{jj}), std(sumHf{jj}) / sqrt(length(sumHf{jj})), 's', 'color', colors(jj, :))
-    xticks([1,2,3])
-    xticklabels(shorthand)
-    ylabel('$\langle |H| \rangle$ [$\mu$m$^{-1}$]', 'interpreter', 'latex')
-    xlim([0, 4])
-    hold on
-end
-saveas(gcf, 'average_absMeanCurvature.png')
-
-%% Testing code part 2, coloring a surface by radialu
-
-for jj = 2
-    fns = dir(fullfile(dirs{jj}, '*.ply')) ;
-        
-    outdir = fullfile(dirs{jj}, 'analysis') ;
-    for ii = 1:length(fns)        
-        fn = strrep(fns(ii).name, '.ply', '') ;
-        disp(['ii = ' num2str(ii) ': ' fn])
-        Ufn = fullfile(outdir, ...
-            [fn '_conformalMappingToUnitSphere.mat']) ;
-        load(Ufn, 'U', 'Urescaled', 'radii', 'radii0', ...
-            'sphereCenter', 'sphereRadius', 'sphereParameters')
-
-        mesh = read_ply_mod(fullfile(fns(ii).folder, fns(ii).name)) ;
-        fn = strrep(fns(ii).name, '.ply', '') ;
-
-        clf
-        patch( 'Faces', mesh.f, 'Vertices', mesh.v, ...
-            'FaceVertexCdata', radii-radii0, ...
-            'FaceColor', 'interp', 'EdgeColor', 'none', 'FaceLighting', 'gouraud' );
-        % caxis([-1, 1])
-        % colorbar
-        colormap(bam)
-        caxis([-max(abs(radii-radii0)), max(abs(radii-radii0))])
-        axis equal
-        % axis off
-        set(gcf, 'color', 'w')
-
-        camlight('left')
-        xlabel('x [pix]')
-        zlabel('z [pix]')
-        saveas(gcf, fullfile(dirs{jj}, ['radialu_' fn '.png']))
-        clf
-    end
-end
+% %% Testing code here
+% sumH = cell(length(dirs), 1) ;
+% sumHf = cell(length(dirs), 1) ;
+% 
+% % colors = [   0.9000    0.5500    0.5500
+% %     0.5000    0.5000    0.5000
+% %     0.6200    0.7600    0.8400] ;
+% 
+% 
+% colors = [110,110,110; ...
+%     31, 177, 3; ...
+%     203, 41,123] ./ 255.0 ;
+% 
+% clf
+% for jj = 1:length(dirs)
+%     outdir = fullfile(dirs{jj}, 'analysis') ;
+%     fns = dir(fullfile(dirs{jj}, '*.ply')) ;
+%     for ii = 1:length(fns)
+%         
+%         % mesh = read_ply_mod(fullfile(fns(ii).folder, fns(ii).name)) ;
+%         fn = strrep(fns(ii).name, '.ply', '') ;
+%         Hfn = fullfile(outdir, [fn '_meanCurvature.mat']) ;
+%         % load(Hfn, 'H3d', 'areas')
+%         % [V2F, F2V] = meshAveragingOperators(mesh.f, mesh.v) ;
+%         % H3d_faces = (V2F * H3d) ;
+%         load(Hfn, 'H3d', 'areas', 'H3d_faces')
+%         sumH{jj}(ii) = sum(abs(H3d)) ;
+%         sumHf{jj}(ii) = sum(abs(H3d_faces) .* areas / sum(areas)) ;
+%     end
+%     
+%     % errorbar(jj, mean(sumH{jj}), std(sumH{jj}) / sqrt(length(sumH{jj})), 'o')
+%     plot(jj * ones(length(sumHf{jj})), sumHf{jj}, '.', 'color', colors(jj, :))
+%     hold on;
+%     errorbar(jj, mean(sumHf{jj}), std(sumHf{jj}) / sqrt(length(sumHf{jj})), 's', 'color', colors(jj, :))
+%     xticks([1,2,3])
+%     xticklabels(shorthand)
+%     ylabel('$\langle |H| \rangle$ [$\mu$m$^{-1}$]', 'interpreter', 'latex')
+%     xlim([0, 4])
+%     hold on
+% end
+% saveas(gcf, 'average_absMeanCurvature.png')
+% 
+% %% Testing code part 2, coloring a surface by radialu
+% 
+% for jj = 2
+%     fns = dir(fullfile(dirs{jj}, '*.ply')) ;
+%         
+%     outdir = fullfile(dirs{jj}, 'analysis') ;
+%     for ii = 1:length(fns)        
+%         fn = strrep(fns(ii).name, '.ply', '') ;
+%         disp(['ii = ' num2str(ii) ': ' fn])
+%         Ufn = fullfile(outdir, ...
+%             [fn '_conformalMappingToUnitSphere.mat']) ;
+%         load(Ufn, 'U', 'Urescaled', 'radii', 'radii0', ...
+%             'sphereCenter', 'sphereRadius', 'sphereParameters')
+% 
+%         mesh = read_ply_mod(fullfile(fns(ii).folder, fns(ii).name)) ;
+%         fn = strrep(fns(ii).name, '.ply', '') ;
+% 
+%         clf
+%         patch( 'Faces', mesh.f, 'Vertices', mesh.v, ...
+%             'FaceVertexCdata', radii-radii0, ...
+%             'FaceColor', 'interp', 'EdgeColor', 'none', 'FaceLighting', 'gouraud' );
+%         % caxis([-1, 1])
+%         % colorbar
+%         colormap(bam)
+%         caxis([-max(abs(radii-radii0)), max(abs(radii-radii0))])
+%         axis equal
+%         % axis off
+%         set(gcf, 'color', 'w')
+% 
+%         camlight('left')
+%         xlabel('x [pix]')
+%         zlabel('z [pix]')
+%         saveas(gcf, fullfile(dirs{jj}, ['radialu_' fn '.png']))
+%         clf
+%     end
+% end
 
 %%
 
@@ -91,9 +94,8 @@ addpath /mnt/data/code/gut_matlab/plotting/shadedErrorBar/
         
 %% Default Options
 % overwrite previous results if on disk
-overwrite = false ;
-overwrite2 = false ;
-overwriteImages = false ;
+overwrite = true ;
+overwrite2 = true ;
 % The number of Laplacian eigenvectors to calculate
 nModes = 1000;
 signalTypes = {'HH', 'radialu', 'dist'};
@@ -295,14 +297,15 @@ for jj = 1:length(dirs)
                     % powersNormV = powers ;
                     for Lind = 1:numel(lls)
                         ll = lls(Lind) ;
+                        powersLs = zeros(2*ll + 1, 1) ;
                         for qq = 1:(2*ll + 1)
                             llvals(dmyk)= ll ;
-                            powersLs(qq) = abs(rawPowers(dmyk)).^2 ;
+                            powersLs(qq) = abs(rawPowers(dmyk)) ;
                             % powersNormV(Lind) = powersNormV(Lind) + abs(rawPowersNormV(dmyk)) ;
                             % disp(['done accounting for dmyk=' num2str(dmyk) '-> L=' num2str(ll)])
                             dmyk = dmyk + 1 ;
                         end
-                        powers(Lind) = sqrt(sum(powerLs)) ;
+                        powers(Lind) = (sum(powersLs)) ;
                     end
 
                     clf
@@ -376,9 +379,14 @@ end
 
 %% Compare all experiment cases 
 close all
-colors = [   0.9000    0.5500    0.5500
-    0.5000    0.5000    0.5000
-    0.6200    0.7600    0.8400] ;
+% colors = [   0.9000    0.5500    0.5500
+%     0.5000    0.5000    0.5000
+%     0.6200    0.7600    0.8400] ;
+
+colors = [ 31, 177, 3; ...
+    110,110,110; ...
+    203, 41,123] ./ 255.0 ;
+
 clc
 meanPowers = {} ;
 stdPowers = {} ;
@@ -443,6 +451,7 @@ stePowers = {} ;
         
         xlim([10, 20])
         ylim([200,1200])
+        % ylim([0, 600])
         axis square
             saveas(gcf, ['comparison_of_powerSpectra_' signalType '_zoom2.pdf'])
        close all
@@ -490,15 +499,20 @@ oe_unc = stePowers{3}(ind) ;
     clf;
     E = cat(3, kd_unc, wt_unc, oe_unc) ;
 
-    Colors = [
-        0.90    0.55    0.55
-        0.5     0.5     0.5
-        0.62    0.76    0.84
-        0.89    0.10    0.11
-        0.12    0.47    0.70
-        ];
+    % Colors = [
+    %     0.90    0.55    0.55
+    %     0.5     0.5     0.5
+    %     0.62    0.76    0.84
+    %     0.89    0.10    0.11
+    %     0.12    0.47    0.70
+    %     ];
     % Colors = reshape(Colors, [2 2 3]);
 
+
+    colors = [ 31, 177, 3; ...
+        110,110,110; ...
+        203, 41,123] ./ 255.0 ;
+    
     P = [0,  pval_kdwt, pval_kdoe; ...
         pval_kdwt, 0, pval_wtoe;...
         pval_kdoe, pval_wtoe, 0];

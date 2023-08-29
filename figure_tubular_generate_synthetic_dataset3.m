@@ -574,13 +574,13 @@ disp('done cleaning cylinder meshes')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ORBIFOLD -> begin populating tubi.dir.mesh/gridCoords_nUXXXX_nVXXXX/ 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-overwrite = true ;
+overwrite = false ;
 % Iterate Through Time Points to Create Pullbacks ========================
 t0_for_phi0= 7 ;  % Do this "reference" timepoint first.
 tubi.t0set(t0_for_phi0)
 tps = tubi.xp.fileMeta.timePoints ;
 tp2do = [t0_for_phi0, fliplr(tps(tps < t0_for_phi0)), tps(tps > t0_for_phi0)] ;
-for tt = tp2do(7:end)
+for tt = tp2do
     disp(['NOW PROCESSING TIME POINT ', num2str(tt)]);
     
     % Load the data for the current time point ------------------------
@@ -617,6 +617,14 @@ for tt = tp2do(7:end)
     else
         uvcutMesh = tubi.getCurrentUVCutMesh() ;
     end
+    
+    % Compute the pullback if the cutMesh is ok
+    pbOptions = struct() ;
+    pbOptions.overwrite = false ; 
+    pbOptions.generate_uv = true;
+    pbOptions.generate_sphi = false;
+    tubi.generateCurrentPullbacks([], [], [], pbOptions) ;
+    
     options = struct() ;
     options.coordSys = 'uv' ;
     tubi.coordinateSystemDemo(options)
@@ -1114,6 +1122,42 @@ end
 
 disp('done!')
 
+%% Generate synthetic dataset with segmentation as a third channel
+for tp = tubi.xp.fileMeta.timePoints
+    dataFn = sprintf('Time_%06d.tif', tp) ;
+    
+    % read in the 2-channel data (membrane + nuclei)
+    nColors = 2; 
+    fn2c = fullfile('separated_channels', dataFn) ;
+    dat2c = readTiff4D(fn2c, nColors) ;
+    
+    % read in the segmentation
+    fnseg = fullfile('separated_channels', ...
+        sprintf('Time_%06d_segmentation.tif', tp)) ;
+    seg = readTiff4D(fnseg, 1) ;
+    seg = double(permute(seg, [2, 1, 3]))/double(max(seg(:))) ;
+    % smooth the segmentation with gaussian blur
+    seg = imgaussfilt3(seg, 2) ;
+    
+    % Reshape the channels into a 4D tiff
+    dat3c = zeros(size(seg, 1), size(seg, 2), 3, ...
+        size(seg, 3), 'uint16') ;
+    dat3c(:, :, 1, :) = reshape(dat2c{1}, ...
+         [size(seg, 1), size(seg, 2), 1, size(seg, 3)]) ;
+    dat3c(:, :, 2, :) = reshape(dat2c{2}, ...
+         [size(seg, 1), size(seg, 2), 1, size(seg, 3)]) ;
+    dat3c(:, :, 3, :) = reshape(uint16(seg*65535), ...
+         [size(seg, 1), size(seg, 2), 1, size(seg, 3)]) ;
+    
+    writeTiff5D(dat3c, dataFn, 16)
+    tmp = readTiff4D(dataFn) ;
+    
+    % Take a max intensity projection
+    mip = reshape(max(dat3c, [], 2), [size(dat3c, 1), 3, size(dat3c, 4)]) ;
+    mip = permute(mip, [1,3,2]) ;
+    mipFn = sprintf('mip_Time_%06d.png', tp) ;
+    imwrite(mip, mipFn) 
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% PART 3: Further refinement of dynamic meshes
