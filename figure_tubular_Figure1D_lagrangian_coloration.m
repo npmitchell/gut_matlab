@@ -4,44 +4,48 @@ mkdir(datdir)
 trueLagrangian = true ;
 useAngles = false ;
 
-[~,~,~, xyzlims] = QS.getXYZLims() ;
+[~,~,~, xyzlims] = tubi.getXYZLims() ;
 % get face connectivity
-QS.setTime(QS.t0set()) ;
-refMesh = QS.getCurrentRicciMesh() ;
-mesh0 = QS.getCurrentSPCutMeshSmRS();
+tubi.setTime(tubi.t0set()) ;
+refMesh = tubi.getCurrentRicciMesh() ;
+mesh0 = tubi.getCurrentSPCutMeshSmRS();
 
 rr = mesh0.u(:, 1) ;
 th = atan2(refMesh.annulus.u(:, 2), refMesh.annulus.u(:, 1)) ;
-th(QS.nU*(QS.nV-1)+1:QS.nU*QS.nV) = th(1:QS.nU) ;
+th(tubi.nU*(tubi.nV-1)+1:tubi.nU*tubi.nV) = th(1:tubi.nU) ;
 
 viewAngles = [-0.75, -1.0, 0.7] ;
 
 % get pathlines
-plines = QS.getPullbackPathlines() ;
+plines = tubi.getPullbackPathlines() ;
 
-tps = [123:10:243] ;
+tps = [123:50:243] ;
 for tp = tps
 
-    tidx = QS.xp.tIdx(tp) ;
+    tidx = tubi.xp.tIdx(tp) ;
+    % True lagrangian
     xx = squeeze( plines.vertices3d.vXrs(tidx, :,:) ) ;
     yy = squeeze( plines.vertices3d.vYrs(tidx, :,:) ) ;
     zz = squeeze( plines.vertices3d.vZrs(tidx, :,:) ) ;
     
 
-    t0Pathlines = QS.t0set() ;
-    QS.setTime(QS.xp.fileMeta.timePoints(tidx)) ;
+    t0Pathlines = tubi.t0set() ;
+    tubi.setTime(tubi.xp.fileMeta.timePoints(tidx)) ;
     
     clf
     set(gcf, 'color', 'w')
     
-    mesh = QS.getCurrentSPCutMeshSmRS();
+    mesh = tubi.getCurrentSPCutMeshSmRS();
     
     if trueLagrangian
         mesh.v = [xx(:), yy(:), zz(:)] ;
     end    
+
+    fn = fullfile(datdir, sprintf('snap_%06d.ply', tp)) ;
+    plywrite(fn, mesh.f, mesh.v)
     
     %% PLOT BASED ON MU
-    % strain = QS.getCurrentPathlineStrain( t0Pathlines) ;
+    % strain = tubi.getCurrentPathlineStrain( t0Pathlines) ;
     % mu = strain.beltrami.mu_material_filtered ;
     % opts = struct('mesh', mesh, 'clim_mag', 0.8) ;
     % mag = abs(mu) ;

@@ -1,3 +1,6 @@
+%% Start by running example_zebrafish_heart.m until tubi definition.
+
+cd /mnt/data/tubular_test/zebrafish_heart/analysis
 
 %% ************************************************************************
 % *************************************************************************
@@ -152,4 +155,11 @@ set(gca, 'FontWeight', 'normal');
 
 set(fig, 'PaperPositionMode', 'auto');
 set(fig.Children, 'FontName', 'Helvetica');
-saveas(fig, './TubULAR_Paper_Figures/Enclosed_Volume.pdf')
+
+% save data
+save('./TubULAR_Paper_Figures/Enclosed_Volume.mat',...
+    'timeSteps', 'meshAreas', 'meshVolumes')
+
+% Save figure
+saveas(fig, './TubULAR_Paper_Figures/Enclosed_Volume_01.pdf')
+

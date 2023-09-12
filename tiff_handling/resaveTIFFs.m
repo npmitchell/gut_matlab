@@ -29,3 +29,6 @@ for ii = 1:length(fns)
     im = reshape(im,[size(im,1),size(im,2),1,size(im,3),1]); 
     bfsave(im, outname, 'dimensionOrder', 'XYTZC')
 end
+
+
+disp('done')
