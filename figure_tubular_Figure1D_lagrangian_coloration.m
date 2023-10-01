@@ -105,7 +105,7 @@ for tp = tps
 end
 
 
-
+%% parameterization
     h = trisurf(triangulation(mesh.f, [rr(:).*cos(th(:)), rr(:).*sin(th(:)), 0*rr(:)]), ...
         'FaceVertexCData', colors, 'edgecolor', 'none') ;
     axis equal
