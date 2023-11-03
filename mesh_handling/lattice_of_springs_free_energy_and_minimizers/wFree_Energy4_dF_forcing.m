@@ -1,4 +1,19 @@
-%Commented by Noah Mitchell 2015
+%[F,dF] = wFree_Energy4_dF_forcing(xyz,NL,BL,KL,TRISm,BLm,KLm,force,Fconst)
+% 
+% Parameters
+% ----------
+% xyz
+% NL
+% BL 
+% KL
+% TRISm
+% BLm
+% KLm
+% force
+% Fconst
+%
+%
+% Commented by Noah Mitchell 2015
 % Calculate the Free energy F and force on each particle dF 
 % Note: NL2 is a version of NL with zeros replaced by ones (taken care of by
 % KL. In other words, we create artificial coupling of all nodes except 

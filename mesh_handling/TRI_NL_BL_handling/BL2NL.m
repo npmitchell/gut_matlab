@@ -1,4 +1,15 @@
 function [NL] = BL2NL(BL,varargin)
+% [NL] = BL2NL(BL,n)
+% 
+% Parameters
+% ----------
+% BL : bond list
+% n : maximum number of nearest neighbors per vertex
+%
+% Returns
+% -------
+% NL : neighbor list
+% 
 % wtmi 2010 npmitchell 2013, 2019:
 % - aug 2010 (wtmi)
 % - june 2011 (wtmi) - varargin is size of NL
