@@ -1,6 +1,13 @@
 function [colors, names] = define_colors(varargin)
-%DEFINE_COLORS Define a set of pleasant colors
-%   Define a set of colors to use
+%DEFINE_COLORS Define a set of up to 11 pleasant colors, followed by
+%distinguishable colors.
+%   Define a set of colors to use. 
+%   
+% Parameters
+% ----------
+% ncolors (optional input) : int
+%   number of colors to define
+% 
 
 if length(varargin) > 0
     ncolors = varargin{1} ;
@@ -27,12 +34,13 @@ colors = [blue; red; yellow; purple; green; ...
 
 if ncolors < 11
     colors = colors(1:ncolors, :) ;
-elseif colors < 14
+elseif ncolors < 14
     next = [0.5 * (blue + red); 0.5 * (red+yellow); 0.5*(yellow+purple)] ;
     colors = [colors; next];
     colors = colors(1:ncolors, :) ;
 else
-    error('Need to define more colors for this')
+    next = distinguishable_colors(ncolors - 11, [colors; 1 1 1]) ;
+    colors = [colors; next] ;
 end
 
 if nargout > 1
