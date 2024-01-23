@@ -105,15 +105,15 @@
 % We start by clearing the memory and closing all figures
 clear; close all; clc;
 % change this path, for convenience
-% cd /mnt/crunch/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
+cd /mnt/data/48Ygal4-UAShistRFP/201904031830_great/Time4views_60sec_1p4um_25x_1p0mW_exp0p35_2/data/
 % cd /mnt/crunch/48YGal4UasLifeActRuby/201904021800_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150_3/data/
 % cd /mnt/data/48YGal4UasLifeActRuby/201902201200_unusualfolds/Time6views_60sec_1p4um_25x_obis1_exp0p35_3/data/
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data
-% cd /mnt/crunch/48Ygal4UASCAAXmCherry/201903211930_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150/data/
+%cd /mnt/data/48Ygal4UASCAAXmCherry/201902072000_excellent/Time6views_60sec_1p4um_25x_obis1p5_2/data 
+cd /mnt/data/48Ygal4UASCAAXmCherry/201903211930_great/Time6views_60sec_1p4um_25x_1p0mW_exp0p150/
 % cd /mnt/crunch/48Ygal4UASsqhGFP/201902271940_excellent_notunpacked/Time6views_60sec_1p4um_25x_1p5mW_exp1p0_3/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
 % cd /mnt/data/mef2GAL4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/data/
-cd /mnt/data/handGAL4klarHandGFPhistGFP/202105072030_1mWGFP/
+
 
 % .=========.
 % |  VIP10  |
@@ -122,8 +122,6 @@ cd /mnt/data/handGAL4klarHandGFPhistGFP/202105072030_1mWGFP/
 % cd /mnt/crunch/gut/48YGal4klarUASCAAXmChHiFP/202001221000_60sec_1p4um_25x_1mW_2mW_exp0p25_exp0p7/Time3views_1017/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202003151700_1p4um_0p5ms3msexp/Time3views_1/data/
 % cd /mnt/crunch/gut/Mef2Gal4klarUASCAAXmChHiFP/202007151930_1p4um_0p5msexp/Time3views_25x_60s/data/
-% cd /mnt/crunch/gut/handGAL4klarHandGFPhistGFP/202105072030_1p4um_0p2ms_1mWGFP/view4_1p4um_25x_1mW_exp0p2ms_120spf/data ;
-
 
 dataDir = cd ;
 
@@ -156,23 +154,21 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
     stackResolution = [.2619 .2619 .2619] ;
     nChannels = 1 ;
     channelsUsed = 1 ;
-    timePoints = 1:81; %86:211 ;
+    timePoints = 1:234; %86:211 ;
     ssfactor = 4 ;
     % whether the data is stored inverted relative to real position
-    flipy = false ; 
-    timeInterval = 2 ;  % physical interval between timepoints
+    flipy = true ; 
+    timeInterval = 1 ;  % physical interval between timepoints
     timeUnits = 'min' ; % physical unit of time between timepoints
     spaceUnits = '$\mu$m' ; % physical unit of time between timepoints
-    scale = 1.0 ;      % scale for conversion to 16 bit
-    file32Base = 'TP%d_Ch0_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
-    % file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
+    scale = 0.04 ;      % scale for conversion to 16 bit
+    % file32Base = 'TP%d_Ch0_Ill0_Ang0,45,90,135,180,225,270,315.tif'; 
+    file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
     % file32Base = 'TP%d_Ch0_Ill0_Ang0,60,120,180,240,300.tif'; 
     fn = 'Time_%06d_c1_stab';
     fn_prestab = 'Time_%06d_c1.tif';
     set_preilastikaxisorder = 'xyzc' ;
     swapZT = 1 ;
-    t0_for_phi0 = 1 ;
-    tidx0_for_stab = 10 ;
     masterSettings = struct('stackResolution', stackResolution, ...
         'nChannels', nChannels, ...
         'channelsUsed', channelsUsed, ...
@@ -181,16 +177,15 @@ if overwrite_masterSettings || ~exist('./masterSettings.mat', 'file')
         'flipy', flipy, ...
         'timeInterval', timeInterval, ...
         'timeUnits', timeUnits, ...
-        'spaceUnits', spaceUnits, ...
+        'spaceUnits', timeUnits, ...
         'scale', scale, ...
         'file32Base', file32Base, ...
         'fn', fn,...
         'fn_prestab', fn_prestab, ...
         'swapZT', swapZT, ...
         'set_preilastikaxisorder', set_preilastikaxisorder, ...
-        't0_for_phi0', t0_for_phi0, ... % 40 for mef2 single channel, 110 for CAAX excellent
-        'tidx0_for_stab', tidx0_for_stab, ...
-        'nU', 150, ...  % 150 for mef2 data with posterior midgut loop
+        't0_for_phi0', 110, ... % 40 for mef2 single channel, 110 for CAAX excellent
+        'nU', 100, ...  % 150 for mef2 data with posterior midgut loop
         'nV', 100); 
     disp('Saving masterSettings to ./masterSettings.mat')
     if exist('./masterSettings.mat', 'file')
@@ -232,7 +227,6 @@ if loadMaster
     set_preilastikaxisorder = masterSettings.set_preilastikaxisorder ;
     swapZT = masterSettings.swapZT ;
     t0_for_phi0 = masterSettings.t0_for_phi0 ;
-    tidx0_for_stab = masterSettings.tidx0_for_stab ;
     nU = masterSettings.nU ;
     nV = masterSettings.nV ;
 end
@@ -248,10 +242,9 @@ dir16bit_prestab = fullfile(dir16bit, 'data_pre_stabilization') ;
 mipDir = fullfile(dir32bit, 'mips32bit') ;
 Options.overwrite_mips = overwrite_mips ;
 Options.scale = scale ;
-Options.allowMissingFiles = false ;
 makeMips(timePoints, dir32bit, file32Base, mipDir, Options)
 
-%  -IV. convert 32 to 16bit images
+%%  -IV. convert 32 to 16bit images
 % Skip if already done
 convert32to16bit(timePoints, scale, dir32bit, dir16bit_prestab,...
     file32Base, fn_prestab)
@@ -286,9 +279,8 @@ Options.overwrite_mips = false ;
 Options.overwrite_tiffs = false ;
 Options.im_intensity = 1 ; % 0.01 ;
 Options.imref_intensity = 1 ; % 0.005 ;
-Options.forceNoDx = false ;
 stabilizeImages(fileNameIn, fileNameOut, rgbName, typename, ...
-    timePoints, timePoints, tidx0_for_stab, ...
+    timePoints, timePoints, timePoints(50), ...
     mipDir, mipoutdir, mips_stab_check, Options)
 
 
@@ -378,7 +370,7 @@ expMeta.description         = 'Drosophila gut';
 expMeta.dynamicSurface      = 1;
 expMeta.jitterCorrection    = 0;  % 1: Correct for sample translation
 expMeta.fitTime             = fileMeta.timePoints(first_tp);
-expMeta.detectorType        = 'surfaceDetection.morphsnakesDetector';
+expMeta.detectorType        = 'surfaceDetection.integralDetector';
 expMeta.fitterType          = 'surfaceFitting.meshWrapper';
 
 % Now set the meta data in the experiment.
@@ -435,7 +427,7 @@ else
     ssfactor=4
     niter=35
     niter0=35
-    ofn_ply='mesh_apical_ms_stab_'
+    ofn_ply='mesh_ms_'
     ofn_ls='msls_'
     ofn_smoothply = 'mesh_stab_' ; % mesh_apical_stab_' ;
     ms_scriptDir='/mnt/data/code/morphsnakes_wrapper/morphsnakes_wrapper/'
@@ -444,10 +436,10 @@ else
     lambda1=1
     lambda2=1
     exit_thres=0.000005
-    smoothing=0.5
+    smoothing=0.20
     nu=0
     post_nu=2
-    post_smoothing=3
+    post_smoothing=5
     
     init_ls_fn = 'msls_initguess.h5';
     % mlxprogram = fullfile(meshlabCodeDir, ...
@@ -516,7 +508,7 @@ else
         'physicalaxisorder', imsaneaxisorder, ... 
         'include_boundary_faces', include_boundary_faces, ...
         'smooth_with_matlab', smooth_with_matlab, ...
-        'pythonVersion', '3') ;
+        'pythonVersion', 2) ;
 
     % save options
     if exist(msls_detOpts_fn, 'file')
@@ -540,7 +532,6 @@ meshDir = detectOptions.mslsDir ;
 % These are now in QS.
 % meshFileBase = [ofn_smoothply '%06d'] ;
 % alignedMeshBase = [ofn_smoothply '%06d_APDV_um'] ;
-% detectOptions.mslsDir  = '/mnt/data/handGAL4klarHandGFPhistGFP/202105072030_1mWGFP/deconvolved_16bit/msls_output/'
 
 % Set detect options ------------------------------------------------------
 xp.setDetectOptions( detectOptions );
@@ -608,8 +599,8 @@ else
     assert(~run_full_dataset_ms)
     assert(strcmp(detectOptions.run_full_dataset, 'none'))
     % Morphosnakes for all remaining timepoints INDIVIDUALLY ==============
-    for tp = xp.fileMeta.timePoints(59:59)
-        %try
+    for tp = xp.fileMeta.timePoints(100:end)
+        try
             xp.setTime(tp);
             % xp.loadTime(tp) ;
             % xp.rescaleStackToUnitAspect();
@@ -619,29 +610,28 @@ else
             % detectOpts2.post_smoothing = 1 ;
             detectOpts2.timepoint = xp.currentTime ;
             detectOpts2.fileName = sprintf( fn, xp.currentTime );
-            detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-                  'surface_rm_resample30k_reconstruct_LS3_ssfactor4.mlx') ;
+            % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+            %      'surface_rm_resample30k_reconstruct_LS3_1p2pc_ssfactor4') ;
             %  _octree12.mlx') ;
             % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-            %     'laplace_surface_rm_resample25k_reconstruct_LS3_1p2pc_ssfactor4_vip10.mlx') ;
-            % detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
-            %      'laplace_surface_rm_resample25k_reconstruct_LS3_wu13_ssfactor4.mlx') ;
+            %     'laplace_surface_rm_resample25k_reconstruct_LS3_1p2pc_ssfactor4_vip8test.mlx') ;
+            detectOpts2.mlxprogram = fullfile(meshlabCodeDir, ...
+                 'laplace_surface_rm_resample25k_reconstruct_LS3_wu13_ssfactor4.mlx') ;
             xp.setDetectOptions( detectOpts2 );
             xp.detectSurface();
             % For next time, use the output mesh as an initial mesh
             detectOpts2.init_ls_fn = 'none' ;
-        % catch
-        %        error('here')
-        %     disp('Could not create mesh -- skipping for now')
+        catch
+        %    error('here')
+            disp('Could not create mesh -- skipping for now')
         %     % On next timepoint, use the tp previous to current time
         %     detectOptions.init_ls_fn = [detectOptions.ofn_ls, ...
         %             num2str(tp - 1, '%06d' ) '.' detectOptions.dtype] ;
-        % end
+        end
     end
 end
 
 %% Define QuapSlap object
-% todo here
 nU = masterSettings.nU ;
 nV = masterSettings.nV ;
 opts.meshDir = meshDir ;
@@ -659,13 +649,6 @@ opts.phiMethod = 'curves3d' ;
 opts.lambda_mesh = 0.002 ;
 opts.lambda = 0.01 ;
 opts.lambda_err = 0.01 ;
-
-% For HandGAL4HandGFP pathline measurements, use:
-opts.lambda = 0 ;
-opts.lambda_err = 0 ;
-opts.lambda_mesh = 0 ;
-opts.zwidth = 2 ;
-
 disp('defining QS')
 QS = QuapSlap(xp, opts) ;
 disp('done')
@@ -677,24 +660,95 @@ stacks = {400:490, 510:550, 570:630, 800:880} ;
 QS.makeMIPs(1, stacks, [], adjustIV)
 
 %% HACK -- transpose meshes
-% xyzc -> zyxc
-% for tp = 50:60
-%     disp(['transposing axes for mesh t=' num2str(tp)])
+% % xyzc -> zyxc
+% for tp = QS.xp.fileMeta.timePoints
+% 
 %     meshfn = sprintf(QS.fullFileBase.mesh, tp) ;  
 %     msh = read_ply_mod(meshfn) ;
-%     msh.v = msh.v(:, [2, 3,1]) ;
+%     msh.v = msh.v(:, [2,3,1]) ;
 %     msh.vn = msh.vn(:, [2,3,1]) ;
 %     plywrite_with_normals(meshfn, msh.f, msh.v, msh.vn)
 % end
-% disp('done with hack to transpose meshes')
 
 
+%% Inspect a single mesh
+% Skip if already done
+tp = 100 ;
+meshfn = sprintf(QS.fullFileBase.mesh, tp) ;  
+QS.setTime(tp)
+QS.getCurrentData() ;
+IV = QS.currentData.IV ;
+mesh = read_ply_mod(meshfn) ;
+for leaf=1:40:size(IV{1}, 1)
+    tmp = mesh.v ;
+    inds = find(abs(tmp(:, 1) - leaf) < 5) ;
+    imshow(imadjust(squeeze(IV{1}(leaf, :, :))'))
+    if any(inds)
+        hold on;
+        % plot(mesh.v(inds, 2), mesh.v(inds, 3), 'co')
+        plot(tmp(inds, 2), tmp(inds, 3), 'co')
+    end
+    pause(0.2)
+    clf
+end
+close all
+
+%% 2-color cross-section inspection
+% Skip if already done
+
+% Define your two-channel colors
+color1 = [0.5 0 0.5] ;
+color2 = [0 0.5 0.5] ;
+% which timepoint
+tp = 50 ;
+% grab mesh filename
+meshfn = sprintf(QS.fullFileBase.mesh, tp) ;
+% Load the raw data via imsane Experiment instance xp
+QS.setTime(tp)
+QS.getCurrentData()
+IV = QS.currentData.IV ;
+% which page do you want to look at in cross section?
+leaf = 500 ;
+% unpack two channel data
+if any(size(IV) > 1)
+    IV1 = IV{1} ;
+    IV2 = IV{2} ;
+    % make an rgb image cyan/magenta
+    red = IV1(leaf, :, :) * color1(1) + IV2(leaf, :, :) * color2(1) ;
+    grn = IV1(leaf, :, :) * color1(2) + IV2(leaf, :, :) * color2(2) ;
+    blu = IV1(leaf, :, :) * color1(3) + IV2(leaf, :, :) * color2(3) ;
+    im = cat(3, red, grn, blu) ;
+else
+    IV = IV{1} ;
+    im = squeeze(IV(leaf, :, :)) ;
+    im = cat(3, im, im, im) ;
+end
+% Load up the mesh
+mesh = read_ply_mod(meshfn) ;
+% Make this number larger to sample more of the nearby mesh
+width = 5 ;
+% Show the cross-section
+inds = find(abs(mesh.v(:, 1) - leaf) < width) ;
+imshow(permute(im, [2, 1, 3]))
+if any(inds)
+    hold on;
+    plot(mesh.v(inds, 2), mesh.v(inds, 3), 'co')
+end
+                
+%% Make sure all meshes exist
+for tp = xp.fileMeta.timePoints
+    % Load the mesh
+    meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;    
+    if ~exist(meshfn, 'file')
+        error(['mesh does not exist: ' meshfn ])
+    end
+end
 
 %% Inspect all meshes in 3D
 % Skip if already done
 
 % Make an output directory for the quick-and-dirty inspection
-for tp = xp.fileMeta.timePoints(48:end)
+for tp = xp.fileMeta.timePoints
     % Load the mesh
     meshfn = sprintf( QS.fullFileBase.mesh, tp ) ;    
     mesh = read_ply_mod(meshfn) ;
@@ -707,8 +761,84 @@ for tp = xp.fileMeta.timePoints(48:end)
     view(2)
     pause(0.1)
 end
+                    
+
+%% adjust all meshes by 0.5 --- now this is done in integralDetector
+% Skip
+% for tp = fileMeta.timePoints
+%     disp(num2str(tp))
+%     meshfn = fullfile(meshDir, sprintf([ofn_smoothply '%06d.ply'], tp)) ;
+%     outfn = fullfile(projectDir, sprintf([ofn_smoothply '%06d.ply'], tp)) ;
+%     if ~exist(outfn, 'file')
+%         mesh = read_ply_mod(meshfn) ;
+%         mesh.v = mesh.v + 0.5 * [1 1 1] ;
+%         plywrite_with_normals(outfn, mesh.f, mesh.v, mesh.vn)
+%     else
+%         disp('skip')
+%     end
+%     
+%     meshfn = fullfile(meshDir, sprintf([ofn_ply '%06d.ply'], tp)) ;
+%     outfn = fullfile(projectDir, sprintf([ofn_ply '%06d.ply'], tp)) ;
+%     if ~exist(outfn, 'file')
+%         mesh = read_ply_mod(meshfn) ;
+%         mesh.v = mesh.v + 0.5 * [1 1 1] ;
+%         plywrite(outfn, mesh.f, mesh.v)
+%     else
+%         disp('skip')
+%     end
+% end
+% disp('done')
 
 
+%% Check that all have been created
+% Skip if already done
+for tp = xp.fileMeta.timePoints
+    meshfn = fullfile(sprintf(QS.fullFileBase.mesh, tp)) ;
+       
+    % Check that smoothply exists
+    if ~exist(meshfn, 'file') 
+        xp.setTime(tp);
+        % xp.loadTime(tp) ;
+        % xp.rescaleStackToUnitAspect();
+
+        % make a copy of the detectOptions and change the fileName
+        detectOpts2 = detectOptions ;
+        detectOpts2.timepoint = xp.currentTime ;
+        detectOpts2.fileName = sprintf( fn, xp.currentTime );
+        if tp > xp.fileMeta.timePoints(1)
+            detectOpts2.init_ls_fn = 'none' ;
+        end
+        xp.setDetectOptions( detectOpts2 );
+        xp.detectSurface();
+    else
+        disp('exists')
+    end
+end
+disp('done')
+
+clearvars lambda1 lambda2 ilastikaxisorder mlxprogram ms_scriptDir
+clearvars msls_exten msls_detOpts_fn niter niter0 nu 
+
+
+%% Fix ssfactor error
+% % Skip -- only do if needed
+% for tp = xp.fileMeta.timePoints
+%     meshfn = fullfile(sprintf(QS.fullFileBase.mesh, tp)) ;
+%        
+%     % Check that smoothply exists
+%     mesh = read_ply_mod(meshfn) ;
+%     mesh.v = mesh.v * ssfactor ;
+%     plywrite_with_normals(meshfn,mesh.f,mesh.v,mesh.vn)
+% end
+% %%
+% for tp = xp.fileMeta.timePoints
+%     mesh2fn = fullfile(QS.dir.mesh, sprintf('mesh_%06d.ply', tp)) ;
+%     mesh2 = read_ply_mod(mesh2fn) ;
+%     disp(['begin writing - ' num2str(tp)])
+%     plywrite(mesh2fn, mesh2.f, mesh2.v * ssfactor) ;
+%     disp('done writing')
+% end
+% disp('done')
 
 %% APDV ilastik training
 % Train on anterior (A), posterior (P), background (B), and 
@@ -727,7 +857,6 @@ end
 
 %% 3. align_meshes_APDV or load transformations if already done
 % Skip if already done.
-overwrite_alignAPDVOpts = false ;
 
 % Try to load the results to test if we must do calculation 
 try
@@ -817,7 +946,6 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         apdvOpts.posteriorChannel = posteriorChannel ;
         apdvOpts.dorsalChannel = dorsalChannel ;% filename pattern for the apdv training probabilities
         apdvOpts.tpref = t0_for_phi0 ;
-        apdvOpts.ilastikOutputAxisOrder = 'cyxz' ;
         
         alignAPDVOpts.weight = weight ;
         alignAPDVOpts.normal_step = normal_step ;
@@ -828,7 +956,6 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
         alignAPDVOpts.dorsalChannel = dorsalChannel ;
         alignAPDVOpts.dorsal_thres = 0.5 ;
         alignAPDVOpts.tref = t0_for_phi0 ;
-        alignAPDVOpts.ilastikOutputAxisOrder = 'cyxz' ;
         
         % alignAPDVOpts.fn = fn ;  % filename base
 
@@ -843,16 +970,29 @@ if redo_alignmesh || overwrite_APDVMeshAlignment || overwrite_APDVCOMs
     apdvOpts.preview_com = false ;
     
     %% Compute APDV coordinate system
-    alignAPDVOpts.overwrite = false ;
+    QS.APDV.rot = [] ;
+    QS.APDV.trans = [] ;
+    alignAPDVOpts.overwrite = true ;
+    alignAPDVOpts.aProbFileName = QS.fullFileBase.apdProb ;
+    alignAPDVOpts.pProbFileName = QS.fullFileBase.apdProb ;
+    alignAPDVOpts.ilastikOutputAxisOrder = 'cxyz' ;
     QS.computeAPDVCoords(alignAPDVOpts) ;
     
     % Compute the APD COMs
-    apdvOpts.overwrite = overwrite_APDVCOMs ;
+    apdvOpts.overwrite = true ; %  overwrite_APDVCOMs ;
+    apdvOpts.preview = true ;
+    apdvOpts.ilastikOutputAxisOrder = 'cyxz' ;
     [acom_sm, pcom_sm] = QS.computeAPDCOMs(apdvOpts) ;
     
     % Align the meshes APDV & plot them
-    alignAPDVOpts.overwrite_ims = overwrite_alignedMeshIms ;  % overwrite images even if centerlines are not overwritten
+    QS.APDV.rot = [] ;
+    QS.APDV.trans = [] ;
+    overwrite_alignedMeshIms = true ;
+    overwrite_APDVMeshAlignment = true ;
+    alignAPDVOpts.overwrite_ims = true ; % overwrite_alignedMeshIms ;  % overwrite images even if centerlines are not overwritten
     alignAPDVOpts.overwrite = overwrite_APDVCOMs || overwrite_APDVMeshAlignment ; % recompute APDV rotation, translation
+    alignAPDVOpts.aProbFileName = QS.fullFileBase.apCenterlineProb ;
+    alignAPDVOpts.pProbFileName = QS.fullFileBase.apCenterlineProb ;
     QS.alignMeshesAPDV(alignAPDVOpts) ;
 else
     % Display APDV COMS over time
@@ -881,6 +1021,24 @@ disp('done')
 clearvars normal_step 
 
 
+%% Fix vertex normals in alignedMeshes (hack)
+% for tt = QS.xp.fileMeta.timePoints ;
+%     alignedmeshfn = fullfile(QS.dir.alignedMesh, ...
+%         sprintf([QS.fileBase.alignedMesh '.ply'], tt)) ;
+%     mm = read_ply_mod(alignedmeshfn) ;
+%     xyzrs = mm.v ;
+%     vn_rs = mm.vn ;
+%     vn_rs(:, 1) = -vn_rs(:, 1) ;
+%     vn_rs(:, 3) = -vn_rs(:, 3) ;
+%     
+%     % Save it
+%     if overwrite || ~exist(alignedmeshfn, 'file')
+%         disp('Saving the aligned mesh...')
+%         disp([' --> ' alignedmeshfn])
+%         plywrite_with_normals(alignedmeshfn, mm.f, xyzrs, vn_rs)
+%     end
+% end
+
 %% MAKE MASKED DATA FOR PRETTY VIDEO ======================================
 % Skip if already done
 % Generate masks for isolating intensity data of the gut alone, for making
@@ -891,94 +1049,17 @@ clearvars normal_step
 % and, optionally, a probability cloud to exclude 
 % (applied post extraction of previous mask)
 %   -->   <QS.fileBase.name>_Probabilities_maskDorsal.h5
-% options = struct() ;
-% options.maskMask = false ;
-% QS.generateMaskedData(options)
+options = struct() ;
+options.maskMask = false ;
+QS.generateMaskedData(options)
 
 %% MAKE ORIENTED MASKED DATA FOR PRETTY VIDEO =============================
-% % Skip if already done
-% QS.alignMaskedDataAPDV()
-
-
-%% MUSCLE: PLOT ALL TEXTURED MESHES IN 3D =========================================
 % Skip if already done
-overwrite_TextureMeshOpts = false ;
+QS.alignMaskedDataAPDV()
 
-% Get limits and create output dir
-% Establish texture patch options
-metafn = fullfile(QS.dir.texturePatchIm, 'metadat_muscle.mat') ;
-if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
-    [~,~,~,xyzbuff] = QS.getXYZLims() ;
-    xyzbuff(:, 1) = xyzbuff(:, 1) - 20 ; 
-    xyzbuff(:, 2) = xyzbuff(:, 2) + 20 ; 
-    % Define & Save metadata
-    metadat.xyzlim = xyzbuff ;                  % xyzlimits
-    metadat.reorient_faces = false ;            % if some normals are inverted
-    metadat.normal_shift = QS.normalShift ;             % normal push, in pixels, along normals defined in data XYZ space
-    metadat.texture_axis_order = QS.data.axisOrder ;    % texture space sampling
-    metadat.smoothing_lambda = 0.006 ;   
-    metadat.texture_shift = 0 ;
-    
-    % Psize is the linear dimension of the grid drawn on each triangular face
-    Options = struct() ;
-    Options.PSize = 5 ;
-    Options.EdgeColor = 'none';
-    QS.getRotTrans() ;
-    Options.Rotation = QS.APDV.rot ;
-    Options.Translation = QS.APDV.trans ;
-    Options.Dilation = QS.APDV.resolution ;
-    % outward, inward --> reasonable values are ~[3,3]
-    
-    % ENDODERM
-    % Options.numLayers = [1, -5];  % at layerSpacing 2, 2 marches ~0.5 um 
-    % Options.layerSpacing = 2 ;
-    
-    % MUSCLE
-    metadat.normal_shift = 35 ;  % normal push, in pixels, along normals defined in data XYZ space
-    Options.numLayers = [13, 0];  % at layerSpacing 2, 2 marches ~0.5 um 
-    Options.layerSpacing = 2 ;
-    
-    
-    % Save it
-    save(metafn, 'metadat', 'Options')
-else
-    disp('Loading options for muscle texturepatch')
-    load(metafn, 'metadat', 'Options')
-end
-
-
-% MUSCLE ADJUST METADAT OPTIONS
-metadat.normal_shift = 35 ;  % normal push, in pixels, along normals defined in data XYZ space
-Options.numLayers = [13, 0];  % at layerSpacing 2, 2 marches ~0.5 um 
-Options.layerSpacing = 2 ;
-metadat.smoothing_lambda = 0.006 ;   
-
-% Save it
-save(metafn, 'metadat', 'Options')
-    
-% Use first timepoint's intensity limits throughout
-QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.99)
-
-% Plot on surface for all TP 
-options = metadat ;
-options.overwrite = false ;
-options.plot_dorsal = true ;
-options.plot_ventral = true ;
-options.plot_right = true ;
-options.plot_left = true ;
-options.timePoints = QS.xp.fileMeta.timePoints ;
-options.figOutDir = fullfile(QS.dir.texturePatchIm, 'muscle_layer') ;
-
-options.plot_perspective = true ;
-options.texture_axis_order = [2 1 3] ; % for Hand Hand HistGFP
-QS.plotSeriesOnSurfaceTexturePatch(options, Options)
-clearvars Options
-
-
-
-%% ENDODERM: PLOT ALL TEXTURED MESHES IN 3D =========================================
+%% PLOT ALL TEXTURED MESHES IN 3D =========================================
 % Skip if already done
-overwrite_TextureMeshOpts = false ;
+overwrite = false ;
 
 % Get limits and create output dir
 % Establish texture patch options
@@ -991,7 +1072,7 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     metadat.xyzlim = xyzbuff ;                  % xyzlimits
     metadat.reorient_faces = false ;            % if some normals are inverted
     metadat.normal_shift = QS.normalShift ;             % normal push, in pixels, along normals defined in data XYZ space
-    metadat.texture_axis_order = [2 1 3] ; % for Hand Hand HistGFP,  % texture space sampling
+    metadat.texture_axis_order = QS.data.axisOrder ;    % texture space sampling
         
     % Psize is the linear dimension of the grid drawn on each triangular face
     Options.PSize = 5 ;
@@ -1007,69 +1088,69 @@ if ~exist(metafn, 'file') || overwrite_TextureMeshOpts
     % Save it
     save(metafn, 'metadat', 'Options')
 else
-    disp('Loading options for endoderm texturepatch')
     load(metafn, 'metadat', 'Options')
 end
 
 % Use first timepoint's intensity limits throughout
-QS.clearTime()
-QS.setDataLimits(QS.xp.fileMeta.timePoints(1), 1.0, 99.9)
-% Plot on surface for all TP 
+QS.setDataLimits(QS.xp.fileMeta.timePoints(101), 1.0, 99.9)
+% QS.setDataLimits(QS.xp.fileMeta.timePoints(101), 1.0, 99.95)
+
+%% Plot on surface for all TP 
 options = metadat ;
 options.overwrite = false ;
-options.plot_dorsal = true ;
-options.plot_ventral = true ;
-options.plot_right = true ;
-options.plot_left = true ;
+options.plot_dorsal = false ;
+options.plot_ventral = false ;
+options.plot_right = false ;
+options.plot_left = false ;
 options.plot_perspective = true ;
+options.blackFigure = false ;
+options.timePoints = 0:169 ;
 QS.plotSeriesOnSurfaceTexturePatch(options, Options)
-
-
-
-
+clearvars Options
 
 %% Morphsnakes demo evolution visualizeMeshEvolution orthoviews data planes
 options = struct() ;
-options.plot_growth = false ;
-options.plot_evolution = true ;
-options.growth_t0 = 45 ;
-options.overwrite = false ;
-options.preview = false ;
-QS.data.adjustlow = 1 ;
-QS.data.adjusthigh = 99 ;
-options.timePoints = xp.fileMeta.timePoints;
-options.plot_texturePatches = false ;
-options.lambda = 0.001 %35 ;
-options.normalShift = 10 ; 
-options.viewAngles = [-20, 20] ;
-options.xMin = -51 ;
-options.xMax = 268 ;
-options.yMin = -90 ;
-options.yMax = 90 ;
-options.zMin = -75 ;
-options.zMax = 80 ;
-options.y0 = -15 ;
+options.plot_evolution = false ;
+options.growth_t0 = 85 ;
 QS.visualizeMeshEvolution(options)
+
+%% Symmetry figure
+% meshL = read_ply_mod(sprintf(...
+%     [QS.fullFileBase.alignedMesh(1:end-4) '_dense_extrasmooth.ply'], 130)) ;
+% trisurf(triangulation(meshL.f, meshL.v), meshL.vn(:, 2), 'edgecolor', 'none')
+% meshR = meshL ;
+% meshR.v(:, 2) = - meshL.v(:, 2) + 200 ;
+% clf
+% trisurf(triangulation(meshL.f, meshL.v), -meshL.vn(:, 2), 'edgecolor', 'none')
+% hold on;
+% trisurf(triangulation(meshR.f, meshR.v), meshL.vn(:, 2), 'edgecolor', 'none')
+% view(2)
+% axis equal
+% xlims = get(gca, 'xlim') ;
+% xlim([xlims(1)-10, xlims(2) + 10])
+% grid off
+% set(gca, 'color', 'k', 'xcol', 'w', 'ycol', 'w', 'zcol', 'w')
+% set(gcf, 'InvertHardCopy', 'off');
+% set(gcf, 'Color', 'k')
+% set(gcf, 'color', 'k')
+% export_fig(fullfile(meshDir, 'symmetry2.png'), '-nocrop', '-r400')
 
 %% EXTRACT CENTERLINES
 % Skip if already done
 % Note: these just need to be 'reasonable' centerlines for topological
 % checks on the orbifold cuts.
 exponent = 1.0 ;
-res = 4.0 ; 
-cntrlineOpts.overwrite = overwrite_centerlines ;     % overwrite previous results
-cntrlineOpts.overwrite_ims = overwrite_centerlineIms ;     % overwrite previous results
+res = 5 ; 
+cntrlineOpts.overwrite = false ; % overwrite_centerlines ;     % overwrite previous results
+cntrlineOpts.overwrite_ims = false ; %overwrite_centerlineIms ;     % overwrite previous results
 cntrlineOpts.weight = 0.1;               % for speedup of centerline extraction. Larger is less precise
 cntrlineOpts.exponent = exponent ;       % how heavily to scale distance transform for speed through voxel
 cntrlineOpts.res = res ;                 % resolution of distance tranform grid in which to compute centerlines
 cntrlineOpts.preview = false ;           % preview intermediate results
 cntrlineOpts.reorient_faces = false ;    % not needed for our well-constructed meshes
-cntrlineOpts.dilation = 0 ;        % how many voxels to dilate the segmentation inside/outside before path computation
-cntrlineOpts.skipErrors = false ;
-cntrlineOpts.permuteDataAxisOrder = 'xyz' ;
-cntrlineOpts.timePoints = fliplr(QS.xp.fileMeta.timePoints)
+cntrlineOpts.dilation = 0 ;              % how many voxels to dilate the segmentation inside/outside before path computation
+
 % Note: this takes about 400s per timepoint for res=2.0
-%
 QS.extractCenterlineSeries(cntrlineOpts)
 disp('done with centerlines')
 
@@ -1079,7 +1160,6 @@ disp('done with centerlines')
 
 %% Identify anomalies in centerline data
 % Skip if already done
-overwrite_idAnomClines = true ;
 idOptions.ssr_thres = 15 ;  % distance of sum squared residuals in um as threshold
 idOptions.overwrite = overwrite_idAnomClines ;
 QS.generateCleanCntrlines(idOptions) ;
@@ -1090,8 +1170,8 @@ QS.generateCleanCntrlines(idOptions) ;
 overwrite_endcapOpts = true ;
 if overwrite_endcapOpts || ~exist(QS.fileName.endcapOptions, 'file')
     endcapOpts = struct( 'adist_thres', 20, ...  % 20, distance threshold for cutting off anterior in pix
-                'pdist_thres', 14, ...  % 15-20, distance threshold for cutting off posterior in pix
-                'tref', 1) ;  % reference timepoint at which time dorsal-most endcap vertices are defined
+                'pdist_thres', 12, ...  % 15-20, distance threshold for cutting off posterior in pix
+                'tref', 90) ;  % reference timepoint at which time dorsal-most endcap vertices are defined
     QS.setEndcapOptions(endcapOpts) ;
     % Save the options to disk
     QS.saveEndcapOptions() ;
@@ -1109,7 +1189,7 @@ QS.sliceMeshEndcaps(endcapOpts, methodOpts) ;
 
 %% Clean Cylinder Meshes
 % May skip if already done
-cleanCylOptions.overwrite = true ;
+cleanCylOptions.overwrite = overwrite_cleanCylMesh ;
 cleanCylOptions.save_ims = true ;
 QS.cleanCylMeshes(cleanCylOptions)
     
@@ -1177,7 +1257,7 @@ for tt = tp2do
     % Compute the pullback if the cutMesh is ok
     if compute_pullback || ~exist(sprintf(QS.fullFileBase.im_sp, tt), 'file')
         pbOptions.overwrite = false ;
-        pbOptions.generate_uv = false ;
+        pbOptions.generate_uv = true ;
         pbOptions.generate_sphi = true ;
         pbOptions.generate_uphi = false ;
         pbOptions.generate_relaxed = false ;
@@ -1212,14 +1292,21 @@ disp('Done with generating spcutMeshes and cutMeshes')
 %     save(sprintf(QS.fullFileBase.spcutMesh, tp), 'spcutMesh') ;
 % end
 
+
+%% Preview results ========================================================
+check = false ;
+if check
+    aux_preview_results
+end
+
 %% FIND THE FOLDS SEPARATING COMPARTMENTS =================================
 % Skip if already done
 options = struct() ;
 options.overwrite = true ;
 options.preview = true ;
-options.first_tp_allowed = [-1, 120, -1] ;  % enforce that no folds before this tp
-options.guess123 = [.29 .55 .80] ;
-options.max_wander = 5 ;
+options.first_tp_allowed = [-1, -1, -1] ;  % enforce that no folds before this tp
+options.guess123 = [.32 .58 .82] ;
+options.max_wander = 3 ;
 QS.identifyFolds(options)
 disp('done')
 
@@ -1227,45 +1314,45 @@ disp('done')
 % options = struct() ;
 % QS.measureFoldRadiiVariance(options)
 
-% %% COMPUTE MESH SURFACE AREA AND VOLUME ===================================
-% % Skip if already done
-% % Note: doing this after fold identification so that t0 is defined for
-% % plotting purposes
-% options = struct() ;
-% options.overwrite = true ;
-% QS.measureSurfaceAreaVolume(options)
-% disp('done')
-% 
-% % RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
-% % Skip if already done
-% options = struct() ;
-% options.overwrite = true ;
-% QS.measureWrithe(options)
-% disp('done')
-% 
-% %% Plot fancy "cross-section" view of centerlines
-% options = struct() ;
-% QS.plotClineXSections(options)
-% 
-% %% Compute surface area and volume for each compartment ===================
-% % Skip if already done
-% options = struct() ;
-% options.overwrite = true ;
-% QS.measureLobeDynamics(options) ;
-% 
-% %% plot length, area, and volume for each lobe ============================
-% % Skip if already done
-% options = struct() ;
-% options.overwrite = true ;
-% QS.plotLobes(options)
-% 
-% % Plot motion of avgpts & DVhoops at folds in yz plane over time =========
-% % Skip if already done
-% overwrite_lobeims = true ;
-% QS.plotConstrictionDynamics(overwrite_lobeims) ;
-% disp('done')
+%% COMPUTE MESH SURFACE AREA AND VOLUME ===================================
+% Skip if already done
+% Note: doing this after fold identification so that t0 is defined for
+% plotting purposes
+options = struct() ;
+options.overwrite = false ;
+QS.measureSurfaceAreaVolume(options)
+disp('done')
 
-%% SMOOTH MEAN CENTERLINE RADIUS ==========================================
+% RECOMPUTE WRITHE OF MEANCURVE CENTERLINES ==============================
+% Skip if already done
+options = struct() ;
+options.overwrite = true ;
+QS.measureWrithe(options)
+disp('done')
+
+%% Plot fancy "cross-section" view of centerlines
+options = struct() ;
+QS.plotClineXSections(options)
+
+% Compute surface area and volume for each compartment ===================
+% Skip if already done
+options = struct() ;
+options.overwrite = true ;
+QS.measureLobeDynamics(options) ;
+
+% plot length, area, and volume for each lobe ============================
+% Skip if already done
+options = struct() ;
+options.overwrite = true ;
+QS.plotLobes(options)
+
+% Plot motion of avgpts & DVhoops at folds in yz plane over time =========
+% Skip if already done
+overwrite_lobeims = true ;
+QS.plotConstrictionDynamics(overwrite_lobeims) ;
+disp('done')
+
+% SMOOTH MEAN CENTERLINE RADIUS ==========================================
 % Skip if already done
 % todo: rework this section so that it takes place after smoothing meshes
 % overwrite = false ;
@@ -1282,7 +1369,35 @@ options.overwrite = false ;
 options.width = 4 ;  % before 2020-12-09, this was 6.
 QS.smoothDynamicSPhiMeshes(options) ;
 
-%% Plot the time-smoothed meshes
+% Fix one field of spcutMeshSm / spcutMeshSmRS / spcutMeshSmRSC -- 2020-12-21
+% for tidx = 1:length(QS.xp.fileMeta.timePoints)
+%     tt = QS.xp.fileMeta.timePoints(tidx) ;
+%     
+%     spcutMeshBase = QS.fullFileBase.spcutMesh ;
+%     spcutMeshSmBase = QS.fullFileBase.spcutMeshSm ;
+%     spcutMeshSmRSBase = QS.fullFileBase.spcutMeshSmRS ;
+%     spcutMeshSmRSCBase = QS.fullFileBase.spcutMeshSmRSC ;
+% 
+%     % Load the files
+%     load(sprintf(spcutMeshBase, tt), 'spcutMesh') ;
+%     load(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
+%     load(sprintf(spcutMeshSmRSBase, tt), 'spcutMeshSmRS') ;
+%     load(sprintf(spcutMeshSmRSCBase, tt), 'spcutMeshSmRSC') ;
+%     
+%     spcutMeshSm.u = spcutMesh.sphi ;
+%     spcutMeshSmRS.u = spcutMesh.sphi ;
+%     spcutMeshSmRSC.u = spcutMesh.sphi(1:nU*(nV-1), :) ;
+%     assert(size(spcutMeshSmRSC.u, 1) == size(spcutMeshSmRSC.v, 1))
+%     
+%     % Resave the files
+%     disp(['Saving ' sprintf(spcutMeshSmBase, tt)])
+%     save(sprintf(spcutMeshSmBase, tt), 'spcutMeshSm') ;
+%     save(sprintf(spcutMeshSmRSBase, tt), 'spcutMeshSmRS') ;
+%     save(sprintf(spcutMeshSmRSCBase, tt), 'spcutMeshSmRSC') ;
+%             
+% end
+
+% Plot the time-smoothed meshes
 % Skip if already done
 options.overwrite = false ;
 QS.plotSPCutMeshSmRS(options) ;
@@ -1300,7 +1415,7 @@ options.overwrite = false ;
 QS.measureCurvatures(options)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Redo Pullbacks with time-smoothed meshes ===============================
+% Redo Pullbacks with time-smoothed meshes ===============================
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Skip if already done
 disp('Create pullback using S,Phi coords with time-averaged Meshes')
@@ -1332,8 +1447,8 @@ for tt = fliplr(QS.xp.fileMeta.timePoints)
     pbOptions.overwrite = false ;
     pbOptions.numLayers = [0 0] ; % previously [7, 7] ;  % previously [5,5]
     pbOptions.layerSpacing = 0.75 ;
-    pbOptions.generate_rsm = true ;
-    pbOptions.generate_spsm = false ;
+    pbOptions.generate_rsm = false ;
+    pbOptions.generate_spsm = true ;
     pbOptions.generate_sphi = false ;
     pbOptions.generate_uvprime = false ;
     pbOptions.generate_ruvprime = false ;
@@ -1346,28 +1461,190 @@ end
 % Skip if already done
 options = struct() ;
 options.overwrite = false ;
-% options.coordsys = 'spsm' ;
+options.coordsys = 'spsm' ;
 % QS.doubleCoverPullbackImages(options)
-options.coordsys = 'rsm' ;
+% options.coordsys = 'rsm' ;
 QS.doubleCoverPullbackImages(options)
 disp('done')
 
-% %% Compute whether pullback is isothermal -> metric images
-% options = struct() ;
-% options.overwrite = false ;
-% options.makeRawMetricComponentFigures = false ;
-% options.lambda_mesh = 0.002 ;
-% options.coordSys = 'ricci' ; % 'spsm_rs'
-% QS.plotMetric(options) ;
-% % !!! todo: continue here for diagnostic
-% % Note: demo_FundFormNematic
+%% Compute whether pullback is isothermal -> metric images
+options = struct() ;
+options.overwrite = false ;
+options.makeRawMetricComponentFigures = false ;
+options.lambda_mesh = 0.002 ;
+options.coordSys = 'ricci' ; % 'spsm_rs'
+QS.plotMetric(options) ;
+% !!! todo: continue here for diagnostic
+% Note: demo_FundFormNematic
+
+%% Compare 2nd fund form director to radon of image
+options = struct() ;
+options.method = 'pullback' ; 
+options.coordSys = 'spsmre' ;
+QS.measurePolarity(options) ;
+% inside measurePolarity: comparePolarityHopfDifferential()
+
+%% Add radii to spcutMeshSm's in post
 % 
-% %% Compare 2nd fund form director to radon of image
-% options = struct() ;
-% options.method = 'pullback' ; 
-% options.coordSys = 'spsmre' ;
-% QS.measurePolarity(options) ;
-% % inside measurePolarity: comparePolarityHopfDifferential()
+% for tidx = 1:length(QS.xp.fileMeta.timePoints)
+%     tp = QS.xp.fileMeta.timePoints(tidx) ;
+%     % Load this timepoint spcutMeshSm
+%     QS.setTime(tp)
+%     spcutMeshSm = QS.getCurrentSPCutMeshSm() ;
+%     spcutMeshSmRS = QS.getCurrentSPCutMeshSmRS() ;
+%     spcutMeshSmRSC = QS.getCurrentSPCutMeshSmRSC() ;
+%     
+%     % Make avgpts in pixel space (not RS)
+%     fprintf('Resampling uvgrid3d curves in pix...\n')
+%     nU = spcutMeshSm.nU ;
+%     nV = spcutMeshSm.nV ;
+%     curves3d_pix = reshape(spcutMeshSm.v, [nU, nV, 3]) ;
+%     c3d_dsv_pix = zeros(size(curves3d_pix)) ;  % in units of pix
+%     avgpts_pix = zeros(nU, 3) ;
+%     radius_pix = zeros(nU, nV) ;
+%     for i=1:nU
+%         % Note: no need to add the first point to the curve
+%         % since the endpoints already match exactly in 3d and
+%         % curvspace gives a curve with points on either
+%         % endpoint (corresponding to the same 3d location).
+%         c3d_dsv_pix(i, :, :) = resampleCurvReplaceNaNs(squeeze(curves3d_pix(i, :, :)), nV, true) ;
+%         if vecnorm(squeeze(c3d_dsv_pix(i, 1, :)) - squeeze(c3d_dsv_pix(i, end, :))) > 1e-7
+%             error('endpoints do not join! Exiting')
+%         end
+%         % Drop the final endpoint in the mean pt determination
+%         avgpts_pix(i, :) = mean(squeeze(c3d_dsv_pix(i, 1:end-1, :)), 1) ; 
+%         radius_pix(i, :) = vecnorm(squeeze(curves3d_pix(i, :, :)) - avgpts_pix(i, :), 2, 2) ;
+%     end
+% 
+%     % uvpcutMesh.raw.avgpts_pix = avgpts_pix ;
+%     % uvpcutMesh.raw.radius_pix = radius_pix ;
+%     spcutMeshSm.avgpts_um = QS.xyz2APDV(avgpts_pix) ;
+%     spcutMeshSm.radius_um = radius_pix * QS.APDV.resolution ;
+%     
+%     % Add to RS and RSC versions
+%     spcutMeshSmRS.avgpts_um = spcutMeshSm.avgpts_um ;
+%     spcutMeshSmRS.radius_um = spcutMeshSm.radius_um ;
+%     % RSC
+%     spcutMeshSmRSC.avgpts_um = spcutMeshSm.avgpts_um ;
+%     spcutMeshSmRSC.radius_um = spcutMeshSm.radius_um(:, 1:end-1) ;
+%     
+%     % Save spcutMeshSm / RS / RSC
+%     save(sprintf(QS.fullFileBase.spcutMeshSm, QS.currentTime), ...
+%         'spcutMeshSm')
+%     save(sprintf(QS.fullFileBase.spcutMeshSmRS, QS.currentTime), ...
+%         'spcutMeshSmRS')
+%     save(sprintf(QS.fullFileBase.spcutMeshSmRSC, QS.currentTime), ...
+%         'spcutMeshSmRSC')
+%     
+%     if mod(tidx, 10) == 0 
+%         clf; set(gcf, 'visible', 'on')
+%         trisurf(triangulation(spcutMeshSmRSC.f, spcutMeshSmRSC.v), 'edgecolor', 'none')
+%         axis equal 
+%         title(num2str(tidx))
+%         pause(1)
+%         cla
+%         trisurf(triangulation(spcutMeshSmRS.f, spcutMeshSmRS.v), 'edgecolor', 'k')
+%         axis equal
+%         title([num2str(tidx) ' open'])
+%         pause(0.0001)
+%     end
+% end
+
+%% Cell Segmentation
+
+% Automatic segmentation gives a rough guess
+error('only do this once')
+options = struct() ;
+options.overwrite = true ;
+options.overwriteImages = false;
+options.timePoints = [96:10:206] ;
+QS.generateCellSegmentation2D(options) 
+
+%% PERFORM Manual corrections (in GIMP, for ex) and re-process results
+options = struct() ;
+options.overwrite = true ;
+options.overwriteImages = true;
+options.timePoints = [206] ; %[96:10:206] ;
+QS.processCorrectedCellSegmentation2D(options) 
+
+%% Project into 3D
+options = struct() ;
+options.timePoints =  [96:10:206] ;
+options.overwrite = true ;
+options.overwriteImages = true ;
+options.correctedSegmentation = true ;
+QS.generateCellSegmentation3D(options) 
+
+%% Report how many cells segmented
+coordSys = 'spsme' ;
+for tii = 1:length(options.timePoints) 
+    tp = options.timePoints(tii) ;
+    segfn = sprintf(...
+        QS.fullFileBase.segmentation2dCorrected, ...
+        coordSys, tp) ;
+    %% Convert to simpler format
+    tmp = load(segfn, 'seg2d') ;
+    nseg = size(tmp.seg2d.cdat.centroid, 1) ;
+    disp(['n= ' num2str(nseg)])
+end
+
+%% Summarize statistics of segmentation results (in 3d)
+options = struct() ;
+options.correctedSegmentation = true ;
+options.timePoints = [96:10:206] ;
+options.overwrite = true  ;
+QS.plotSegmentationStatisticsLobes(options)
+
+%% Compare segmentation to an advected segmentation
+options = struct() ;
+% options.timePoints = [93:15:263] ;
+options.timePoints = [96:10:206] ;
+options.overwrite = false ;
+options.overwritePathlines = false ;
+options.overwriteImages = false ;
+
+% Optional: load pathlines before call
+cellVertexPathlineFn = fullfile(QS.dir.segmentation, 'pathlines', ...
+    sprintf('cellVertexPathlines_%06dt0.mat', QS.t0set())) ;
+% load(cellVertexPathlineFn, 'segVertexPathlines2D', ...
+%         'segVertexPathlines3D', 'cellIDs')
+% options.segmentationPathlines = struct() ;
+% options.segmentationPathlines.segVertexPathlines2D = segVertexPathlines2D ;
+% options.segmentationPathlines.segVertexPathlines3D = segVertexPathlines3D ;
+% options.segmentationPathlines.cellIDs = cellIDs ;
+QS.generateCellSegmentationPathlines3D(options)
+% QS.estimateIntercalationRate(options)
+
+%% Visualize demoTracks in 2D ARAP submesh parameterization patch
+tracks2demo = dir(fullfile(QS.dir.tracking, 'demoTracks', 'demoTracks*0.mat')) ;
+options = struct() ;
+options.tracks2demo = tracks2demo ;
+options.overwrite = true ;
+options.scaleByMetric = false ;
+options.scaleByMetricComponents = true ;
+QS.visualizeDemoTracks(options)
+
+%% Visualize tracking in 3D
+options = struct() ;
+options.overwrite = false ;
+options.method = 'segmentation'; 
+options.subdir = 'labeled_groundTruth' ;
+options.timePoints = [96:2:206] ;
+QS.visualizeTracking3D(options)
+
+
+%% Add manual tracks
+options = struct() ;
+QS.manualTrackingAdd(options)
+
+%% Visualize Segmentation in a true-scale patch mapped to plane
+options = struct() ;
+options.demoPatchName = 'demoPatch004' ;
+options.timePoints = [96, 126, 156, 186, 206] ;
+options.scaleByMetricComponents = true ;
+options.overwrite = false ;
+QS.visualizeSegmentationPatch(options)
+
 
 
 %% Measure Cell density
@@ -1412,51 +1689,51 @@ QS.generateSPCutMeshSmStack(spcutMeshSmStackOptions)
 
 %% MEASURE THICKNESS ======================================================
 % Measure thickness from images of imFolder_sp_r_sme_stack (extendedLUT_smoothed)
-% thicknessOptions = struct() ;
-% QS.measureThickness(thicknessOptions)
+thicknessOptions = struct() ;
+QS.measureThickness(thicknessOptions)
 
-% %% DUMP OR LOAD HERE [break]
-% clearvars fold_ofn fig1exist fig2exist id idx mcline nsmM prevcline tmp
-% clearvars fig1exist fig1fn fig2exist fp1fn fp2fn fp3fn fp4fn IV 
-% clearvars n_inward n_outward TV2D TV3D 
-% clearvars layer_spacing 
-% dumpfn = fullfile(meshDir, 'orbifold_dump_before_piv.mat') ;
-% save(dumpfn)
-% load(dumpfn)
-% clearvars dumpfn
-% 
- 
-% %% PERFORM PIV ON PULLBACK MIPS ===========================================
-% % % Compute PIV in PIVLab
-% % % ---------------------
-% % % Open PIVLab
-% % % Select all frames in meshDir/PullbackImages_010step_sphi/smoothed_extended/
-% % % Select Sequencing style 1-2, 2-3, ... 
-% % % Image Preprocessing (used to select all, but now:)
-% % %  --> Enable CLAHE with 20 pix
-% % %  --> DO NOT Enable highpass with 15 pix
-% % %  --> DO NOT Enable Intensity capping
-% % %  --> Wiener2 denoise filter with 3 pix
-% % %  --> DO NOT Auto constrast stretch
-% % % PIV settings: 
-% % %  --> 128 (32 step), 64 (32 step), 32 (16 step), 16 (8 step)
-% % %  --> Linear window deformation interpolator
-% % %  --> 5x repeated correlation 
-% % %  --> Disable auto-correlation
-% % % Post-processing
-% % %  --> Standard deviation filter: 7 stdev
-% % %  --> Local median filter: thres=5, eps=0.1
-% % %  --> Interpolate missing data
-% % % Export 
-% % %  --> File > Save > MAT file
-% disp('Loading PIV results...')
-% tmp = load(fullfile(QS.dir.piv, 'piv_results.mat')) ;
+%% DUMP OR LOAD HERE [break]
+clearvars fold_ofn fig1exist fig2exist id idx mcline nsmM prevcline tmp
+clearvars fig1exist fig1fn fig2exist fp1fn fp2fn fp3fn fp4fn IV 
+clearvars n_inward n_outward TV2D TV3D 
+clearvars layer_spacing 
+dumpfn = fullfile(meshDir, 'orbifold_dump_before_piv.mat') ;
+save(dumpfn)
+load(dumpfn)
+clearvars dumpfn
+
+
+%% PERFORM PIV ON PULLBACK MIPS ===========================================
+% % Compute PIV in PIVLab
+% % ---------------------
+% % Open PIVLab
+% % Select all frames in meshDir/PullbackImages_010step_sphi/smoothed_extended/
+% % Select Sequencing style 1-2, 2-3, ... 
+% % Image Preprocessing (used to select all, but now:)
+% %  --> Enable CLAHE with 20 pix
+% %  --> DO NOT Enable highpass with 15 pix
+% %  --> DO NOT Enable Intensity capping
+% %  --> Wiener2 denoise filter with 3 pix
+% %  --> DO NOT Auto constrast stretch
+% % PIV settings: 
+% %  --> 128 (32 step), 64 (32 step), 32 (16 step), 16 (8 step)
+% %  --> Linear window deformation interpolator
+% %  --> 5x repeated correlation 
+% %  --> Disable auto-correlation
+% % Post-processing
+% %  --> Standard deviation filter: 7 stdev
+% %  --> Local median filter: thres=5, eps=0.1
+% %  --> Interpolate missing data
+% % Export 
+% %  --> File > Save > MAT file
+disp('Loading PIV results...')
+tmp = load(fullfile(QS.dir.piv.root, 'piv_results.mat')) ;
 
 
 %% Measure velocities =============================================
 disp('Making map from pixel to xyz to compute velocities in 3d for smoothed meshes...')
 options = struct() ;
-options.overwrite = true ;
+options.overwrite = false ;
 options.preview = false ;
 options.show_v3d_on_data = false ;
 options.save_ims = true ;
@@ -1549,161 +1826,167 @@ QS.measurePIV3d(options) ;
 %% Lagrangian dynamics
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Pullback pathline time averaging of velocities
+options = struct() ;
+options.overwrite = false ;
+options.preview = false ;
+QS.timeAverageVelocities(options)
+% Velocity plots for pathline time averaging 
+options.overwrite = false ;
+options.plot_vxyz = false ;
+options.invertImage = true ;
+options.averagingStyle = 'Lagrangian'; 
+options.samplingResolution = '1x'; 
+QS.plotTimeAvgVelocities(options)
+% Divergence and Curl (Helmholtz-Hodge) for Lagrangian
+options = struct() ;
+options.overwrite = false ;
+options.samplingResolution = '1x' ;
+options.averagingStyle = 'Lagrangian' ;
+options.lambda = 0 ;
+options.lambda_mesh = 0 ; 
+QS.helmholtzHodge(options) ;
+
+%% Compressibility & kinematics for Lagrangian
+options = struct() ;
+options.overwrite = false ;
+options.samplingResolution = '1x'; 
+options.lambda_mesh = 0 ;
+options.lambda_err = 0.00 ;
+options.lambda = 0.00 ;
+options.nmodes = 7 ;  %% bandwidth filtering
+options.zwidth = 1 ; 
+QS.measureMetricKinematics(options)
+
+% Contraction rate to compare with GCaMP
 % options = struct() ;
-% options.overwrite = true ;
-% options.preview = false ;
-% QS.timeAverageVelocities(options)
-% % Velocity plots for pathline time averaging 
-% options.overwrite = false ;
-% options.plot_vxyz = false ;
-% options.invertImage = true ;
-% options.averagingStyle = 'Lagrangian'; 
-% options.samplingResolution = '1x'; 
-% QS.plotTimeAvgVelocities(options)
-% % Divergence and Curl (Helmholtz-Hodge) for Lagrangian
-% options = struct() ;
-% options.overwrite = false ;
-% options.samplingResolution = '1x' ;
-% options.averagingStyle = 'Lagrangian' ;
-% options.lambda = 0 ;
-% options.lambda_mesh = 0 ; 
-% QS.helmholtzHodge(options) ;
-% 
-% % Compressibility & kinematics for Lagrangian
-% options = struct() ;
-% options.overwrite = false ;
-% options.samplingResolution = '1x'; 
-% options.lambda_mesh = 0 ;
-% options.lambda_err = 0.00 ;
-% options.lambda = 0.00 ;
-% options.nmodes = 7 ;  %% bandwidth filtering
-% options.zwidth = 2 ; 
-% QS.measureMetricKinematics(options)
-% 
-% %% Metric Kinematics Kymographs & Correlations -- Bandwidth Filtered
-% options = struct() ;
-% options.overwrite = false ;
-% options.overwrite_timePoints = false ;
-% options.plot_Hgdot = false ;
-% options.plot_flows = false ;
-% options.plot_factors = false ;
-% options.plot_kymographs = true ;
-% options.plot_kymographs_cumsum = true ;
-% options.plot_kymographs_cumprod = true ;
-% options.plot_correlations = true ;
-% options.plot_spaceMaps = true ;
-% options.plot_raw_correlations = true ;
-% options.plot_gdot_correlations = false ;
-% options.plot_gdot_decomp = false ;
-% options.lambda = 0.00 ;
-% options.lambda_err = 0.00 ;
-% options.lambda_mesh = 0 ;
-% options.nmodes = 7 ;  %% bandwidth filtering
-% options.zwidth = 2 ; 
-% options.climit = 0.3 ;
-% QS.plotMetricKinematics(options)
-% 
-% %% Measure shear stresses against gradients in pressure
-% % eta \nabla_i d^i_j = \nalba_j p, 
-% % where d^i_j = 1/2(\nabla_i v_j + \nalba_j v_i) - b_ij vn
-% options = struct() ;
-% options.overwrite = true ;
-% options.zwidth = 0 ;
-% QS.measureStokesForces(options) ;
-% options.plot_kymographs = true ;
-% QS.plotStokesForces(options) ;  % !!! continue here
-% 
-% 
-% 
-% %% Pullback pathlines connecting Lagrangian grids
-% options = struct() ;
-% options.overwrite = false ;
-% options.preview = false ;
-% options.debug = false ; 
-% QS.measurePullbackPathlines(options)
-% 
-% %% Query velocities along pathlines
-% options = struct() ;
-% options.overwrite = false ;
-% options.preview = false ;
-% QS.measurePathlineVelocities(options)
-% % plot the pathline velocities 
-% options = struct() ;
-% options.overwrite = false ;
-% options.gridTopology = 'triangulated' ;
-% QS.plotPathlineVelocities(options)
-% 
-% % Measure Pathline Kinematics
-% options = struct() ;
-% options.overwrite = false ;
-% options.lambda = 0 ;
-% options.lambda_error = 0 ;
-% options.lambda_mesh = 0 ;
-% options.nmodes = 7 ;
-% options.zwidth = 1 ; 
-% QS.measurePathlineMetricKinematics(options)
-% % todo: resume this BLOCK !!!
-% 
-% % Plot Pathline Kinematics
-% options = struct() ;
-% options.overwrite = true ;
-% options.plot_kymographs = true ;
-% options.plot_kymographs_cumsum = false ;
-% options.plot_kymographs_cumprod = false ;
-% options.plot_correlations = true ;
-% options.plot_fold_kinematics = true ;
-% options.plot_lobe_kinematics = true ;
-% options.climit = 0.30 ;
-% QS.plotPathlineMetricKinematics(options)
-% 
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% %% Create ricci mesh at t0 to measure Beltrami coefficient in pathlines
-% options = struct() ;
-% options.overwrite = false ;
-% options.climit = 1 ;
-% options.coordSys = 'ricci' ;
-% QS.measureBeltramiCoefficient(options) ;
-% 
-% %% Generate all Beltramis from all Riccis & plot aspect ratio over time
-% options = struct() ;
-% options.overwrite = false ;
-% QS.computeRicciMeshes(options) %!!!
-% 
-% %% Generate all Beltramis from all Riccis & Plot aspect ratio for isothermal PB over time
-% % Note: this really shouldn't be necessary, as we show in detail now
-% options = struct() ;
-% QS.measureBeltramiCoefficientPullbackToPullback(options) ;
-% 
-% %% Check mu by computing for all times and get the same thing as 
-% % embedding back to same Reference tp
-% 
-% for tp = QS.xp.fileMeta.timePoints
-%     disp(['t = ', num2str(tp)])
-%     QS.setTime(tp)
-%     try
-%         rmesh = QS.loadCurrentRicciMesh() ;
-%     catch
-%         disp(['could not load Ricci mesh for t=' num2str(tp)])
-%     end
-% 
-%     % Compute mu from mapping from PB(0) to PB(1)
-% 
-% end
-% 
-% 
-% %% Compare to linearized description
-% options = struct() ;
-% options.overwrite = false ;
-% options.overwriteImages = false ;
-% options.coordSys = 'ricci' ;
-% QS.compareBeltramiToLinearizedConstriction(options) ;
-% 
-% %% Compare to nonlinear isothermal description
-% options = struct() ;
-% options.overwrite = true ;
-% options.overwriteImages = false ;
-% options.coordSys = 'ricci' ;
-% QS.compareBeltramiToConstriction(options) ;
+% QS.plotMetricKinematicsEulerianFrame(options)
+
+% Metric Kinematics Kymographs & Correlations -- Bandwidth Filtered
+options = struct() ;
+options.overwrite = false ;
+options.overwrite_timePoints = false ;
+options.plot_Hgdot = false ;
+options.plot_flows = false ;
+options.plot_factors = false ;
+options.plot_kymographs = true ;
+options.plot_kymographs_cumsum = true ;
+options.plot_kymographs_cumprod = true ;
+options.plot_correlations = true ;
+options.plot_spaceMaps = true ;
+options.plot_raw_correlations = true ;
+options.plot_gdot_correlations = false ;
+options.plot_gdot_decomp = false ;
+options.lambda = 0.00 ;
+options.lambda_err = 0.00 ;
+options.lambda_mesh = 0 ;
+options.nmodes = 7 ;  %% bandwidth filtering
+options.zwidth = 1 ; 
+options.climit = 0.3 ;
+QS.plotMetricKinematics(options)
+
+%% Measure shear stresses against gradients in pressure
+% eta \nabla_i d^i_j = \nalba_j p, 
+% where d^i_j = 1/2(\nabla_i v_j + \nalba_j v_i) - b_ij vn
+options = struct() ;
+options.overwrite = true ;
+options.zwidth = 0 ;
+QS.measureStokesForces(options) ;
+options.plot_kymographs = true ;
+QS.plotStokesForces(options) ;  % !!! continue here
+
+
+
+%% Pullback pathlines connecting Lagrangian grids
+options = struct() ;
+options.overwrite = false ;
+options.preview = false ;
+options.debug = false ; 
+QS.measurePullbackPathlines(options)
+
+%% Query velocities along pathlines
+options = struct() ;
+options.overwrite = false ;
+options.preview = false ;
+QS.measurePathlineVelocities(options)
+% plot the pathline velocities 
+options = struct() ;
+options.overwrite = false ;
+options.gridTopology = 'triangulated' ;
+QS.plotPathlineVelocities(options)
+
+% Measure Pathline Kinematics
+options = struct() ;
+options.overwrite = false ;
+options.lambda = 0 ;
+options.lambda_error = 0 ;
+options.lambda_mesh = 0 ;
+options.nmodes = 7 ;
+options.zwidth = 1 ; 
+QS.measurePathlineMetricKinematics(options)
+% todo: resume this BLOCK !!!
+
+% Plot Pathline Kinematics
+options = struct() ;
+options.overwrite = true ;
+options.plot_kymographs = true ;
+options.plot_kymographs_cumsum = false ;
+options.plot_kymographs_cumprod = false ;
+options.plot_correlations = true ;
+options.plot_fold_kinematics = true ;
+options.plot_lobe_kinematics = true ;
+options.climit = 0.30 ;
+QS.plotPathlineMetricKinematics(options)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Create ricci mesh at t0 to measure Beltrami coefficient in pathlines
+options = struct() ;
+options.overwrite = false ;
+options.climit = 1 ;
+options.coordSys = 'ricci' ;
+QS.measureBeltramiCoefficient(options) ;
+
+%% Generate all Beltramis from all Riccis & plot aspect ratio over time
+options = struct() ;
+options.overwrite = false ;
+options.resample = false ;
+QS.computeRicciMeshes(options)
+% return to here
+
+%% Generate all Beltramis from all Riccis & Plot aspect ratio for isothermal PB over time
+% Note: this really shouldn't be necessary, as we show in detail now
+options = struct() ;
+QS.measureBeltramiCoefficientPullbackToPullback(options) ;
+
+%% Check mu by computing for all times and get the same thing as 
+% embedding back to same Reference tp
+
+for tp = QS.xp.fileMeta.timePoints
+    disp(['t = ', num2str(tp)])
+    QS.setTime(tp)
+    try
+        rmesh = QS.loadCurrentRicciMesh() ;
+    catch
+        disp(['could not load Ricci mesh for t=' num2str(tp)])
+    end
+    
+    % Compute mu from mapping from PB(0) to PB(1)
+    
+end
+
+
+%% Compare to linearized description
+options = struct() ;
+options.overwrite = false ;
+options.overwriteImages = false ;
+options.coordSys = 'ricci' ;
+QS.compareBeltramiToLinearizedConstriction(options) ;
+
+%% Compare to nonlinear isothermal description
+options = struct() ;
+options.overwrite = true ;
+options.overwriteImages = false ;
+options.coordSys = 'ricci' ;
+QS.compareBeltramiToConstriction(options) ;
 
 %% UVPrime option (ignore)
 master_uvprime_module
@@ -1714,259 +1997,280 @@ options = struct() ;
 options.overwrite = false ;
 QS.measureTwist(options)
 
-% %% Measure required stress pattern
-% options = struct() ;
-% options.overwrite = false ;
-% QS.measureStressPattern(options) ;
-% 
-% %% Measure metric strain rate (epsilon=gdot/2)
-% % option = struct() ;
-% % options.overwrite = true ;
-% % options.preview = false ;
-% % QS.measureMetricStrainRate(options) 
-% 
-% %% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
-% options = struct() ;
-% options.overwrite = false ;
-% options.overwriteImages = false ;
-% options.preview = false ;
-% options.lambda = 0.000 ;
-% options.lambda_error = 0 ;
-% options.lambda_mesh = 0 ;
-% options.nmodes = 7 ;
-% options.zwidth = 1 ; 
-% QS.measureStrainRate(options) 
-% 
-% %% Plot time-averaged strain rates in 3d on mesh
-% options = struct() ;
-% % error('This does not look great -- tweak how the averaging is done to be Lagrangian?')
-% options.overwrite = false ;
-% options.preview = false ;
-% QS.plotStrainRate3DFiltered(options) 
-% 
-% %% Kymograph strain rates
-% options = struct() ;
-% options.overwrite = false ;
-% options.skipTimePoint = true ;
-% options.clim_trace = 0.05 ;
-% options.clim_deviatoric = 0.05 ;
-% QS.plotStrainRate(options)
-% 
-% % Measure strain rate along pathlines
-% options = struct() ;
-% options.overwrite = false ;
-% options.overwriteImages = false ;
-% options.plot_dzdp = false ;
-% QS.measurePathlineStrainRate(options)
-% % Integrate strain rates along pathlines (noisy)
-% % options = struct() ;
-% % options.overwrite = true ;
-% % options.overwriteImages = true ;
-% % options.plot_dzdp = false ;
-% % options.median_filter_strainRates = false ;
-% % options.climitInitial = 0.05 ;
-% % options.climitRamp = 0.01 ;
-% % options.climitRatio = 1 ;
-% % QS.measurePathlineIntegratedStrain(options)
-% 
-% % Pathline strain rate plots
-% options = struct() ;
-% options.overwrite = false ;
-% options.plot_kymographs = false ;
-% options.plot_fold_strainRate = true ;
-% options.plot_lobe_strainRate = true ;
-% options.climit = 0.05 ;
-% options.climitWide = 1.0 ;
-% QS.plotPathlineStrainRate(options)
-% 
-% %% (REPEAT FROM ABOVE) Pullback pathlines connecting Lagrangian grids
-% % options = struct() ;
-% % options.overwrite = false ;
-% % options.preview = false ;
-% % options.debug = false ; 
-% % QS.measurePullbackPathlines(options)
-% %% Measure strain along pathlines -- note this is from pathlines, not integrating rates
-% options = struct() ;
-% options.overwrite = true ;
-% options.overwriteImages = false ;
-% options.plot_dzdp = false ;
-% options.climitInitial = 0.05 ;
-% options.climitRamp = 0.01 ;
-% options.climitRatio = 1 ;
-% QS.measurePathlineStrain(options)
-% QS.plotPathlineStrain(options)
+%% Measure required stress pattern
+options = struct() ;
+options.overwrite = false ;
+QS.measureStressPattern(options) ;
 
-%% Measure coarse-grained bond contraction and dilation in zeta=s/L, phi
-% todo: consider putting this in Ricci map frame instead of (s,phi) frame
+%% Measure metric strain rate (epsilon=gdot/2)
+% option = struct() ;
+% options.overwrite = true ;
+% options.preview = false ;
+% QS.measureMetricStrainRate(options) 
+
+%% Strain rate (epsilon = 1/2 (djvi+divj) -vn bij)
+options = struct() ;
+options.overwrite = false ;
+options.overwriteImages = false ;
+options.preview = false ;
+options.lambda = 0.000 ;
+options.lambda_error = 0 ;
+options.lambda_mesh = 0 ;
+options.nmodes = 7 ;
+options.zwidth = 1 ; 
+QS.measureStrainRate(options) 
+
+%% Plot time-averaged strain rates in 3d on mesh
+options = struct() ;
+% error('This does not look great -- tweak how the averaging is done to be Lagrangian?')
+options.overwrite = false ;
+options.preview = false ;
+QS.plotStrainRate3DFiltered(options) 
+
+%% Kymograph strain rates
+options = struct() ;
+options.overwrite = false ;
+options.skipTimePoint = true ;
+options.clim_trace = 0.05 ;
+options.clim_deviatoric = 0.05 ;
+QS.plotStrainRate(options)
+
+% Measure strain rate along pathlines
+options = struct() ;
+options.overwrite = false ;
+options.overwriteImages = false ;
+options.plot_dzdp = false ;
+QS.measurePathlineStrainRate(options)
+% Integrate strain rates along pathlines (noisy)
 % options = struct() ;
 % options.overwrite = true ;
 % options.overwriteImages = true ;
-% QS.measureDxDyStrainFiltered(options) ;
+% options.plot_dzdp = false ;
+% options.median_filter_strainRates = false ;
+% options.climitInitial = 0.05 ;
+% options.climitRamp = 0.01 ;
+% options.climitRatio = 1 ;
+% QS.measurePathlineIntegratedStrain(options)
+
+% Pathline strain rate plots
+options = struct() ;
+options.overwrite = false ;
+options.plot_kymographs = false ;
+options.plot_fold_strainRate = true ;
+options.plot_lobe_strainRate = true ;
+options.climit = 0.05 ;
+options.climitWide = 1.0 ;
+QS.plotPathlineStrainRate(options)
+
+%% (REPEAT FROM ABOVE) Pullback pathlines connecting Lagrangian grids
+% options = struct() ;
+% options.overwrite = false ;
+% options.preview = false ;
+% options.debug = false ; 
+% QS.measurePullbackPathlines(options)
+%% Measure strain along pathlines -- note this is from pathlines, not integrating rates
+options = struct() ;
+options.overwrite = true ;
+options.overwriteImages = false ;
+options.plot_dzdp = false ;
+options.climitInitial = 0.05 ;
+options.climitRamp = 0.01 ;
+options.climitRatio = 1 ;
+QS.measurePathlineStrain(options)
+QS.plotPathlineStrain(options)
+
+%% Measure coarse-grained bond contraction and dilation in zeta=s/L, phi
+% todo: consider putting this in Ricci map frame instead of (s,phi) frame
+options = struct() ;
+options.overwrite = true ;
+options.overwriteImages = true ;
+QS.measureDxDyStrainFiltered(options) ;
 
 %% Output gg and bb in fixed frame (t0 Lagrangian zeta phi frame) -- this is done in measurePathlineStrain()
 % options = struct() ;
 % options.overwrite = false ;
 % measurePathlineMetric(QS, options)
-% 
-% %% Simulate this experiment
-% options = struct() ;
-% QS.simulateNES(options)
-% 
-% %% Measure surface area growh of lobes and folds in Eulerian frame
-% options = struct() ;
-% options.overwrite = false ;
-% options.preview = false ;
-% QS.measureEulerianMetricDynamics(options)
 
-% %% Plot texture map in 3d with velocities
-% for i = 1:size(vM, 1)
-%     t = time(i) ;
-%     vtqfn0 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_perspective.png']) ;
-%     vtqfn1 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_dorsal.png']) ;
-%     vtqfn2 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_ventral.png']) ;
-%     vtqfn3 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_lateralL.png']) ;
-%     vtqfn4 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_lateralR.png']) ;
-% 
-%     % Plot the tangential velocity as quiver on top of the embedding,
-%     % colored by normal velocity (all in one in embedding!)
-%     if ~exist(vtqfn0, 'file') || overwrite_vsm_plots
-%         disp(['Creating ' vtqfn])
-%         tic
-% 
-%         v2dsmum_ii = squeeze(v2dsmMum(i, :, :)) ;
-%         vnsm_ii = squeeze(vnsmM(i, :, :)) ;
-% 
-%         % Load the data for the current time point ------------------------
-%         xp.setT=ime(t) ;
-%         % Load 3D data for coloring mesh pullback
-%         xp.loadTime(t);
-%         xp.rescaleStackToUnitAspect();
-% 
-%         fig = figure('units', 'normalized', ...
-%                 'outerposition', [0 0 1 1], 'visible', 'off') ;
-% 
-%         % Psize is the linear dimension of the grid drawn on each triangular face
-%         Options.PSize = 5;
-%         Options.EdgeColor = 'none';
-%         Options.Rotation = rot ;
-%         Options.FaceScalarField = vn_interp ;
-% 
-%         % Raw stack data
-%         IV = xp.stack.image.apply();
-%         IV = imadjustn(IV{1});
-% 
-%         % First args are physical vertices, then texture faces (same number as 
-%         % physical faces, but connectivity can be different), then texture
-%         % vertices, which can also be different. The vertices are in row, column, 
-%         % page format, so x and y get flipped. IV is the texture volume.
-%         % Options.PSize 
-%         [ patchIm, imref, zeroID, MIP, SIP ] = ...
-%             texture_patch_3d( mesh.f, mesh.v, ...
-%             mesh.f, mesh.v(:, [2 1 3]), IV, Options );
-% 
-%         % Add quiver to image
-%         % Downsample by a factor of qsubsample
-%         xx = piv.x{i}(1, :)' ;
-%         yy = piv.y{i}(:, 1) ;
-%         ww = length(xx) ;
-%         hh = length(yy) ;
-%         vx = reshape(v2dsmum_ii(:, 1), [ww, hh]) ;
-%         vy = reshape(v2dsmum_ii(:, 2), [ww, hh]) ;
-%         QX = imresize(vx, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
-%         QY = imresize(vy, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
-%         xq = 1:qsubsample:ww ;
-%         yq = 1:qsubsample:hh ;
-%         [xg, yg] = meshgrid(xq, yq) ;
-%         h2 = quiver(xg(:), yg(:), QX(:), QY(:), 0) ;
-% 
-%         % Format the figure and axis
-%         xlim(xyzmin(1, :))
-%         ylim(xyzmin(2, :))
-%         zlim(xyzmin(3, :))
-%         title(['$t = $' num2str(t) ' min'], 'Interpreter', 'Latex', 'Color', 'white') 
-%         xlabel('AP position [$\mu$m]', 'Interpreter', 'Latex', 'Color', 'white')
-%         ylabel('DV position [$\mu$m]', 'Interpreter', 'Latex', 'Color', 'white')
-%         zlabel('lateral position [$\mu$m]', 'Interpreter', 'Latex', 'Color', 'white')
-%         set(fig, 'PaperUnits', 'centimeters');
-%         set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
-% 
-%         % Make background black
-%         set(gca,'Color','k')
-%         set(gcf, 'InvertHardCopy', 'off');
-%         set(gcf, 'Color', 'k')
-% 
-%         % Make tick labels white
-%         labeltype = {'XTickLabel', 'YTickLabel', 'ZTickLabel'} ;
-%         for q = 1:2
-%             % get the current tick labeks
-%             ticklabels = get(gca, labeltype{q});
-%             % prepend a color for each tick label
-%             ticklabels_new = cell(size(ticklabels));
-%             for i = 1:length(ticklabels)
-%                 ticklabels_new{i} = ['\color{white} ' ticklabels{i}];
-%             end
-%             % set the tick labels
-%             set(gca, labeltype{q}, ticklabels_new);
-%         end
-% 
-%         % Capture all five views (perspective + DVLR
-%         disp(['saving figure...' num2str(t, '%06d')])
-%         saveas(fig, vtqfn0)
-%         view(0, 90)
-%         % DORSAL
-%         saveas(fig, vtqfn1)
-%         view(0, 270)
-%         % VENTRAL
-%         saveas(fig, vtqfn2)
-% 
-%         % Lateral views
-%         view(0, 0)
-%         % make white z tick labels
-%         q = 3;
-%         % get the current tick labeks
-%         ticklabels = get(gca, labeltype{q});
-%         % prepend a color for each tick label
-%         ticklabels_new = cell(size(ticklabels));
-%         for i = 1:length(ticklabels)
-%             ticklabels_new{i} = ['\color{white} ' ticklabels{i}];
-%         end
-%         % set the tick labels
-%         set(gca, labeltype{q}, ticklabels_new);
-% 
-%         % LEFT
-%         saveas(fig, vtqfn3)
-%         view(0, 180)
-%         % RIGHT
-%         saveas(fig, vtqfn4)
-%         close all
-%         toc
-%         clear Options IV
-%     end
-% 
-% end
-% 
-% % Check the orientation of the phasebar
-% % imshow(im)
-% % hold on;
-% clf
-% xsize = 2000 ;
-% ysize = 2000 ;
-% step = 100 ;
-% imsz = [ xsize ysize ] ;
-% [xx, yy] = meshgrid(1:step:xsize, 1:step:ysize) ;
-% ucheck = xx - xsize * 0.5 ;
-% vcheck = yy - ysize * 0.5 ;
-% vangle = mod(atan2(vcheck, -ucheck), 2* pi) ;
-% imshow(im * washout2d + max(im) * (1-washout2d)) ;
-% hold on ;
-% h2 = imagesc(xx(:), yy(:), vangle) ;
-% hold on ;
-% quiver(xx, yy, ucheck, vcheck, 5) ;
-% colormap phasemap
-% phasebar
-% caxis([0, 2*pi])
-% axis on
-% set(gcf, 'visible', 'on')
-% waitfor(gcf)
+%% Simulate this experiment
+options = struct() ;
+QS.simulateNES(options)
 
+%% Measure surface area growh of lobes and folds in Eulerian frame
+options = struct() ;
+options.overwrite = false ;
+options.preview = false ;
+QS.measureEulerianMetricDynamics(options)
+
+%% Plot texture map in 3d with velocities
+for i = 1:size(vM, 1)
+    t = time(i) ;
+    vtqfn0 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_perspective.png']) ;
+    vtqfn1 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_dorsal.png']) ;
+    vtqfn2 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_ventral.png']) ;
+    vtqfn3 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_lateralL.png']) ;
+    vtqfn4 = fullfile(pivSimAvgImQDir, [sprintf('%04d', time(i)) '_lateralR.png']) ;
+
+    % Plot the tangential velocity as quiver on top of the embedding,
+    % colored by normal velocity (all in one in embedding!)
+    if ~exist(vtqfn0, 'file') || overwrite_vsm_plots
+        disp(['Creating ' vtqfn])
+        tic
+
+        v2dsmum_ii = squeeze(v2dsmMum(i, :, :)) ;
+        vnsm_ii = squeeze(vnsmM(i, :, :)) ;
+
+        % Load the data for the current time point ------------------------
+        xp.setT=ime(t) ;
+        % Load 3D data for coloring mesh pullback
+        xp.loadTime(t);
+        xp.rescaleStackToUnitAspect();
+
+        fig = figure('units', 'normalized', ...
+                'outerposition', [0 0 1 1], 'visible', 'off') ;
+
+        % Psize is the linear dimension of the grid drawn on each triangular face
+        Options.PSize = 5;
+        Options.EdgeColor = 'none';
+        Options.Rotation = rot ;
+        Options.FaceScalarField = vn_interp ;
+
+        % Raw stack data
+        IV = xp.stack.image.apply();
+        IV = imadjustn(IV{1});
+
+        % First args are physical vertices, then texture faces (same number as 
+        % physical faces, but connectivity can be different), then texture
+        % vertices, which can also be different. The vertices are in row, column, 
+        % page format, so x and y get flipped. IV is the texture volume.
+        % Options.PSize 
+        [ patchIm, imref, zeroID, MIP, SIP ] = ...
+            texture_patch_3d( mesh.f, mesh.v, ...
+            mesh.f, mesh.v(:, [2 1 3]), IV, Options );
+
+        % Add quiver to image
+        % Downsample by a factor of qsubsample
+        xx = piv.x{i}(1, :)' ;
+        yy = piv.y{i}(:, 1) ;
+        ww = length(xx) ;
+        hh = length(yy) ;
+        vx = reshape(v2dsmum_ii(:, 1), [ww, hh]) ;
+        vy = reshape(v2dsmum_ii(:, 2), [ww, hh]) ;
+        QX = imresize(vx, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
+        QY = imresize(vy, [ww / qsubsample, hh / qsubsample], 'bicubic') ;
+        xq = 1:qsubsample:ww ;
+        yq = 1:qsubsample:hh ;
+        [xg, yg] = meshgrid(xq, yq) ;
+        h2 = quiver(xg(:), yg(:), QX(:), QY(:), 0) ;
+
+        % Format the figure and axis
+        xlim(xyzmin(1, :))
+        ylim(xyzmin(2, :))
+        zlim(xyzmin(3, :))
+        title(['$t = $' num2str(t) ' min'], 'Interpreter', 'Latex', 'Color', 'white') 
+        xlabel('AP position [$\mu$m]', 'Interpreter', 'Latex', 'Color', 'white')
+        ylabel('DV position [$\mu$m]', 'Interpreter', 'Latex', 'Color', 'white')
+        zlabel('lateral position [$\mu$m]', 'Interpreter', 'Latex', 'Color', 'white')
+        set(fig, 'PaperUnits', 'centimeters');
+        set(fig, 'PaperPosition', [0 0 xwidth ywidth]);
+
+        % Make background black
+        set(gca,'Color','k')
+        set(gcf, 'InvertHardCopy', 'off');
+        set(gcf, 'Color', 'k')
+
+        % Make tick labels white
+        labeltype = {'XTickLabel', 'YTickLabel', 'ZTickLabel'} ;
+        for q = 1:2
+            % get the current tick labeks
+            ticklabels = get(gca, labeltype{q});
+            % prepend a color for each tick label
+            ticklabels_new = cell(size(ticklabels));
+            for i = 1:length(ticklabels)
+                ticklabels_new{i} = ['\color{white} ' ticklabels{i}];
+            end
+            % set the tick labels
+            set(gca, labeltype{q}, ticklabels_new);
+        end
+
+        % Capture all five views (perspective + DVLR
+        disp(['saving figure...' num2str(t, '%06d')])
+        saveas(fig, vtqfn0)
+        view(0, 90)
+        % DORSAL
+        saveas(fig, vtqfn1)
+        view(0, 270)
+        % VENTRAL
+        saveas(fig, vtqfn2)
+
+        % Lateral views
+        view(0, 0)
+        % make white z tick labels
+        q = 3;
+        % get the current tick labeks
+        ticklabels = get(gca, labeltype{q});
+        % prepend a color for each tick label
+        ticklabels_new = cell(size(ticklabels));
+        for i = 1:length(ticklabels)
+            ticklabels_new{i} = ['\color{white} ' ticklabels{i}];
+        end
+        % set the tick labels
+        set(gca, labeltype{q}, ticklabels_new);
+
+        % LEFT
+        saveas(fig, vtqfn3)
+        view(0, 180)
+        % RIGHT
+        saveas(fig, vtqfn4)
+        close all
+        toc
+        clear Options IV
+    end
+
+end
+
+% Check the orientation of the phasebar
+% imshow(im)
+% hold on;
+clf
+xsize = 2000 ;
+ysize = 2000 ;
+step = 100 ;
+imsz = [ xsize ysize ] ;
+[xx, yy] = meshgrid(1:step:xsize, 1:step:ysize) ;
+ucheck = xx - xsize * 0.5 ;
+vcheck = yy - ysize * 0.5 ;
+vangle = mod(atan2(vcheck, -ucheck), 2* pi) ;
+imshow(im * washout2d + max(im) * (1-washout2d)) ;
+hold on ;
+h2 = imagesc(xx(:), yy(:), vangle) ;
+hold on ;
+quiver(xx, yy, ucheck, vcheck, 5) ;
+colormap phasemap
+phasebar
+caxis([0, 2*pi])
+axis on
+set(gcf, 'visible', 'on')
+waitfor(gcf)
+
+
+%% Simpleminded streamlines from velocity scaled by dilation
+% % Build 3d grid of positions and velocities
+% % Assume that x0, y0 are fixed for all time
+% ntimes = length(piv.x) ;
+% x0 = piv.x{i} ;
+% y0 = piv.y{i} ;
+% xlen = size(v2dsmM, 1) ;
+% ylen = size(v2dsmM, 2) ;
+% vdat = v2dsmM(:) ;
+% vxdat = reshape(vdat(:, 1), [ntimes, xlen, ylen]) ;
+% vydat = reshape(vdat(:, 2), [ntimes, xlen, ylen]) ;
+% vzdat = ones(size(vydat)) ; % we march through time at 1 index / timestep
+% % Define positions we track through the streamlines
+% startx = x0(1:200:end) ;
+% starty = y0(1:200:end) ;
+% startz = zeros(size(starty)) ;
+% streamline(x0, y0, z0, vxdat, vydat, vzdat, startx, starty, startz)
+% view(2)
+% save(gcf, fullfile(pivDir, 'streamlines.png')) 
+% error('break')
 
